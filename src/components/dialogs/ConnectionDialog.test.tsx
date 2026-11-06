@@ -293,6 +293,77 @@ describe('ConnectionDialog', () => {
 
       expect(onClose).toHaveBeenCalled();
     });
+
+    it('preserves existing keychain password (passes undefined) when editing without changing password', async () => {
+      vi.mocked(dbApi.saveConnection).mockResolvedValueOnce();
+
+      const initial: ConnectionConfig = {
+        id: 'conn-pg-1',
+        name: 'Existing Postgres',
+        driver: 'postgres',
+        host: '10.0.0.1',
+        port: 5432,
+        database: 'proddb',
+        user: 'produser',
+      };
+
+      render(<ConnectionDialog isOpen={true} onClose={onClose} initialConnection={initial} />);
+
+      // Modify the name, leave password blank
+      fireEvent.change(screen.getByLabelText(/connection name/i), {
+        target: { value: 'Updated Postgres' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(dbApi.saveConnection).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: 'conn-pg-1',
+            name: 'Updated Postgres',
+            driver: 'postgres',
+            database: 'proddb',
+          }),
+          undefined
+        );
+      });
+
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it('passes new password when editing an existing connection with changed password', async () => {
+      vi.mocked(dbApi.saveConnection).mockResolvedValueOnce();
+
+      const initial: ConnectionConfig = {
+        id: 'conn-pg-1',
+        name: 'Existing Postgres',
+        driver: 'postgres',
+        host: '10.0.0.1',
+        port: 5432,
+        database: 'proddb',
+        user: 'produser',
+      };
+
+      render(<ConnectionDialog isOpen={true} onClose={onClose} initialConnection={initial} />);
+
+      fireEvent.change(screen.getByLabelText(/password/i), {
+        target: { value: 'new-secret-password' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(dbApi.saveConnection).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: 'conn-pg-1',
+            name: 'Existing Postgres',
+          }),
+          'new-secret-password'
+        );
+      });
+
+      expect(onClose).toHaveBeenCalled();
+    });
   });
 
   describe('Close and Cancel Actions', () => {

@@ -197,6 +197,13 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
     };
   };
 
+  const resolvePassword = (): string | undefined => {
+    if (formData.password && formData.password.length > 0) {
+      return formData.password;
+    }
+    return initialConnection ? undefined : '';
+  };
+
   const handleTestConnection = async () => {
     if (!validateForm(true)) return;
 
@@ -204,7 +211,8 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
     const config = buildConnectionConfig();
 
     try {
-      const latency = await dbApi.testConnection(config, formData.password || '');
+      const password = resolvePassword();
+      const latency = await dbApi.testConnection(config, password);
       setTestStatus({ type: 'success', latency });
     } catch (err: unknown) {
       setTestStatus({
@@ -221,7 +229,8 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
     const config = buildConnectionConfig();
 
     try {
-      await addConnection(config, formData.password || '');
+      const password = resolvePassword();
+      await addConnection(config, password);
       if (onSaved) {
         onSaved(config);
       }
@@ -332,6 +341,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
             onChange={handleFieldChange}
             errors={errors}
             disabled={isSaving}
+            isEditing={Boolean(initialConnection)}
           />
 
           {/* Test Status Feedback Banner */}

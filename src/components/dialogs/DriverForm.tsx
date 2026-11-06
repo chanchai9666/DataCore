@@ -19,6 +19,7 @@ export interface DriverFormProps {
   onChange: <K extends keyof ConnectionFormData>(field: K, value: ConnectionFormData[K]) => void;
   errors?: Partial<Record<keyof ConnectionFormData, string>>;
   disabled?: boolean;
+  isEditing?: boolean;
 }
 
 export const DriverForm: React.FC<DriverFormProps> = ({
@@ -27,6 +28,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
   onChange,
   errors = {},
   disabled = false,
+  isEditing = false,
 }) => {
   return (
     <div className="space-y-4 text-sm text-gray-200">
@@ -188,7 +190,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                   value={formData.password || ''}
                   onChange={(e) => onChange('password', e.target.value)}
                   disabled={disabled}
-                  placeholder="••••••••"
+                  placeholder={isEditing ? 'Leave blank to keep existing password' : '••••••••'}
                   className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
                 />
               </div>
