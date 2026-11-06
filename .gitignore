@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+target/
+
+# Tauri build artifacts
+src-tauri/target/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Superpowers scratch
+.superpowers/
+
+# Environment files
+.env
+.env.local
