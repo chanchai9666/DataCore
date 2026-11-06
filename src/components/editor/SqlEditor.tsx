@@ -88,7 +88,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         if (selectedText.length > 0) {
           sqlToExecute = selectedText;
         } else {
-          sqlToExecute = view.state.doc.toString().trim();
+          sqlToExecute = view.state.doc.toString().trim() || (tab ? tab.queryContent.trim() : '');
         }
       } else if (tab) {
         sqlToExecute = tab.queryContent.trim();

@@ -144,6 +144,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
   return (
     <div
+      data-testid="data-grid-container"
       style={{
         display: 'flex',
         flexDirection: 'column',

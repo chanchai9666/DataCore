@@ -3,7 +3,7 @@ use crate::services::keychain;
 #[test]
 fn test_keychain_crud_lifecycle() {
     keychain::set_mock_mode(true);
-    keychain::clear_mock_store();
+    let _ = keychain::delete_password("test-conn-uuid-1");
 
     let conn_id = "test-conn-uuid-1";
 

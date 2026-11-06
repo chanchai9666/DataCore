@@ -1,50 +1,81 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useState, useEffect } from 'react';
+import { TitleBar } from './components/layout/TitleBar';
+import { DockLayout } from './components/layout/DockLayout';
+import { ConnectionDialog } from './components/dialogs/ConnectionDialog';
+import { useConnectionStore } from './stores/connectionStore';
+import type { ConnectionConfig } from './types/db';
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+export function App() {
+  const { loadConnections, setActiveConnection } = useConnectionStore();
+  const [isConnectionDialogOpen, setIsConnectionDialogOpen] = useState(false);
+  const [connectionToEdit, setConnectionToEdit] = useState<ConnectionConfig | null>(null);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  // Theme management: default to dark mode
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  // Load saved connections on application mount
+  useEffect(() => {
+    loadConnections();
+  }, [loadConnections]);
+
+  // Sync dark class on document root / body
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
+      }
+    }
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  const handleOpenNewConnection = () => {
+    setConnectionToEdit(null);
+    setIsConnectionDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsConnectionDialogOpen(false);
+    setConnectionToEdit(null);
+  };
+
+  const handleSavedConnection = (saved: ConnectionConfig) => {
+    setActiveConnection(saved.id);
+  };
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <div
+      className={`flex flex-col h-screen w-screen overflow-hidden select-none ${
+        theme === 'dark' ? 'dark bg-gray-950 text-gray-100' : 'bg-gray-100 text-gray-900'
+      }`}
+    >
+      {/* Top Title Bar with macOS window controls spacing */}
+      <TitleBar
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        onNewConnection={handleOpenNewConnection}
+      />
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+      {/* Main Workspace (Sidebar + Docking Tabs) */}
+      <DockLayout
+        theme={theme}
+        onNewConnection={handleOpenNewConnection}
+      />
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+      {/* Connection Modal Dialog */}
+      <ConnectionDialog
+        isOpen={isConnectionDialogOpen}
+        initialConnection={connectionToEdit}
+        onClose={handleCloseDialog}
+        onSaved={handleSavedConnection}
+      />
+    </div>
   );
 }
 
