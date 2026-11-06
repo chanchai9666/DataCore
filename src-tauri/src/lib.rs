@@ -1,12 +1,16 @@
+pub mod commands;
 pub mod drivers;
 pub mod error;
 pub mod models;
 pub mod services;
+pub mod session;
 
+pub use commands::*;
 pub use drivers::*;
 pub use error::*;
 pub use models::*;
 pub use services::*;
+pub use session::*;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -18,7 +22,24 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .manage(ConnectionStore::default())
+        .manage(SessionManager::default())
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            test_connection,
+            get_connections,
+            save_connection,
+            delete_connection,
+            open_session,
+            close_session,
+            execute_query,
+            fetch_table_data,
+            cancel_query,
+            set_autocommit,
+            commit_transaction,
+            rollback_transaction,
+            get_schema_tree,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

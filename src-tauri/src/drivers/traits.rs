@@ -61,4 +61,7 @@ pub trait DatabaseConnection: Send + Sync {
     async fn commit(&self) -> Result<(), AppError>;
     async fn rollback(&self) -> Result<(), AppError>;
     async fn cancel(&self) -> Result<(), AppError>;
+    async fn set_autocommit(&self, _enabled: bool) -> Result<(), AppError> {
+        Ok(())
+    }
 }

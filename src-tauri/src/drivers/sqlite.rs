@@ -10,6 +10,7 @@ use crate::drivers::traits::{DatabaseConnection, SchemaNode, SchemaNodeType};
 pub struct SqliteConnection {
     conn: Arc<Mutex<rusqlite::Connection>>,
     database_name: String,
+    autocommit: Arc<Mutex<bool>>,
 }
 
 impl SqliteConnection {
@@ -18,6 +19,7 @@ impl SqliteConnection {
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             database_name: "main".to_string(),
+            autocommit: Arc::new(Mutex::new(true)),
         })
     }
 
@@ -31,6 +33,7 @@ impl SqliteConnection {
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             database_name: db_name,
+            autocommit: Arc::new(Mutex::new(true)),
         })
     }
 
@@ -141,17 +144,43 @@ impl DatabaseConnection for SqliteConnection {
 
     async fn commit(&self) -> Result<(), AppError> {
         let conn = self.conn.lock().await;
-        conn.execute_batch("COMMIT;")?;
+        let ac = *self.autocommit.lock().await;
+        if !conn.is_autocommit() {
+            conn.execute_batch("COMMIT;")?;
+        }
+        if !ac {
+            conn.execute_batch("BEGIN;")?;
+        }
         Ok(())
     }
 
     async fn rollback(&self) -> Result<(), AppError> {
         let conn = self.conn.lock().await;
-        conn.execute_batch("ROLLBACK;")?;
+        let ac = *self.autocommit.lock().await;
+        if !conn.is_autocommit() {
+            conn.execute_batch("ROLLBACK;")?;
+        }
+        if !ac {
+            conn.execute_batch("BEGIN;")?;
+        }
         Ok(())
     }
 
     async fn cancel(&self) -> Result<(), AppError> {
+        Ok(())
+    }
+
+    async fn set_autocommit(&self, enabled: bool) -> Result<(), AppError> {
+        let mut ac = self.autocommit.lock().await;
+        *ac = enabled;
+        let conn = self.conn.lock().await;
+        if !enabled {
+            if conn.is_autocommit() {
+                conn.execute_batch("BEGIN;")?;
+            }
+        } else if !conn.is_autocommit() {
+            conn.execute_batch("COMMIT;")?;
+        }
         Ok(())
     }
 }

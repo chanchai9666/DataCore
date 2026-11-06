@@ -10,6 +10,14 @@ pub struct ConnectionStore {
 }
 
 impl ConnectionStore {
+    pub fn default_path() -> PathBuf {
+        std::env::var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(".datacore")
+            .join("connections.json")
+    }
+
     pub fn new<P: AsRef<Path>>(path: P) -> Self {
         Self {
             storage_path: path.as_ref().to_path_buf(),
@@ -91,5 +99,11 @@ impl ConnectionStore {
         let json = serde_json::to_string_pretty(connections)?;
         fs::write(&self.storage_path, json)?;
         Ok(())
+    }
+}
+
+impl Default for ConnectionStore {
+    fn default() -> Self {
+        Self::new(Self::default_path())
     }
 }

@@ -246,4 +246,11 @@ impl DatabaseConnection for PostgresConnection {
     async fn cancel(&self) -> Result<(), AppError> {
         Ok(())
     }
+
+    async fn set_autocommit(&self, enabled: bool) -> Result<(), AppError> {
+        if !enabled {
+            self.execute_query("BEGIN;").await?;
+        }
+        Ok(())
+    }
 }

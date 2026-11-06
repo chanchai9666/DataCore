@@ -238,4 +238,10 @@ impl DatabaseConnection for MySqlConnection {
     async fn cancel(&self) -> Result<(), AppError> {
         Ok(())
     }
+
+    async fn set_autocommit(&self, enabled: bool) -> Result<(), AppError> {
+        let sql = if enabled { "SET autocommit = 1;" } else { "SET autocommit = 0;" };
+        self.execute_query(sql).await?;
+        Ok(())
+    }
 }
