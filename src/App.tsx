@@ -9,6 +9,7 @@ export function App() {
   const { loadConnections, setActiveConnection } = useConnectionStore();
   const [isConnectionDialogOpen, setIsConnectionDialogOpen] = useState(false);
   const [connectionToEdit, setConnectionToEdit] = useState<ConnectionConfig | null>(null);
+  const [lastSavedConnectionId, setLastSavedConnectionId] = useState<string | null>(null);
 
   // Theme management: default to dark mode
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -47,6 +48,7 @@ export function App() {
 
   const handleSavedConnection = (saved: ConnectionConfig) => {
     setActiveConnection(saved.id);
+    setLastSavedConnectionId(`${saved.id}-${Date.now()}`);
   };
 
   return (
@@ -60,12 +62,21 @@ export function App() {
         theme={theme}
         onToggleTheme={handleToggleTheme}
         onNewConnection={handleOpenNewConnection}
+        onEditConnection={(conn) => {
+          setConnectionToEdit(conn);
+          setIsConnectionDialogOpen(true);
+        }}
       />
 
       {/* Main Workspace (Sidebar + Docking Tabs) */}
       <DockLayout
         theme={theme}
         onNewConnection={handleOpenNewConnection}
+        onEditConnection={(conn) => {
+          setConnectionToEdit(conn);
+          setIsConnectionDialogOpen(true);
+        }}
+        lastSavedConnectionId={lastSavedConnectionId}
       />
 
       {/* Connection Modal Dialog */}

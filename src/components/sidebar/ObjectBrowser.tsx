@@ -1,9 +1,19 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Tree } from 'react-arborist';
-import { Search, RefreshCw, Table, FileCode } from 'lucide-react';
+import {
+  Search,
+  RefreshCw,
+  Table,
+  FileCode,
+  Edit,
+  Trash2,
+  Unplug,
+  Copy,
+  Plus,
+} from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { dbApi } from '../../api/db';
-import type { SchemaNode } from '../../types/db';
+import type { ConnectionConfig, SchemaNode } from '../../types/db';
 import { openTableTab, openQueryTab } from './tabHelpers';
 import {
   ConnectionTreeNode,
@@ -45,11 +55,29 @@ interface ContextMenuState {
   node: BrowserTreeNode;
 }
 
-export const ObjectBrowser: React.FC = () => {
-  const { connections, loadConnections } = useConnectionStore();
+export interface ObjectBrowserProps {
+  onEditConnection?: (connection: ConnectionConfig) => void;
+  onNewConnection?: () => void;
+  lastSavedConnectionId?: string | null;
+}
+
+export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
+  onEditConnection,
+  onNewConnection,
+  lastSavedConnectionId,
+}) => {
+  const {
+    connections,
+    loadConnections,
+    activeConnectionId,
+    setActiveConnection,
+    removeConnection,
+  } = useConnectionStore();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [schemas, setSchemas] = useState<Record<string, SchemaNode[]>>({});
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
+  const [errorMap, setErrorMap] = useState<Record<string, string>>({});
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,40 +119,103 @@ export const ObjectBrowser: React.FC = () => {
     };
   }, []);
 
-  // Initial connection loading
+  // Initial connection loading on mount
+  const hasLoadedRef = useRef(false);
   useEffect(() => {
-    if (connections.length === 0) {
+    if (!hasLoadedRef.current && (!connections || connections.length === 0)) {
+      hasLoadedRef.current = true;
       loadConnections();
     }
-  }, [connections.length, loadConnections]);
+  }, [connections, loadConnections]);
 
   const fetchSchema = useCallback(async (connectionId: string) => {
     setLoadingMap((prev) => ({ ...prev, [connectionId]: true }));
+    setErrorMap((prev) => {
+      const next = { ...prev };
+      delete next[connectionId];
+      return next;
+    });
+
     try {
       const tree = await dbApi.getSchemaTree(connectionId);
       setSchemas((prev) => ({ ...prev, [connectionId]: tree }));
-    } catch (err) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error(`Failed to load schema for connection ${connectionId}:`, err);
+      setErrorMap((prev) => ({ ...prev, [connectionId]: msg }));
+      setSchemas((prev) => {
+        const next = { ...prev };
+        delete next[connectionId];
+        return next;
+      });
     } finally {
       setLoadingMap((prev) => ({ ...prev, [connectionId]: false }));
     }
   }, []);
 
-  // Fetch schema for all connections if not yet loaded
+  // Auto-refresh schema when a connection is added or edited
   useEffect(() => {
-    connections.forEach((conn) => {
-      if (!schemas[conn.id] && !loadingMap[conn.id]) {
+    if (lastSavedConnectionId) {
+      const targetConn = (connections || []).find((c) => lastSavedConnectionId.startsWith(c.id));
+      if (targetConn) {
+        fetchSchema(targetConn.id);
+      }
+    }
+  }, [lastSavedConnectionId, connections, fetchSchema]);
+
+  // Fetch schema for all connections if not yet loaded and not errored
+  useEffect(() => {
+    (connections || []).forEach((conn) => {
+      if (!schemas[conn.id] && !loadingMap[conn.id] && !errorMap[conn.id]) {
         fetchSchema(conn.id);
       }
     });
-  }, [connections, fetchSchema, schemas, loadingMap]);
+  }, [connections, fetchSchema, schemas, loadingMap, errorMap]);
 
   const treeData = useMemo<BrowserTreeNode[]>(() => {
-    return connections.map((conn) => {
+    return (connections || []).map((conn) => {
       const connSchema = schemas[conn.id] || [];
-      const children: BrowserTreeNode[] = connSchema.map((schemaNode) =>
-        mapSchemaNodeToTreeNode(schemaNode, conn.id, conn.name, '', conn.driver)
-      );
+      const isLoading = Boolean(loadingMap[conn.id]);
+      const errorMsg = errorMap[conn.id];
+
+      let children: BrowserTreeNode[];
+
+      if (errorMsg) {
+        children = [
+          {
+            id: `${conn.id}-error`,
+            name: errorMsg,
+            nodeType: 'error',
+            connectionId: conn.id,
+            connectionName: conn.name,
+            errorMessage: errorMsg,
+          },
+        ];
+      } else if (isLoading && connSchema.length === 0) {
+        children = [
+          {
+            id: `${conn.id}-loading`,
+            name: 'Loading schema...',
+            nodeType: 'loading',
+            connectionId: conn.id,
+            connectionName: conn.name,
+          },
+        ];
+      } else if (connSchema.length === 0) {
+        children = [
+          {
+            id: `${conn.id}-empty`,
+            name: '(No tables or views found)',
+            nodeType: 'empty',
+            connectionId: conn.id,
+            connectionName: conn.name,
+          },
+        ];
+      } else {
+        children = connSchema.map((schemaNode) =>
+          mapSchemaNodeToTreeNode(schemaNode, conn.id, conn.name, '', conn.driver)
+        );
+      }
 
       return {
         id: `conn-${conn.id}`,
@@ -133,10 +224,12 @@ export const ObjectBrowser: React.FC = () => {
         connectionId: conn.id,
         connectionName: conn.name,
         driver: conn.driver,
+        errorMessage: errorMsg,
+        isLoading,
         children,
       };
     });
-  }, [connections, schemas]);
+  }, [connections, schemas, loadingMap, errorMap]);
 
   const handleOpenTable = useCallback((node: BrowserTreeNode) => {
     openTableTab({
@@ -149,11 +242,12 @@ export const ObjectBrowser: React.FC = () => {
 
   const handleNewQuery = useCallback((node: BrowserTreeNode) => {
     const isTableOrView = node.nodeType === 'table' || node.nodeType === 'view';
+    const tableName = isTableOrView ? node.tableName || node.name : undefined;
     openQueryTab({
       connectionId: node.connectionId,
       connectionName: node.connectionName || node.name,
       schemaName: node.schemaName,
-      tableName: isTableOrView ? node.tableName || node.name : undefined,
+      tableName,
       driver: node.driver,
     });
     setContextMenu(null);
@@ -166,6 +260,56 @@ export const ObjectBrowser: React.FC = () => {
     },
     [fetchSchema]
   );
+
+  const handleEditConnection = useCallback(
+    (connectionId: string) => {
+      const conn = (connections || []).find((c) => c.id === connectionId);
+      if (conn && onEditConnection) {
+        onEditConnection(conn);
+      }
+      setContextMenu(null);
+    },
+    [connections, onEditConnection]
+  );
+
+  const handleDeleteConnection = useCallback(
+    async (connectionId: string) => {
+      const conn = (connections || []).find((c) => c.id === connectionId);
+      const connName = conn?.name || 'this connection';
+      if (window.confirm(`Are you sure you want to delete connection "${connName}"?`)) {
+        await removeConnection(connectionId);
+      }
+      setContextMenu(null);
+    },
+    [connections, removeConnection]
+  );
+
+  const handleDisconnect = useCallback(
+    (connectionId: string) => {
+      if (activeConnectionId === connectionId) {
+        setActiveConnection(null);
+      }
+      setSchemas((prev) => {
+        const next = { ...prev };
+        delete next[connectionId];
+        return next;
+      });
+      setErrorMap((prev) => {
+        const next = { ...prev };
+        delete next[connectionId];
+        return next;
+      });
+      setContextMenu(null);
+    },
+    [activeConnectionId, setActiveConnection]
+  );
+
+  const handleCopyName = useCallback((textToCopy: string) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(textToCopy);
+    }
+    setContextMenu(null);
+  }, []);
 
   const handleContextMenuNode = useCallback(
     (e: React.MouseEvent, node: BrowserTreeNode) => {
@@ -186,11 +330,23 @@ export const ObjectBrowser: React.FC = () => {
           Object Browser
         </span>
         <div className="flex items-center space-x-1">
+          {onNewConnection && (
+            <button
+              type="button"
+              title="Add New Connection"
+              aria-label="Add Connection"
+              className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              onClick={onNewConnection}
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             type="button"
             title="Refresh All"
-            className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800"
-            onClick={() => connections.forEach((c) => fetchSchema(c.id))}
+            aria-label="Refresh All"
+            className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            onClick={() => (connections || []).forEach((c) => fetchSchema(c.id))}
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
@@ -213,9 +369,18 @@ export const ObjectBrowser: React.FC = () => {
 
       {/* Tree View Container */}
       <div ref={containerRef} className="flex-1 overflow-hidden p-1">
-        {connections.length === 0 ? (
-          <div className="p-4 text-center text-xs text-gray-500">
-            No connections found.
+        {!connections || connections.length === 0 ? (
+          <div className="p-4 text-center text-xs text-gray-500 flex flex-col items-center space-y-2">
+            <span>No connections found.</span>
+            {onNewConnection && (
+              <button
+                type="button"
+                onClick={onNewConnection}
+                className="px-2.5 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+              >
+                Add Connection
+              </button>
+            )}
           </div>
         ) : (
           <ObjectBrowserContext.Provider
@@ -224,6 +389,9 @@ export const ObjectBrowser: React.FC = () => {
               onRefreshConnection: handleRefresh,
               onOpenTable: handleOpenTable,
               onNewQuery: handleNewQuery,
+              onEditConnection: handleEditConnection,
+              onDeleteConnection: handleDeleteConnection,
+              onDisconnectConnection: handleDisconnect,
             }}
           >
             <Tree
@@ -248,42 +416,126 @@ export const ObjectBrowser: React.FC = () => {
       {contextMenu && (
         <div
           role="menu"
-          className="fixed z-50 bg-gray-800 border border-gray-700 rounded shadow-lg py-1 text-xs text-gray-200 min-w-[140px]"
+          className="fixed z-50 bg-gray-800 border border-gray-700 rounded-md shadow-xl py-1 text-xs text-gray-200 min-w-[160px]"
           style={{ top: contextMenu.mouseY, left: contextMenu.mouseX }}
           onClick={(e) => e.stopPropagation()}
         >
-          {(contextMenu.node.nodeType === 'table' ||
-            contextMenu.node.nodeType === 'view') && (
-            <button
-              type="button"
-              className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
-              onClick={() => handleOpenTable(contextMenu.node)}
-            >
-              <Table className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Open Table</span>
-            </button>
+          {/* Connection Context Menu */}
+          {contextMenu.node.nodeType === 'connection' && (
+            <>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleEditConnection(contextMenu.node.connectionId)}
+              >
+                <Edit className="w-3.5 h-3.5 text-amber-400" />
+                <span>Edit Connection</span>
+              </button>
+
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleNewQuery(contextMenu.node)}
+              >
+                <FileCode className="w-3.5 h-3.5 text-blue-400" />
+                <span>New Query</span>
+              </button>
+
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleRefresh(contextMenu.node.connectionId)}
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Refresh Schema</span>
+              </button>
+
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleDisconnect(contextMenu.node.connectionId)}
+              >
+                <Unplug className="w-3.5 h-3.5 text-orange-400" />
+                <span>Disconnect</span>
+              </button>
+
+              <div className="border-t border-gray-700 my-1" />
+
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-900/40 text-red-400"
+                onClick={() => handleDeleteConnection(contextMenu.node.connectionId)}
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                <span>Delete Connection</span>
+              </button>
+            </>
           )}
 
-          <button
-            type="button"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
-            onClick={() => handleNewQuery(contextMenu.node)}
-          >
-            <FileCode className="w-3.5 h-3.5 text-blue-400" />
-            <span>New Query</span>
-          </button>
+          {/* Table / View Context Menu */}
+          {(contextMenu.node.nodeType === 'table' ||
+            contextMenu.node.nodeType === 'view') && (
+            <>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleOpenTable(contextMenu.node)}
+              >
+                <Table className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Open Table</span>
+              </button>
 
-          {(contextMenu.node.nodeType === 'connection' ||
-            contextMenu.node.nodeType === 'database' ||
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleNewQuery(contextMenu.node)}
+              >
+                <FileCode className="w-3.5 h-3.5 text-blue-400" />
+                <span>Query Table</span>
+              </button>
+
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleCopyName(contextMenu.node.tableName || contextMenu.node.name)}
+              >
+                <Copy className="w-3.5 h-3.5 text-gray-400" />
+                <span>Copy Name</span>
+              </button>
+            </>
+          )}
+
+          {/* Database / Schema Context Menu */}
+          {(contextMenu.node.nodeType === 'database' ||
             contextMenu.node.nodeType === 'schema') && (
-            <button
-              type="button"
-              className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
-              onClick={() => handleRefresh(contextMenu.node.connectionId)}
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-              <span>Refresh</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleNewQuery(contextMenu.node)}
+              >
+                <FileCode className="w-3.5 h-3.5 text-blue-400" />
+                <span>New Query</span>
+              </button>
+
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleRefresh(contextMenu.node.connectionId)}
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Refresh</span>
+              </button>
+
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleCopyName(contextMenu.node.name)}
+              >
+                <Copy className="w-3.5 h-3.5 text-gray-400" />
+                <span>Copy Name</span>
+              </button>
+            </>
           )}
         </div>
       )}

@@ -10,6 +10,9 @@ import {
   RefreshCw,
   Plus,
   Play,
+  AlertCircle,
+  Loader2,
+  Wrench,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { openTableTab, openQueryTab } from './tabHelpers';
@@ -20,7 +23,10 @@ export type BrowserNodeType =
   | 'schema'
   | 'folder'
   | 'table'
-  | 'view';
+  | 'view'
+  | 'error'
+  | 'loading'
+  | 'empty';
 
 export interface BrowserTreeNode {
   id: string;
@@ -33,6 +39,8 @@ export interface BrowserTreeNode {
   tableName?: string;
   driver?: string;
   children?: BrowserTreeNode[];
+  errorMessage?: string;
+  isLoading?: boolean;
 }
 
 export interface ObjectBrowserContextType {
@@ -40,6 +48,9 @@ export interface ObjectBrowserContextType {
   onRefreshConnection?: (connectionId: string) => void;
   onOpenTable?: (node: BrowserTreeNode) => void;
   onNewQuery?: (node: BrowserTreeNode) => void;
+  onEditConnection?: (connectionId: string) => void;
+  onDeleteConnection?: (connectionId: string) => void;
+  onDisconnectConnection?: (connectionId: string) => void;
 }
 
 export const ObjectBrowserContext = createContext<ObjectBrowserContextType>({});
@@ -53,6 +64,70 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
   const data = node.data;
   const isLeaf = node.isLeaf;
   const isTableOrView = data.nodeType === 'table' || data.nodeType === 'view';
+
+  // Special node rendering: error state under a connection
+  if (data.nodeType === 'error') {
+    return (
+      <div
+        style={style}
+        className="flex items-center space-x-1.5 px-2 py-0.5 text-xs text-red-400 bg-red-950/30 border-l-2 border-red-500 rounded my-0.5 select-none"
+        title={data.errorMessage || data.name}
+      >
+        <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+        <span className="truncate flex-1 text-[11px] text-red-300 font-mono">
+          {data.name}
+        </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            context.onEditConnection?.(data.connectionId);
+          }}
+          className="px-1.5 py-0.5 text-[10px] bg-red-900/60 hover:bg-red-800 text-red-200 rounded font-medium flex items-center space-x-1 shrink-0"
+          title="Edit Connection Settings"
+        >
+          <Wrench className="w-2.5 h-2.5" />
+          <span>Edit</span>
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            context.onRefreshConnection?.(data.connectionId);
+          }}
+          className="p-1 hover:bg-red-800/50 text-red-300 rounded shrink-0"
+          title="Retry Loading Schema"
+        >
+          <RefreshCw className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  }
+
+  // Special node rendering: loading state
+  if (data.nodeType === 'loading') {
+    return (
+      <div
+        style={style}
+        className="flex items-center space-x-1.5 px-4 py-0.5 text-xs text-blue-400 select-none animate-pulse"
+      >
+        <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" />
+        <span className="text-[11px] italic">Loading schema...</span>
+      </div>
+    );
+  }
+
+  // Special node rendering: empty schema/database
+  if (data.nodeType === 'empty') {
+    return (
+      <div
+        style={style}
+        className="flex items-center px-4 py-0.5 text-[11px] text-gray-500 italic select-none"
+      >
+        <span>(No tables or views found)</span>
+      </div>
+    );
+  }
 
   const getNodeIcon = () => {
     switch (data.nodeType) {
@@ -116,6 +191,14 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
     e.stopPropagation();
     if (isTableOrView) {
       handleOpenTableTab();
+    } else if (data.nodeType === 'connection') {
+      useConnectionStore.getState().setActiveConnection(data.connectionId);
+      if (data.errorMessage) {
+        context.onRefreshConnection?.(data.connectionId);
+      }
+      if (!isLeaf) {
+        node.toggle();
+      }
     } else if (!isLeaf) {
       node.toggle();
     }
@@ -168,6 +251,22 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       <span className="truncate flex-1" title={data.name}>
         {data.name}
       </span>
+
+      {/* Status Badges for Connection Nodes */}
+      {data.nodeType === 'connection' && (
+        <div className="flex items-center space-x-1 mr-1 shrink-0">
+          {data.isLoading && (
+            <span title="Loading schema...">
+              <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />
+            </span>
+          )}
+          {data.errorMessage && !data.isLoading && (
+            <span title={`Connection error: ${data.errorMessage}`}>
+              <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Hover Action Buttons */}
       <div className="hidden group-hover:flex items-center space-x-1 shrink-0 ml-1">

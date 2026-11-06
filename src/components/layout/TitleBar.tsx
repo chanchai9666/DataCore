@@ -2,15 +2,18 @@ import React from 'react';
 import { Database, Plus, Sun, Moon } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
+import type { ConnectionConfig } from '../../types/db';
 
 export interface TitleBarProps {
   onNewConnection?: () => void;
+  onEditConnection?: (connection: ConnectionConfig) => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({
   onNewConnection,
+  onEditConnection,
   theme = 'dark',
   onToggleTheme,
 }) => {
@@ -45,11 +48,14 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         data-tauri-drag-region
       >
         {activeConnection ? (
-          <div
-            className={`flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full border ${
+          <button
+            type="button"
+            onClick={() => onEditConnection?.(activeConnection)}
+            title={`Active connection: ${activeConnection.name} (${activeConnection.driver}). Click to edit connection.`}
+            className={`flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full border cursor-pointer hover:border-blue-500/70 hover:shadow transition-all ${
               theme === 'dark'
-                ? 'bg-gray-800/80 border-gray-700 text-gray-300'
-                : 'bg-white border-gray-300 text-gray-700 shadow-sm'
+                ? 'bg-gray-800/80 border-gray-700 text-gray-300 hover:text-white'
+                : 'bg-white border-gray-300 text-gray-700 hover:text-black shadow-sm'
             }`}
           >
             <span
@@ -66,7 +72,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
             <span className="opacity-75 uppercase text-[10px] tracking-wider font-semibold">
               {activeConnection.driver}
             </span>
-          </div>
+          </button>
         ) : (
           <span className="text-xs opacity-50">No connection selected</span>
         )}

@@ -15,11 +15,13 @@ import { SqlEditor } from '../editor/SqlEditor';
 import { DataGrid } from '../grid/DataGrid';
 import { dbApi } from '../../api/db';
 import { openQueryTab } from '../sidebar/tabHelpers';
-import type { QueryResult, Tab } from '../../types/db';
+import type { ConnectionConfig, QueryResult, Tab } from '../../types/db';
 
 export interface DockLayoutProps {
   theme?: 'dark' | 'light';
   onNewConnection?: () => void;
+  onEditConnection?: (connection: ConnectionConfig) => void;
+  lastSavedConnectionId?: string | null;
 }
 
 interface TableTabState {
@@ -34,6 +36,8 @@ interface TableTabState {
 export const DockLayout: React.FC<DockLayoutProps> = ({
   theme = 'dark',
   onNewConnection,
+  onEditConnection,
+  lastSavedConnectionId,
 }) => {
   const { tabs, activeTabId, setActiveTab, closeTab } = useTabStore();
   const { connections, activeConnectionId } = useConnectionStore();
@@ -249,7 +253,11 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           </div>
 
           <div className="flex-1 overflow-hidden">
-            <ObjectBrowser />
+            <ObjectBrowser
+              onEditConnection={onEditConnection}
+              onNewConnection={onNewConnection}
+              lastSavedConnectionId={lastSavedConnectionId}
+            />
           </div>
 
           {/* Resizer Handle */}

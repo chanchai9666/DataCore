@@ -11,6 +11,7 @@ vi.mock('../../api/db', () => ({
     getConnections: vi.fn(),
     getSchemaTree: vi.fn(),
     closeSession: vi.fn(),
+    deleteConnection: vi.fn(),
   },
 }));
 
@@ -172,6 +173,67 @@ describe('ObjectBrowser', () => {
     if (expander) {
       fireEvent.click(expander);
     }
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+  });
+
+  it('triggers onEditConnection when Edit Connection is clicked in connection context menu', async () => {
+    const handleEdit = vi.fn();
+    render(<ObjectBrowser onEditConnection={handleEdit} />);
+
+    const connElement = await screen.findByText('Production SQLite');
+    fireEvent.contextMenu(connElement);
+
+    const editBtn = await screen.findByRole('button', { name: /edit connection/i });
+    fireEvent.click(editBtn);
+
+    expect(handleEdit).toHaveBeenCalledTimes(1);
+    expect(handleEdit).toHaveBeenCalledWith(mockConnection);
+  });
+
+  it('deletes connection when Delete Connection is clicked with confirmation', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const deleteSpy = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(dbApi.deleteConnection).mockImplementation(deleteSpy);
+
+    render(<ObjectBrowser />);
+
+    const connElement = await screen.findByText('Production SQLite');
+    fireEvent.contextMenu(connElement);
+
+    const deleteBtn = await screen.findByRole('button', { name: /delete connection/i });
+    fireEvent.click(deleteBtn);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(useConnectionStore.getState().connections).toHaveLength(0);
+    });
+    confirmSpy.mockRestore();
+  });
+
+  it('displays error node with Edit and Retry options when schema fetch fails', async () => {
+    const handleEdit = vi.fn();
+    vi.mocked(dbApi.getSchemaTree).mockRejectedValueOnce(
+      new Error('password authentication failed')
+    );
+
+    render(<ObjectBrowser onEditConnection={handleEdit} />);
+
+    // Error message should be rendered in the tree
+    const errorNode = await screen.findByText(/password authentication failed/i);
+    expect(errorNode).toBeInTheDocument();
+
+    // Clicking Edit in the error node invokes onEditConnection
+    const editBtn = screen.getByRole('button', { name: /edit/i });
+    fireEvent.click(editBtn);
+    expect(handleEdit).toHaveBeenCalledWith(mockConnection);
+
+    // Clicking Retry attempts schema fetch again
+    vi.mocked(dbApi.getSchemaTree).mockResolvedValueOnce(mockSchema);
+    const retryBtn = screen.getByTitle(/retry loading schema/i);
+    fireEvent.click(retryBtn);
+
     await waitFor(() => {
       expect(screen.getByText('users')).toBeInTheDocument();
     });

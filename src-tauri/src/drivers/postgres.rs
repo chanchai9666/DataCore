@@ -21,7 +21,8 @@ impl PostgresConnection {
         let mut options = sqlx::postgres::PgConnectOptions::new()
             .host(config.host.as_deref().unwrap_or("localhost"))
             .port(config.port.unwrap_or(5432))
-            .database(&config.database);
+            .database(&config.database)
+            .statement_cache_capacity(0);
 
         if let Some(user) = &config.user {
             options = options.username(user);
@@ -202,10 +203,23 @@ impl DatabaseConnection for PostgresConnection {
     }
 
     async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError> {
+        // 1. Discover all non-system schemas first so even empty schemas are visible
+        let schema_sql = "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog', 'information_schema') ORDER BY schema_name;";
+        let mut schema_map: HashMap<String, Vec<SchemaNode>> = HashMap::new();
+        if let Ok(schema_res) = self.execute_query(schema_sql).await {
+            for row in schema_res.rows {
+                if let Some(sch) = row.get(0).and_then(|c| c.as_text()) {
+                    schema_map.entry(sch.to_string()).or_default();
+                }
+            }
+        }
+        // Always ensure 'public' exists
+        schema_map.entry("public".to_string()).or_default();
+
+        // 2. Query all tables and views
         let sql = "SELECT table_schema, table_name, table_type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema, table_type, table_name;";
         let query_res = self.execute_query(sql).await?;
 
-        let mut schema_map: HashMap<String, Vec<SchemaNode>> = HashMap::new();
         for row in query_res.rows {
             let schema_name = row.get(0).and_then(|c| c.as_text()).unwrap_or("public").to_string();
             let table_name = row.get(1).and_then(|c| c.as_text()).unwrap_or("").to_string();
