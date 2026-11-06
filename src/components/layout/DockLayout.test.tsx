@@ -48,13 +48,20 @@ describe('DockLayout', () => {
     });
   });
 
-  it('renders empty state when there are no open tabs', () => {
+  it('renders empty state when there are no open tabs', async () => {
     render(<DockLayout />);
     expect(screen.getByText(/no open tabs/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(dbApi.getSchemaTree).toHaveBeenCalledWith('conn-1');
+    });
   });
 
-  it('opens a new query tab when + button is clicked', () => {
+  it('opens a new query tab when + button is clicked', async () => {
     render(<DockLayout />);
+    await waitFor(() => {
+      expect(dbApi.getSchemaTree).toHaveBeenCalledWith('conn-1');
+    });
+
     const addBtn = screen.getByTestId('add-query-tab-btn');
     fireEvent.click(addBtn);
 
@@ -128,8 +135,11 @@ describe('DockLayout', () => {
     });
   });
 
-  it('collapses and expands the sidebar', () => {
+  it('collapses and expands the sidebar', async () => {
     render(<DockLayout />);
+    await waitFor(() => {
+      expect(dbApi.getSchemaTree).toHaveBeenCalledWith('conn-1');
+    });
 
     const collapseBtn = screen.getByRole('button', { name: /collapse sidebar/i });
     fireEvent.click(collapseBtn);
@@ -139,6 +149,39 @@ describe('DockLayout', () => {
     const expandBtn = screen.getByRole('button', { name: /expand sidebar/i });
     fireEvent.click(expandBtn);
 
-    expect(screen.getByText(/explorer/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/explorer/i)).toBeInTheDocument();
+      expect(dbApi.getSchemaTree).toHaveBeenCalled();
+    });
+  });
+
+  it('supports dragging the vertical split resizer between editor and datagrid', async () => {
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'q1',
+          connectionId: 'conn-1',
+          type: 'query',
+          title: 'Query 1',
+          autoCommit: true,
+          queryContent: 'SELECT 1;',
+        },
+      ],
+      activeTabId: 'q1',
+    });
+
+    render(<DockLayout />);
+
+    const resizer = screen.getByTestId('split-resizer');
+    expect(resizer).toBeInTheDocument();
+
+    // Simulate drag resize
+    fireEvent.mouseDown(resizer, { clientY: 200 });
+    fireEvent.mouseMove(window, { clientY: 280 });
+    fireEvent.mouseUp(window);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /run/i })).toBeInTheDocument();
+    });
   });
 });

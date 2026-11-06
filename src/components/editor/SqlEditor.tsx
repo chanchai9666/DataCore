@@ -80,6 +80,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       if (!targetTabId) return;
 
       const view = viewParam ?? editorViewRef.current ?? editorRef.current?.view;
+      const currentTab = useTabStore.getState().tabs.find((t) => t.id === targetTabId) ?? tab;
       let sqlToExecute = '';
 
       if (view) {
@@ -88,10 +89,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         if (selectedText.length > 0) {
           sqlToExecute = selectedText;
         } else {
-          sqlToExecute = view.state.doc.toString().trim() || (tab ? tab.queryContent.trim() : '');
+          sqlToExecute = (currentTab ? currentTab.queryContent.trim() : '') || view.state.doc.toString().trim();
         }
-      } else if (tab) {
-        sqlToExecute = tab.queryContent.trim();
+      } else if (currentTab) {
+        sqlToExecute = currentTab.queryContent.trim();
       }
 
       if (!sqlToExecute) return;

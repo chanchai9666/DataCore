@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import App from '../../src/App';
 import { useConnectionStore } from '../../src/stores/connectionStore';
 import { useTabStore } from '../../src/stores/tabStore';
@@ -167,15 +167,42 @@ describe('E2E Workflow Test', () => {
 
     // Verify Query tab is opened
     expect(await screen.findByText(/Query/i)).toBeInTheDocument();
+    const queryTab = useTabStore.getState().tabs.find((t) => t.type === 'query')!;
 
-    // Execute SQL query via Run button
+    // 3a. Execute DDL query: CREATE TABLE
+    await act(async () => {
+      useTabStore
+        .getState()
+        .setQueryContent(
+          queryTab.id,
+          'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);'
+        );
+    });
     const runBtn = screen.getByRole('button', { name: /run/i });
+    fireEvent.click(runBtn);
+
+    // Verify DDL execution metric displayed
+    expect(await screen.findByText(/1 affected/i)).toBeInTheDocument();
+
+    // 3b. Execute DML query: SELECT
+    await act(async () => {
+      useTabStore
+        .getState()
+        .setQueryContent(queryTab.id, 'SELECT id, name FROM users;');
+    });
     fireEvent.click(runBtn);
 
     // Verify DataGrid displays columns and rows from query result
     const rowCounts = await screen.findAllByText(/2 rows/i);
     expect(rowCounts.length).toBeGreaterThan(0);
     expect(screen.getByTestId('data-grid-container')).toBeInTheDocument();
+
+    // Verify draggable vertical split resizer between editor and grid
+    const splitResizer = screen.getByTestId('split-resizer');
+    expect(splitResizer).toBeInTheDocument();
+    fireEvent.mouseDown(splitResizer, { clientY: 200 });
+    fireEvent.mouseMove(window, { clientY: 250 });
+    fireEvent.mouseUp(window);
 
     // 4. Open Table tab via Object Browser
     // Double-click "users" table node to open table tab

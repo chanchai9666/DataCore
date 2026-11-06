@@ -43,6 +43,11 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const isResizingRef = useRef(false);
 
+  // Split pane height state for Query tab (editor height in pixels)
+  const [editorHeight, setEditorHeight] = useState<number>(260);
+  const isResizingSplitRef = useRef(false);
+  const querySplitContainerRef = useRef<HTMLDivElement>(null);
+
   // Per-tab query results for 'query' tabs
   const [queryResults, setQueryResults] = useState<Record<string, QueryResult>>({});
 
@@ -176,6 +181,39 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
   };
+
+  // Draggable vertical split resizer between SqlEditor and DataGrid
+  const handleSplitResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingSplitRef.current = true;
+    const startY = e.clientY;
+    const startHeight = editorHeight;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isResizingSplitRef.current) return;
+      const deltaY = moveEvent.clientY - startY;
+      const containerH = querySplitContainerRef.current?.clientHeight || 600;
+      const newHeight = Math.max(100, Math.min(containerH - 100, startHeight + deltaY));
+      setEditorHeight(newHeight);
+    };
+
+    const handleMouseUp = () => {
+      isResizingSplitRef.current = false;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Ensure listeners are cleaned up if component unmounts
+  useEffect(() => {
+    return () => {
+      isResizingRef.current = false;
+      isResizingSplitRef.current = false;
+    };
+  }, []);
 
   return (
     <div
@@ -329,10 +367,16 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
               </button>
             </div>
           ) : activeTab.type === 'query' ? (
-            /* Query Tab: Split view (Editor on top, DataGrid on bottom) */
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            /* Query Tab: Split view (Editor on top, DataGrid on bottom with vertical resizer) */
+            <div
+              ref={querySplitContainerRef}
+              className="flex-1 flex flex-col min-h-0 overflow-hidden relative"
+            >
               {/* Top: SQL Editor */}
-              <div className="h-1/2 min-h-[140px] flex flex-col overflow-hidden border-b border-gray-800">
+              <div
+                style={{ height: `${editorHeight}px` }}
+                className="flex flex-col overflow-hidden flex-shrink-0"
+              >
                 <SqlEditor
                   tabId={activeTab.id}
                   theme={theme}
@@ -345,8 +389,26 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                 />
               </div>
 
+              {/* Draggable Vertical Split Resizer between Editor and Grid */}
+              <div
+                data-testid="split-resizer"
+                onMouseDown={handleSplitResizeMouseDown}
+                aria-label="Resize editor and results"
+                className={`h-1.5 flex-shrink-0 cursor-row-resize border-y transition-colors z-10 flex items-center justify-center ${
+                  theme === 'dark'
+                    ? 'bg-gray-900 border-gray-800 hover:bg-blue-600/60 active:bg-blue-600'
+                    : 'bg-gray-200 border-gray-300 hover:bg-blue-500/60 active:bg-blue-500'
+                }`}
+              >
+                <div
+                  className={`w-8 h-0.5 rounded-full ${
+                    theme === 'dark' ? 'bg-gray-600' : 'bg-gray-400'
+                  }`}
+                />
+              </div>
+
               {/* Bottom: DataGrid displaying QueryResult */}
-              <div className="flex-1 min-h-[140px] flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-[100px] flex flex-col overflow-hidden">
                 <DataGrid
                   data={queryResults[activeTab.id] ?? null}
                   theme={theme}

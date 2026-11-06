@@ -42,7 +42,7 @@ export function openQueryTab({
   const queryTabId = `query-${Date.now()}`;
   const initialQuery = isTableOrView
     ? `SELECT * FROM ${schemaName ? `"${schemaName}".` : ''}"${tableName}" LIMIT 100;\n`
-    : 'SELECT * FROM users;\n';
+    : '';
 
   useTabStore.getState().openTab({
     id: queryTabId,
