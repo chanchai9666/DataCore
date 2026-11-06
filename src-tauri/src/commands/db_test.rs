@@ -129,7 +129,7 @@ async fn test_session_lifecycle() {
     assert_eq!(after_commit.rows.len(), 1, "Committed row must exist");
 
     // 7. Test schema tree retrieval
-    let schema_tree = get_schema_tree_impl(&store, &session_mgr, "conn-sqlite-mem")
+    let schema_tree = get_schema_tree_impl(&store, "conn-sqlite-mem")
         .await
         .expect("get schema tree");
     assert!(!schema_tree.is_empty());
@@ -179,7 +179,7 @@ async fn test_command_error_handling_and_cancellation() {
     assert!(cancel_err.is_err());
 
     // Schema tree on non-existent connection should error
-    let schema_err = get_schema_tree_impl(&store, &session_mgr, "non-existent-id").await;
+    let schema_err = get_schema_tree_impl(&store, "non-existent-id").await;
     assert!(schema_err.is_err());
 
     // Test direct test_connection command wrapper
@@ -210,4 +210,123 @@ async fn test_command_error_handling_and_cancellation() {
     open_session_impl(&store, &session_mgr, "mem-test", "tab-cancel").await.unwrap();
     let cancel_ok = cancel_query_impl(&session_mgr, "tab-cancel").await;
     assert!(cancel_ok.is_ok());
+}
+
+#[tokio::test]
+async fn test_close_session_performs_explicit_rollback() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("test_rollback_on_close.db");
+    let store_file = dir.path().join("connections.json");
+    let store = ConnectionStore::new(&store_file);
+    let session_mgr = SessionManager::new();
+
+    let config = ConnectionConfig {
+        id: "file-db-1".to_string(),
+        name: "File SQLite".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: db_path.to_str().unwrap().to_string(),
+        user: None,
+        folder: None,
+    };
+    store.save_connection(&config, None).unwrap();
+
+    // 1. Initial setup: create table and insert initial committed row
+    open_session_impl(&store, &session_mgr, "file-db-1", "tab-init").await.unwrap();
+    execute_query_impl(
+        &session_mgr,
+        "tab-init",
+        "CREATE TABLE accounts (id INTEGER PRIMARY KEY, balance REAL);",
+    )
+    .await
+    .unwrap();
+    execute_query_impl(
+        &session_mgr,
+        "tab-init",
+        "INSERT INTO accounts (id, balance) VALUES (1, 100.0);",
+    )
+    .await
+    .unwrap();
+    close_session_impl(&session_mgr, "tab-init").await.unwrap();
+
+    // 2. Open tab-work, turn off autocommit (start manual transaction), insert uncommitted row
+    open_session_impl(&store, &session_mgr, "file-db-1", "tab-work").await.unwrap();
+    set_autocommit_impl(&session_mgr, "tab-work", false).await.unwrap();
+    execute_query_impl(
+        &session_mgr,
+        "tab-work",
+        "INSERT INTO accounts (id, balance) VALUES (2, 999.0);",
+    )
+    .await
+    .unwrap();
+
+    // 3. User closes tab-work without explicit commit
+    close_session_impl(&session_mgr, "tab-work").await.unwrap();
+
+    // 4. Open tab-verify to check accounts: row 2 must NOT exist because it was rolled back on close
+    open_session_impl(&store, &session_mgr, "file-db-1", "tab-verify").await.unwrap();
+    let res = execute_query_impl(
+        &session_mgr,
+        "tab-verify",
+        "SELECT id, balance FROM accounts WHERE id = 2;",
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        res.rows.len(),
+        0,
+        "Uncommitted data in tab-work must be automatically rolled back when closing the tab"
+    );
+    close_session_impl(&session_mgr, "tab-verify").await.unwrap();
+}
+
+#[tokio::test]
+async fn test_schema_tree_uses_dedicated_connection_independent_of_tab_transactions() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("test_schema_isolated.db");
+    let store_file = dir.path().join("connections.json");
+    let store = ConnectionStore::new(&store_file);
+    let session_mgr = SessionManager::new();
+
+    let config = ConnectionConfig {
+        id: "file-db-schema".to_string(),
+        name: "Schema File SQLite".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: db_path.to_str().unwrap().to_string(),
+        user: None,
+        folder: None,
+    };
+    store.save_connection(&config, None).unwrap();
+
+    // Tab 1 creates table and enters manual transaction
+    open_session_impl(&store, &session_mgr, "file-db-schema", "tab-tx").await.unwrap();
+    execute_query_impl(
+        &session_mgr,
+        "tab-tx",
+        "CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT);",
+    )
+    .await
+    .unwrap();
+
+    set_autocommit_impl(&session_mgr, "tab-tx", false).await.unwrap();
+    execute_query_impl(
+        &session_mgr,
+        "tab-tx",
+        "INSERT INTO customers (id, name) VALUES (1, 'Uncommitted Bob');",
+    )
+    .await
+    .unwrap();
+
+    // Fetching schema tree must succeed on a dedicated metadata connection and not borrow or interfere with tab-tx
+    let tree = get_schema_tree_impl(&store, "file-db-schema").await.unwrap();
+    assert!(!tree.is_empty());
+    let db_node = &tree[0];
+    assert!(db_node.children.iter().any(|c| c.name == "customers"));
+
+    // tab-tx can still rollback cleanly
+    rollback_transaction_impl(&session_mgr, "tab-tx").await.unwrap();
+    close_session_impl(&session_mgr, "tab-tx").await.unwrap();
 }

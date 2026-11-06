@@ -100,10 +100,17 @@ impl SessionManager {
             .ok_or_else(|| AppError::NotFound(format!("Session for tab '{}' not found", tab_id)))
     }
 
-    /// Close and remove a session for a tab_id
+    /// Close and remove a session for a tab_id, rolling back any uncommitted transaction
     pub async fn close_session(&self, tab_id: &str) -> Result<(), AppError> {
-        let mut map = self.sessions.write().await;
-        map.remove(tab_id);
+        let entry = {
+            let mut map = self.sessions.write().await;
+            map.remove(tab_id)
+        };
+
+        if let Some(entry) = entry {
+            let _ = entry.connection.rollback().await;
+        }
+
         Ok(())
     }
 
@@ -117,16 +124,5 @@ impl SessionManager {
     pub async fn active_session_count(&self) -> usize {
         let map = self.sessions.read().await;
         map.len()
-    }
-
-    /// Find an active connection for a given connection_id (if any tab has it open)
-    pub async fn find_connection(&self, connection_id: &str) -> Option<Arc<dyn DatabaseConnection>> {
-        let map = self.sessions.read().await;
-        for entry in map.values() {
-            if entry.connection_id == connection_id {
-                return Some(entry.connection.clone());
-            }
-        }
-        None
     }
 }

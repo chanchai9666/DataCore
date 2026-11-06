@@ -115,13 +115,8 @@ pub async fn rollback_transaction_impl(
 
 pub async fn get_schema_tree_impl(
     store: &ConnectionStore,
-    session_mgr: &SessionManager,
     connection_id: &str,
 ) -> Result<Vec<SchemaNode>, AppError> {
-    if let Some(conn) = session_mgr.find_connection(connection_id).await {
-        return conn.fetch_schema_tree().await;
-    }
-
     let config = store
         .get(connection_id)?
         .ok_or_else(|| AppError::NotFound(format!("Connection '{}' not found", connection_id)))?;
@@ -259,10 +254,9 @@ pub async fn rollback_transaction(
 #[tauri::command]
 pub async fn get_schema_tree(
     store: State<'_, ConnectionStore>,
-    session_mgr: State<'_, SessionManager>,
     connection_id: String,
 ) -> Result<Vec<SchemaNode>, String> {
-    get_schema_tree_impl(&store, &session_mgr, &connection_id)
+    get_schema_tree_impl(&store, &connection_id)
         .await
         .map_err(|e| e.to_string())
 }
