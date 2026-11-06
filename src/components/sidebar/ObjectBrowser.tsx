@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Tree } from 'react-arborist';
 import { Search, RefreshCw, Table, FileCode } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
-import { useTabStore } from '../../stores/tabStore';
 import { dbApi } from '../../api/db';
 import type { SchemaNode } from '../../types/db';
+import { openTableTab, openQueryTab } from './tabHelpers';
 import {
   ConnectionTreeNode,
   ObjectBrowserContext,
@@ -136,34 +136,21 @@ export const ObjectBrowser: React.FC = () => {
   }, [connections, schemas]);
 
   const handleOpenTable = useCallback((node: BrowserTreeNode) => {
-    const tableId = `${node.connectionId}-${node.tableName || node.name}`;
-    useTabStore.getState().openTab({
-      id: 'table-' + tableId,
+    openTableTab({
       connectionId: node.connectionId,
-      type: 'table',
-      title: node.name,
-      schemaName: node.schemaName,
       tableName: node.tableName || node.name,
-      autoCommit: true,
-      queryContent: '',
+      schemaName: node.schemaName,
     });
     setContextMenu(null);
   }, []);
 
   const handleNewQuery = useCallback((node: BrowserTreeNode) => {
     const isTableOrView = node.nodeType === 'table' || node.nodeType === 'view';
-    const queryTabId = `query-${Date.now()}`;
-    const initialQuery = isTableOrView
-      ? `SELECT * FROM ${node.schemaName ? `"${node.schemaName}".` : ''}"${node.tableName || node.name}" LIMIT 100;\n`
-      : '';
-
-    useTabStore.getState().openTab({
-      id: queryTabId,
+    openQueryTab({
       connectionId: node.connectionId,
-      type: 'query',
-      title: `Query (${node.connectionName || node.name})`,
-      autoCommit: true,
-      queryContent: initialQuery,
+      connectionName: node.connectionName || node.name,
+      schemaName: node.schemaName,
+      tableName: isTableOrView ? node.tableName || node.name : undefined,
     });
     setContextMenu(null);
   }, []);
@@ -231,6 +218,8 @@ export const ObjectBrowser: React.FC = () => {
             value={{
               onContextMenuNode: handleContextMenuNode,
               onRefreshConnection: handleRefresh,
+              onOpenTable: handleOpenTable,
+              onNewQuery: handleNewQuery,
             }}
           >
             <Tree

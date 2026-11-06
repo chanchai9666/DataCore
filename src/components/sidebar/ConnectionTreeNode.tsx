@@ -11,8 +11,8 @@ import {
   Plus,
   Play,
 } from 'lucide-react';
-import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { openTableTab, openQueryTab } from './tabHelpers';
 
 export type BrowserNodeType =
   | 'connection'
@@ -37,6 +37,8 @@ export interface BrowserTreeNode {
 export interface ObjectBrowserContextType {
   onContextMenuNode?: (e: React.MouseEvent, node: BrowserTreeNode) => void;
   onRefreshConnection?: (connectionId: string) => void;
+  onOpenTable?: (node: BrowserTreeNode) => void;
+  onNewQuery?: (node: BrowserTreeNode) => void;
 }
 
 export const ObjectBrowserContext = createContext<ObjectBrowserContextType>({});
@@ -70,34 +72,29 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
   };
 
   const handleOpenTableTab = () => {
-    const tableId = `${data.connectionId}-${data.tableName || data.name}`;
-    useTabStore.getState().openTab({
-      id: 'table-' + tableId,
-      connectionId: data.connectionId,
-      type: 'table',
-      title: data.name,
-      schemaName: data.schemaName,
-      tableName: data.tableName || data.name,
-      autoCommit: true,
-      queryContent: '',
-    });
+    if (context.onOpenTable) {
+      context.onOpenTable(data);
+    } else {
+      openTableTab({
+        connectionId: data.connectionId,
+        tableName: data.tableName || data.name,
+        schemaName: data.schemaName,
+      });
+    }
   };
 
   const handleNewQueryTab = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const queryTabId = `query-${Date.now()}`;
-    const initialQuery = isTableOrView
-      ? `SELECT * FROM ${data.schemaName ? `"${data.schemaName}".` : ''}"${data.tableName || data.name}" LIMIT 100;\n`
-      : '';
-
-    useTabStore.getState().openTab({
-      id: queryTabId,
-      connectionId: data.connectionId,
-      type: 'query',
-      title: `Query (${data.connectionName || data.name})`,
-      autoCommit: true,
-      queryContent: initialQuery,
-    });
+    if (context.onNewQuery) {
+      context.onNewQuery(data);
+    } else {
+      openQueryTab({
+        connectionId: data.connectionId,
+        connectionName: data.connectionName || data.name,
+        schemaName: data.schemaName,
+        tableName: isTableOrView ? data.tableName || data.name : undefined,
+      });
+    }
   };
 
   const handleClick = (e: React.MouseEvent) => {
