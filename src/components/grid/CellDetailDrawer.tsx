@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Copy, Check, Code, FileText } from 'lucide-react';
 import { CellValue } from '../../types/db';
 import { extractCellValue } from './gridUtils';
@@ -21,6 +21,21 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen || !cellInfo) {
     return null;

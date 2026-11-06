@@ -235,6 +235,24 @@ describe('CellDetailDrawer', () => {
 
     expect(screen.queryByText('Cell Details')).not.toBeInTheDocument();
   });
+
+  it('closes when Escape key is pressed', () => {
+    const onClose = vi.fn();
+    render(
+      <CellDetailDrawer
+        isOpen={true}
+        onClose={onClose}
+        cellInfo={{
+          columnName: 'username',
+          dataType: 'TEXT',
+          value: 'alice',
+        }}
+      />
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('DataGrid', () => {
@@ -283,5 +301,20 @@ describe('DataGrid', () => {
     // Now drawer opens with cell details (defaulting to first cell if none selected)
     expect(screen.getByText('Cell Details')).toBeInTheDocument();
     expect(screen.getByText('id')).toBeInTheDocument();
+  });
+
+  it('accepts onCellEdited prop and renders grid normally', () => {
+    const onCellEdited = vi.fn();
+    render(
+      <DataGrid
+        data={mockQueryResult}
+        page={1}
+        pageSize={100}
+        totalRows={2}
+        onCellEdited={onCellEdited}
+      />
+    );
+
+    expect(screen.getByText(/2 rows/i)).toBeInTheDocument();
   });
 });

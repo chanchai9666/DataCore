@@ -5,6 +5,7 @@ import DataEditor, {
   GridSelection,
   CompactSelection,
   Theme,
+  type EditableGridCell,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
 import { Eye, Loader2, Database } from 'lucide-react';
@@ -22,6 +23,7 @@ export interface DataGridProps {
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
   onRefresh?: () => void;
+  onCellEdited?: (cell: readonly [number, number], newValue: EditableGridCell) => void;
   theme?: 'dark' | 'light';
 }
 
@@ -74,6 +76,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
   onPageChange,
   onPageSizeChange,
   onRefresh,
+  onCellEdited,
   theme = 'dark',
 }) => {
   const [selectedCell, setSelectedCell] = useState<Item | null>(null);
@@ -248,6 +251,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
               onGridSelectionChange={setGridSelection}
               onCellActivated={handleCellActivated}
               onCellClicked={handleCellClicked}
+              onCellEdited={onCellEdited}
               theme={gridTheme}
             />
           </div>
