@@ -97,7 +97,17 @@ impl ConnectionStore {
         }
 
         let json = serde_json::to_string_pretty(connections)?;
-        fs::write(&self.storage_path, json)?;
+        let file_name = self
+            .storage_path
+            .file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or("connections.json");
+        let tmp_path = self
+            .storage_path
+            .with_file_name(format!("{}.tmp", file_name));
+
+        fs::write(&tmp_path, json)?;
+        fs::rename(&tmp_path, &self.storage_path)?;
         Ok(())
     }
 }

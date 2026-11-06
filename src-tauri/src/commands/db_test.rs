@@ -30,7 +30,7 @@ async fn test_session_lifecycle() {
     assert_eq!(connections[0].id, "conn-sqlite-mem");
 
     // 2. Test latency check (test_connection)
-    let latency = test_connection_impl(&config, None).await.expect("test connection");
+    let latency = test_connection_impl(&store, &config, None).await.expect("test connection");
     assert!(latency < 1000);
 
     // 3. Open dedicated sessions for two tabs: tab-1 and tab-2
@@ -182,7 +182,7 @@ async fn test_command_error_handling_and_cancellation() {
     let schema_err = get_schema_tree_impl(&store, "non-existent-id").await;
     assert!(schema_err.is_err());
 
-    // Test direct test_connection command wrapper
+    // Test test_connection_impl wrapper with store
     let config = ConnectionConfig {
         id: "mem-test".to_string(),
         name: "Mem Test".to_string(),
@@ -193,7 +193,7 @@ async fn test_command_error_handling_and_cancellation() {
         user: None,
         folder: None,
     };
-    let latency_res = test_connection(config, None).await;
+    let latency_res = test_connection_impl(&store, &config, None).await;
     assert!(latency_res.is_ok());
 
     // Cancel on valid tab session succeeds
@@ -329,4 +329,49 @@ async fn test_schema_tree_uses_dedicated_connection_independent_of_tab_transacti
     // tab-tx can still rollback cleanly
     rollback_transaction_impl(&session_mgr, "tab-tx").await.unwrap();
     close_session_impl(&session_mgr, "tab-tx").await.unwrap();
+}
+
+#[tokio::test]
+async fn test_connection_impl_uses_stored_keychain_password_when_none_provided() {
+    let dir = tempdir().expect("create temp dir");
+    let store_file = dir.path().join("connections.json");
+    let store = ConnectionStore::new(&store_file);
+
+    let config = ConnectionConfig {
+        id: "conn-keychain-lookup-test".to_string(),
+        name: "Keychain Lookup Test DB".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: ":memory:".to_string(),
+        user: None,
+        folder: None,
+    };
+
+    // Store connection with password in keychain
+    store
+        .save_connection(&config, Some("secret_keychain_pwd"))
+        .expect("save connection with password");
+    assert_eq!(
+        store
+            .get_password(&config.id)
+            .expect("retrieve password")
+            .as_deref(),
+        Some("secret_keychain_pwd")
+    );
+
+    // Call test_connection_impl with password: None -> should retrieve stored password from keychain and succeed
+    let latency = test_connection_impl(&store, &config, None)
+        .await
+        .expect("test connection with password: None");
+    assert!(latency < 1000);
+
+    // Also verify with password: Some("") (empty string)
+    let latency_empty = test_connection_impl(&store, &config, Some(""))
+        .await
+        .expect("test connection with empty password");
+    assert!(latency_empty < 1000);
+
+    // Clean up
+    let _ = store.delete_connection(&config.id);
 }

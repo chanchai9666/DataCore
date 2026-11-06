@@ -132,3 +132,37 @@ fn test_connection_storage_update_existing() {
     let list = store.list().expect("list");
     assert_eq!(list.len(), 1);
 }
+
+#[test]
+fn test_atomic_persistence_cleans_up_tmp_file() {
+    let dir = tempdir().expect("create temp dir");
+    let config_file = dir.path().join("connections.json");
+    let tmp_file = dir.path().join("connections.json.tmp");
+
+    let store = ConnectionStore::new(&config_file);
+
+    let conn = ConnectionConfig {
+        id: "atomic-conn-1".to_string(),
+        name: "Atomic Test".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: ":memory:".to_string(),
+        user: None,
+        folder: None,
+    };
+
+    store.save_connection(&conn, None).expect("save connection");
+
+    // The main file should exist and be valid JSON
+    assert!(config_file.exists());
+    let list = store.list().expect("list");
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].id, "atomic-conn-1");
+
+    // The temporary file should have been atomically renamed and thus should not remain
+    assert!(
+        !tmp_file.exists(),
+        "Temporary file connections.json.tmp should not exist after atomic rename"
+    );
+}

@@ -19,9 +19,13 @@ async fn test_sqlite_query_execution() {
     let result = conn.execute_query("SELECT id, name, age, bio FROM users ORDER BY id;").await.expect("select all users");
     assert_eq!(result.columns.len(), 4);
     assert_eq!(result.columns[0].name, "id");
+    assert_eq!(result.columns[0].data_type, "INTEGER");
     assert_eq!(result.columns[1].name, "name");
+    assert_eq!(result.columns[1].data_type, "TEXT");
     assert_eq!(result.columns[2].name, "age");
+    assert_eq!(result.columns[2].data_type, "INTEGER");
     assert_eq!(result.columns[3].name, "bio");
+    assert_eq!(result.columns[3].data_type, "TEXT");
     assert_eq!(result.rows.len(), 3);
 
     // Row 1
@@ -57,6 +61,11 @@ async fn test_sqlite_query_execution() {
     assert_eq!(table_node.node_type, crate::drivers::SchemaNodeType::Table);
     let view_node = db_node.children.iter().find(|c| c.name == "v_active_users").expect("view in tree");
     assert_eq!(view_node.node_type, crate::drivers::SchemaNodeType::View);
+
+    // Test expression query with undeclared type fallback to TEXT
+    let expr_res = conn.execute_query("SELECT 1 + 1 AS calc;").await.expect("query expression");
+    assert_eq!(expr_res.columns[0].name, "calc");
+    assert_eq!(expr_res.columns[0].data_type, "TEXT");
 
     // Test blob and float insertion & extraction
     conn.execute_query("CREATE TABLE sensor_data (id INTEGER PRIMARY KEY, value REAL, raw_bytes BLOB);").await.expect("create sensor table");

@@ -1,4 +1,5 @@
 import { useTabStore } from '../../stores/tabStore';
+import { useConnectionStore } from '../../stores/connectionStore';
 
 export interface OpenTableTabParams {
   connectionId: string;
@@ -11,6 +12,7 @@ export interface OpenQueryTabParams {
   connectionName?: string;
   schemaName?: string;
   tableName?: string;
+  driver?: string;
 }
 
 export function openTableTab({
@@ -36,12 +38,23 @@ export function openQueryTab({
   connectionName,
   schemaName,
   tableName,
+  driver,
 }: OpenQueryTabParams): void {
   const isTableOrView = Boolean(tableName);
   const title = connectionName || tableName || 'Query';
   const queryTabId = `query-${Date.now()}`;
+
+  const resolvedDriver =
+    driver ||
+    useConnectionStore
+      .getState()
+      .connections.find((c) => c.id === connectionId)?.driver;
+
+  const quote = (identifier: string) =>
+    resolvedDriver === 'mysql' ? `\`${identifier}\`` : `"${identifier}"`;
+
   const initialQuery = isTableOrView
-    ? `SELECT * FROM ${schemaName ? `"${schemaName}".` : ''}"${tableName}" LIMIT 100;\n`
+    ? `SELECT * FROM ${schemaName ? `${quote(schemaName)}.` : ''}${quote(tableName!)} LIMIT 100;\n`
     : '';
 
   useTabStore.getState().openTab({

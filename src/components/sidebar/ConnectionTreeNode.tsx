@@ -31,6 +31,7 @@ export interface BrowserTreeNode {
   databaseName?: string;
   schemaName?: string;
   tableName?: string;
+  driver?: string;
   children?: BrowserTreeNode[];
 }
 
@@ -93,6 +94,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         connectionName: data.connectionName || data.name,
         schemaName: data.schemaName,
         tableName: isTableOrView ? data.tableName || data.name : undefined,
+        driver: data.driver,
       });
     }
   };

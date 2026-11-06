@@ -15,7 +15,8 @@ function mapSchemaNodeToTreeNode(
   node: SchemaNode,
   connectionId: string,
   connectionName: string,
-  parentPath = ''
+  parentPath = '',
+  driver?: string
 ): BrowserTreeNode {
   const currentPath = `${parentPath}/${node.node_type}-${node.name}`;
   const schemaName = node.schema || node.schema_name;
@@ -29,10 +30,11 @@ function mapSchemaNodeToTreeNode(
     connectionName,
     schemaName,
     tableName: isLeaf ? node.name : undefined,
+    driver,
     children: isLeaf
       ? undefined
       : (node.children || []).map((child) =>
-          mapSchemaNodeToTreeNode(child, connectionId, connectionName, currentPath)
+          mapSchemaNodeToTreeNode(child, connectionId, connectionName, currentPath, driver)
         ),
   };
 }
@@ -121,7 +123,7 @@ export const ObjectBrowser: React.FC = () => {
     return connections.map((conn) => {
       const connSchema = schemas[conn.id] || [];
       const children: BrowserTreeNode[] = connSchema.map((schemaNode) =>
-        mapSchemaNodeToTreeNode(schemaNode, conn.id, conn.name)
+        mapSchemaNodeToTreeNode(schemaNode, conn.id, conn.name, '', conn.driver)
       );
 
       return {
@@ -130,6 +132,7 @@ export const ObjectBrowser: React.FC = () => {
         nodeType: 'connection',
         connectionId: conn.id,
         connectionName: conn.name,
+        driver: conn.driver,
         children,
       };
     });
@@ -151,6 +154,7 @@ export const ObjectBrowser: React.FC = () => {
       connectionName: node.connectionName || node.name,
       schemaName: node.schemaName,
       tableName: isTableOrView ? node.tableName || node.name : undefined,
+      driver: node.driver,
     });
     setContextMenu(null);
   }, []);

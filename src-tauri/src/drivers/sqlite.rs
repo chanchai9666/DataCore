@@ -65,12 +65,12 @@ impl DatabaseConnection for SqliteConnection {
 
         if col_count > 0 {
             let columns: Vec<ColumnMeta> = stmt
-                .column_names()
+                .columns()
                 .into_iter()
-                .map(|name| {
+                .map(|col| {
                     ColumnMeta::new(
-                        name,
-                        "TEXT",
+                        col.name(),
+                        col.decl_type().unwrap_or("TEXT"),
                         true,
                     )
                 })

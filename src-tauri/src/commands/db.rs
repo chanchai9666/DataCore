@@ -10,10 +10,15 @@ use crate::session::SessionManager;
 // ============================================================================
 
 pub async fn test_connection_impl(
+    store: &ConnectionStore,
     config: &ConnectionConfig,
     password: Option<&str>,
 ) -> Result<u64, AppError> {
-    let conn = SessionManager::create_connection(config, password).await?;
+    let resolved_password = match password {
+        Some(p) if !p.is_empty() => Some(p.to_string()),
+        _ => store.get_password(&config.id).ok().flatten(),
+    };
+    let conn = SessionManager::create_connection(config, resolved_password.as_deref()).await?;
     conn.test_connection().await
 }
 
@@ -131,10 +136,11 @@ pub async fn get_schema_tree_impl(
 
 #[tauri::command]
 pub async fn test_connection(
+    store: State<'_, ConnectionStore>,
     config: ConnectionConfig,
     password: Option<String>,
 ) -> Result<u64, String> {
-    test_connection_impl(&config, password.as_deref())
+    test_connection_impl(&store, &config, password.as_deref())
         .await
         .map_err(|e| e.to_string())
 }
