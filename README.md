@@ -6,13 +6,13 @@
 [![Rust](https://img.shields.io/badge/Rust-1.85+-orange?logo=rust)](https://www.rust-lang.org/)
 [![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/Tests-Passing%20(96%2F96)-brightgreen)](https://github.com/)
+[![Tests](https://img.shields.io/badge/Tests-Passing%20(185%2F185)-brightgreen)](https://github.com/)
 
 ---
 
 ## 📸 ภาพตัวอย่างหน้าจอ (UI Mockups)
 
-| หน้าต่างหลัก (Object Browser + Editor + Data Grid) | หน้าต่างสร้าง Connection (Keychain & SSH) |
+| หน้าต่างหลัก (Object Browser + Editor + Data Grid) | หน้าต่างสร้าง Connection (In-Memory Security & SSH) |
 |---|---|
 | ![Main Window](docs/01-main-window.png) | ![Connection Dialog](docs/02-connection-dialog.png) |
 
@@ -22,11 +22,12 @@
 
 * **ความเร็วและประสิทธิภาพสูงบน Apple Silicon:** พัฒนาด้วย **Tauri 2 + Rust + React 18** ให้แอปขนาดเล็ก รันแบบ Native ARM64 และใช้ทรัพยากรเครื่องน้อย
 * **รองรับ 3 ฐานข้อมูลหลัก:** เชื่อมต่อ **SQLite** (ทั้งไฟล์และ In-memory), **PostgreSQL** และ **MySQL**
-* **ความปลอดภัยระดับระบบปฏิบัติการ (macOS Keychain):** รหัสผ่านฐานข้อมูลถูกบันทึกใน **macOS Keychain** ผ่าน Crate `keyring` โดยไม่มีการเก็บ Plaintext Password ลงในไฟล์คอนฟิก
+* **ระบบจัดการรหัสผ่านแบบ In-Memory ปลอดภัย:** จัดเก็บรหัสผ่านในหน่วยความจำ RAM ชั่วคราวระหว่าง Session เท่านั้น ไม่มีการบันทึก Plaintext Password ลงในไฟล์คอนฟิก และไม่เรียกใช้ OS Keychain เพื่อป้องกันปัญหา Authorization Popup รบกวนการใช้งาน
 * **Dedicated Transaction Sessions:** แยก Session การเชื่อมต่ออิสระต่อ 1 แท็บใน Query Editor รองรับคำสั่ง Transaction (`BEGIN`, `COMMIT`, `ROLLBACK`), Session Variables และ Temporary Tables ไม่ปนเปื้อนข้ามแท็บ
-* **Object Browser Tree View:** แสดงแผนผัง Connection → Database → Tables / Views ด้วย `react-arborist` พร้อมช่องค้นหากรองรายชื่อ และ Context Menu (เปิดตาราง, สร้าง Query, รีเฟรช Schema)
+* **Object Browser Tree View:** แสดงแผนผัง Connection → Database → Tables / Views ด้วย `react-arborist` พร้อมช่องค้นหากรองรายชื่อ และ Context Menu (เปิดตาราง, สร้าง Query, รีเฟรช Schema, สร้างตาราง, ลบตาราง)
 * **SQL Query Editor ทรงพลัง:** พัฒนาด้วย CodeMirror 6 รองรับ SQL Syntax Highlighting ตาม Dialect ของฐานข้อมูล, คีย์ลัด `⌘+Enter` (รันเฉพาะข้อความที่เลือกหรือทั้งไฟล์), ปุ่ม Cancel Query, สวิตช์ Auto-Commit ON/OFF, และปุ่ม Commit / Rollback
-* **ตารางข้อมูลความเร็วสูง (Glide Data Grid):** เรนเดอร์บน HTML5 Canvas ลื่นไหลแม้ข้อมูลมีปริมาณมาก, แบ่งหน้าทีละ 100 แถวเพื่อลดภาระ Tauri IPC, แสดงผลค่า `NULL` ชัดเจน, รองรับ Inline Edit และมี **Cell Detail Drawer** สำหรับดู/คัดลอก JSON หรือข้อความยาว
+* **ตารางข้อมูลความเร็วสูง (Glide Data Grid):** เรนเดอร์บน HTML5 Canvas ลื่นไหลแม้ข้อมูลมีปริมาณมาก, แบ่งหน้าทีละ 100 แถวเพื่อลดภาระ Tauri IPC, แสดงผลค่า `NULL` ชัดเจน, รองรับ Inline Edit / Insert Row และมี **Cell Detail Drawer** สำหรับดู/คัดลอก JSON หรือข้อความยาว
+* **Table Structure Management:** จัดการโครงสร้างตาราง ทั้ง Create Table Modal, Drop Table Modal พร้อม Cascade และ Table Structure Editor
 * **ดีไซน์กลมกลืนกับ macOS (Native Look & Feel):** หน้าต่างสไตล์ Overlay Titlebar เว้นระยะปุ่ม Traffic Light (`pl-20`), ปรับขนาด Editor และ Grid ได้ด้วย Split Resizer, และรองรับทั้ง **Dark Mode** และ **Light Mode**
 
 ---
@@ -38,7 +39,7 @@
 - **Tokio**: Asynchronous Runtime ประสิทธิภาพสูง
 - **sqlx**: Database Driver สำหรับ PostgreSQL และ MySQL พร้อมระบบ Connection Pooling
 - **rusqlite**: Database Driver สำหรับ SQLite (เปิดใช้ feature `bundled` และ `column_decltype`)
-- **keyring**: จัดเก็บรหัสผ่านใน macOS Keychain
+- **In-Memory Password Store**: จัดเก็บรหัสผ่านใน RAM อย่างปลอดภัยในระดับ Session โดยไม่บันทึกลงดิสก์
 - **serde / serde_json**: Serialization / Deserialization ข้อมูลระหว่าง Rust และ Frontend
 
 ### Frontend (React & TypeScript)
@@ -128,7 +129,7 @@ make dev-web
 | `make install` | ติดตั้ง Dependencies ของ Frontend ทั้งหมดผ่าน `pnpm` |
 | `make dev` | รันแอปพลิเคชัน Desktop ในโหมด Development (Tauri 2) |
 | `make dev-web` | รันเฉพาะ Vite Web Dev Server สำหรับทดสอบ UI บน Browser |
-| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 13 tests และ Vitest 83 tests) |
+| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 13 tests และ Vitest 172 tests รวม 185 tests) |
 | `make test-backend` | รันเฉพาะ Unit & Integration Tests ฝั่ง Rust Backend |
 | `make test-frontend`| รันเฉพาะ Unit & Component Tests ฝั่ง React Frontend |
 | `make check` | ตรวจสอบ Compilation และ TypeScript Type Checking ทั้งระบบ |
@@ -150,17 +151,18 @@ make test
 
 * **Rust Backend (13 tests):**
   - Data Contract Serialization & Roundtrip
-  - Keychain CRUD Lifecycle & Password Isolation
+  - In-Memory Password Store CRUD Lifecycle & Isolation
   - Connection Store Atomic Persistence
   - SQLite Dynamic Type Extraction, Pagination & Transaction Lifecycle
   - Dedicated Session Lifecycle & Explicit Rollback on Close
   - Schema Metadata Connection Isolation
-* **React Frontend (83 tests):**
+* **React Frontend (172 tests):**
   - Zustand Stores (`tabStore`, `connectionStore`)
   - Object Browser Tree Component, Node Navigation, Context Menu
   - CodeMirror 6 SQL Editor, Dialects, Keymap (`⌘+Enter`), Toolbar Actions
-  - Glide Data Grid Canvas Integration, NULL Indicators, Cell Detail Drawer
-  - Connection Dialog Form Switching, Latency Measurement, Keychain Preservation
+  - Glide Data Grid Canvas Integration, NULL Indicators, Cell Detail Drawer, Inline Row Editing / Row Insertion
+  - Table Structure Editor & Table Management (Create Table Modal, Drop Table Modal with CASCADE & confirmation)
+  - Connection Dialog Form Switching, Latency Measurement, In-Memory Password Preservation
   - End-to-End User Journey Workflow Test
 
 ---
@@ -168,18 +170,19 @@ make test
 ## 🗺 แผนการพัฒนาในอนาคต (Roadmap)
 
 - [x] **ระดับ 1 (MVP):**
-  - Connection Manager (SQLite, PostgreSQL, MySQL) พร้อม Keychain Security
+  - Connection Manager (SQLite, PostgreSQL, MySQL) พร้อมระบบจัดเก็บรหัสผ่าน In-Memory ปลอดภัย
   - Object Browser Tree View พร้อมระบบกรองและ Context Menu
-  - Table Viewer (Glide Data Grid, 100-row pagination, Cell Detail Drawer)
+  - Table Viewer (Glide Data Grid, 100-row pagination, Cell Detail Drawer, Inline Edit / Insert Row)
   - Query Editor (CodeMirror 6, ⌘+Enter, Auto-Commit, Commit, Rollback, Cancel)
+  - Table Management & Structure (Create Table Modal, Drop Table Modal, Table Structure Editor)
   - macOS Overlay Titlebar, Split Resizer, Dark/Light Mode
 - [ ] **ระดับ 2 (Remote Connections):**
   - SSL/TLS พร้อมเลือก CA / Client Certificates
   - SSH Tunnel (Password / Private Key Authentication) ผ่าน Crate `russh`
   - Connection Timeout และ Auto-reconnect
-- [ ] **ระดับ 3 (Structure Management):**
-  - Table Designer: แก้ไข Columns, Data Types, Primary Key, Foreign Keys, Indexes
-  - Preview SQL ก่อนรันคำสั่งแก้ไขโครงสร้างจริง
+- [ ] **ระดับ 3 (Advanced Structure & Index Management):**
+  - เพิ่มการจัดการ Foreign Keys, Constraints และ Indexes เชิงลึก
+  - Data Migration Scripts Generator
 - [ ] **ระดับ 4 (Data Import & Export):**
   - Export: CSV, JSON, SQL (INSERT statements), Excel
   - Import: CSV, JSON, SQL script

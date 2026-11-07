@@ -21,12 +21,6 @@ pub enum AppError {
     Other(String),
 }
 
-impl From<keyring::Error> for AppError {
-    fn from(err: keyring::Error) -> Self {
-        AppError::Keychain(err.to_string())
-    }
-}
-
 impl From<rusqlite::Error> for AppError {
     fn from(err: rusqlite::Error) -> Self {
         AppError::Database(err.to_string())

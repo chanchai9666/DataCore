@@ -58,7 +58,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 | Crate | ใช้ทำอะไร |
 |---|---|
 | `russh` | SSH tunnel |
-| `keyring` | เก็บรหัสผ่านใน macOS Keychain |
+| In-memory store | เก็บรหัสผ่านในหน่วยความจำ RAM ชั่วคราวระหว่าง Session (ปิด OS Keychain ถาวรและนำ crate `keyring` ออก) |
 | `serde` / `serde_json` | แปลงข้อมูลระหว่าง Rust และ UI |
 | `csv` | import/export CSV |
 | `sqlparser` | แยก statement หลายคำสั่งใน editor |
