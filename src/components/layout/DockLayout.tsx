@@ -15,6 +15,9 @@ import { SqlEditor } from '../editor/SqlEditor';
 import { DataGrid } from '../grid/DataGrid';
 import { dbApi } from '../../api/db';
 import { openQueryTab } from '../sidebar/tabHelpers';
+import { buildUpdateSql, buildDeleteSql, buildInsertSql } from '../grid/tableEditHelpers';
+import { InsertRowModal } from '../grid/InsertRowModal';
+import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
 import type { ConnectionConfig, QueryResult, Tab } from '../../types/db';
 
 export interface DockLayoutProps {
@@ -57,6 +60,19 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
   // Per-tab table state for 'table' tabs
   const [tableStates, setTableStates] = useState<Record<string, TableTabState>>({});
+
+  // Status message for table tabs (e.g. "Saved changes", "Row deleted")
+  const [tableStatusMessages, setTableStatusMessages] = useState<
+    Record<string, { type: 'success' | 'error'; text: string }>
+  >({});
+
+  // Insert row modal state
+  const [insertModalState, setInsertModalState] = useState<{
+    tabId: string;
+    tableName: string;
+    schemaName?: string;
+    columns: QueryResult['columns'];
+  } | null>(null);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
 
@@ -140,6 +156,219 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       }
     }
   }, [activeTab, tableStates, loadTableData]);
+
+  // Handle cell edit in table tab
+  const handleCellEdited = useCallback(
+    async (cellCoord: Item, newValueCell: EditableGridCell) => {
+      if (!activeTab || activeTab.type !== 'table') return;
+      const tabId = activeTab.id;
+      const tableState = tableStates[tabId];
+      if (!tableState || !tableState.data) return;
+
+      const [colIndex, rowIndex] = cellCoord;
+      const column = tableState.data.columns[colIndex];
+      const row = tableState.data.rows[rowIndex];
+      if (!column || !row) return;
+
+      const oldVal = row[colIndex];
+
+      let rawNewVal: unknown;
+      if (newValueCell.kind === GridCellKind.Text) {
+        if (
+          newValueCell.data === 'NULL' ||
+          (newValueCell.data === '' && newValueCell.displayData === 'NULL')
+        ) {
+          rawNewVal = null;
+        } else {
+          rawNewVal = newValueCell.data;
+        }
+      } else if (newValueCell.kind === GridCellKind.Number) {
+        rawNewVal = newValueCell.data;
+      } else if (newValueCell.kind === GridCellKind.Boolean) {
+        rawNewVal = newValueCell.data;
+      } else {
+        rawNewVal = (newValueCell as any).data ?? null;
+      }
+
+      if (oldVal === rawNewVal) return;
+
+      const conn = connections.find((c) => c.id === activeTab.connectionId);
+      const driver = conn?.driver ?? 'postgres';
+
+      let updateSql: string;
+      try {
+        updateSql = buildUpdateSql({
+          tableName: activeTab.tableName || activeTab.title,
+          schemaName: activeTab.schemaName,
+          columns: tableState.data.columns,
+          row,
+          colIndex,
+          newValue: rawNewVal,
+          driver,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setTableStatusMessages((prev) => ({
+          ...prev,
+          [tabId]: { type: 'error', text: `Cannot update: ${msg}` },
+        }));
+        return;
+      }
+
+      // Optimistic update
+      const updatedRows = [...tableState.data.rows];
+      const updatedRow = [...updatedRows[rowIndex]];
+      updatedRow[colIndex] = rawNewVal as any;
+      updatedRows[rowIndex] = updatedRow;
+
+      setTableStates((prev) => ({
+        ...prev,
+        [tabId]: {
+          ...prev[tabId],
+          data: {
+            ...tableState.data!,
+            rows: updatedRows,
+          },
+        },
+      }));
+
+      try {
+        await dbApi.executeQuery(tabId, updateSql);
+        setTableStatusMessages((prev) => ({
+          ...prev,
+          [tabId]: { type: 'success', text: `Saved ${column.name} successfully` },
+        }));
+        setTimeout(() => {
+          setTableStatusMessages((prev) => {
+            if (prev[tabId]?.type === 'success') {
+              const copy = { ...prev };
+              delete copy[tabId];
+              return copy;
+            }
+            return prev;
+          });
+        }, 4000);
+      } catch (err) {
+        // Rollback
+        const rollbackRows = [...tableState.data.rows];
+        rollbackRows[rowIndex] = row;
+        setTableStates((prev) => ({
+          ...prev,
+          [tabId]: {
+            ...prev[tabId],
+            data: {
+              ...tableState.data!,
+              rows: rollbackRows,
+            },
+          },
+        }));
+
+        const msg = err instanceof Error ? err.message : String(err);
+        setTableStatusMessages((prev) => ({
+          ...prev,
+          [tabId]: { type: 'error', text: `Update failed: ${msg}` },
+        }));
+      }
+    },
+    [activeTab, tableStates, connections]
+  );
+
+  // Handle row deletion
+  const handleRowDelete = useCallback(
+    async (rowIndex: number) => {
+      if (!activeTab || activeTab.type !== 'table') return;
+      const tabId = activeTab.id;
+      const tableState = tableStates[tabId];
+      if (!tableState || !tableState.data) return;
+
+      const row = tableState.data.rows[rowIndex];
+      if (!row) return;
+
+      const confirmed = window.confirm(
+        `Are you sure you want to delete row #${rowIndex + 1}? This action cannot be undone.`
+      );
+      if (!confirmed) return;
+
+      const conn = connections.find((c) => c.id === activeTab.connectionId);
+      const driver = conn?.driver ?? 'postgres';
+
+      let deleteSql: string;
+      try {
+        deleteSql = buildDeleteSql({
+          tableName: activeTab.tableName || activeTab.title,
+          schemaName: activeTab.schemaName,
+          columns: tableState.data.columns,
+          row,
+          driver,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setTableStatusMessages((prev) => ({
+          ...prev,
+          [tabId]: { type: 'error', text: `Cannot delete: ${msg}` },
+        }));
+        return;
+      }
+
+      try {
+        await dbApi.executeQuery(tabId, deleteSql);
+        setTableStatusMessages((prev) => ({
+          ...prev,
+          [tabId]: { type: 'success', text: 'Row deleted successfully' },
+        }));
+        loadTableData(activeTab, tableState.page, tableState.pageSize);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setTableStatusMessages((prev) => ({
+          ...prev,
+          [tabId]: { type: 'error', text: `Delete failed: ${msg}` },
+        }));
+      }
+    },
+    [activeTab, tableStates, connections, loadTableData]
+  );
+
+  // Handle open add row dialog
+  const handleAddRow = useCallback(() => {
+    if (!activeTab || activeTab.type !== 'table') return;
+    const tabId = activeTab.id;
+    const tableState = tableStates[tabId];
+    if (!tableState || !tableState.data) return;
+
+    setInsertModalState({
+      tabId,
+      tableName: activeTab.tableName || activeTab.title,
+      schemaName: activeTab.schemaName,
+      columns: tableState.data.columns,
+    });
+  }, [activeTab, tableStates]);
+
+  // Handle submitting new row
+  const handleSubmitInsertRow = useCallback(
+    async (values: Record<string, unknown>) => {
+      if (!insertModalState || !activeTab) return;
+      const tabId = insertModalState.tabId;
+      const conn = connections.find((c) => c.id === activeTab.connectionId);
+      const driver = conn?.driver ?? 'postgres';
+
+      const insertSql = buildInsertSql({
+        tableName: insertModalState.tableName,
+        schemaName: insertModalState.schemaName,
+        columns: insertModalState.columns,
+        values,
+        driver,
+      });
+
+      await dbApi.executeQuery(tabId, insertSql);
+      setTableStatusMessages((prev) => ({
+        ...prev,
+        [tabId]: { type: 'success', text: 'Row inserted successfully' },
+      }));
+      const tableState = tableStates[tabId];
+      loadTableData(activeTab, tableState?.page ?? 1, tableState?.pageSize ?? 100);
+    },
+    [insertModalState, activeTab, connections, tableStates, loadTableData]
+  );
 
   // Handler for adding a new query tab
   const handleAddNewQueryTab = useCallback(() => {
@@ -450,11 +679,29 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                   );
                 }}
                 theme={theme}
+                isEditable={true}
+                onCellEdited={handleCellEdited}
+                onRowDelete={handleRowDelete}
+                onAddRow={handleAddRow}
+                statusMessage={tableStatusMessages[activeTab.id]}
               />
             </div>
           )}
         </div>
       </main>
+
+      {/* Insert Row Modal */}
+      {insertModalState && (
+        <InsertRowModal
+          isOpen={true}
+          onClose={() => setInsertModalState(null)}
+          tableName={insertModalState.tableName}
+          schemaName={insertModalState.schemaName}
+          columns={insertModalState.columns}
+          onSubmit={handleSubmitInsertRow}
+          theme={theme}
+        />
+      )}
     </div>
   );
 };

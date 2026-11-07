@@ -1,0 +1,348 @@
+import React, { useState } from 'react';
+import { X, Plus, AlertCircle } from 'lucide-react';
+import { ColumnMeta } from '../../types/db';
+
+export interface InsertRowModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  tableName: string;
+  schemaName?: string;
+  columns: ColumnMeta[];
+  onSubmit: (values: Record<string, unknown>) => Promise<void>;
+  theme?: 'dark' | 'light';
+}
+
+export const InsertRowModal: React.FC<InsertRowModalProps> = ({
+  isOpen,
+  onClose,
+  tableName,
+  schemaName,
+  columns,
+  onSubmit,
+  theme = 'dark',
+}) => {
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [nullFlags, setNullFlags] = useState<Record<string, boolean>>(() => {
+    // Default id/serial/created_at to NULL so DB generates them
+    const initial: Record<string, boolean> = {};
+    columns.forEach((col) => {
+      const lower = col.name.toLowerCase();
+      if (lower === 'id' || lower.includes('created_at') || lower.includes('updated_at')) {
+        initial[col.name] = true;
+      }
+    });
+    return initial;
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!isOpen) return null;
+
+  const handleNullToggle = (colName: string) => {
+    setNullFlags((prev) => ({
+      ...prev,
+      [colName]: !prev[colName],
+    }));
+  };
+
+  const handleValueChange = (colName: string, val: string) => {
+    setFieldValues((prev) => ({
+      ...prev,
+      [colName]: val,
+    }));
+    // Auto-uncheck NULL if user types something
+    if (nullFlags[colName]) {
+      setNullFlags((prev) => ({
+        ...prev,
+        [colName]: false,
+      }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+
+    const valuesToSubmit: Record<string, unknown> = {};
+    for (const col of columns) {
+      if (nullFlags[col.name]) {
+        valuesToSubmit[col.name] = null;
+      } else if (fieldValues[col.name] !== undefined && fieldValues[col.name] !== '') {
+        const valStr = fieldValues[col.name];
+        const lowerType = (col.data_type || '').toLowerCase();
+        if (
+          lowerType.includes('int') ||
+          lowerType.includes('numeric') ||
+          lowerType.includes('float') ||
+          lowerType.includes('double') ||
+          lowerType.includes('real')
+        ) {
+          const num = Number(valStr);
+          valuesToSubmit[col.name] = isNaN(num) ? valStr : num;
+        } else if (lowerType.includes('bool')) {
+          valuesToSubmit[col.name] = valStr.toLowerCase() === 'true' || valStr === '1';
+        } else {
+          valuesToSubmit[col.name] = valStr;
+        }
+      } else {
+        // Empty string or undefined without NULL check -> default to NULL
+        valuesToSubmit[col.name] = null;
+      }
+    }
+
+    try {
+      await onSubmit(valuesToSubmit);
+      onClose();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isDark = theme === 'dark';
+  const bgColor = isDark ? '#1e1e1e' : '#ffffff';
+  const textColor = isDark ? '#f3f4f6' : '#111827';
+  const borderColor = isDark ? '#374151' : '#e5e7eb';
+  const inputBg = isDark ? '#262626' : '#f9fafb';
+  const labelColor = isDark ? '#9ca3af' : '#4b5563';
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.65)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '16px',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '560px',
+          maxHeight: '85vh',
+          backgroundColor: bgColor,
+          color: textColor,
+          borderRadius: '8px',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          flexDirection: 'column',
+          border: `1px solid ${borderColor}`,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 18px',
+            borderBottom: `1px solid ${borderColor}`,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Plus size={18} style={{ color: '#10b981' }} />
+            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>
+              Insert New Row:{' '}
+              <span style={{ color: '#3b82f6' }}>
+                {schemaName ? `${schemaName}.${tableName}` : tableName}
+              </span>
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: labelColor,
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Error notice */}
+        {error && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 18px',
+              backgroundColor: isDark ? '#450a0a' : '#fee2e2',
+              color: isDark ? '#fca5a5' : '#991b1b',
+              fontSize: '13px',
+              borderBottom: `1px solid ${borderColor}`,
+            }}
+          >
+            <AlertCircle size={16} />
+            <span style={{ wordBreak: 'break-all' }}>{error}</span>
+          </div>
+        )}
+
+        {/* Form Fields */}
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <div
+            style={{
+              padding: '16px 18px',
+              overflowY: 'auto',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            {columns.map((col) => {
+              const isNullChecked = !!nullFlags[col.name];
+              const isIdCol = col.name.toLowerCase() === 'id';
+
+              return (
+                <div
+                  key={col.name}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <label
+                      htmlFor={`field-${col.name}`}
+                      style={{ fontWeight: 600, color: textColor }}
+                    >
+                      {col.name}
+                      <span
+                        style={{
+                          marginLeft: '6px',
+                          fontSize: '11px',
+                          color: labelColor,
+                          fontWeight: 'normal',
+                        }}
+                      >
+                        ({col.data_type})
+                      </span>
+                    </label>
+
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        cursor: 'pointer',
+                        color: labelColor,
+                        fontSize: '11px',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isNullChecked}
+                        onChange={() => handleNullToggle(col.name)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <span>NULL {isIdCol ? '(auto-gen)' : ''}</span>
+                    </label>
+                  </div>
+
+                  <input
+                    id={`field-${col.name}`}
+                    type="text"
+                    disabled={isNullChecked}
+                    value={isNullChecked ? '' : (fieldValues[col.name] ?? '')}
+                    placeholder={
+                      isNullChecked
+                        ? 'NULL (will not be inserted or auto-generated)'
+                        : `Enter ${col.name}...`
+                    }
+                    onChange={(e) => handleValueChange(col.name, e.target.value)}
+                    style={{
+                      padding: '7px 10px',
+                      fontSize: '13px',
+                      backgroundColor: isNullChecked ? (isDark ? '#181818' : '#e5e7eb') : inputBg,
+                      color: isNullChecked ? labelColor : textColor,
+                      border: `1px solid ${borderColor}`,
+                      borderRadius: '4px',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              padding: '12px 18px',
+              borderTop: `1px solid ${borderColor}`,
+              backgroundColor: isDark ? '#1a1a1a' : '#f9fafb',
+            }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              style={{
+                padding: '6px 14px',
+                fontSize: '13px',
+                backgroundColor: 'transparent',
+                color: labelColor,
+                border: `1px solid ${borderColor}`,
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 16px',
+                fontSize: '13px',
+                fontWeight: 500,
+                backgroundColor: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                opacity: isSubmitting ? 0.7 : 1,
+              }}
+            >
+              <Plus size={14} />
+              {isSubmitting ? 'Inserting...' : 'Insert Row'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

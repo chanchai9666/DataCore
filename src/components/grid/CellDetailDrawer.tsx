@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, Code, FileText } from 'lucide-react';
+import { X, Copy, Check, Code, FileText, Edit2, Save } from 'lucide-react';
 import { CellValue } from '../../types/db';
 import { extractCellValue } from './gridUtils';
 
@@ -11,23 +11,51 @@ export interface CellDetailDrawerProps {
     dataType: string;
     value: CellValue;
     rowIndex?: number;
+    colIndex?: number;
   } | null;
+  onSaveValue?: (newValue: unknown) => void;
 }
 
 export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
   isOpen,
   onClose,
   cellInfo,
+  onSaveValue,
 }) => {
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const [isNull, setIsNull] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !cellInfo) return;
+
+    setIsEditing(false);
+    const extracted = extractCellValue(cellInfo.value);
+    if (extracted.type === 'null') {
+      setIsNull(true);
+      setEditValue('');
+    } else {
+      setIsNull(false);
+      setEditValue(
+        typeof extracted.rawValue === 'object' && extracted.rawValue !== null
+          ? JSON.stringify(extracted.rawValue, null, 2)
+          : String(extracted.rawValue ?? '')
+      );
+    }
+  }, [isOpen, cellInfo]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (isEditing) {
+          setIsEditing(false);
+        } else {
+          onClose();
+        }
       }
     };
 
@@ -35,7 +63,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isEditing]);
 
   if (!isOpen || !cellInfo) {
     return null;
@@ -78,6 +106,29 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
     }
   };
 
+  const handleSave = () => {
+    if (!onSaveValue) return;
+    if (isNull) {
+      onSaveValue(null);
+    } else if (dataType.toLowerCase().includes('int') || dataType.toLowerCase().includes('serial')) {
+      const parsed = parseInt(editValue, 10);
+      onSaveValue(isNaN(parsed) ? editValue : parsed);
+    } else if (
+      dataType.toLowerCase().includes('float') ||
+      dataType.toLowerCase().includes('numeric') ||
+      dataType.toLowerCase().includes('double') ||
+      dataType.toLowerCase().includes('decimal')
+    ) {
+      const parsed = parseFloat(editValue);
+      onSaveValue(isNaN(parsed) ? editValue : parsed);
+    } else if (dataType.toLowerCase().includes('bool')) {
+      onSaveValue(editValue.toLowerCase() === 'true' || editValue === '1');
+    } else {
+      onSaveValue(editValue);
+    }
+    setIsEditing(false);
+  };
+
   return (
     <div
       role="dialog"
@@ -88,7 +139,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
         top: 0,
         right: 0,
         bottom: 0,
-        width: '420px',
+        width: '440px',
         maxWidth: '100vw',
         backgroundColor: 'var(--bg-primary, #181818)',
         boxShadow: '-4px 0 24px rgba(0, 0, 0, 0.5)',
@@ -119,7 +170,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
               color: 'var(--text-primary, #ffffff)',
             }}
           >
-            Cell Details
+            {isEditing ? 'Edit Cell Value' : 'Cell Details'}
           </h3>
           {rowIndex !== undefined && (
             <span
@@ -188,7 +239,29 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {isJson && (
+          {onSaveValue && !isEditing && (
+            <button
+              onClick={() => setIsEditing(true)}
+              title="Edit value"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 8px',
+                fontSize: '11px',
+                backgroundColor: '#2563eb',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              <Edit2 size={12} />
+              Edit
+            </button>
+          )}
+
+          {!isEditing && isJson && (
             <button
               onClick={() =>
                 setViewMode(viewMode === 'formatted' ? 'raw' : 'formatted')
@@ -219,26 +292,28 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
             </button>
           )}
 
-          <button
-            aria-label="Copy"
-            onClick={handleCopy}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '3px 8px',
-              fontSize: '11px',
-              backgroundColor: copied ? '#065f46' : 'var(--btn-bg, #2e2e2e)',
-              color: copied ? '#34d399' : 'var(--text-primary, #ffffff)',
-              border: '1px solid var(--border-color, #444444)',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              transition: 'background-color 0.15s ease',
-            }}
-          >
-            {copied ? <Check size={12} /> : <Copy size={12} />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
+          {!isEditing && (
+            <button
+              aria-label="Copy"
+              onClick={handleCopy}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 8px',
+                fontSize: '11px',
+                backgroundColor: copied ? '#065f46' : 'var(--btn-bg, #2e2e2e)',
+                color: copied ? '#34d399' : 'var(--text-primary, #ffffff)',
+                border: '1px solid var(--border-color, #444444)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s ease',
+              }}
+            >
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -249,9 +324,82 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
           overflow: 'auto',
           padding: '16px',
           backgroundColor: 'var(--bg-editor, #141414)',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        {extracted.type === 'null' ? (
+        {isEditing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#cbd5e1' }}>
+              <input
+                type="checkbox"
+                checked={isNull}
+                onChange={(e) => setIsNull(e.target.checked)}
+              />
+              Set as NULL
+            </label>
+
+            {!isNull && (
+              <textarea
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                placeholder="Enter value..."
+                style={{
+                  flex: 1,
+                  width: '100%',
+                  padding: '10px',
+                  backgroundColor: '#1e293b',
+                  color: '#f8fafc',
+                  border: '1px solid #475569',
+                  borderRadius: '6px',
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  lineHeight: '1.5',
+                  resize: 'none',
+                  outline: 'none',
+                }}
+              />
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  backgroundColor: '#334155',
+                  color: '#e2e8f0',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  backgroundColor: '#10b981',
+                  color: '#ffffff',
+                  fontWeight: 500,
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                <Save size={13} />
+                Save Changes
+              </button>
+            </div>
+          </div>
+        ) : extracted.type === 'null' ? (
           <div
             style={{
               display: 'inline-block',

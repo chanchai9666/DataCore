@@ -133,10 +133,10 @@ export function createCellContent(
   if (extracted.type === 'null') {
     return {
       kind: GridCellKind.Text,
-      data: 'NULL',
+      data: '',
       displayData: 'NULL',
-      allowOverlay: false,
-      readonly: true,
+      allowOverlay: true,
+      readonly: false,
       themeOverride: {
         textDark: '#888888',
         textMedium: '#888888',

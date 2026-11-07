@@ -184,4 +184,37 @@ describe('DockLayout', () => {
       expect(screen.getByRole('button', { name: /run/i })).toBeInTheDocument();
     });
   });
+
+  it('opens insert row modal when Add Row button is clicked in a table tab', async () => {
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 't1',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'users',
+          tableName: 'users',
+          schemaName: 'main',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 't1',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalledWith('t1', 'users', 'main', 100, 0);
+    });
+
+    // Add Row button should be visible in table tab toolbar
+    const addRowBtn = await screen.findByRole('button', { name: /add row/i });
+    expect(addRowBtn).toBeInTheDocument();
+
+    fireEvent.click(addRowBtn);
+
+    // Modal should be open
+    expect(screen.getByText(/Insert New Row/i)).toBeInTheDocument();
+  });
 });

@@ -317,4 +317,37 @@ describe('DataGrid', () => {
 
     expect(screen.getByText(/2 rows/i)).toBeInTheDocument();
   });
+
+  it('renders Add Row and Delete Row buttons when isEditable is true', () => {
+    const onAddRow = vi.fn();
+    const onRowDelete = vi.fn();
+
+    render(
+      <DataGrid
+        data={mockQueryResult}
+        isEditable={true}
+        onAddRow={onAddRow}
+        onRowDelete={onRowDelete}
+      />
+    );
+
+    const addBtn = screen.getByRole('button', { name: /add row/i });
+    expect(addBtn).toBeInTheDocument();
+    fireEvent.click(addBtn);
+    expect(onAddRow).toHaveBeenCalledTimes(1);
+
+    const deleteBtn = screen.getByRole('button', { name: /delete selected row/i });
+    expect(deleteBtn).toBeInTheDocument();
+  });
+
+  it('renders status message badge when statusMessage is provided', () => {
+    render(
+      <DataGrid
+        data={mockQueryResult}
+        statusMessage={{ type: 'success', text: 'Saved successfully' }}
+      />
+    );
+
+    expect(screen.getByText('Saved successfully')).toBeInTheDocument();
+  });
 });

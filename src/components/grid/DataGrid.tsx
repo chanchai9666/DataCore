@@ -5,10 +5,11 @@ import DataEditor, {
   GridSelection,
   CompactSelection,
   Theme,
+  GridCellKind,
   type EditableGridCell,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
-import { Eye, Loader2, Database } from 'lucide-react';
+import { Eye, Loader2, Database, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { QueryResult, CellValue } from '../../types/db';
 import { PaginationBar } from './PaginationBar';
 import { CellDetailDrawer } from './CellDetailDrawer';
@@ -24,6 +25,10 @@ export interface DataGridProps {
   onPageSizeChange?: (pageSize: number) => void;
   onRefresh?: () => void;
   onCellEdited?: (cell: readonly [number, number], newValue: EditableGridCell) => void;
+  onRowDelete?: (rowIndex: number) => void;
+  onAddRow?: () => void;
+  isEditable?: boolean;
+  statusMessage?: { type: 'success' | 'error'; text: string } | null;
   theme?: 'dark' | 'light';
 }
 
@@ -77,6 +82,10 @@ export const DataGrid: React.FC<DataGridProps> = ({
   onPageSizeChange,
   onRefresh,
   onCellEdited,
+  onRowDelete,
+  onAddRow,
+  isEditable = false,
+  statusMessage = null,
   theme = 'dark',
 }) => {
   const [selectedCell, setSelectedCell] = useState<Item | null>(null);
@@ -121,6 +130,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
       dataType: columnMeta ? columnMeta.data_type : 'UNKNOWN',
       value: cellValue,
       rowIndex: rowIdx,
+      colIndex: colIdx,
     };
   }, [data, selectedCell]);
 
@@ -139,6 +149,27 @@ export const DataGrid: React.FC<DataGridProps> = ({
     }
     setDrawerOpen(true);
   };
+
+  const handleSaveDrawerValue = useCallback(
+    (newVal: unknown) => {
+      if (selectedCell && onCellEdited) {
+        const col = selectedCell[0];
+        const row = selectedCell[1];
+        let cell: EditableGridCell;
+        if (newVal === null) {
+          cell = { kind: GridCellKind.Text, data: 'NULL', displayData: 'NULL', allowOverlay: true };
+        } else if (typeof newVal === 'number') {
+          cell = { kind: GridCellKind.Number, data: newVal, displayData: String(newVal), allowOverlay: true };
+        } else if (typeof newVal === 'boolean') {
+          cell = { kind: GridCellKind.Boolean, data: newVal, allowOverlay: false };
+        } else {
+          cell = { kind: GridCellKind.Text, data: String(newVal), displayData: String(newVal), allowOverlay: true };
+        }
+        onCellEdited([col, row], cell);
+      }
+    },
+    [selectedCell, onCellEdited]
+  );
 
   const gridTheme = theme === 'dark' ? darkGridTheme : lightGridTheme;
 
@@ -167,7 +198,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
           fontSize: '12px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Database size={14} style={{ color: '#3b82f6' }} />
           <span style={{ color: 'var(--text-secondary, #aaaaaa)' }}>
             {data?.columns ? `${data.columns.length} columns` : '0 columns'}
@@ -177,30 +208,122 @@ export const DataGrid: React.FC<DataGridProps> = ({
               ({data.execution_time_ms} ms)
             </span>
           )}
+
+          {statusMessage && (
+            <div
+              data-testid="grid-status-badge"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                fontWeight: 500,
+                backgroundColor:
+                  statusMessage.type === 'success'
+                    ? 'rgba(6, 78, 59, 0.7)'
+                    : 'rgba(127, 29, 29, 0.7)',
+                color: statusMessage.type === 'success' ? '#34d399' : '#f87171',
+                border: `1px solid ${
+                  statusMessage.type === 'success' ? '#059669' : '#b91c1c'
+                }`,
+              }}
+            >
+              {statusMessage.type === 'success' ? (
+                <CheckCircle2 size={12} />
+              ) : (
+                <AlertCircle size={12} />
+              )}
+              <span>{statusMessage.text}</span>
+            </div>
+          )}
         </div>
 
-        <button
-          aria-label="Inspect Cell"
-          title="Inspect selected cell value"
-          onClick={handleInspectClick}
-          disabled={rowsCount === 0 || isLoading}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '5px',
-            padding: '3px 10px',
-            fontSize: '12px',
-            backgroundColor: 'var(--btn-bg, #2b2b2b)',
-            color: rowsCount > 0 ? 'var(--text-primary, #ffffff)' : 'var(--text-disabled, #666666)',
-            border: '1px solid var(--border-color, #444444)',
-            borderRadius: '4px',
-            cursor: rowsCount > 0 ? 'pointer' : 'not-allowed',
-            opacity: rowsCount > 0 ? 1 : 0.6,
-          }}
-        >
-          <Eye size={13} />
-          Inspect Cell
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isEditable && onAddRow && (
+            <button
+              type="button"
+              aria-label="Add Row"
+              title="Insert new row"
+              onClick={onAddRow}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 10px',
+                fontSize: '12px',
+                backgroundColor: '#059669',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+            >
+              <Plus size={13} />
+              Add Row
+            </button>
+          )}
+
+          {isEditable && onRowDelete && (
+            <button
+              type="button"
+              aria-label="Delete Selected Row"
+              title={
+                selectedCell
+                  ? `Delete row #${selectedCell[1] + 1}`
+                  : 'Select a cell/row to delete'
+              }
+              disabled={!selectedCell || rowsCount === 0 || isLoading}
+              onClick={() => selectedCell && onRowDelete(selectedCell[1])}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 10px',
+                fontSize: '12px',
+                backgroundColor: selectedCell ? '#7f1d1d' : '#2b2b2b',
+                color: selectedCell ? '#fca5a5' : '#666666',
+                border: '1px solid #444444',
+                borderRadius: '4px',
+                cursor: selectedCell ? 'pointer' : 'not-allowed',
+                fontWeight: 500,
+                opacity: selectedCell ? 1 : 0.6,
+              }}
+            >
+              <Trash2 size={13} />
+              Delete Row
+            </button>
+          )}
+
+          <button
+            type="button"
+            aria-label="Inspect Cell"
+            title="Inspect selected cell value"
+            onClick={handleInspectClick}
+            disabled={rowsCount === 0 || isLoading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '3px 10px',
+              fontSize: '12px',
+              backgroundColor: 'var(--btn-bg, #2b2b2b)',
+              color:
+                rowsCount > 0
+                  ? 'var(--text-primary, #ffffff)'
+                  : 'var(--text-disabled, #666666)',
+              border: '1px solid var(--border-color, #444444)',
+              borderRadius: '4px',
+              cursor: rowsCount > 0 ? 'pointer' : 'not-allowed',
+              opacity: rowsCount > 0 ? 1 : 0.6,
+            }}
+          >
+            <Eye size={13} />
+            Inspect Cell
+          </button>
+        </div>
       </div>
 
       {/* Grid Content / Empty / Loading */}
@@ -275,6 +398,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         cellInfo={activeCellInfo}
+        onSaveValue={handleSaveDrawerValue}
       />
     </div>
   );
