@@ -6,6 +6,11 @@ import { dbApi } from '../../api/db';
 vi.mock('../../api/db', () => ({
   dbApi: {
     executeQuery: vi.fn(),
+    executeDirectQuery: vi.fn().mockResolvedValue({
+      columns: [],
+      rows: [],
+      execution_time_ms: 25,
+    }),
   },
 }));
 
@@ -82,13 +87,44 @@ describe('CreateTableModal', () => {
     expect(preview.textContent).toContain('"updated_at" TIMESTAMPTZ NOT NULL DEFAULT now()');
   });
 
-  it('submits successfully and calls dbApi.executeQuery', async () => {
-    (dbApi.executeQuery as any).mockResolvedValue({
-      columns: [],
-      rows: [],
-      execution_time_ms: 25,
-    });
+  it('supports configuring indexes and previews CREATE INDEX in SQL', () => {
+    render(
+      <CreateTableModal
+        isOpen={true}
+        connectionId="conn-1"
+        schemaName="public"
+        driver="postgres"
+        onClose={onClose}
+        onSuccess={onSuccess}
+      />
+    );
 
+    const nameInput = screen.getByTestId('create-table-name-input');
+    fireEvent.change(nameInput, { target: { value: 'users' } });
+
+    // Switch to Indexes tab
+    const indexesTab = screen.getByTestId('tab-indexes-btn');
+    fireEvent.click(indexesTab);
+
+    // Click Add Index
+    const addIndexBtn = screen.getByTestId('add-index-btn');
+    fireEvent.click(addIndexBtn);
+
+    // Edit Index Name
+    const indexNameInput = screen.getByTestId('index-name-input-0');
+    fireEvent.change(indexNameInput, { target: { value: 'idx_users_name' } });
+
+    // Toggle Unique
+    const uniqueCheckbox = screen.getByTestId('index-unique-checkbox-0');
+    fireEvent.click(uniqueCheckbox);
+
+    // Verify SQL Preview includes CREATE UNIQUE INDEX
+    const preview = screen.getByTestId('create-table-sql-preview');
+    expect(preview.textContent).toContain('CREATE TABLE "public"."users" (');
+    expect(preview.textContent).toContain('CREATE UNIQUE INDEX "idx_users_name" ON "public"."users" ("id");');
+  });
+
+  it('submits successfully and calls dbApi.executeDirectQuery', async () => {
     render(
       <CreateTableModal
         isOpen={true}
@@ -107,7 +143,7 @@ describe('CreateTableModal', () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+      expect(dbApi.executeDirectQuery).toHaveBeenCalledWith(
         'conn-1',
         expect.stringContaining('CREATE TABLE "public"."categories"')
       );

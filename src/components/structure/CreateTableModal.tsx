@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, X, Loader2, Sparkles, Code2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, X, Loader2, Sparkles, Code2, AlertCircle, Layers } from 'lucide-react';
 import { dbApi } from '../../api/db';
 import {
   composeDataType,
@@ -8,6 +8,7 @@ import {
 import {
   buildCreateTableSql,
   type NewTableColumnConfig,
+  type TableIndexConfig,
 } from './tableManagementHelpers';
 
 export interface CreateTableModalProps {
@@ -28,6 +29,13 @@ interface ColumnRow {
   nullable: boolean;
   defaultValue: string;
   autoIncrement?: boolean;
+}
+
+interface IndexRow {
+  id: string;
+  name: string;
+  columns: string[];
+  isUnique: boolean;
 }
 
 const COMMON_TYPES = [
@@ -85,6 +93,8 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
     },
   ]);
 
+  const [indexes, setIndexes] = useState<IndexRow[]>([]);
+  const [activeTab, setActiveTab] = useState<'columns' | 'indexes'>('columns');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,7 +114,21 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
   };
 
   const handleRemoveColumn = (id: string) => {
-    setColumns((prev) => prev.filter((c) => c.id !== id));
+    setColumns((prev) => {
+      const removedCol = prev.find((c) => c.id === id);
+      const nextCols = prev.filter((c) => c.id !== id);
+      // Remove deleted column name from any existing indexes
+      if (removedCol && removedCol.name.trim()) {
+        const removedName = removedCol.name.trim();
+        setIndexes((idxList) =>
+          idxList.map((idx) => ({
+            ...idx,
+            columns: idx.columns.filter((col) => col !== removedName),
+          }))
+        );
+      }
+      return nextCols;
+    });
   };
 
   const handleUpdateColumn = (id: string, updates: Partial<ColumnRow>) => {
@@ -165,6 +189,33 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
     });
   };
 
+  const handleAddIndex = () => {
+    const validNamedCols = columns.filter((c) => c.name.trim().length > 0).map((c) => c.name.trim());
+    const defaultCol = validNamedCols[0] || 'id';
+    const cleanTable = tableName.trim() || 'table';
+    const nextIdxNum = indexes.length + 1;
+
+    setIndexes((prev) => [
+      ...prev,
+      {
+        id: `idx-${Date.now()}-${Math.random()}`,
+        name: `idx_${cleanTable}_${defaultCol}${nextIdxNum > 1 ? `_${nextIdxNum}` : ''}`,
+        columns: [defaultCol],
+        isUnique: false,
+      },
+    ]);
+  };
+
+  const handleRemoveIndex = (id: string) => {
+    setIndexes((prev) => prev.filter((idx) => idx.id !== id));
+  };
+
+  const handleUpdateIndex = (id: string, updates: Partial<IndexRow>) => {
+    setIndexes((prev) =>
+      prev.map((idx) => (idx.id === id ? { ...idx, ...updates } : idx))
+    );
+  };
+
   const sqlPreview = useMemo(() => {
     const formattedCols: NewTableColumnConfig[] = columns
       .filter((c) => c.name.trim().length > 0)
@@ -177,13 +228,22 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
         autoIncrement: c.autoIncrement,
       }));
 
+    const formattedIndexes: TableIndexConfig[] = indexes
+      .filter((idx) => idx.name.trim().length > 0 && idx.columns.length > 0)
+      .map((idx) => ({
+        name: idx.name.trim(),
+        columns: idx.columns,
+        isUnique: idx.isUnique,
+      }));
+
     return buildCreateTableSql({
       tableName: tableName.trim(),
       schemaName: targetSchema.trim() || undefined,
       driver,
       columns: formattedCols,
+      indexes: formattedIndexes,
     });
-  }, [tableName, targetSchema, driver, columns]);
+  }, [tableName, targetSchema, driver, columns, indexes]);
 
   if (!isOpen) return null;
 
@@ -210,7 +270,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
     setError(null);
 
     try {
-      await dbApi.executeQuery(connectionId, sqlPreview);
+      await dbApi.executeDirectQuery(connectionId, sqlPreview);
       onSuccess(cleanName, targetSchema.trim() || undefined);
       onClose();
     } catch (err: unknown) {
@@ -220,6 +280,10 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
       setLoading(false);
     }
   };
+
+  const validColumnNames = columns
+    .map((c) => c.name.trim())
+    .filter((n) => n.length > 0);
 
   return (
     <div
@@ -284,154 +348,318 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
             )}
           </div>
 
+          {/* Tab Selection */}
+          <div className="flex border-b border-gray-800 space-x-6">
+            <button
+              type="button"
+              data-testid="tab-columns-btn"
+              onClick={() => setActiveTab('columns')}
+              className={`pb-2 text-xs font-semibold flex items-center space-x-2 border-b-2 transition-colors ${
+                activeTab === 'columns'
+                  ? 'border-emerald-500 text-emerald-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              <span>Columns ({columns.length})</span>
+            </button>
+            <button
+              type="button"
+              data-testid="tab-indexes-btn"
+              onClick={() => setActiveTab('indexes')}
+              className={`pb-2 text-xs font-semibold flex items-center space-x-2 border-b-2 transition-colors ${
+                activeTab === 'indexes'
+                  ? 'border-emerald-500 text-emerald-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Indexes ({indexes.length})</span>
+            </button>
+          </div>
+
           {/* Columns Section */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                Columns Configuration
-              </span>
-              <div className="flex items-center space-x-2">
+          {activeTab === 'columns' && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                  Columns Configuration
+                </span>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={handleAddTimestamps}
+                    className="px-2.5 py-1 text-[11px] rounded bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center space-x-1 border border-gray-700 transition-colors"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>+ Timestamps</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddColumn}
+                    data-testid="add-column-row-btn"
+                    className="px-2.5 py-1 text-[11px] rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 flex items-center space-x-1 border border-emerald-500/30 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Column</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Columns Table */}
+              <div className="border border-gray-800 rounded overflow-hidden">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-gray-950/60 border-b border-gray-800 text-[11px] uppercase tracking-wider text-gray-400 select-none">
+                    <tr>
+                      <th className="px-3 py-2 w-1/4">Name</th>
+                      <th className="px-3 py-2 w-1/5">Type</th>
+                      <th className="px-3 py-2 w-28">Length/Values</th>
+                      <th className="px-2 py-2 text-center w-12" title="Primary Key">PK</th>
+                      <th className="px-2 py-2 text-center w-16" title="Nullable">Nullable</th>
+                      <th className="px-3 py-2">Default</th>
+                      <th className="px-2 py-2 text-center w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800 bg-gray-900/50 font-mono">
+                    {columns.map((col, idx) => {
+                      const spec = getDataTypeSpec(col.baseType);
+                      return (
+                        <tr key={col.id} className="hover:bg-gray-800/40">
+                          {/* Name */}
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="text"
+                              required
+                              placeholder="column_name"
+                              value={col.name}
+                              onChange={(e) => handleUpdateColumn(col.id, { name: e.target.value })}
+                              data-testid={`column-name-input-${idx}`}
+                              className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                            />
+                          </td>
+
+                          {/* Type */}
+                          <td className="px-2 py-1.5">
+                            <select
+                              value={col.baseType}
+                              onChange={(e) => handleUpdateColumn(col.id, { baseType: e.target.value })}
+                              data-testid={`column-type-select-${idx}`}
+                              className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-500"
+                            >
+                              {COMMON_TYPES.map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          {/* Length / Values */}
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="text"
+                              disabled={!spec.hasLength}
+                              value={col.length}
+                              onChange={(e) => handleUpdateColumn(col.id, { length: e.target.value })}
+                              placeholder={spec.lengthPlaceholder || 'N/A'}
+                              data-testid={`column-length-input-${idx}`}
+                              className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 disabled:opacity-40 disabled:bg-gray-900"
+                            />
+                          </td>
+
+                          {/* PK */}
+                          <td className="px-2 py-1.5 text-center">
+                            <input
+                              type="checkbox"
+                              checked={col.isPrimaryKey}
+                              onChange={(e) =>
+                                handleUpdateColumn(col.id, { isPrimaryKey: e.target.checked })
+                              }
+                              data-testid={`column-pk-checkbox-${idx}`}
+                              className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-0"
+                            />
+                          </td>
+
+                          {/* Nullable */}
+                          <td className="px-2 py-1.5 text-center">
+                            <input
+                              type="checkbox"
+                              disabled={col.isPrimaryKey}
+                              checked={col.isPrimaryKey ? false : col.nullable}
+                              onChange={(e) =>
+                                handleUpdateColumn(col.id, { nullable: e.target.checked })
+                              }
+                              data-testid={`column-nullable-checkbox-${idx}`}
+                              className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-0 disabled:opacity-40"
+                            />
+                          </td>
+
+                          {/* Default */}
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="text"
+                              value={col.defaultValue}
+                              onChange={(e) =>
+                                handleUpdateColumn(col.id, { defaultValue: e.target.value })
+                              }
+                              placeholder={spec.defaultPlaceholder || 'NULL'}
+                              data-testid={`column-default-input-${idx}`}
+                              className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                            />
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-2 py-1.5 text-center">
+                            <button
+                              type="button"
+                              disabled={columns.length <= 1}
+                              onClick={() => handleRemoveColumn(col.id)}
+                              aria-label={`Remove column ${col.name || idx + 1}`}
+                              className="p-1 text-gray-400 hover:text-red-400 disabled:opacity-20 disabled:hover:text-gray-400 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Indexes Section */}
+          {activeTab === 'indexes' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                    Indexes Configuration
+                  </span>
+                  <p className="text-[11px] text-gray-500">
+                    Define custom single or multi-column indexes for faster queries.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={handleAddTimestamps}
-                  className="px-2.5 py-1 text-[11px] rounded bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center space-x-1 border border-gray-700 transition-colors"
-                >
-                  <Sparkles className="w-3 h-3 text-amber-400" />
-                  <span>+ Timestamps</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAddColumn}
-                  data-testid="add-column-row-btn"
+                  onClick={handleAddIndex}
+                  data-testid="add-index-btn"
                   className="px-2.5 py-1 text-[11px] rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 flex items-center space-x-1 border border-emerald-500/30 transition-colors"
                 >
                   <Plus className="w-3 h-3" />
-                  <span>Add Column</span>
+                  <span>Add Index</span>
                 </button>
               </div>
-            </div>
 
-            {/* Columns Table */}
-            <div className="border border-gray-800 rounded overflow-hidden">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-gray-950/60 border-b border-gray-800 text-[11px] uppercase tracking-wider text-gray-400 select-none">
-                  <tr>
-                    <th className="px-3 py-2 w-1/4">Name</th>
-                    <th className="px-3 py-2 w-1/5">Type</th>
-                    <th className="px-3 py-2 w-28">Length/Values</th>
-                    <th className="px-2 py-2 text-center w-12" title="Primary Key">PK</th>
-                    <th className="px-2 py-2 text-center w-16" title="Nullable">Nullable</th>
-                    <th className="px-3 py-2">Default</th>
-                    <th className="px-2 py-2 text-center w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800 bg-gray-900/50 font-mono">
-                  {columns.map((col, idx) => {
-                    const spec = getDataTypeSpec(col.baseType);
-                    return (
-                      <tr key={col.id} className="hover:bg-gray-800/40">
-                        {/* Name */}
-                        <td className="px-2 py-1.5">
-                          <input
-                            type="text"
-                            required
-                            placeholder="column_name"
-                            value={col.name}
-                            onChange={(e) => handleUpdateColumn(col.id, { name: e.target.value })}
-                            data-testid={`column-name-input-${idx}`}
-                            className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500"
-                          />
-                        </td>
-
-                        {/* Type */}
-                        <td className="px-2 py-1.5">
-                          <select
-                            value={col.baseType}
-                            onChange={(e) => handleUpdateColumn(col.id, { baseType: e.target.value })}
-                            data-testid={`column-type-select-${idx}`}
-                            className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-500"
-                          >
-                            {COMMON_TYPES.map((t) => (
-                              <option key={t} value={t}>
-                                {t}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-
-                        {/* Length / Values */}
-                        <td className="px-2 py-1.5">
-                          <input
-                            type="text"
-                            disabled={!spec.hasLength}
-                            value={col.length}
-                            onChange={(e) => handleUpdateColumn(col.id, { length: e.target.value })}
-                            placeholder={spec.lengthPlaceholder || 'N/A'}
-                            data-testid={`column-length-input-${idx}`}
-                            className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 disabled:opacity-40 disabled:bg-gray-900"
-                          />
-                        </td>
-
-                        {/* PK */}
-                        <td className="px-2 py-1.5 text-center">
-                          <input
-                            type="checkbox"
-                            checked={col.isPrimaryKey}
-                            onChange={(e) =>
-                              handleUpdateColumn(col.id, { isPrimaryKey: e.target.checked })
-                            }
-                            data-testid={`column-pk-checkbox-${idx}`}
-                            className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-0"
-                          />
-                        </td>
-
-                        {/* Nullable */}
-                        <td className="px-2 py-1.5 text-center">
-                          <input
-                            type="checkbox"
-                            disabled={col.isPrimaryKey}
-                            checked={col.isPrimaryKey ? false : col.nullable}
-                            onChange={(e) =>
-                              handleUpdateColumn(col.id, { nullable: e.target.checked })
-                            }
-                            data-testid={`column-nullable-checkbox-${idx}`}
-                            className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-0 disabled:opacity-40"
-                          />
-                        </td>
-
-                        {/* Default */}
-                        <td className="px-2 py-1.5">
-                          <input
-                            type="text"
-                            value={col.defaultValue}
-                            onChange={(e) =>
-                              handleUpdateColumn(col.id, { defaultValue: e.target.value })
-                            }
-                            placeholder={spec.defaultPlaceholder || 'NULL'}
-                            data-testid={`column-default-input-${idx}`}
-                            className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500"
-                          />
-                        </td>
-
-                        {/* Actions */}
-                        <td className="px-2 py-1.5 text-center">
-                          <button
-                            type="button"
-                            disabled={columns.length <= 1}
-                            onClick={() => handleRemoveColumn(col.id)}
-                            aria-label={`Remove column ${col.name || idx + 1}`}
-                            className="p-1 text-gray-400 hover:text-red-400 disabled:opacity-20 disabled:hover:text-gray-400 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
+              {indexes.length === 0 ? (
+                <div className="border border-dashed border-gray-800 rounded-lg p-6 text-center text-xs text-gray-500 bg-gray-950/30">
+                  <Layers className="w-8 h-8 text-gray-600 mx-auto mb-2 opacity-60" />
+                  <p>No custom indexes configured yet.</p>
+                  <p className="text-[11px] text-gray-600 mt-1">
+                    Primary key index is created automatically. Click "+ Add Index" to add secondary indexes.
+                  </p>
+                </div>
+              ) : (
+                <div className="border border-gray-800 rounded overflow-hidden">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-gray-950/60 border-b border-gray-800 text-[11px] uppercase tracking-wider text-gray-400 select-none">
+                      <tr>
+                        <th className="px-3 py-2 w-1/3">Index Name</th>
+                        <th className="px-3 py-2">Indexed Columns</th>
+                        <th className="px-2 py-2 text-center w-20">Unique</th>
+                        <th className="px-2 py-2 text-center w-10"></th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800 bg-gray-900/50">
+                      {indexes.map((idxItem, idxIndex) => (
+                        <tr key={idxItem.id} className="hover:bg-gray-800/40">
+                          {/* Index Name */}
+                          <td className="px-2 py-2 font-mono">
+                            <input
+                              type="text"
+                              required
+                              placeholder="idx_name"
+                              value={idxItem.name}
+                              onChange={(e) =>
+                                handleUpdateIndex(idxItem.id, { name: e.target.value })
+                              }
+                              data-testid={`index-name-input-${idxIndex}`}
+                              className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 font-mono"
+                            />
+                          </td>
+
+                          {/* Columns multi-select checkboxes */}
+                          <td className="px-2 py-2">
+                            <div className="flex flex-wrap gap-2 items-center">
+                              {validColumnNames.length === 0 ? (
+                                <span className="text-[11px] text-gray-500 italic">
+                                  No columns defined in Columns tab
+                                </span>
+                              ) : (
+                                validColumnNames.map((colName) => {
+                                  const isSelected = idxItem.columns.includes(colName);
+                                  return (
+                                    <label
+                                      key={colName}
+                                      className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] cursor-pointer transition-colors border ${
+                                        isSelected
+                                          ? 'bg-blue-950/80 text-blue-300 border-blue-600/60 font-semibold'
+                                          : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={(e) => {
+                                          const nextCols = e.target.checked
+                                            ? [...idxItem.columns, colName]
+                                            : idxItem.columns.filter((c) => c !== colName);
+                                          handleUpdateIndex(idxItem.id, { columns: nextCols });
+                                        }}
+                                        data-testid={`index-col-checkbox-${idxIndex}-${colName}`}
+                                        className="sr-only"
+                                      />
+                                      <span>{colName}</span>
+                                    </label>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Is Unique */}
+                          <td className="px-2 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={idxItem.isUnique}
+                              onChange={(e) =>
+                                handleUpdateIndex(idxItem.id, { isUnique: e.target.checked })
+                              }
+                              data-testid={`index-unique-checkbox-${idxIndex}`}
+                              className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-0"
+                            />
+                          </td>
+
+                          {/* Delete */}
+                          <td className="px-2 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveIndex(idxItem.id)}
+                              aria-label={`Remove index ${idxItem.name || idxIndex + 1}`}
+                              data-testid={`remove-index-btn-${idxIndex}`}
+                              className="p-1 text-gray-400 hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* SQL Preview */}
           <div className="space-y-1">

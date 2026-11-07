@@ -40,7 +40,7 @@ describe('TableStructureEditor', () => {
     );
 
     expect(await screen.findByText('categories')).toBeInTheDocument();
-    expect(screen.getByText('3 columns')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /columns \(3\)/i })).toBeInTheDocument();
 
     // Verify column rows
     expect(screen.getByText('id')).toBeInTheDocument();
@@ -270,5 +270,89 @@ describe('TableStructureEditor', () => {
 
     expect(await screen.findByRole('heading', { name: /drop table/i })).toBeInTheDocument();
     expect(screen.getByTestId('drop-table-confirm-input')).toBeInTheDocument();
+  });
+
+  it('switches to indexes tab, creates a new index, and drops an index', async () => {
+    // Provide query results: columns result, then index result
+    const mockIndexesResult: QueryResult = {
+      columns: [],
+      rows: [
+        ['categories_pkey', 'true', 'true', 'id', 'btree'],
+        ['idx_categories_name', 'false', 'false', 'name', 'btree'],
+      ],
+      execution_time_ms: 5,
+    };
+
+    vi.mocked(dbApi.executeQuery).mockImplementation(async (_tabId, sql) => {
+      if (sql.includes('FROM pg_class t')) {
+        return mockIndexesResult;
+      }
+      return mockColumnsResult;
+    });
+
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    // Switch to Indexes tab
+    const indexesTabBtn = await screen.findByTestId('tab-indexes-btn');
+    fireEvent.click(indexesTabBtn);
+
+    // Verify index list items
+    expect(await screen.findByText('categories_pkey')).toBeInTheDocument();
+    expect(screen.getByText('idx_categories_name')).toBeInTheDocument();
+
+    // Open Add Index modal
+    const addIndexBtn = screen.getByTestId('add-index-btn');
+    fireEvent.click(addIndexBtn);
+
+    expect(screen.getByText('Add New Index')).toBeInTheDocument();
+    const nameInput = screen.getByTestId('new-index-name-input');
+    fireEvent.change(nameInput, { target: { value: 'idx_categories_sort' } });
+
+    // Pick column 'sort_order'
+    const colCheckbox = screen.getByTestId('new-index-col-checkbox-sort_order');
+    fireEvent.click(colCheckbox);
+
+    // Toggle Unique
+    const uniqueCheckbox = screen.getByTestId('new-index-unique-checkbox');
+    fireEvent.click(uniqueCheckbox);
+
+    // Verify preview SQL
+    expect(screen.getByTestId('add-index-preview-sql').textContent).toContain(
+      'CREATE UNIQUE INDEX "idx_categories_sort" ON "public"."categories" ("id", "sort_order");'
+    );
+
+    // Submit Add Index
+    const confirmAddBtn = screen.getByTestId('confirm-add-index-btn');
+    fireEvent.click(confirmAddBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'CREATE UNIQUE INDEX "idx_categories_sort" ON "public"."categories" ("id", "sort_order");'
+      );
+    });
+
+    // Test Drop Index
+    const dropIndexBtn = screen.getByTestId('drop-index-btn-idx_categories_name');
+    fireEvent.click(dropIndexBtn);
+
+    expect(screen.getByRole('heading', { name: /drop index/i })).toBeInTheDocument();
+    const confirmDropBtn = screen.getByTestId('confirm-drop-index-btn');
+    fireEvent.click(confirmDropBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'DROP INDEX "public"."idx_categories_name";'
+      );
+    });
   });
 });

@@ -29,6 +29,13 @@ import {
   getDataTypeSpec,
   type TableColumnStructure,
 } from './tableStructureHelpers';
+import {
+  buildCreateIndexSql,
+  buildDropIndexSql,
+  getFetchIndexesSql,
+  parseIndexesFromQueryResult,
+  type TableIndexStructure,
+} from './tableManagementHelpers';
 import { DropTableModal } from './DropTableModal';
 
 export interface TableStructureEditorProps {
@@ -87,6 +94,8 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   onStructureChanged,
 }) => {
   const [columns, setColumns] = useState<TableColumnStructure[]>([]);
+  const [indexes, setIndexes] = useState<TableIndexStructure[]>([]);
+  const [activeTab, setActiveTab] = useState<'columns' | 'indexes'>('columns');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{
@@ -96,11 +105,18 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddIndexModalOpen, setIsAddIndexModalOpen] = useState(false);
   const [editColTarget, setEditColTarget] = useState<TableColumnStructure | null>(null);
   const [dropColTarget, setDropColTarget] = useState<TableColumnStructure | null>(null);
+  const [dropIndexTarget, setDropIndexTarget] = useState<TableIndexStructure | null>(null);
   const [isDdlModalOpen, setIsDdlModalOpen] = useState(false);
   const [isDropTableModalOpen, setIsDropTableModalOpen] = useState(false);
   const [ddlCopied, setDdlCopied] = useState(false);
+
+  // Add Index form fields
+  const [newIndexName, setNewIndexName] = useState('');
+  const [newIndexCols, setNewIndexCols] = useState<string[]>([]);
+  const [newIndexUnique, setNewIndexUnique] = useState(false);
 
   // Add form fields
   const [newColName, setNewColName] = useState('');
@@ -192,7 +208,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
     }
   };
 
-  // Load column structure
+  // Load column structure & indexes
   const loadStructure = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -219,6 +235,16 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
       }
 
       setColumns(parsedCols);
+
+      // Fetch indexes
+      try {
+        const idxSql = getFetchIndexesSql(driver, tableName, schemaName);
+        const idxRes = await dbApi.executeQuery(tabId, idxSql);
+        const parsedIdx = parseIndexesFromQueryResult(idxRes, driver);
+        setIndexes(parsedIdx);
+      } catch (idxErr) {
+        console.warn('Index load fallback error:', idxErr);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
@@ -429,6 +455,79 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
     }
   };
 
+  // Preview SQL for Add Index
+  const addIndexPreviewSql = useMemo(() => {
+    if (!newIndexName.trim() || newIndexCols.length === 0) return '';
+    try {
+      return buildCreateIndexSql({
+        driver,
+        tableName,
+        schemaName,
+        indexName: newIndexName.trim(),
+        columns: newIndexCols,
+        isUnique: newIndexUnique,
+      });
+    } catch {
+      return '';
+    }
+  }, [driver, tableName, schemaName, newIndexName, newIndexCols, newIndexUnique]);
+
+  // Handle Add Index
+  const handleAddIndexSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newIndexName.trim() || newIndexCols.length === 0) return;
+
+    setSubmitting(true);
+    try {
+      const sql = buildCreateIndexSql({
+        driver,
+        tableName,
+        schemaName,
+        indexName: newIndexName.trim(),
+        columns: newIndexCols,
+        isUnique: newIndexUnique,
+      });
+
+      await dbApi.executeQuery(tabId, sql);
+      setIsAddIndexModalOpen(false);
+      setNewIndexName('');
+      setNewIndexCols([]);
+      setNewIndexUnique(false);
+      showStatus('success', `Created index '${newIndexName.trim()}' successfully`);
+      await loadStructure();
+      onStructureChanged?.();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showStatus('error', `Failed to create index: ${msg}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle Drop Index
+  const handleDropIndexConfirm = async () => {
+    if (!dropIndexTarget) return;
+    setSubmitting(true);
+    try {
+      const sql = buildDropIndexSql({
+        driver,
+        tableName,
+        schemaName,
+        indexName: dropIndexTarget.name,
+      });
+      await dbApi.executeQuery(tabId, sql);
+      setDropIndexTarget(null);
+      showStatus('success', `Dropped index '${dropIndexTarget.name}' successfully`);
+      await loadStructure();
+      onStructureChanged?.();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showStatus('error', `Failed to drop index: ${msg}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // DDL String
   const ddlString = useMemo(() => {
     return generateTableDdl({
@@ -466,13 +565,34 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             <span className="font-semibold text-sm">{tableName}</span>
           </div>
 
-          <span
-            className={`px-2 py-0.5 rounded text-[11px] font-mono ${
-              isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            {columns.length} columns
-          </span>
+          {/* Tab Selector */}
+          <div className="flex items-center space-x-1 bg-gray-950/60 p-0.5 rounded border border-gray-800">
+            <button
+              type="button"
+              data-testid="tab-columns-btn"
+              onClick={() => setActiveTab('columns')}
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                activeTab === 'columns'
+                  ? isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900 shadow-sm'
+                  : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Columns ({columns.length})
+            </button>
+            <button
+              type="button"
+              data-testid="tab-indexes-btn"
+              onClick={() => setActiveTab('indexes')}
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1 ${
+                activeTab === 'indexes'
+                  ? isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900 shadow-sm'
+                  : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Layers className="w-3 h-3" />
+              <span>Indexes ({indexes.length})</span>
+            </button>
+          </div>
 
           {statusMessage && (
             <div
@@ -494,15 +614,33 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            data-testid="add-column-btn"
-            onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Column</span>
-          </button>
+          {activeTab === 'columns' ? (
+            <button
+              type="button"
+              data-testid="add-column-btn"
+              onClick={() => setIsAddModalOpen(true)}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Column</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              data-testid="add-index-btn"
+              onClick={() => {
+                const defaultCol = columns[0]?.name || '';
+                setNewIndexName(`idx_${tableName}_${defaultCol || 'col'}`);
+                setNewIndexCols(defaultCol ? [defaultCol] : []);
+                setNewIndexUnique(false);
+                setIsAddIndexModalOpen(true);
+              }}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Index</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -573,138 +711,252 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               </button>
             </div>
           </div>
-        ) : columns.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-gray-400 space-y-2">
-            <Layers className="w-10 h-10 opacity-30" />
-            <span className="text-xs">No columns found in this table.</span>
-          </div>
-        ) : (
-          <div
-            className={`border rounded-lg overflow-hidden shadow-sm ${
-              isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
-            }`}
-          >
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr
-                  className={`border-b font-medium ${
-                    isDark
-                      ? 'bg-gray-900/90 border-gray-800 text-gray-400'
-                      : 'bg-gray-100/90 border-gray-200 text-gray-600'
-                  }`}
-                >
-                  <th className="py-2.5 px-3 w-12 text-center">#</th>
-                  <th className="py-2.5 px-3">Column Name</th>
-                  <th className="py-2.5 px-3">Data Type</th>
-                  <th className="py-2.5 px-3 w-24 text-center">Nullable</th>
-                  <th className="py-2.5 px-3">Default Value</th>
-                  <th className="py-2.5 px-3 w-28 text-center">Key</th>
-                  <th className="py-2.5 px-3 w-24 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {columns.map((col) => (
+        ) : activeTab === 'columns' ? (
+          columns.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-gray-400 space-y-2">
+              <Layers className="w-10 h-10 opacity-30" />
+              <span className="text-xs">No columns found in this table.</span>
+            </div>
+          ) : (
+            <div
+              className={`border rounded-lg overflow-hidden shadow-sm ${
+                isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
+              }`}
+            >
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
                   <tr
-                    key={col.name}
-                    data-testid={`column-row-${col.name}`}
-                    className={`transition-colors ${
+                    className={`border-b font-medium ${
                       isDark
-                        ? 'hover:bg-gray-800/40 text-gray-200'
-                        : 'hover:bg-gray-50 text-gray-800 divide-gray-100'
+                        ? 'bg-gray-900/90 border-gray-800 text-gray-400'
+                        : 'bg-gray-100/90 border-gray-200 text-gray-600'
                     }`}
                   >
-                    <td className="py-2 px-3 text-center text-gray-500 font-mono text-[11px]">
-                      {col.ordinalPosition}
-                    </td>
+                    <th className="py-2.5 px-3 w-12 text-center">#</th>
+                    <th className="py-2.5 px-3">Column Name</th>
+                    <th className="py-2.5 px-3">Data Type</th>
+                    <th className="py-2.5 px-3 w-24 text-center">Nullable</th>
+                    <th className="py-2.5 px-3">Default Value</th>
+                    <th className="py-2.5 px-3 w-28 text-center">Key</th>
+                    <th className="py-2.5 px-3 w-24 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {columns.map((col) => (
+                    <tr
+                      key={col.name}
+                      data-testid={`column-row-${col.name}`}
+                      className={`transition-colors ${
+                        isDark
+                          ? 'hover:bg-gray-800/40 text-gray-200'
+                          : 'hover:bg-gray-50 text-gray-800 divide-gray-100'
+                      }`}
+                    >
+                      <td className="py-2 px-3 text-center text-gray-500 font-mono text-[11px]">
+                        {col.ordinalPosition}
+                      </td>
 
-                    <td className="py-2 px-3 font-medium flex items-center space-x-1.5">
-                      {col.isPrimaryKey && (
-                        <span title="Primary Key">
-                          <Key className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                        </span>
-                      )}
-                      <span className="font-mono text-sm">{col.name}</span>
-                    </td>
+                      <td className="py-2 px-3 font-medium flex items-center space-x-1.5">
+                        {col.isPrimaryKey && (
+                          <span title="Primary Key">
+                            <Key className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                          </span>
+                        )}
+                        <span className="font-mono text-sm">{col.name}</span>
+                      </td>
 
-                    <td className="py-2 px-3">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded font-mono text-[11px] font-medium ${
-                          isDark
-                            ? 'bg-blue-950/60 text-blue-300 border border-blue-900/50'
-                            : 'bg-blue-50 text-blue-700 border border-blue-200'
-                        }`}
-                      >
-                        {col.dataType}
-                      </span>
-                    </td>
-
-                    <td className="py-2 px-3 text-center">
-                      <span
-                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
-                          col.isNullable
-                            ? isDark
-                              ? 'bg-gray-800 text-gray-300'
-                              : 'bg-gray-200 text-gray-700'
-                            : isDark
-                            ? 'bg-amber-950/60 text-amber-300 border border-amber-900/40'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
-                      >
-                        {col.isNullable ? 'YES' : 'NO'}
-                      </span>
-                    </td>
-
-                    <td className="py-2 px-3 font-mono text-xs text-gray-400">
-                      {col.defaultValue ? (
-                        <span className="text-gray-300">{col.defaultValue}</span>
-                      ) : (
-                        <span className="text-gray-500 italic">NULL</span>
-                      )}
-                    </td>
-
-                    <td className="py-2 px-3 text-center">
-                      {col.isPrimaryKey ? (
-                        <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-700">
-                          <Key className="w-2.5 h-2.5" />
-                          <span>PK</span>
-                        </span>
-                      ) : (
-                        <span className="text-gray-600">-</span>
-                      )}
-                    </td>
-
-                    <td className="py-2 px-3 text-right">
-                      <div className="inline-flex items-center space-x-1">
-                        <button
-                          type="button"
-                          data-testid={`edit-column-btn-${col.name}`}
-                          onClick={() => openEditModal(col)}
-                          title="Edit Column"
-                          className={`p-1 rounded transition-colors ${
+                      <td className="py-2 px-3">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded font-mono text-[11px] font-medium ${
                             isDark
-                              ? 'hover:bg-gray-700 text-gray-400 hover:text-blue-300'
-                              : 'hover:bg-gray-200 text-gray-500 hover:text-blue-600'
+                              ? 'bg-blue-950/60 text-blue-300 border border-blue-900/50'
+                              : 'bg-blue-50 text-blue-700 border border-blue-200'
                           }`}
                         >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
+                          {col.dataType}
+                        </span>
+                      </td>
 
-                        <button
-                          type="button"
-                          data-testid={`drop-column-btn-${col.name}`}
-                          onClick={() => setDropColTarget(col)}
-                          title="Drop Column"
-                          className="p-1 rounded hover:bg-red-950/60 text-gray-400 hover:text-red-400 transition-colors"
+                      <td className="py-2 px-3 text-center">
+                        <span
+                          className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                            col.isNullable
+                              ? isDark
+                                ? 'bg-gray-800 text-gray-300'
+                                : 'bg-gray-200 text-gray-700'
+                              : isDark
+                              ? 'bg-amber-950/60 text-amber-300 border border-amber-900/40'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+                          {col.isNullable ? 'YES' : 'NO'}
+                        </span>
+                      </td>
+
+                      <td className="py-2 px-3 font-mono text-xs text-gray-400">
+                        {col.defaultValue ? (
+                          <span className="text-gray-300">{col.defaultValue}</span>
+                        ) : (
+                          <span className="text-gray-500 italic">NULL</span>
+                        )}
+                      </td>
+
+                      <td className="py-2 px-3 text-center">
+                        {col.isPrimaryKey ? (
+                          <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-700">
+                            <Key className="w-2.5 h-2.5" />
+                            <span>PK</span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-600">-</span>
+                        )}
+                      </td>
+
+                      <td className="py-2 px-3 text-right">
+                        <div className="inline-flex items-center space-x-1">
+                          <button
+                            type="button"
+                            data-testid={`edit-column-btn-${col.name}`}
+                            onClick={() => openEditModal(col)}
+                            title="Edit Column"
+                            className={`p-1 rounded transition-colors ${
+                              isDark
+                                ? 'hover:bg-gray-700 text-gray-400 hover:text-blue-300'
+                                : 'hover:bg-gray-200 text-gray-500 hover:text-blue-600'
+                            }`}
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            data-testid={`drop-column-btn-${col.name}`}
+                            onClick={() => setDropColTarget(col)}
+                            title="Drop Column"
+                            className="p-1 rounded hover:bg-red-950/60 text-gray-400 hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : (
+          /* activeTab === 'indexes' */
+          indexes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-gray-400 space-y-2">
+              <Layers className="w-10 h-10 opacity-30" />
+              <span className="text-xs">No indexes found on this table.</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const defaultCol = columns[0]?.name || '';
+                  setNewIndexName(`idx_${tableName}_${defaultCol || 'col'}`);
+                  setNewIndexCols(defaultCol ? [defaultCol] : []);
+                  setNewIndexUnique(false);
+                  setIsAddIndexModalOpen(true);
+                }}
+                className="mt-2 px-3 py-1.5 text-xs rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center space-x-1"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Create Index</span>
+              </button>
+            </div>
+          ) : (
+            <div
+              className={`border rounded-lg overflow-hidden shadow-sm ${
+                isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
+              }`}
+            >
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr
+                    className={`border-b font-medium ${
+                      isDark
+                        ? 'bg-gray-900/90 border-gray-800 text-gray-400'
+                        : 'bg-gray-100/90 border-gray-200 text-gray-600'
+                    }`}
+                  >
+                    <th className="py-2.5 px-3 w-12 text-center">#</th>
+                    <th className="py-2.5 px-3">Index Name</th>
+                    <th className="py-2.5 px-3">Indexed Columns</th>
+                    <th className="py-2.5 px-3 w-28 text-center">Type</th>
+                    <th className="py-2.5 px-3 w-28 text-center">Attributes</th>
+                    <th className="py-2.5 px-3 w-24 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {indexes.map((idx, i) => (
+                    <tr
+                      key={idx.name}
+                      data-testid={`index-row-${idx.name}`}
+                      className={`transition-colors ${
+                        isDark
+                          ? 'hover:bg-gray-800/40 text-gray-200'
+                          : 'hover:bg-gray-50 text-gray-800 divide-gray-100'
+                      }`}
+                    >
+                      <td className="py-2 px-3 text-center text-gray-500 font-mono text-[11px]">
+                        {i + 1}
+                      </td>
+
+                      <td className="py-2 px-3 font-medium flex items-center space-x-1.5">
+                        {idx.isPrimary ? (
+                          <span title="Primary Key Index">
+                            <Key className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                          </span>
+                        ) : (
+                          <Layers className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                        )}
+                        <span className="font-mono text-xs">{idx.name}</span>
+                      </td>
+
+                      <td className="py-2 px-3 font-mono text-xs text-gray-300">
+                        {idx.columns.join(', ')}
+                      </td>
+
+                      <td className="py-2 px-3 text-center">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-gray-800 text-gray-300 border border-gray-700">
+                          {idx.indexType || 'BTREE'}
+                        </span>
+                      </td>
+
+                      <td className="py-2 px-3 text-center space-x-1">
+                        {idx.isPrimary && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-800">
+                            PK
+                          </span>
+                        )}
+                        {idx.isUnique && !idx.isPrimary && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-950/80 text-blue-300 border border-blue-800">
+                            UNIQUE
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-2 px-3 text-right">
+                        {!idx.isPrimary && (
+                          <button
+                            type="button"
+                            data-testid={`drop-index-btn-${idx.name}`}
+                            onClick={() => setDropIndexTarget(idx)}
+                            title="Drop Index"
+                            className="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
       </div>
 
@@ -1306,6 +1558,208 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* Modal: Add Index                                                         */}
+      {/* ========================================================================= */}
+      {isAddIndexModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+        >
+          <div
+            className={`w-full max-w-md rounded-lg shadow-xl border overflow-hidden ${
+              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
+            }`}
+          >
+            <div
+              className={`flex items-center justify-between px-4 py-3 border-b ${
+                isDark ? 'border-gray-800 bg-gray-850' : 'border-gray-200 bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Plus className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-sm font-semibold">Add New Index</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddIndexModalOpen(false)}
+                className="p-1 rounded text-gray-400 hover:text-gray-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddIndexSubmit} className="p-4 space-y-3.5 text-xs">
+              <div>
+                <label className="block text-gray-400 mb-1 font-medium">
+                  Index Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. idx_users_email"
+                  value={newIndexName}
+                  onChange={(e) => setNewIndexName(e.target.value)}
+                  data-testid="new-index-name-input"
+                  className={`w-full px-2.5 py-1.5 rounded border font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                    isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1 font-medium">
+                  Indexed Columns <span className="text-red-400">*</span>
+                </label>
+                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded border-gray-800 bg-gray-950/40">
+                  {columns.map((col) => {
+                    const isSelected = newIndexCols.includes(col.name);
+                    return (
+                      <label
+                        key={col.name}
+                        className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded cursor-pointer border text-xs transition-colors ${
+                          isSelected
+                            ? 'bg-blue-950 text-blue-300 border-blue-600 font-semibold'
+                            : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewIndexCols((prev) => [...prev, col.name]);
+                            } else {
+                              setNewIndexCols((prev) => prev.filter((c) => c !== col.name));
+                            }
+                          }}
+                          data-testid={`new-index-col-checkbox-${col.name}`}
+                          className="sr-only"
+                        />
+                        <span>{col.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="new-index-unique"
+                  checked={newIndexUnique}
+                  onChange={(e) => setNewIndexUnique(e.target.checked)}
+                  data-testid="new-index-unique-checkbox"
+                  className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-0"
+                />
+                <label htmlFor="new-index-unique" className="text-gray-300 select-none cursor-pointer">
+                  Unique Index (disallow duplicate values)
+                </label>
+              </div>
+
+              {addIndexPreviewSql && (
+                <div className="space-y-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                    SQL Preview
+                  </div>
+                  <pre
+                    data-testid="add-index-preview-sql"
+                    className={`p-2 rounded font-mono text-[11px] overflow-x-auto border ${
+                      isDark ? 'bg-gray-950 border-gray-800 text-emerald-300' : 'bg-gray-100 border-gray-200 text-emerald-700'
+                    }`}
+                  >
+                    {addIndexPreviewSql}
+                  </pre>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddIndexModalOpen(false)}
+                  className={`px-3 py-1.5 rounded transition-colors ${
+                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !newIndexName.trim() || newIndexCols.length === 0}
+                  data-testid="confirm-add-index-btn"
+                  className="px-3.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? 'Creating...' : 'Create Index'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* Modal: Drop Index Confirmation                                           */}
+      {/* ========================================================================= */}
+      {dropIndexTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+        >
+          <div
+            className={`w-full max-w-sm rounded-lg shadow-xl border overflow-hidden ${
+              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
+            }`}
+          >
+            <div className="p-4 space-y-3 text-xs">
+              <div className="flex items-center space-x-2 text-red-400 font-semibold text-sm">
+                <ShieldAlert className="w-5 h-5 flex-shrink-0" />
+                <h3 className="text-sm font-semibold">Drop Index</h3>
+              </div>
+
+              <p className="text-gray-300">
+                Are you sure you want to drop index{' '}
+                <strong className="text-white font-mono bg-red-950/60 px-1 py-0.5 rounded border border-red-900/60">
+                  {dropIndexTarget.name}
+                </strong>{' '}
+                from table <strong className="font-mono text-white">{tableName}</strong>?
+              </p>
+
+              <div className="p-2 rounded bg-gray-950 border border-gray-800 font-mono text-[11px] text-red-300">
+                {buildDropIndexSql({
+                  tableName,
+                  schemaName,
+                  driver,
+                  indexName: dropIndexTarget.name,
+                })}
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDropIndexTarget(null)}
+                  className={`px-3 py-1.5 rounded transition-colors ${
+                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="confirm-drop-index-btn"
+                  onClick={handleDropIndexConfirm}
+                  disabled={submitting}
+                  className="px-3.5 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white font-medium shadow-sm transition-colors disabled:opacity-50"
+                >
+                  {submitting ? 'Dropping...' : 'Drop Index'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

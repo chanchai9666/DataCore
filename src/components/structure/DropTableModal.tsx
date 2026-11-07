@@ -45,7 +45,7 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
     setError(null);
 
     try {
-      await dbApi.executeQuery(connectionId, sql);
+      await dbApi.executeDirectQuery(connectionId, sql);
 
       // Close open tabs for this table
       const { tabs, closeTab } = useTabStore.getState();

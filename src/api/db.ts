@@ -62,6 +62,32 @@ export const executeQuery = async (
   });
 };
 
+export const executeDirectQuery = async (
+  connectionId: string,
+  sql: string
+): Promise<QueryResult> => {
+  const tempTabId = `temp-ddl-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+  await openSession(connectionId, tempTabId);
+  try {
+    const statements = sql
+      .split(';')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    if (statements.length <= 1) {
+      return await executeQuery(tempTabId, sql);
+    }
+
+    let lastResult: QueryResult = { columns: [], rows: [], execution_time_ms: 0 };
+    for (const stmt of statements) {
+      lastResult = await executeQuery(tempTabId, `${stmt};`);
+    }
+    return lastResult;
+  } finally {
+    await closeSession(tempTabId).catch(() => {});
+  }
+};
+
 export const fetchTableData = async (
   tabId: string,
   table: string,
@@ -148,6 +174,7 @@ export const dbApi = {
   openSession,
   closeSession,
   executeQuery,
+  executeDirectQuery,
   fetchTableData,
   cancelQuery,
   setAutocommit,

@@ -7,6 +7,7 @@ import { useTabStore } from '../../stores/tabStore';
 vi.mock('../../api/db', () => ({
   dbApi: {
     executeQuery: vi.fn(),
+    executeDirectQuery: vi.fn().mockResolvedValue({ columns: [], rows: [], execution_time_ms: 1 }),
     closeSession: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -114,7 +115,7 @@ describe('DropTableModal', () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+      expect(dbApi.executeDirectQuery).toHaveBeenCalledWith(
         'conn-1',
         'DROP TABLE "public"."users" CASCADE;'
       );

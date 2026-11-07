@@ -168,16 +168,20 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - ลบคอลัมน์ (ALTER TABLE DROP COLUMN) พร้อมระบบความปลอดภัยยืนยันก่อนลบ
   - รองรับการกำหนด Length/Values สัมพันธ์ตามประเภทข้อมูล (เช่น `VARCHAR(30)`, `INT(5)`, `NUMERIC(10,2)`) และปิดช่องอัตโนมัติสำหรับประเภทที่ไม่ต้องมีขนาด (เช่น `DATE`, `JSON`, `UUID`, `BOOLEAN`, `TIMESTAMP`)
   - แสดง CREATE TABLE DDL พร้อมปุ่มคัดลอกคำสั่ง SQL
+  - **แท็บจัดการ Index ในตาราง (เสร็จสมบูรณ์)**: ดูรายการ Index ทั้งหมดของตาราง (ชื่อ, คอลัมน์, ชนิด, สถานะ PK / Unique), สร้าง Index ใหม่ (Create Index), และลบ Index (Drop Index)
 - **สร้างตารางใหม่ (Create Table - เสร็จสมบูรณ์)**:
   - เมนูคลิกขวาที่ Schema, Database, หรือโฟลเดอร์ Tables ใน Object Browser
-  - หน้าต่าง Create Table Modal กำหนดชื่อตาราง, คอลัมน์, PK, Nullable, Default, Quick Presets (+Timestamps, +ID) และ Live SQL Preview
+  - หน้าต่าง Create Table Modal กำหนดชื่อตาราง, คอลัมน์, PK, Nullable, Default, Quick Presets (+Timestamps, +ID)
+  - **แถบจัดการ Index ในหน้าต่างสร้างตาราง (เสร็จสมบูรณ์)**: กำหนด Index เพิ่มเติมได้ทันที พร้อมตัวเลือกคอลัมน์และ Unique flag
+  - รันคำสั่ง DDL ผ่าน `dbApi.executeDirectQuery` โดยเปิด-ปิด Temporary Session อัตโนมัติ แก้ปัญหา Connection session not found
   - เมื่อสร้างเสร็จ ทำการรีเฟรช Object Browser และเปิดแท็บตารางใหม่ทันที
 - **ลบตาราง (Drop Table - เสร็จสมบูรณ์)**:
   - เมนูคลิกขวาที่ตารางใน Object Browser หรือปุ่ม Drop ใน Table Structure Editor
+  - ดำเนินการผ่าน `executeDirectQuery` แบบ temporary session ปลอดภัยและไม่ติดปัญหา session
   - หน้าต่างยืนยันความปลอดภัย พิมพ์ชื่อตารางเพื่อยืนยัน พร้อมตัวเลือก `CASCADE` สำหรับ PostgreSQL
   - ปิดแท็บที่เปิดอยู่ของตารางนั้นอัตโนมัติ และรีเฟรช Object Browser ทันที
 - **ส่วนที่พัฒนาในลำดับถัดไป**:
-  - การจัดการ Indexes, Foreign Keys, และ Constraints
+  - การจัดการ Foreign Keys และ Constraints
   - เปลี่ยนชื่อตาราง (RENAME TABLE)
   - การจัดการ Views
 
