@@ -136,8 +136,19 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       case 'database':
         return <Database className="w-4 h-4 text-amber-400 shrink-0" data-testid="icon-database" />;
       case 'schema':
-      case 'folder':
         return <Folder className="w-4 h-4 text-yellow-500 shrink-0" data-testid="icon-folder" />;
+      case 'folder': {
+        if (data.name.startsWith('Tables')) {
+          return <TableIcon className="w-4 h-4 text-emerald-400 shrink-0" data-testid="icon-folder" />;
+        }
+        if (data.name.startsWith('Views')) {
+          return <Eye className="w-4 h-4 text-purple-400 shrink-0" data-testid="icon-folder" />;
+        }
+        if (data.name.startsWith('System')) {
+          return <Folder className="w-4 h-4 text-gray-400 shrink-0" data-testid="icon-folder" />;
+        }
+        return <Folder className="w-4 h-4 text-yellow-500 shrink-0" data-testid="icon-folder" />;
+      }
       case 'table':
         return <TableIcon className="w-4 h-4 text-emerald-400 shrink-0" data-testid="icon-table" />;
       case 'view':

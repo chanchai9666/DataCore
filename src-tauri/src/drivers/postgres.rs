@@ -203,8 +203,12 @@ impl DatabaseConnection for PostgresConnection {
     }
 
     async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError> {
-        // 1. Discover all non-system schemas first so even empty schemas are visible
-        let schema_sql = "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog', 'information_schema') ORDER BY schema_name;";
+        // 1. Discover all non-system/non-temp schemas first so even empty schemas are visible
+        let schema_sql = "SELECT schema_name FROM information_schema.schemata \
+            WHERE schema_name NOT IN ('pg_catalog', 'information_schema') \
+              AND schema_name NOT LIKE 'pg_toast%' \
+              AND schema_name NOT LIKE 'pg_temp%' \
+            ORDER BY schema_name;";
         let mut schema_map: HashMap<String, Vec<SchemaNode>> = HashMap::new();
         if let Ok(schema_res) = self.execute_query(schema_sql).await {
             for row in schema_res.rows {
@@ -216,8 +220,12 @@ impl DatabaseConnection for PostgresConnection {
         // Always ensure 'public' exists
         schema_map.entry("public".to_string()).or_default();
 
-        // 2. Query all tables and views
-        let sql = "SELECT table_schema, table_name, table_type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema, table_type, table_name;";
+        // 2. Query all tables and views, excluding internal temporary/toast schemas
+        let sql = "SELECT table_schema, table_name, table_type FROM information_schema.tables \
+            WHERE table_schema NOT IN ('pg_catalog', 'information_schema') \
+              AND table_schema NOT LIKE 'pg_toast%' \
+              AND table_schema NOT LIKE 'pg_temp%' \
+            ORDER BY table_schema, table_type, table_name;";
         let query_res = self.execute_query(sql).await?;
 
         for row in query_res.rows {
@@ -240,7 +248,42 @@ impl DatabaseConnection for PostgresConnection {
             let node = SchemaNode::new(schema_name, SchemaNodeType::Schema).with_children(tables);
             schema_nodes.push(node);
         }
-        schema_nodes.sort_by(|a, b| a.name.cmp(&b.name));
+
+        // Sorting: 'public' always first, followed by user schemas A-Z, then system/service schemas
+        schema_nodes.sort_by(|a, b| {
+            if a.name == "public" {
+                return std::cmp::Ordering::Less;
+            }
+            if b.name == "public" {
+                return std::cmp::Ordering::Greater;
+            }
+            let is_system = |name: &str| {
+                matches!(
+                    name,
+                    "auth"
+                        | "extensions"
+                        | "graphql"
+                        | "graphql_public"
+                        | "net"
+                        | "pgbouncer"
+                        | "realtime"
+                        | "storage"
+                        | "vault"
+                        | "supabase_functions"
+                        | "supabase_migrations"
+                        | "tiger"
+                        | "tiger_data"
+                        | "topology"
+                ) || name.starts_with("pg_")
+            };
+            let a_sys = is_system(&a.name);
+            let b_sys = is_system(&b.name);
+            match (a_sys, b_sys) {
+                (false, true) => std::cmp::Ordering::Less,
+                (true, false) => std::cmp::Ordering::Greater,
+                _ => a.name.cmp(&b.name),
+            }
+        });
 
         let root = SchemaNode::new(&self.database_name, SchemaNodeType::Database)
             .with_children(schema_nodes);

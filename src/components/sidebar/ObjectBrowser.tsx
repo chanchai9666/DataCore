@@ -21,6 +21,102 @@ import {
   type BrowserTreeNode,
 } from './ConnectionTreeNode';
 
+const SYSTEM_SCHEMA_NAMES = new Set([
+  'auth',
+  'extensions',
+  'graphql',
+  'graphql_public',
+  'net',
+  'pgbouncer',
+  'realtime',
+  'storage',
+  'vault',
+  'supabase_functions',
+  'supabase_migrations',
+  'tiger',
+  'tiger_data',
+  'topology',
+  'pg_catalog',
+  'information_schema',
+]);
+
+function isSystemSchema(name: string): boolean {
+  const lower = name.toLowerCase();
+  return SYSTEM_SCHEMA_NAMES.has(lower) || lower.startsWith('pg_');
+}
+
+function groupTablesAndViews(
+  rawChildren: SchemaNode[],
+  connectionId: string,
+  connectionName: string,
+  parentPath: string,
+  schemaName: string | undefined,
+  driver?: string
+): BrowserTreeNode[] {
+  const tables = rawChildren.filter((c) => c.node_type === 'table');
+  const views = rawChildren.filter((c) => c.node_type === 'view');
+
+  if (tables.length === 0 && views.length === 0) {
+    return [
+      {
+        id: `${connectionId}-${parentPath}/empty`,
+        name: '(No tables or views)',
+        nodeType: 'empty',
+        connectionId,
+        connectionName,
+        schemaName,
+        driver,
+      },
+    ];
+  }
+
+  const result: BrowserTreeNode[] = [];
+
+  if (tables.length > 0 || views.length === 0) {
+    result.push({
+      id: `${connectionId}-${parentPath}/folder-tables`,
+      name: `Tables (${tables.length})`,
+      nodeType: 'folder',
+      connectionId,
+      connectionName,
+      schemaName,
+      driver,
+      children: tables.map((t) =>
+        mapSchemaNodeToTreeNode(
+          t,
+          connectionId,
+          connectionName,
+          `${parentPath}/tables`,
+          driver
+        )
+      ),
+    });
+  }
+
+  if (views.length > 0) {
+    result.push({
+      id: `${connectionId}-${parentPath}/folder-views`,
+      name: `Views (${views.length})`,
+      nodeType: 'folder',
+      connectionId,
+      connectionName,
+      schemaName,
+      driver,
+      children: views.map((v) =>
+        mapSchemaNodeToTreeNode(
+          v,
+          connectionId,
+          connectionName,
+          `${parentPath}/views`,
+          driver
+        )
+      ),
+    });
+  }
+
+  return result;
+}
+
 function mapSchemaNodeToTreeNode(
   node: SchemaNode,
   connectionId: string,
@@ -29,8 +125,130 @@ function mapSchemaNodeToTreeNode(
   driver?: string
 ): BrowserTreeNode {
   const currentPath = `${parentPath}/${node.node_type}-${node.name}`;
-  const schemaName = node.schema || node.schema_name;
+  const schemaName = node.schema || (node as any).schema_name;
   const isLeaf = node.node_type === 'table' || node.node_type === 'view';
+
+  if (isLeaf) {
+    return {
+      id: `${connectionId}-${currentPath}`,
+      name: node.name,
+      nodeType: node.node_type,
+      connectionId,
+      connectionName,
+      schemaName,
+      tableName: node.name,
+      driver,
+    };
+  }
+
+  // Schema node: group tables & views
+  if (node.node_type === 'schema') {
+    return {
+      id: `${connectionId}-${currentPath}`,
+      name: node.name,
+      nodeType: 'schema',
+      connectionId,
+      connectionName,
+      schemaName: node.name,
+      driver,
+      children: groupTablesAndViews(
+        node.children || [],
+        connectionId,
+        connectionName,
+        currentPath,
+        node.name,
+        driver
+      ),
+    };
+  }
+
+  // Database node
+  if (node.node_type === 'database') {
+    const rawChildren = node.children || [];
+    const hasSchemaChildren = rawChildren.some((c) => c.node_type === 'schema');
+
+    if (hasSchemaChildren) {
+      // Split into user schemas and system schemas
+      const userSchemas: SchemaNode[] = [];
+      const systemSchemas: SchemaNode[] = [];
+
+      for (const child of rawChildren) {
+        if (child.node_type === 'schema') {
+          if (isSystemSchema(child.name) && child.name.toLowerCase() !== 'public') {
+            systemSchemas.push(child);
+          } else {
+            userSchemas.push(child);
+          }
+        }
+      }
+
+      // Sort user schemas: 'public' always first
+      userSchemas.sort((a, b) => {
+        if (a.name.toLowerCase() === 'public') return -1;
+        if (b.name.toLowerCase() === 'public') return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      const mappedUserSchemas = userSchemas.map((child) =>
+        mapSchemaNodeToTreeNode(child, connectionId, connectionName, currentPath, driver)
+      );
+
+      const dbChildren: BrowserTreeNode[] = [...mappedUserSchemas];
+
+      if (systemSchemas.length > 0) {
+        systemSchemas.sort((a, b) => a.name.localeCompare(b.name));
+        const mappedSystemSchemas = systemSchemas.map((child) =>
+          mapSchemaNodeToTreeNode(
+            child,
+            connectionId,
+            connectionName,
+            `${currentPath}/system-schemas`,
+            driver
+          )
+        );
+
+        dbChildren.push({
+          id: `${connectionId}-${currentPath}/folder-system-schemas`,
+          name: `System Schemas (${systemSchemas.length})`,
+          nodeType: 'folder',
+          connectionId,
+          connectionName,
+          driver,
+          children: mappedSystemSchemas,
+        });
+      }
+
+      return {
+        id: `${connectionId}-${currentPath}`,
+        name: node.name,
+        nodeType: 'database',
+        connectionId,
+        connectionName,
+        databaseName: node.name,
+        driver,
+        children: dbChildren,
+      };
+    } else {
+      // Direct tables/views (SQLite / MySQL)
+      return {
+        id: `${connectionId}-${currentPath}`,
+        name: node.name,
+        nodeType: 'database',
+        connectionId,
+        connectionName,
+        databaseName: node.name,
+        driver,
+        children: groupTablesAndViews(
+          rawChildren,
+          connectionId,
+          connectionName,
+          currentPath,
+          undefined,
+          driver
+        ),
+      };
+    }
+  }
 
   return {
     id: `${connectionId}-${currentPath}`,
@@ -41,11 +259,9 @@ function mapSchemaNodeToTreeNode(
     schemaName,
     tableName: isLeaf ? node.name : undefined,
     driver,
-    children: isLeaf
-      ? undefined
-      : (node.children || []).map((child) =>
-          mapSchemaNodeToTreeNode(child, connectionId, connectionName, currentPath, driver)
-        ),
+    children: (node.children || []).map((child) =>
+      mapSchemaNodeToTreeNode(child, connectionId, connectionName, currentPath, driver)
+    ),
   };
 }
 
@@ -231,6 +447,24 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     });
   }, [connections, schemas, loadingMap, errorMap]);
 
+  const initialOpenState = useMemo<Record<string, boolean>>(() => {
+    const map: Record<string, boolean> = {};
+    const traverse = (nodes: BrowserTreeNode[]) => {
+      for (const node of nodes) {
+        if (node.id.includes('folder-system-schemas')) {
+          map[node.id] = false;
+        } else {
+          map[node.id] = true;
+        }
+        if (node.children) {
+          traverse(node.children);
+        }
+      }
+    };
+    traverse(treeData);
+    return map;
+  }, [treeData]);
+
   const handleOpenTable = useCallback((node: BrowserTreeNode) => {
     openTableTab({
       connectionId: node.connectionId,
@@ -401,9 +635,13 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               indent={16}
               rowHeight={26}
               searchTerm={searchTerm}
-              searchMatch={(node, term) =>
-                node.data.name.toLowerCase().includes(term.toLowerCase())
-              }
+              searchMatch={(node, term) => {
+                const lower = term.toLowerCase();
+                if (node.data.name.toLowerCase().includes(lower)) return true;
+                if (node.data.tableName && node.data.tableName.toLowerCase().includes(lower)) return true;
+                return false;
+              }}
+              initialOpenState={initialOpenState}
               openByDefault={true}
             >
               {ConnectionTreeNode}

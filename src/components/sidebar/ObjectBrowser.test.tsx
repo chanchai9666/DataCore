@@ -238,4 +238,46 @@ describe('ObjectBrowser', () => {
       expect(screen.getByText('users')).toBeInTheDocument();
     });
   });
+
+  it('groups tables and views into Tables and Views folders', async () => {
+    render(<ObjectBrowser />);
+
+    // Folders with count badges should be displayed
+    expect(await screen.findByText('Tables (2)')).toBeInTheDocument();
+    expect(screen.getByText('Views (1)')).toBeInTheDocument();
+  });
+
+  it('pins public schema at top and groups system schemas into System Schemas folder for Postgres', async () => {
+    const postgresSchema: SchemaNode[] = [
+      {
+        name: 'postgres',
+        node_type: 'database',
+        children: [
+          {
+            name: 'auth',
+            node_type: 'schema',
+            children: [{ name: 'users', node_type: 'table', schema: 'auth' }],
+          },
+          {
+            name: 'public',
+            node_type: 'schema',
+            children: [{ name: 'products', node_type: 'table', schema: 'public' }],
+          },
+          {
+            name: 'storage',
+            node_type: 'schema',
+            children: [{ name: 'buckets', node_type: 'table', schema: 'storage' }],
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(dbApi.getSchemaTree).mockResolvedValueOnce(postgresSchema);
+    render(<ObjectBrowser />);
+
+    // public schema should be rendered
+    expect(await screen.findByText('public')).toBeInTheDocument();
+    // System schemas should be grouped
+    expect(screen.getByText('System Schemas (2)')).toBeInTheDocument();
+  });
 });
