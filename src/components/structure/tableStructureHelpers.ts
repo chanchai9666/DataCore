@@ -48,20 +48,137 @@ export interface ModifyColumnParams {
   oldDefaultValue?: string | null;
 }
 
+export interface DataTypeSpec {
+  hasLength: boolean;
+  defaultLength?: string;
+  lengthPlaceholder?: string;
+  defaultPlaceholder?: string;
+  defaultSuggestions?: string[];
+}
+
+export const NO_LENGTH_TYPES = new Set([
+  'DATE',
+  'TIME',
+  'TIMESTAMP',
+  'TIMESTAMPTZ',
+  'BOOLEAN',
+  'UUID',
+  'JSON',
+  'JSONB',
+  'TEXT',
+  'BIGINT',
+  'SMALLINT',
+  'FLOAT',
+  'REAL',
+  'DOUBLE PRECISION',
+  'BYTEA',
+  'BLOB',
+]);
+
+export function getDataTypeSpec(typeName: string): DataTypeSpec {
+  const upper = typeName.toUpperCase().trim();
+  if (NO_LENGTH_TYPES.has(upper)) {
+    let defaultSuggestions: string[] = [];
+    let defaultPlaceholder = 'Optional default';
+
+    if (upper === 'BOOLEAN') {
+      defaultSuggestions = ['true', 'false'];
+      defaultPlaceholder = 'e.g. true, false';
+    } else if (upper.includes('TIMESTAMP') || upper === 'DATE' || upper === 'TIME') {
+      defaultSuggestions = ['now()', 'CURRENT_TIMESTAMP'];
+      defaultPlaceholder = 'e.g. now(), CURRENT_TIMESTAMP';
+    } else if (upper === 'UUID') {
+      defaultSuggestions = ['gen_random_uuid()'];
+      defaultPlaceholder = 'e.g. gen_random_uuid()';
+    } else if (upper.includes('JSON')) {
+      defaultSuggestions = ["'{}'", "'[]'"];
+      defaultPlaceholder = "e.g. '{}', '[]'";
+    } else if (upper === 'BIGINT' || upper === 'SMALLINT') {
+      defaultSuggestions = ['0'];
+      defaultPlaceholder = 'e.g. 0';
+    } else if (upper === 'TEXT') {
+      defaultSuggestions = ["''"];
+      defaultPlaceholder = "e.g. ''";
+    }
+
+    return {
+      hasLength: false,
+      defaultLength: '',
+      lengthPlaceholder: 'N/A (ไม่ระบุ)',
+      defaultPlaceholder,
+      defaultSuggestions,
+    };
+  }
+
+  if (upper === 'DECIMAL' || upper === 'NUMERIC') {
+    return {
+      hasLength: true,
+      defaultLength: '10,2',
+      lengthPlaceholder: 'e.g. 10,2',
+      defaultPlaceholder: 'e.g. 0.00',
+      defaultSuggestions: ['0.00', '0'],
+    };
+  }
+
+  if (upper === 'VARCHAR') {
+    return {
+      hasLength: true,
+      defaultLength: '255',
+      lengthPlaceholder: 'e.g. 30, 255',
+      defaultPlaceholder: "e.g. 'active', 'pending'",
+      defaultSuggestions: ["''", "'active'"],
+    };
+  }
+
+  if (upper === 'CHAR') {
+    return {
+      hasLength: true,
+      defaultLength: '1',
+      lengthPlaceholder: 'e.g. 1, 10',
+      defaultPlaceholder: "e.g. 'Y', 'N'",
+      defaultSuggestions: ["'Y'", "'N'"],
+    };
+  }
+
+  if (upper === 'INT' || upper === 'INTEGER') {
+    return {
+      hasLength: true,
+      defaultLength: '',
+      lengthPlaceholder: 'e.g. 5, 11 (optional)',
+      defaultPlaceholder: 'e.g. 0, 1',
+      defaultSuggestions: ['0', '1'],
+    };
+  }
+
+  return {
+    hasLength: true,
+    defaultLength: '',
+    lengthPlaceholder: 'e.g. 30, 10,2',
+    defaultPlaceholder: 'Optional default',
+    defaultSuggestions: [],
+  };
+}
+
 /**
  * Combines base type and length/precision/values (e.g. 'VARCHAR', '30' => 'VARCHAR(30)', 'INT', '5' => 'INT(5)').
+ * If type does not support length (like DATE, JSON, UUID, BOOLEAN, TEXT), it omits parentheses even if passed.
  */
 export function composeDataType(baseType: string, lengthOrValues?: string): string {
   const trimmedBase = baseType.trim();
   const trimmedLen = lengthOrValues?.trim();
 
-  if (!trimmedLen) {
-    return trimmedBase;
-  }
-
   // If baseType already contains parentheses like VARCHAR(255), extract base name
   const match = trimmedBase.match(/^([a-zA-Z0-9_\s]+)(?:\(.*\))?$/);
   const cleanBase = match ? match[1].trim() : trimmedBase;
+
+  // Never append length to types that do not take lengths (e.g. DATE, JSON, UUID, etc.)
+  if (NO_LENGTH_TYPES.has(cleanBase.toUpperCase())) {
+    return cleanBase;
+  }
+
+  if (!trimmedLen) {
+    return cleanBase;
+  }
 
   // Clean parentheses from lengthOrValues if user typed them
   const cleanLen = trimmedLen.replace(/^\(/, '').replace(/\)$/, '').trim();

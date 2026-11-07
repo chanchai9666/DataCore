@@ -136,6 +136,46 @@ describe('TableStructureEditor', () => {
     });
   });
 
+  it('correlates length and default values when changing data type', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const addBtn = await screen.findByTestId('add-column-btn');
+    fireEvent.click(addBtn);
+
+    const typeSelect = screen.getByTestId('add-col-type-select');
+    const lengthInput = screen.getByTestId('add-col-length-input');
+
+    // Select DATE
+    fireEvent.change(typeSelect, { target: { value: 'DATE' } });
+    expect(lengthInput).toBeDisabled();
+    expect(lengthInput).toHaveValue('');
+    expect(screen.getByText(/ประเภท DATE เป็นประเภทข้อมูลที่ไม่ต้องระบุความยาว/i)).toBeInTheDocument();
+
+    // Select DECIMAL
+    fireEvent.change(typeSelect, { target: { value: 'DECIMAL' } });
+    expect(lengthInput).not.toBeDisabled();
+    expect(lengthInput).toHaveValue('10,2');
+
+    // Select BOOLEAN
+    fireEvent.change(typeSelect, { target: { value: 'BOOLEAN' } });
+    expect(lengthInput).toBeDisabled();
+    expect(screen.getByText('true')).toBeInTheDocument();
+    expect(screen.getByText('false')).toBeInTheDocument();
+
+    // Clicking 'true' suggestion fills default value
+    fireEvent.click(screen.getByText('true'));
+    const defaultInput = screen.getByPlaceholderText(/true, false/i);
+    expect(defaultInput).toHaveValue('true');
+  });
+
   it('opens Edit Column modal and executes ALTER TABLE statements', async () => {
     render(
       <TableStructureEditor

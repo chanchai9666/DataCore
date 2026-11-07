@@ -11,6 +11,7 @@ import {
   generateTableDdl,
   composeDataType,
   parseDataType,
+  getDataTypeSpec,
   type TableColumnStructure,
 } from './tableStructureHelpers';
 import type { QueryResult } from '../../types/db';
@@ -25,6 +26,25 @@ describe('tableStructureHelpers', () => {
       expect(composeDataType('NUMERIC', '10,2')).toBe('NUMERIC(10,2)');
       expect(composeDataType('TEXT', '')).toBe('TEXT');
       expect(composeDataType('TEXT', undefined)).toBe('TEXT');
+      // Types that do not take lengths should never have parentheses attached
+      expect(composeDataType('DATE', '255')).toBe('DATE');
+      expect(composeDataType('JSON', '255')).toBe('JSON');
+      expect(composeDataType('BOOLEAN', '255')).toBe('BOOLEAN');
+      expect(composeDataType('UUID', '36')).toBe('UUID');
+    });
+
+    it('returns data type specifications correlating length and defaults', () => {
+      const dateSpec = getDataTypeSpec('DATE');
+      expect(dateSpec.hasLength).toBe(false);
+      expect(dateSpec.defaultSuggestions).toContain('now()');
+
+      const decimalSpec = getDataTypeSpec('DECIMAL');
+      expect(decimalSpec.hasLength).toBe(true);
+      expect(decimalSpec.defaultLength).toBe('10,2');
+
+      const varcharSpec = getDataTypeSpec('VARCHAR');
+      expect(varcharSpec.hasLength).toBe(true);
+      expect(varcharSpec.defaultLength).toBe('255');
     });
 
     it('parses full type into base type and length/values', () => {

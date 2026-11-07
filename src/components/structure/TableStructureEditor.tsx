@@ -26,6 +26,7 @@ import {
   generateTableDdl,
   composeDataType,
   parseDataType,
+  getDataTypeSpec,
   type TableColumnStructure,
 } from './tableStructureHelpers';
 
@@ -131,6 +132,35 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
     return composeDataType(editColBaseType, editColLength);
   }, [editColBaseType, editColLength, editColCustomType]);
 
+  // Data Type change handlers that correlate length/values with the selected type
+  const handleNewColBaseTypeChange = (newType: string) => {
+    setNewColBaseType(newType);
+    if (newType === 'CUSTOM') {
+      setNewColLength('');
+      return;
+    }
+    const spec = getDataTypeSpec(newType);
+    if (!spec.hasLength) {
+      setNewColLength('');
+    } else {
+      setNewColLength(spec.defaultLength || '');
+    }
+  };
+
+  const handleEditColBaseTypeChange = (newType: string) => {
+    setEditColBaseType(newType);
+    if (newType === 'CUSTOM') {
+      setEditColLength('');
+      return;
+    }
+    const spec = getDataTypeSpec(newType);
+    if (!spec.hasLength) {
+      setEditColLength('');
+    } else {
+      setEditColLength(spec.defaultLength || '');
+    }
+  };
+
   // Preset applicator
   const applyPreset = (preset: string, isEdit = false) => {
     const { baseType, lengthOrValues } = parseDataType(preset);
@@ -138,7 +168,8 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
     if (isEdit) {
       if (matched) {
         setEditColBaseType(matched);
-        setEditColLength(lengthOrValues);
+        const spec = getDataTypeSpec(matched);
+        setEditColLength(spec.hasLength ? (lengthOrValues || spec.defaultLength || '') : '');
         setEditColCustomType('');
       } else {
         setEditColBaseType('CUSTOM');
@@ -148,7 +179,8 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
     } else {
       if (matched) {
         setNewColBaseType(matched);
-        setNewColLength(lengthOrValues);
+        const spec = getDataTypeSpec(matched);
+        setNewColLength(spec.hasLength ? (lengthOrValues || spec.defaultLength || '') : '');
         setNewColCustomType('');
       } else {
         setNewColBaseType('CUSTOM');
@@ -404,6 +436,9 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
       columns,
     });
   }, [driver, tableName, schemaName, columns]);
+
+  const newSpec = getDataTypeSpec(newColBaseType);
+  const editSpec = getDataTypeSpec(editColBaseType);
 
   const isDark = theme === 'dark';
 
@@ -713,19 +748,17 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 <div className="grid grid-cols-2 gap-2 mb-1">
                   <label className="font-medium">Data Type</label>
                   <label className="font-medium">
-                    Length / Values <span className="text-gray-400 font-normal">(e.g. 30, 5, 10,2)</span>
+                    Length / Values{' '}
+                    <span className="text-gray-400 font-normal">
+                      {newSpec.hasLength ? `(${newSpec.lengthPlaceholder || 'e.g. 30, 5, 10,2'})` : '(Not applicable)'}
+                    </span>
                   </label>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <select
                     data-testid="add-col-type-select"
                     value={newColBaseType}
-                    onChange={(e) => {
-                      setNewColBaseType(e.target.value);
-                      if (e.target.value === 'VARCHAR' && !newColLength) {
-                        setNewColLength('255');
-                      }
-                    }}
+                    onChange={(e) => handleNewColBaseTypeChange(e.target.value)}
                     className={`w-full px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono ${
                       isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
                     }`}
@@ -741,12 +774,12 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                   <input
                     type="text"
                     data-testid="add-col-length-input"
-                    placeholder="e.g. 5, 30, 10,2"
+                    placeholder={newSpec.lengthPlaceholder || 'e.g. 5, 30, 10,2'}
                     value={newColLength}
-                    disabled={newColBaseType === 'CUSTOM'}
+                    disabled={!newSpec.hasLength || newColBaseType === 'CUSTOM'}
                     onChange={(e) => setNewColLength(e.target.value)}
                     className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
-                      newColBaseType === 'CUSTOM'
+                      !newSpec.hasLength || newColBaseType === 'CUSTOM'
                         ? 'opacity-40 cursor-not-allowed bg-gray-800'
                         : isDark
                         ? 'bg-gray-950 border-gray-700 text-white'
@@ -754,6 +787,12 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                     }`}
                   />
                 </div>
+
+                {!newSpec.hasLength && newColBaseType !== 'CUSTOM' && (
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    ประเภท {newColBaseType} เป็นประเภทข้อมูลที่ไม่ต้องระบุความยาว/ขนาด
+                  </p>
+                )}
 
                 {newColBaseType === 'CUSTOM' && (
                   <div className="mt-2">
@@ -819,13 +858,34 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 'active', 0, now(), gen_random_uuid()"
+                  placeholder={newSpec.defaultPlaceholder || "e.g. 'active', 0, now(), gen_random_uuid()"}
                   value={newColDefault}
                   onChange={(e) => setNewColDefault(e.target.value)}
                   className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
                     isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
                   }`}
                 />
+                {newSpec.defaultSuggestions && newSpec.defaultSuggestions.length > 0 && (
+                  <div className="flex items-center space-x-1.5 mt-1.5 flex-wrap gap-y-1">
+                    <span className="text-[10px] text-gray-400">Suggestions:</span>
+                    {newSpec.defaultSuggestions.map((sug) => (
+                      <button
+                        key={sug}
+                        type="button"
+                        onClick={() => setNewColDefault(sug)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono border transition-colors ${
+                          newColDefault === sug
+                            ? 'bg-emerald-600 text-white border-emerald-500'
+                            : isDark
+                            ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {sug}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {addColumnPreviewSql && (
@@ -922,19 +982,17 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 <div className="grid grid-cols-2 gap-2 mb-1">
                   <label className="font-medium">Data Type</label>
                   <label className="font-medium">
-                    Length / Values <span className="text-gray-400 font-normal">(e.g. 30, 5, 10,2)</span>
+                    Length / Values{' '}
+                    <span className="text-gray-400 font-normal">
+                      {editSpec.hasLength ? `(${editSpec.lengthPlaceholder || 'e.g. 30, 5, 10,2'})` : '(Not applicable)'}
+                    </span>
                   </label>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <select
                     data-testid="edit-col-type-select"
                     value={editColBaseType}
-                    onChange={(e) => {
-                      setEditColBaseType(e.target.value);
-                      if (e.target.value === 'VARCHAR' && !editColLength) {
-                        setEditColLength('255');
-                      }
-                    }}
+                    onChange={(e) => handleEditColBaseTypeChange(e.target.value)}
                     className={`w-full px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono ${
                       isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
                     }`}
@@ -950,12 +1008,12 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                   <input
                     type="text"
                     data-testid="edit-col-length-input"
-                    placeholder="e.g. 5, 30, 10,2"
+                    placeholder={editSpec.lengthPlaceholder || 'e.g. 5, 30, 10,2'}
                     value={editColLength}
-                    disabled={editColBaseType === 'CUSTOM'}
+                    disabled={!editSpec.hasLength || editColBaseType === 'CUSTOM'}
                     onChange={(e) => setEditColLength(e.target.value)}
                     className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
-                      editColBaseType === 'CUSTOM'
+                      !editSpec.hasLength || editColBaseType === 'CUSTOM'
                         ? 'opacity-40 cursor-not-allowed bg-gray-800'
                         : isDark
                         ? 'bg-gray-950 border-gray-700 text-white'
@@ -963,6 +1021,12 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                     }`}
                   />
                 </div>
+
+                {!editSpec.hasLength && editColBaseType !== 'CUSTOM' && (
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    ประเภท {editColBaseType} เป็นประเภทข้อมูลที่ไม่ต้องระบุความยาว/ขนาด
+                  </p>
+                )}
 
                 {editColBaseType === 'CUSTOM' && (
                   <div className="mt-2">
@@ -1027,13 +1091,34 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 'active', 0, now()"
+                  placeholder={editSpec.defaultPlaceholder || "e.g. 'active', 0, now()"}
                   value={editColDefault}
                   onChange={(e) => setEditColDefault(e.target.value)}
                   className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
                     isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
                   }`}
                 />
+                {editSpec.defaultSuggestions && editSpec.defaultSuggestions.length > 0 && (
+                  <div className="flex items-center space-x-1.5 mt-1.5 flex-wrap gap-y-1">
+                    <span className="text-[10px] text-gray-400">Suggestions:</span>
+                    {editSpec.defaultSuggestions.map((sug) => (
+                      <button
+                        key={sug}
+                        type="button"
+                        onClick={() => setEditColDefault(sug)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono border transition-colors ${
+                          editColDefault === sug
+                            ? 'bg-blue-600 text-white border-blue-500'
+                            : isDark
+                            ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {sug}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {editColumnPreviewSqls.length > 0 && (
