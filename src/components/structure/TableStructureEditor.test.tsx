@@ -87,6 +87,55 @@ describe('TableStructureEditor', () => {
     });
   });
 
+  it('allows defining custom length/values like VARCHAR(30) and INT(5)', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const addBtn = await screen.findByTestId('add-column-btn');
+    fireEvent.click(addBtn);
+
+    const nameInput = screen.getByPlaceholderText(/description, status/i);
+    fireEvent.change(nameInput, { target: { value: 'short_code' } });
+
+    // Change length to 30
+    const lengthInput = screen.getByTestId('add-col-length-input');
+    fireEvent.change(lengthInput, { target: { value: '30' } });
+
+    // SQL preview should now show VARCHAR(30)
+    expect(screen.getByText(/ALTER TABLE "public"."categories" ADD COLUMN "short_code" VARCHAR\(30\)/i)).toBeInTheDocument();
+
+    // Select INT and enter length 5
+    const typeSelect = screen.getByTestId('add-col-type-select');
+    fireEvent.change(typeSelect, { target: { value: 'INT' } });
+    fireEvent.change(lengthInput, { target: { value: '5' } });
+
+    // SQL preview should now show INT(5)
+    expect(screen.getByText(/ALTER TABLE "public"."categories" ADD COLUMN "short_code" INT\(5\)/i)).toBeInTheDocument();
+
+    // Clicking quick preset VARCHAR(30) button
+    const presetBtn = screen.getByTestId('preset-btn-VARCHAR(30)');
+    fireEvent.click(presetBtn);
+
+    expect(screen.getByText(/ALTER TABLE "public"."categories" ADD COLUMN "short_code" VARCHAR\(30\)/i)).toBeInTheDocument();
+
+    const submitBtn = screen.getByTestId('submit-add-column-btn');
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        expect.stringContaining('ALTER TABLE "public"."categories" ADD COLUMN "short_code" VARCHAR(30)')
+      );
+    });
+  });
+
   it('opens Edit Column modal and executes ALTER TABLE statements', async () => {
     render(
       <TableStructureEditor

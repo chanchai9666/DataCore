@@ -24,6 +24,8 @@ import {
   buildRenameColumnSql,
   buildModifyColumnSql,
   generateTableDdl,
+  composeDataType,
+  parseDataType,
   type TableColumnStructure,
 } from './tableStructureHelpers';
 
@@ -37,19 +39,40 @@ export interface TableStructureEditorProps {
   onStructureChanged?: () => void;
 }
 
-const COMMON_DATA_TYPES = [
-  'VARCHAR(255)',
-  'TEXT',
+const BASE_TYPES = [
+  'VARCHAR',
+  'CHAR',
+  'INT',
   'INTEGER',
   'BIGINT',
+  'SMALLINT',
+  'TEXT',
   'BOOLEAN',
+  'NUMERIC',
+  'DECIMAL',
+  'FLOAT',
+  'REAL',
+  'DOUBLE PRECISION',
+  'DATE',
+  'TIME',
   'TIMESTAMP',
   'TIMESTAMPTZ',
-  'NUMERIC(10,2)',
   'UUID',
   'JSONB',
-  'DATE',
-  'DOUBLE PRECISION',
+  'JSON',
+];
+
+const PRESETS = [
+  'VARCHAR(30)',
+  'VARCHAR(255)',
+  'INT(5)',
+  'INTEGER',
+  'BIGINT',
+  'TEXT',
+  'BOOLEAN',
+  'NUMERIC(10,2)',
+  'TIMESTAMPTZ',
+  'UUID',
 ];
 
 export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
@@ -78,16 +101,62 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
 
   // Add form fields
   const [newColName, setNewColName] = useState('');
-  const [newColType, setNewColType] = useState('VARCHAR(255)');
+  const [newColBaseType, setNewColBaseType] = useState('VARCHAR');
+  const [newColLength, setNewColLength] = useState('255');
+  const [newColCustomType, setNewColCustomType] = useState('');
   const [newColNullable, setNewColNullable] = useState(true);
   const [newColDefault, setNewColDefault] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // Edit form fields
   const [editColName, setEditColName] = useState('');
-  const [editColType, setEditColType] = useState('');
+  const [editColBaseType, setEditColBaseType] = useState('VARCHAR');
+  const [editColLength, setEditColLength] = useState('');
+  const [editColCustomType, setEditColCustomType] = useState('');
   const [editColNullable, setEditColNullable] = useState(true);
   const [editColDefault, setEditColDefault] = useState('');
+
+  // Composed final data types
+  const computedNewColType = useMemo(() => {
+    if (newColBaseType === 'CUSTOM') {
+      return newColCustomType.trim();
+    }
+    return composeDataType(newColBaseType, newColLength);
+  }, [newColBaseType, newColLength, newColCustomType]);
+
+  const computedEditColType = useMemo(() => {
+    if (editColBaseType === 'CUSTOM') {
+      return editColCustomType.trim();
+    }
+    return composeDataType(editColBaseType, editColLength);
+  }, [editColBaseType, editColLength, editColCustomType]);
+
+  // Preset applicator
+  const applyPreset = (preset: string, isEdit = false) => {
+    const { baseType, lengthOrValues } = parseDataType(preset);
+    const matched = BASE_TYPES.find((t) => t.toUpperCase() === baseType.toUpperCase());
+    if (isEdit) {
+      if (matched) {
+        setEditColBaseType(matched);
+        setEditColLength(lengthOrValues);
+        setEditColCustomType('');
+      } else {
+        setEditColBaseType('CUSTOM');
+        setEditColLength('');
+        setEditColCustomType(preset);
+      }
+    } else {
+      if (matched) {
+        setNewColBaseType(matched);
+        setNewColLength(lengthOrValues);
+        setNewColCustomType('');
+      } else {
+        setNewColBaseType('CUSTOM');
+        setNewColLength('');
+        setNewColCustomType(preset);
+      }
+    }
+  };
 
   // Load column structure
   const loadStructure = useCallback(async () => {
@@ -139,26 +208,26 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
 
   // Preview SQL for Add Column
   const addColumnPreviewSql = useMemo(() => {
-    if (!newColName.trim()) return '';
+    if (!newColName.trim() || !computedNewColType) return '';
     try {
       return buildAddColumnSql({
         driver,
         tableName,
         schemaName,
         columnName: newColName.trim(),
-        dataType: newColType.trim(),
+        dataType: computedNewColType,
         isNullable: newColNullable,
         defaultValue: newColDefault.trim() || undefined,
       });
     } catch {
       return '';
     }
-  }, [driver, tableName, schemaName, newColName, newColType, newColNullable, newColDefault]);
+  }, [driver, tableName, schemaName, newColName, computedNewColType, newColNullable, newColDefault]);
 
   // Handle Add Column
   const handleAddColumnSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newColName.trim()) return;
+    if (!newColName.trim() || !computedNewColType) return;
 
     setSubmitting(true);
     try {
@@ -167,7 +236,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         tableName,
         schemaName,
         columnName: newColName.trim(),
-        dataType: newColType.trim(),
+        dataType: computedNewColType,
         isNullable: newColNullable,
         defaultValue: newColDefault.trim() || undefined,
       });
@@ -175,10 +244,12 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
       await dbApi.executeQuery(tabId, sql);
       setIsAddModalOpen(false);
       setNewColName('');
-      setNewColType('VARCHAR(255)');
+      setNewColBaseType('VARCHAR');
+      setNewColLength('255');
+      setNewColCustomType('');
       setNewColNullable(true);
       setNewColDefault('');
-      showStatus('success', `Added column '${newColName.trim()}' successfully`);
+      showStatus('success', `Added column '${newColName.trim()}' (${computedNewColType}) successfully`);
       await loadStructure();
       onStructureChanged?.();
     } catch (err: unknown) {
@@ -193,7 +264,17 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   const openEditModal = (col: TableColumnStructure) => {
     setEditColTarget(col);
     setEditColName(col.name);
-    setEditColType(col.dataType);
+    const { baseType, lengthOrValues } = parseDataType(col.dataType);
+    const matched = BASE_TYPES.find((t) => t.toUpperCase() === baseType.toUpperCase());
+    if (matched) {
+      setEditColBaseType(matched);
+      setEditColLength(lengthOrValues);
+      setEditColCustomType('');
+    } else {
+      setEditColBaseType('CUSTOM');
+      setEditColLength('');
+      setEditColCustomType(col.dataType);
+    }
     setEditColNullable(col.isNullable);
     setEditColDefault(col.defaultValue || '');
   };
@@ -225,7 +306,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         schemaName,
         columnName: targetCol,
         oldDataType: editColTarget.dataType,
-        newDataType: editColType.trim() !== editColTarget.dataType ? editColType.trim() : undefined,
+        newDataType: computedEditColType !== editColTarget.dataType ? computedEditColType : undefined,
         oldIsNullable: editColTarget.isNullable,
         isNullable: editColNullable !== editColTarget.isNullable ? editColNullable : undefined,
         oldDefaultValue: editColTarget.defaultValue,
@@ -237,12 +318,12 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
     }
 
     return stmts;
-  }, [editColTarget, editColName, editColType, editColNullable, editColDefault, driver, tableName, schemaName]);
+  }, [editColTarget, editColName, computedEditColType, editColNullable, editColDefault, driver, tableName, schemaName]);
 
   // Handle Edit Column Submit
   const handleEditColumnSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editColTarget) return;
+    if (!editColTarget || !computedEditColType) return;
 
     setSubmitting(true);
     try {
@@ -267,7 +348,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         schemaName,
         columnName: activeColName,
         oldDataType: editColTarget.dataType,
-        newDataType: editColType.trim() !== editColTarget.dataType ? editColType.trim() : undefined,
+        newDataType: computedEditColType !== editColTarget.dataType ? computedEditColType : undefined,
         oldIsNullable: editColTarget.isNullable,
         isNullable: editColNullable !== editColTarget.isNullable ? editColNullable : undefined,
         oldDefaultValue: editColTarget.defaultValue,
@@ -279,7 +360,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
       }
 
       setEditColTarget(null);
-      showStatus('success', `Updated column '${activeColName}' successfully`);
+      showStatus('success', `Updated column '${activeColName}' (${computedEditColType}) successfully`);
       await loadStructure();
       onStructureChanged?.();
     } catch (err: unknown) {
@@ -627,21 +708,29 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 />
               </div>
 
+              {/* Data Type & Length / Values */}
               <div>
-                <label className="block font-medium mb-1">Data Type</label>
-                <div className="flex space-x-2">
+                <div className="grid grid-cols-2 gap-2 mb-1">
+                  <label className="font-medium">Data Type</label>
+                  <label className="font-medium">
+                    Length / Values <span className="text-gray-400 font-normal">(e.g. 30, 5, 10,2)</span>
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   <select
-                    value={COMMON_DATA_TYPES.includes(newColType) ? newColType : 'CUSTOM'}
+                    data-testid="add-col-type-select"
+                    value={newColBaseType}
                     onChange={(e) => {
-                      if (e.target.value !== 'CUSTOM') {
-                        setNewColType(e.target.value);
+                      setNewColBaseType(e.target.value);
+                      if (e.target.value === 'VARCHAR' && !newColLength) {
+                        setNewColLength('255');
                       }
                     }}
-                    className={`px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                    className={`w-full px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono ${
                       isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
                     }`}
                   >
-                    {COMMON_DATA_TYPES.map((t) => (
+                    {BASE_TYPES.map((t) => (
                       <option key={t} value={t}>
                         {t}
                       </option>
@@ -651,14 +740,63 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
 
                   <input
                     type="text"
-                    required
-                    placeholder="Type definition"
-                    value={newColType}
-                    onChange={(e) => setNewColType(e.target.value)}
-                    className={`flex-1 px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
-                      isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
+                    data-testid="add-col-length-input"
+                    placeholder="e.g. 5, 30, 10,2"
+                    value={newColLength}
+                    disabled={newColBaseType === 'CUSTOM'}
+                    onChange={(e) => setNewColLength(e.target.value)}
+                    className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
+                      newColBaseType === 'CUSTOM'
+                        ? 'opacity-40 cursor-not-allowed bg-gray-800'
+                        : isDark
+                        ? 'bg-gray-950 border-gray-700 text-white'
+                        : 'bg-white border-gray-300'
                     }`}
                   />
+                </div>
+
+                {newColBaseType === 'CUSTOM' && (
+                  <div className="mt-2">
+                    <label className="block text-[11px] font-medium text-gray-400 mb-0.5">
+                      Custom Type Definition
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. VARCHAR(30), INT(5), geometry(Point, 4326)"
+                      value={newColCustomType}
+                      onChange={(e) => setNewColCustomType(e.target.value)}
+                      className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
+                        isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
+                      }`}
+                    />
+                  </div>
+                )}
+
+                {/* Quick Presets */}
+                <div className="mt-2">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">
+                    Quick Presets:
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {PRESETS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        data-testid={`preset-btn-${p}`}
+                        onClick={() => applyPreset(p, false)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors border ${
+                          computedNewColType === p
+                            ? 'bg-blue-600 text-white border-blue-500'
+                            : isDark
+                            ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -718,7 +856,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 <button
                   type="submit"
                   data-testid="submit-add-column-btn"
-                  disabled={submitting || !newColName.trim()}
+                  disabled={submitting || !newColName.trim() || !computedNewColType}
                   className="px-3.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-sm transition-colors disabled:opacity-50"
                 >
                   {submitting ? 'Adding...' : 'Add Column'}
@@ -779,21 +917,29 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 />
               </div>
 
+              {/* Data Type & Length / Values */}
               <div>
-                <label className="block font-medium mb-1">Data Type</label>
-                <div className="flex space-x-2">
+                <div className="grid grid-cols-2 gap-2 mb-1">
+                  <label className="font-medium">Data Type</label>
+                  <label className="font-medium">
+                    Length / Values <span className="text-gray-400 font-normal">(e.g. 30, 5, 10,2)</span>
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   <select
-                    value={COMMON_DATA_TYPES.includes(editColType) ? editColType : 'CUSTOM'}
+                    data-testid="edit-col-type-select"
+                    value={editColBaseType}
                     onChange={(e) => {
-                      if (e.target.value !== 'CUSTOM') {
-                        setEditColType(e.target.value);
+                      setEditColBaseType(e.target.value);
+                      if (e.target.value === 'VARCHAR' && !editColLength) {
+                        setEditColLength('255');
                       }
                     }}
-                    className={`px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                    className={`w-full px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono ${
                       isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
                     }`}
                   >
-                    {COMMON_DATA_TYPES.map((t) => (
+                    {BASE_TYPES.map((t) => (
                       <option key={t} value={t}>
                         {t}
                       </option>
@@ -803,13 +949,62 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
 
                   <input
                     type="text"
-                    required
-                    value={editColType}
-                    onChange={(e) => setEditColType(e.target.value)}
-                    className={`flex-1 px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
-                      isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
+                    data-testid="edit-col-length-input"
+                    placeholder="e.g. 5, 30, 10,2"
+                    value={editColLength}
+                    disabled={editColBaseType === 'CUSTOM'}
+                    onChange={(e) => setEditColLength(e.target.value)}
+                    className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
+                      editColBaseType === 'CUSTOM'
+                        ? 'opacity-40 cursor-not-allowed bg-gray-800'
+                        : isDark
+                        ? 'bg-gray-950 border-gray-700 text-white'
+                        : 'bg-white border-gray-300'
                     }`}
                   />
+                </div>
+
+                {editColBaseType === 'CUSTOM' && (
+                  <div className="mt-2">
+                    <label className="block text-[11px] font-medium text-gray-400 mb-0.5">
+                      Custom Type Definition
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. VARCHAR(30), INT(5)"
+                      value={editColCustomType}
+                      onChange={(e) => setEditColCustomType(e.target.value)}
+                      className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
+                        isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
+                      }`}
+                    />
+                  </div>
+                )}
+
+                {/* Quick Presets */}
+                <div className="mt-2">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">
+                    Quick Presets:
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {PRESETS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => applyPreset(p, true)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors border ${
+                          computedEditColType === p
+                            ? 'bg-blue-600 text-white border-blue-500'
+                            : isDark
+                            ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -868,7 +1063,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || !editColName.trim()}
+                  disabled={submitting || !editColName.trim() || !computedEditColType}
                   className="px-3.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-sm transition-colors disabled:opacity-50"
                 >
                   {submitting ? 'Saving...' : 'Save Changes'}

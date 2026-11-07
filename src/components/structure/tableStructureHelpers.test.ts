@@ -9,11 +9,32 @@ import {
   buildRenameColumnSql,
   buildModifyColumnSql,
   generateTableDdl,
+  composeDataType,
+  parseDataType,
   type TableColumnStructure,
 } from './tableStructureHelpers';
 import type { QueryResult } from '../../types/db';
 
 describe('tableStructureHelpers', () => {
+  describe('composeDataType & parseDataType', () => {
+    it('composes base type with length/values such as varchar(30) and int(5)', () => {
+      expect(composeDataType('VARCHAR', '30')).toBe('VARCHAR(30)');
+      expect(composeDataType('int', '5')).toBe('int(5)');
+      expect(composeDataType('INTEGER', '(5)')).toBe('INTEGER(5)');
+      expect(composeDataType('VARCHAR(255)', '30')).toBe('VARCHAR(30)');
+      expect(composeDataType('NUMERIC', '10,2')).toBe('NUMERIC(10,2)');
+      expect(composeDataType('TEXT', '')).toBe('TEXT');
+      expect(composeDataType('TEXT', undefined)).toBe('TEXT');
+    });
+
+    it('parses full type into base type and length/values', () => {
+      expect(parseDataType('VARCHAR(30)')).toEqual({ baseType: 'VARCHAR', lengthOrValues: '30' });
+      expect(parseDataType('int(5)')).toEqual({ baseType: 'int', lengthOrValues: '5' });
+      expect(parseDataType('NUMERIC(10, 2)')).toEqual({ baseType: 'NUMERIC', lengthOrValues: '10, 2' });
+      expect(parseDataType('TEXT')).toEqual({ baseType: 'TEXT', lengthOrValues: '' });
+    });
+  });
+
   describe('quoteIdentifier & getTableRef', () => {
     it('quotes identifiers properly for Postgres and SQLite', () => {
       expect(quoteIdentifier('users', 'postgres')).toBe('"users"');

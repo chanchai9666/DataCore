@@ -48,6 +48,45 @@ export interface ModifyColumnParams {
   oldDefaultValue?: string | null;
 }
 
+/**
+ * Combines base type and length/precision/values (e.g. 'VARCHAR', '30' => 'VARCHAR(30)', 'INT', '5' => 'INT(5)').
+ */
+export function composeDataType(baseType: string, lengthOrValues?: string): string {
+  const trimmedBase = baseType.trim();
+  const trimmedLen = lengthOrValues?.trim();
+
+  if (!trimmedLen) {
+    return trimmedBase;
+  }
+
+  // If baseType already contains parentheses like VARCHAR(255), extract base name
+  const match = trimmedBase.match(/^([a-zA-Z0-9_\s]+)(?:\(.*\))?$/);
+  const cleanBase = match ? match[1].trim() : trimmedBase;
+
+  // Clean parentheses from lengthOrValues if user typed them
+  const cleanLen = trimmedLen.replace(/^\(/, '').replace(/\)$/, '').trim();
+
+  if (!cleanLen) {
+    return cleanBase;
+  }
+
+  return `${cleanBase}(${cleanLen})`;
+}
+
+/**
+ * Parses full type into base type and length/precision (e.g. 'VARCHAR(30)' => { baseType: 'VARCHAR', lengthOrValues: '30' }).
+ */
+export function parseDataType(fullType: string): { baseType: string; lengthOrValues: string } {
+  const match = fullType.trim().match(/^([a-zA-Z0-9_\s]+)(?:\((.*)\))?$/);
+  if (match) {
+    return {
+      baseType: match[1].trim(),
+      lengthOrValues: match[2]?.trim() || '',
+    };
+  }
+  return { baseType: fullType.trim(), lengthOrValues: '' };
+}
+
 export function quoteIdentifier(name: string, driver: string): string {
   if (driver === 'mysql') {
     return `\`${name.replace(/`/g, '``')}\``;
