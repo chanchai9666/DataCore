@@ -63,6 +63,7 @@ export interface Tab {
   queryContent: string;
   schemaName?: string;
   tableName?: string;
+  viewMode?: 'data' | 'structure';
 }
 
 export function formatCellValue(val: CellValue): string {

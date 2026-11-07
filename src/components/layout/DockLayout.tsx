@@ -7,6 +7,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Layers,
+  Wrench,
 } from 'lucide-react';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -17,6 +18,7 @@ import { dbApi } from '../../api/db';
 import { openQueryTab } from '../sidebar/tabHelpers';
 import { buildUpdateSql, buildDeleteSql, buildInsertSql } from '../grid/tableEditHelpers';
 import { InsertRowModal } from '../grid/InsertRowModal';
+import { TableStructureEditor } from '../structure/TableStructureEditor';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
 import type { ConnectionConfig, QueryResult, Tab } from '../../types/db';
 
@@ -73,6 +75,9 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     schemaName?: string;
     columns: QueryResult['columns'];
   } | null>(null);
+
+  // Per-tab table view mode ('data' vs 'structure')
+  const [tableTabModes, setTableTabModes] = useState<Record<string, 'data' | 'structure'>>({});
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
 
@@ -653,39 +658,129 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
               </div>
             </div>
           ) : (
-            /* Table Tab: Full DataGrid displaying table rows with pagination */
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              <DataGrid
-                data={tableStates[activeTab.id]?.data ?? null}
-                isLoading={tableStates[activeTab.id]?.loading}
-                page={tableStates[activeTab.id]?.page ?? 1}
-                pageSize={tableStates[activeTab.id]?.pageSize ?? 100}
-                totalRows={tableStates[activeTab.id]?.totalRows ?? 0}
-                onPageChange={(newPage) => {
-                  loadTableData(
-                    activeTab,
-                    newPage,
-                    tableStates[activeTab.id]?.pageSize ?? 100
-                  );
-                }}
-                onPageSizeChange={(newSize) => {
-                  loadTableData(activeTab, 1, newSize);
-                }}
-                onRefresh={() => {
-                  loadTableData(
-                    activeTab,
-                    tableStates[activeTab.id]?.page ?? 1,
-                    tableStates[activeTab.id]?.pageSize ?? 100
-                  );
-                }}
-                theme={theme}
-                isEditable={true}
-                onCellEdited={handleCellEdited}
-                onRowDelete={handleRowDelete}
-                onAddRow={handleAddRow}
-                statusMessage={tableStatusMessages[activeTab.id]}
-              />
-            </div>
+            /* Table Tab: Data vs Structure view */
+            (() => {
+              const currentMode =
+                tableTabModes[activeTab.id] ?? activeTab.viewMode ?? 'data';
+
+              return (
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                  {/* Table Sub-header: Data / Structure Toggle Bar */}
+                  <div
+                    className={`flex items-center justify-between px-3 py-1.5 border-b text-xs flex-shrink-0 select-none ${
+                      theme === 'dark'
+                        ? 'bg-gray-900 border-gray-800'
+                        : 'bg-gray-100 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-1 bg-black/20 p-0.5 rounded border border-gray-700/40">
+                      <button
+                        type="button"
+                        data-testid="table-mode-data-btn"
+                        onClick={() =>
+                          setTableTabModes((prev) => ({
+                            ...prev,
+                            [activeTab.id]: 'data',
+                          }))
+                        }
+                        className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${
+                          currentMode === 'data'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : theme === 'dark'
+                            ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
+                        }`}
+                      >
+                        <Table className="w-3.5 h-3.5" />
+                        <span>Data</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        data-testid="table-mode-structure-btn"
+                        onClick={() =>
+                          setTableTabModes((prev) => ({
+                            ...prev,
+                            [activeTab.id]: 'structure',
+                          }))
+                        }
+                        className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${
+                          currentMode === 'structure'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : theme === 'dark'
+                            ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
+                        }`}
+                      >
+                        <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Structure</span>
+                      </button>
+                    </div>
+
+                    <div className="text-gray-500 text-[11px] font-mono">
+                      {activeTab.schemaName ? `${activeTab.schemaName}.` : ''}
+                      <span className="font-semibold text-gray-300">
+                        {activeTab.tableName}
+                      </span>
+                    </div>
+                  </div>
+
+                  {currentMode === 'data' ? (
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                      <DataGrid
+                        data={tableStates[activeTab.id]?.data ?? null}
+                        isLoading={tableStates[activeTab.id]?.loading}
+                        page={tableStates[activeTab.id]?.page ?? 1}
+                        pageSize={tableStates[activeTab.id]?.pageSize ?? 100}
+                        totalRows={tableStates[activeTab.id]?.totalRows ?? 0}
+                        onPageChange={(newPage) => {
+                          loadTableData(
+                            activeTab,
+                            newPage,
+                            tableStates[activeTab.id]?.pageSize ?? 100
+                          );
+                        }}
+                        onPageSizeChange={(newSize) => {
+                          loadTableData(activeTab, 1, newSize);
+                        }}
+                        onRefresh={() => {
+                          loadTableData(
+                            activeTab,
+                            tableStates[activeTab.id]?.page ?? 1,
+                            tableStates[activeTab.id]?.pageSize ?? 100
+                          );
+                        }}
+                        theme={theme}
+                        isEditable={true}
+                        onCellEdited={handleCellEdited}
+                        onRowDelete={handleRowDelete}
+                        onAddRow={handleAddRow}
+                        statusMessage={tableStatusMessages[activeTab.id]}
+                      />
+                    </div>
+                  ) : (
+                    <TableStructureEditor
+                      tabId={activeTab.id}
+                      connectionId={activeTab.connectionId}
+                      tableName={activeTab.tableName || activeTab.title}
+                      schemaName={activeTab.schemaName}
+                      driver={
+                        connections.find((c) => c.id === activeTab.connectionId)
+                          ?.driver
+                      }
+                      theme={theme}
+                      onStructureChanged={() => {
+                        loadTableData(
+                          activeTab,
+                          tableStates[activeTab.id]?.page ?? 1,
+                          tableStates[activeTab.id]?.pageSize ?? 100
+                        );
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })()
           )}
         </div>
       </main>

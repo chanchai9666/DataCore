@@ -217,4 +217,36 @@ describe('DockLayout', () => {
     // Modal should be open
     expect(screen.getByText(/Insert New Row/i)).toBeInTheDocument();
   });
+
+  it('toggles between Data and Structure view in table tab', async () => {
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 't1',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'users',
+          tableName: 'users',
+          schemaName: 'main',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 't1',
+    });
+
+    render(<DockLayout />);
+
+    const structureModeBtn = await screen.findByTestId('table-mode-structure-btn');
+    expect(structureModeBtn).toBeInTheDocument();
+
+    fireEvent.click(structureModeBtn);
+
+    expect(await screen.findByTestId('table-structure-editor')).toBeInTheDocument();
+
+    const dataModeBtn = screen.getByTestId('table-mode-data-btn');
+    fireEvent.click(dataModeBtn);
+
+    expect(await screen.findByRole('button', { name: /add row/i })).toBeInTheDocument();
+  });
 });

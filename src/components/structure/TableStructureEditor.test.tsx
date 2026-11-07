@@ -1,0 +1,167 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { TableStructureEditor } from './TableStructureEditor';
+import { dbApi } from '../../api/db';
+import type { QueryResult } from '../../types/db';
+
+vi.mock('../../api/db', () => ({
+  dbApi: {
+    openSession: vi.fn().mockResolvedValue(undefined),
+    executeQuery: vi.fn(),
+    fetchTableData: vi.fn(),
+  },
+}));
+
+describe('TableStructureEditor', () => {
+  const mockColumnsResult: QueryResult = {
+    columns: [],
+    rows: [
+      ['id', 'uuid', 'uuid', 'NO', 'gen_random_uuid()', '1', 'YES'],
+      ['name', 'text', 'text', 'NO', null, '2', 'NO'],
+      ['sort_order', 'integer', 'int4', 'YES', '0', '3', 'NO'],
+    ],
+    execution_time_ms: 10,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(dbApi.executeQuery).mockResolvedValue(mockColumnsResult);
+  });
+
+  it('renders columns structure with column names, types, and primary key', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    expect(await screen.findByText('categories')).toBeInTheDocument();
+    expect(screen.getByText('3 columns')).toBeInTheDocument();
+
+    // Verify column rows
+    expect(screen.getByText('id')).toBeInTheDocument();
+    expect(screen.getByText('name')).toBeInTheDocument();
+    expect(screen.getByText('sort_order')).toBeInTheDocument();
+
+    // Verify types and badges
+    expect(screen.getByText('uuid')).toBeInTheDocument();
+    expect(screen.getByText('PK')).toBeInTheDocument();
+  });
+
+  it('opens Add Column modal and executes ALTER TABLE ADD COLUMN', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const addBtn = await screen.findByTestId('add-column-btn');
+    fireEvent.click(addBtn);
+
+    expect(screen.getByText(/Add Column to categories/i)).toBeInTheDocument();
+
+    // Fill in new column form
+    const nameInput = screen.getByPlaceholderText(/description, status/i);
+    fireEvent.change(nameInput, { target: { value: 'description' } });
+
+    // Check SQL preview
+    expect(screen.getByText(/ALTER TABLE "public"."categories" ADD COLUMN "description"/i)).toBeInTheDocument();
+
+    // Submit
+    const submitBtn = screen.getByTestId('submit-add-column-btn');
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        expect.stringContaining('ALTER TABLE "public"."categories" ADD COLUMN "description"')
+      );
+    });
+  });
+
+  it('opens Edit Column modal and executes ALTER TABLE statements', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const editBtn = await screen.findByTestId('edit-column-btn-name');
+    fireEvent.click(editBtn);
+
+    expect(screen.getByText(/Edit Column:/i)).toBeInTheDocument();
+
+    // Rename column
+    const nameInput = screen.getByDisplayValue('name');
+    fireEvent.change(nameInput, { target: { value: 'title' } });
+
+    // Save
+    const saveBtn = screen.getByRole('button', { name: /save changes/i });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        expect.stringContaining('ALTER TABLE "public"."categories" RENAME COLUMN "name" TO "title"')
+      );
+    });
+  });
+
+  it('opens Drop Column confirmation and executes ALTER TABLE DROP COLUMN', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const dropBtn = await screen.findByTestId('drop-column-btn-sort_order');
+    fireEvent.click(dropBtn);
+
+    expect(screen.getByText(/Are you sure you want to drop column/i)).toBeInTheDocument();
+
+    const confirmBtn = screen.getByTestId('confirm-drop-column-btn');
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'ALTER TABLE "public"."categories" DROP COLUMN "sort_order";'
+      );
+    });
+  });
+
+  it('opens DDL modal with CREATE TABLE script', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const ddlBtn = await screen.findByTestId('view-ddl-btn');
+    fireEvent.click(ddlBtn);
+
+    expect(screen.getByText(/Table DDL — categories/i)).toBeInTheDocument();
+    expect(screen.getByText(/CREATE TABLE "public"."categories"/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /copy sql/i })).toBeInTheDocument();
+  });
+});

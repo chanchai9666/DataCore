@@ -10,6 +10,7 @@ import {
   Unplug,
   Copy,
   Plus,
+  Wrench,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { dbApi } from '../../api/db';
@@ -474,6 +475,16 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     setContextMenu(null);
   }, []);
 
+  const handleEditStructure = useCallback((node: BrowserTreeNode) => {
+    openTableTab({
+      connectionId: node.connectionId,
+      tableName: node.tableName || node.name,
+      schemaName: node.schemaName,
+      viewMode: 'structure',
+    });
+    setContextMenu(null);
+  }, []);
+
   const handleNewQuery = useCallback((node: BrowserTreeNode) => {
     const isTableOrView = node.nodeType === 'table' || node.nodeType === 'view';
     const tableName = isTableOrView ? node.tableName || node.name : undefined;
@@ -722,6 +733,18 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 <Table className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Open Table</span>
               </button>
+
+              {contextMenu.node.nodeType === 'table' && (
+                <button
+                  type="button"
+                  data-testid="edit-structure-btn"
+                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                  onClick={() => handleEditStructure(contextMenu.node)}
+                >
+                  <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Edit Structure</span>
+                </button>
+              )}
 
               <button
                 type="button"

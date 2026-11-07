@@ -97,6 +97,28 @@ describe('ObjectBrowser', () => {
     expect(tabs[0].id).toContain('table-');
   });
 
+  it('opens a table structure tab when Edit Structure is clicked from context menu', async () => {
+    render(<ObjectBrowser />);
+
+    const userTableNode = await screen.findByText('users');
+    fireEvent.contextMenu(userTableNode);
+
+    const editStructureBtn = await screen.findByTestId('edit-structure-btn');
+    expect(editStructureBtn).toBeInTheDocument();
+    fireEvent.click(editStructureBtn);
+
+    const tabs = useTabStore.getState().tabs;
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]).toMatchObject({
+      connectionId: 'conn-1',
+      type: 'table',
+      title: 'users',
+      tableName: 'users',
+      schemaName: 'main',
+      viewMode: 'structure',
+    });
+  });
+
   it('filters nodes based on search input', async () => {
     render(<ObjectBrowser />);
 

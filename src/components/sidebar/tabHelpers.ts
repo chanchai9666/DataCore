@@ -5,6 +5,7 @@ export interface OpenTableTabParams {
   connectionId: string;
   tableName: string;
   schemaName?: string;
+  viewMode?: 'data' | 'structure';
 }
 
 export interface OpenQueryTabParams {
@@ -19,10 +20,22 @@ export function openTableTab({
   connectionId,
   tableName,
   schemaName,
+  viewMode,
 }: OpenTableTabParams): void {
   const tableId = `${connectionId}-${tableName}`;
+  const fullId = 'table-' + tableId;
+  const existingTab = useTabStore.getState().tabs.find((t) => t.id === fullId);
+
+  if (existingTab) {
+    if (viewMode) {
+      useTabStore.getState().updateTab(fullId, { viewMode });
+    }
+    useTabStore.getState().setActiveTab(fullId);
+    return;
+  }
+
   useTabStore.getState().openTab({
-    id: 'table-' + tableId,
+    id: fullId,
     connectionId,
     type: 'table',
     title: tableName,
@@ -30,6 +43,7 @@ export function openTableTab({
     tableName,
     autoCommit: true,
     queryContent: '',
+    viewMode: viewMode || 'data',
   });
 }
 
