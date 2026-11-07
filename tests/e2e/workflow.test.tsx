@@ -205,6 +205,11 @@ describe('E2E Workflow Test', () => {
     fireEvent.mouseUp(window);
 
     // 4. Open Table tab via Object Browser
+    // Expand tree structure on demand: Connection -> database -> Tables
+    fireEvent.click(await screen.findByTestId('tree-node-My SQLite DB'));
+    fireEvent.click(await screen.findByTestId('tree-node-main'));
+    fireEvent.click(await screen.findByTestId('tree-node-Tables (1)'));
+
     // Double-click "users" table node to open table tab
     const usersTableNode = await screen.findByTestId('tree-node-users');
     fireEvent.doubleClick(usersTableNode);

@@ -41,11 +41,13 @@ export interface BrowserTreeNode {
   children?: BrowserTreeNode[];
   errorMessage?: string;
   isLoading?: boolean;
+  isDisconnected?: boolean;
 }
 
 export interface ObjectBrowserContextType {
   onContextMenuNode?: (e: React.MouseEvent, node: BrowserTreeNode) => void;
   onRefreshConnection?: (connectionId: string) => void;
+  onConnectConnection?: (connectionId: string) => void;
   onOpenTable?: (node: BrowserTreeNode) => void;
   onNewQuery?: (node: BrowserTreeNode) => void;
   onEditConnection?: (connectionId: string) => void;
@@ -132,7 +134,12 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
   const getNodeIcon = () => {
     switch (data.nodeType) {
       case 'connection':
-        return <Database className="w-4 h-4 text-sky-400 shrink-0" data-testid="icon-connection" />;
+        return (
+          <Database
+            className={`w-4 h-4 shrink-0 ${data.isDisconnected ? 'text-gray-500' : 'text-sky-400'}`}
+            data-testid="icon-connection"
+          />
+        );
       case 'database':
         return <Database className="w-4 h-4 text-amber-400 shrink-0" data-testid="icon-database" />;
       case 'schema':
@@ -191,6 +198,9 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
 
     if (data.nodeType === 'connection') {
       useConnectionStore.getState().setActiveConnection(data.connectionId);
+      if (data.isDisconnected && context.onConnectConnection) {
+        context.onConnectConnection(data.connectionId);
+      }
     }
 
     if (!isLeaf) {
@@ -204,7 +214,9 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       handleOpenTableTab();
     } else if (data.nodeType === 'connection') {
       useConnectionStore.getState().setActiveConnection(data.connectionId);
-      if (data.errorMessage) {
+      if (data.isDisconnected && context.onConnectConnection) {
+        context.onConnectConnection(data.connectionId);
+      } else if (data.errorMessage) {
         context.onRefreshConnection?.(data.connectionId);
       }
       if (!isLeaf) {

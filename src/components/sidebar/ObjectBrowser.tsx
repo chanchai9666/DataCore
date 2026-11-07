@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Tree } from 'react-arborist';
+import { Tree, TreeApi } from 'react-arborist';
 import {
   Search,
   RefreshCw,
@@ -8,6 +8,7 @@ import {
   Edit,
   Trash2,
   Unplug,
+  Plug,
   Copy,
   Plus,
   Wrench,
@@ -313,7 +314,9 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const treeRef = useRef<TreeApi<BrowserTreeNode>>(null);
   const [dimensions, setDimensions] = useState({ width: 280, height: 600 });
+  const [disconnectedIds, setDisconnectedIds] = useState<Set<string>>(new Set());
 
   // Update container dimensions for react-arborist
   useEffect(() => {
@@ -390,29 +393,42 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     if (lastSavedConnectionId) {
       const targetConn = (connections || []).find((c) => lastSavedConnectionId.startsWith(c.id));
       if (targetConn) {
+        setDisconnectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(targetConn.id);
+          return next;
+        });
         fetchSchema(targetConn.id);
       }
     }
   }, [lastSavedConnectionId, connections, fetchSchema]);
 
-  // Fetch schema for all connections if not yet loaded and not errored
+  // Fetch schema for all connections if not yet loaded and not errored and not disconnected
   useEffect(() => {
     (connections || []).forEach((conn) => {
-      if (!schemas[conn.id] && !loadingMap[conn.id] && !errorMap[conn.id]) {
+      if (
+        !schemas[conn.id] &&
+        !loadingMap[conn.id] &&
+        !errorMap[conn.id] &&
+        !disconnectedIds.has(conn.id)
+      ) {
         fetchSchema(conn.id);
       }
     });
-  }, [connections, fetchSchema, schemas, loadingMap, errorMap]);
+  }, [connections, fetchSchema, schemas, loadingMap, errorMap, disconnectedIds]);
 
   const treeData = useMemo<BrowserTreeNode[]>(() => {
     return (connections || []).map((conn) => {
+      const isDisconnected = disconnectedIds.has(conn.id);
       const connSchema = schemas[conn.id] || [];
       const isLoading = Boolean(loadingMap[conn.id]);
       const errorMsg = errorMap[conn.id];
 
       let children: BrowserTreeNode[];
 
-      if (errorMsg) {
+      if (isDisconnected) {
+        children = [];
+      } else if (errorMsg) {
         children = [
           {
             id: `${conn.id}-error`,
@@ -458,28 +474,11 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         driver: conn.driver,
         errorMessage: errorMsg,
         isLoading,
+        isDisconnected,
         children,
       };
     });
-  }, [connections, schemas, loadingMap, errorMap]);
-
-  const initialOpenState = useMemo<Record<string, boolean>>(() => {
-    const map: Record<string, boolean> = {};
-    const traverse = (nodes: BrowserTreeNode[]) => {
-      for (const node of nodes) {
-        if (node.id.includes('folder-system-schemas')) {
-          map[node.id] = false;
-        } else {
-          map[node.id] = true;
-        }
-        if (node.children) {
-          traverse(node.children);
-        }
-      }
-    };
-    traverse(treeData);
-    return map;
-  }, [treeData]);
+  }, [connections, schemas, loadingMap, errorMap, disconnectedIds]);
 
   const handleOpenTable = useCallback((node: BrowserTreeNode) => {
     openTableTab({
@@ -534,8 +533,26 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
   const handleRefresh = useCallback(
     (connectionId: string) => {
+      setDisconnectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(connectionId);
+        return next;
+      });
       fetchSchema(connectionId);
       setContextMenu(null);
+    },
+    [fetchSchema]
+  );
+
+  const handleConnect = useCallback(
+    async (connectionId: string) => {
+      setDisconnectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(connectionId);
+        return next;
+      });
+      setContextMenu(null);
+      await fetchSchema(connectionId);
     },
     [fetchSchema]
   );
@@ -565,6 +582,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
   const handleDisconnect = useCallback(
     (connectionId: string) => {
+      setDisconnectedIds((prev) => new Set(prev).add(connectionId));
       if (activeConnectionId === connectionId) {
         setActiveConnection(null);
       }
@@ -578,6 +596,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         delete next[connectionId];
         return next;
       });
+      treeRef.current?.close(`conn-${connectionId}`);
       setContextMenu(null);
     },
     [activeConnectionId, setActiveConnection]
@@ -666,6 +685,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             value={{
               onContextMenuNode: handleContextMenuNode,
               onRefreshConnection: handleRefresh,
+              onConnectConnection: handleConnect,
               onOpenTable: handleOpenTable,
               onNewQuery: handleNewQuery,
               onEditConnection: handleEditConnection,
@@ -674,6 +694,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             }}
           >
             <Tree
+              ref={treeRef}
               data={treeData}
               width={dimensions.width}
               height={dimensions.height}
@@ -686,8 +707,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 if (node.data.tableName && node.data.tableName.toLowerCase().includes(lower)) return true;
                 return false;
               }}
-              initialOpenState={initialOpenState}
-              openByDefault={true}
+              openByDefault={false}
             >
               {ConnectionTreeNode}
             </Tree>
@@ -706,6 +726,28 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           {/* Connection Context Menu */}
           {contextMenu.node.nodeType === 'connection' && (
             <>
+              {contextMenu.node.isDisconnected || !schemas[contextMenu.node.connectionId] ? (
+                <button
+                  type="button"
+                  data-testid="connect-connection-btn"
+                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-emerald-400 font-medium"
+                  onClick={() => handleConnect(contextMenu.node.connectionId)}
+                >
+                  <Plug className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Connect</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  data-testid="disconnect-connection-btn"
+                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-orange-400"
+                  onClick={() => handleDisconnect(contextMenu.node.connectionId)}
+                >
+                  <Unplug className="w-3.5 h-3.5 text-orange-400" />
+                  <span>Disconnect</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
@@ -731,15 +773,6 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               >
                 <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Refresh Schema</span>
-              </button>
-
-              <button
-                type="button"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
-                onClick={() => handleDisconnect(contextMenu.node.connectionId)}
-              >
-                <Unplug className="w-3.5 h-3.5 text-orange-400" />
-                <span>Disconnect</span>
               </button>
 
               <div className="border-t border-gray-700 my-1" />

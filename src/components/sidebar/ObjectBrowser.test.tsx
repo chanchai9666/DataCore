@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ObjectBrowser } from './ObjectBrowser';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
@@ -10,7 +10,6 @@ vi.mock('../../api/db', () => ({
   dbApi: {
     getConnections: vi.fn(),
     getSchemaTree: vi.fn(),
-    closeSession: vi.fn(),
     deleteConnection: vi.fn(),
   },
 }));
@@ -20,7 +19,7 @@ describe('ObjectBrowser', () => {
     id: 'conn-1',
     name: 'Production SQLite',
     driver: 'sqlite',
-    database: '/path/to/prod.db',
+    database: '/path/to/db.sqlite',
   };
 
   const mockSchema: SchemaNode[] = [
@@ -39,7 +38,7 @@ describe('ObjectBrowser', () => {
           schema: 'main',
         },
         {
-          name: 'active_users_view',
+          name: 'active_users',
           node_type: 'view',
           schema: 'main',
         },
@@ -47,11 +46,20 @@ describe('ObjectBrowser', () => {
     },
   ];
 
+  const expandToTables = async () => {
+    const connNode = await screen.findByTestId('tree-node-Production SQLite');
+    fireEvent.click(connNode);
+    const dbNode = await screen.findByTestId('tree-node-main');
+    fireEvent.click(dbNode);
+    const tablesFolder = await screen.findByTestId('tree-node-Tables (2)');
+    fireEvent.click(tablesFolder);
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     useConnectionStore.setState({
       connections: [mockConnection],
-      activeConnectionId: null,
+      activeConnectionId: 'conn-1',
       loading: false,
       error: null,
     });
@@ -62,23 +70,36 @@ describe('ObjectBrowser', () => {
     vi.mocked(dbApi.getSchemaTree).mockResolvedValue(mockSchema);
   });
 
-  it('renders connections and schema tree when loaded', async () => {
+  it('renders connections and does not auto-expand tree structure initially', async () => {
     render(<ObjectBrowser />);
 
     // Connection name should be displayed
     expect(await screen.findByText('Production SQLite')).toBeInTheDocument();
 
-    // Database node should be displayed
+    // Tree structure should remain collapsed initially (not auto-expanded)
+    expect(screen.queryByText('main')).not.toBeInTheDocument();
+    expect(screen.queryByText('users')).not.toBeInTheDocument();
+
+    // Clicking connection expands database
+    const connNode = screen.getByTestId('tree-node-Production SQLite');
+    fireEvent.click(connNode);
     expect(await screen.findByText('main')).toBeInTheDocument();
 
-    // Tables and views should be displayed
+    // Clicking database expands tables/views folders
+    const dbNode = screen.getByTestId('tree-node-main');
+    fireEvent.click(dbNode);
+    expect(await screen.findByText('Tables (2)')).toBeInTheDocument();
+
+    // Clicking Tables expands tables
+    const tablesFolder = screen.getByTestId('tree-node-Tables (2)');
+    fireEvent.click(tablesFolder);
     expect(await screen.findByText('users')).toBeInTheDocument();
     expect(screen.getByText('orders')).toBeInTheDocument();
-    expect(screen.getByText('active_users_view')).toBeInTheDocument();
   });
 
   it('opens a table tab when a table node is double-clicked', async () => {
     render(<ObjectBrowser />);
+    await expandToTables();
 
     const userTableNode = await screen.findByText('users');
     fireEvent.doubleClick(userTableNode);
@@ -99,6 +120,7 @@ describe('ObjectBrowser', () => {
 
   it('opens a table structure tab when Edit Structure is clicked from context menu', async () => {
     render(<ObjectBrowser />);
+    await expandToTables();
 
     const userTableNode = await screen.findByText('users');
     fireEvent.contextMenu(userTableNode);
@@ -119,15 +141,13 @@ describe('ObjectBrowser', () => {
     });
   });
 
-  it('filters nodes based on search input', async () => {
+  it('filters nodes based on search input and expands matching results', async () => {
     render(<ObjectBrowser />);
 
-    await screen.findByText('users');
     const filterInput = screen.getByPlaceholderText(/search|filter/i);
-
     fireEvent.change(filterInput, { target: { value: 'orders' } });
 
-    expect(screen.getByText('orders')).toBeInTheDocument();
+    expect(await screen.findByText('orders')).toBeInTheDocument();
     expect(screen.queryByText('users')).not.toBeInTheDocument();
   });
 
@@ -160,8 +180,37 @@ describe('ObjectBrowser', () => {
     });
   });
 
+  it('disconnects connection and stops auto-fetching schema when Disconnect is clicked, and reconnects on Connect', async () => {
+    render(<ObjectBrowser />);
+
+    const connElement = await screen.findByText('Production SQLite');
+    fireEvent.contextMenu(connElement);
+
+    const disconnectBtn = await screen.findByTestId('disconnect-connection-btn');
+    expect(disconnectBtn).toBeInTheDocument();
+    fireEvent.click(disconnectBtn);
+
+    // Active connection should be cleared
+    expect(useConnectionStore.getState().activeConnectionId).toBeNull();
+
+    // Schema calls should not be triggered again automatically
+    const initialCallCount = vi.mocked(dbApi.getSchemaTree).mock.calls.length;
+
+    // Right-click connection again - should now show "Connect" button
+    fireEvent.contextMenu(connElement);
+    const connectBtn = await screen.findByTestId('connect-connection-btn');
+    expect(connectBtn).toBeInTheDocument();
+
+    // Click Connect to reconnect
+    fireEvent.click(connectBtn);
+    await waitFor(() => {
+      expect(vi.mocked(dbApi.getSchemaTree).mock.calls.length).toBeGreaterThan(initialCallCount);
+    });
+  });
+
   it('opens a table tab via context menu on table node', async () => {
     render(<ObjectBrowser />);
+    await expandToTables();
 
     const tableNode = await screen.findByText('orders');
     fireEvent.contextMenu(tableNode);
@@ -177,6 +226,7 @@ describe('ObjectBrowser', () => {
 
   it('toggles expand and collapse when clicking on expander arrow', async () => {
     render(<ObjectBrowser />);
+    await expandToTables();
 
     await screen.findByText('users');
     const dbNode = screen.getByTestId('tree-node-main');
@@ -242,6 +292,10 @@ describe('ObjectBrowser', () => {
 
     render(<ObjectBrowser onEditConnection={handleEdit} />);
 
+    // Expand connection to view error node
+    const connNode = await screen.findByTestId('tree-node-Production SQLite');
+    fireEvent.click(connNode);
+
     // Error message should be rendered in the tree
     const errorNode = await screen.findByText(/password authentication failed/i);
     expect(errorNode).toBeInTheDocument();
@@ -257,12 +311,16 @@ describe('ObjectBrowser', () => {
     fireEvent.click(retryBtn);
 
     await waitFor(() => {
-      expect(screen.getByText('users')).toBeInTheDocument();
+      expect(dbApi.getSchemaTree).toHaveBeenCalledTimes(2);
     });
   });
 
   it('groups tables and views into Tables and Views folders', async () => {
     render(<ObjectBrowser />);
+
+    // Expand connection and database
+    fireEvent.click(await screen.findByTestId('tree-node-Production SQLite'));
+    fireEvent.click(await screen.findByTestId('tree-node-main'));
 
     // Folders with count badges should be displayed
     expect(await screen.findByText('Tables (2)')).toBeInTheDocument();
@@ -297,6 +355,10 @@ describe('ObjectBrowser', () => {
     vi.mocked(dbApi.getSchemaTree).mockResolvedValueOnce(postgresSchema);
     render(<ObjectBrowser />);
 
+    // Expand connection and postgres db
+    fireEvent.click(await screen.findByTestId('tree-node-Production SQLite'));
+    fireEvent.click(await screen.findByTestId('tree-node-postgres'));
+
     // public schema should be rendered
     expect(await screen.findByText('public')).toBeInTheDocument();
     // System schemas should be grouped
@@ -305,6 +367,7 @@ describe('ObjectBrowser', () => {
 
   it('opens DropTableModal when Drop Table is clicked from table context menu', async () => {
     render(<ObjectBrowser />);
+    await expandToTables();
 
     const userTableNode = await screen.findByText('users');
     fireEvent.contextMenu(userTableNode);
@@ -318,6 +381,9 @@ describe('ObjectBrowser', () => {
 
   it('opens CreateTableModal when New Table is clicked from database context menu', async () => {
     render(<ObjectBrowser />);
+
+    // Expand connection to show database
+    fireEvent.click(await screen.findByTestId('tree-node-Production SQLite'));
 
     const mainDbNode = await screen.findByText('main');
     fireEvent.contextMenu(mainDbNode);
