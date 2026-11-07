@@ -29,6 +29,7 @@ import {
   getDataTypeSpec,
   type TableColumnStructure,
 } from './tableStructureHelpers';
+import { DropTableModal } from './DropTableModal';
 
 export interface TableStructureEditorProps {
   tabId: string;
@@ -98,6 +99,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   const [editColTarget, setEditColTarget] = useState<TableColumnStructure | null>(null);
   const [dropColTarget, setDropColTarget] = useState<TableColumnStructure | null>(null);
   const [isDdlModalOpen, setIsDdlModalOpen] = useState(false);
+  const [isDropTableModalOpen, setIsDropTableModalOpen] = useState(false);
   const [ddlCopied, setDdlCopied] = useState(false);
 
   // Add form fields
@@ -530,6 +532,21 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           >
             <Code className="w-3.5 h-3.5 text-blue-400" />
             <span>DDL</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="drop-table-toolbar-btn"
+            onClick={() => setIsDropTableModalOpen(true)}
+            title="Drop Table"
+            className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded text-xs transition-colors border ${
+              isDark
+                ? 'border-red-900/40 bg-red-950/30 hover:bg-red-900/50 text-red-400'
+                : 'border-red-200 bg-red-50 hover:bg-red-100 text-red-600'
+            }`}
+          >
+            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+            <span>Drop</span>
           </button>
         </div>
       </div>
@@ -1293,6 +1310,19 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal: Drop Table */}
+      <DropTableModal
+        isOpen={isDropTableModalOpen}
+        tableName={tableName}
+        schemaName={schemaName}
+        connectionId={connectionId}
+        driver={driver}
+        onClose={() => setIsDropTableModalOpen(false)}
+        onSuccess={() => {
+          onStructureChanged?.();
+        }}
+      />
     </div>
   );
 };

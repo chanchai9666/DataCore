@@ -161,10 +161,25 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ### ระดับ 3: จัดการโครงสร้าง
 
-- **Table Designer**: ดู/แก้คอลัมน์, primary key, index, foreign key, constraint
-- สร้าง/ลบ/เปลี่ยนชื่อตาราง, view, index
-- ดู DDL ของตาราง (Show CREATE)
-- Preview SQL ก่อนใช้การเปลี่ยนแปลงจริง
+- **Table Structure Editor & Designer (เสร็จสมบูรณ์)**:
+  - ดูโครงสร้างคอลัมน์, ชนิดข้อมูล, สถานะ Nullable, ค่า Default, และ Primary Key
+  - เพิ่มคอลัมน์ใหม่ (ALTER TABLE ADD COLUMN) พร้อม Live SQL Preview และ Quick Presets
+  - แก้ไขคอลัมน์ (เปลี่ยนชื่อ, แก้ชนิดข้อมูล, ปรับ Nullable, ปรับค่า Default)
+  - ลบคอลัมน์ (ALTER TABLE DROP COLUMN) พร้อมระบบความปลอดภัยยืนยันก่อนลบ
+  - รองรับการกำหนด Length/Values สัมพันธ์ตามประเภทข้อมูล (เช่น `VARCHAR(30)`, `INT(5)`, `NUMERIC(10,2)`) และปิดช่องอัตโนมัติสำหรับประเภทที่ไม่ต้องมีขนาด (เช่น `DATE`, `JSON`, `UUID`, `BOOLEAN`, `TIMESTAMP`)
+  - แสดง CREATE TABLE DDL พร้อมปุ่มคัดลอกคำสั่ง SQL
+- **สร้างตารางใหม่ (Create Table - เสร็จสมบูรณ์)**:
+  - เมนูคลิกขวาที่ Schema, Database, หรือโฟลเดอร์ Tables ใน Object Browser
+  - หน้าต่าง Create Table Modal กำหนดชื่อตาราง, คอลัมน์, PK, Nullable, Default, Quick Presets (+Timestamps, +ID) และ Live SQL Preview
+  - เมื่อสร้างเสร็จ ทำการรีเฟรช Object Browser และเปิดแท็บตารางใหม่ทันที
+- **ลบตาราง (Drop Table - เสร็จสมบูรณ์)**:
+  - เมนูคลิกขวาที่ตารางใน Object Browser หรือปุ่ม Drop ใน Table Structure Editor
+  - หน้าต่างยืนยันความปลอดภัย พิมพ์ชื่อตารางเพื่อยืนยัน พร้อมตัวเลือก `CASCADE` สำหรับ PostgreSQL
+  - ปิดแท็บที่เปิดอยู่ของตารางนั้นอัตโนมัติ และรีเฟรช Object Browser ทันที
+- **ส่วนที่พัฒนาในลำดับถัดไป**:
+  - การจัดการ Indexes, Foreign Keys, และ Constraints
+  - เปลี่ยนชื่อตาราง (RENAME TABLE)
+  - การจัดการ Views
 
 ### ระดับ 4: ข้อมูลเข้า-ออก
 

@@ -16,6 +16,8 @@ import { useConnectionStore } from '../../stores/connectionStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, SchemaNode } from '../../types/db';
 import { openTableTab, openQueryTab } from './tabHelpers';
+import { CreateTableModal } from '../structure/CreateTableModal';
+import { DropTableModal } from '../structure/DropTableModal';
 import {
   ConnectionTreeNode,
   ObjectBrowserContext,
@@ -297,6 +299,19 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   const [errorMap, setErrorMap] = useState<Record<string, string>>({});
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
+  const [createTableTarget, setCreateTableTarget] = useState<{
+    connectionId: string;
+    schemaName?: string;
+    driver?: string;
+  } | null>(null);
+
+  const [dropTableTarget, setDropTableTarget] = useState<{
+    connectionId: string;
+    tableName: string;
+    schemaName?: string;
+    driver?: string;
+  } | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 280, height: 600 });
 
@@ -481,6 +496,25 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       tableName: node.tableName || node.name,
       schemaName: node.schemaName,
       viewMode: 'structure',
+    });
+    setContextMenu(null);
+  }, []);
+
+  const handleNewTable = useCallback((node: BrowserTreeNode) => {
+    setCreateTableTarget({
+      connectionId: node.connectionId,
+      schemaName: node.schemaName,
+      driver: node.driver,
+    });
+    setContextMenu(null);
+  }, []);
+
+  const handleDropTable = useCallback((node: BrowserTreeNode) => {
+    setDropTableTarget({
+      connectionId: node.connectionId,
+      tableName: node.tableName || node.name,
+      schemaName: node.schemaName,
+      driver: node.driver,
     });
     setContextMenu(null);
   }, []);
@@ -763,13 +797,39 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 <Copy className="w-3.5 h-3.5 text-gray-400" />
                 <span>Copy Name</span>
               </button>
+
+              {contextMenu.node.nodeType === 'table' && (
+                <>
+                  <div className="border-t border-gray-700 my-1" />
+                  <button
+                    type="button"
+                    data-testid="drop-table-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-900/40 text-red-400"
+                    onClick={() => handleDropTable(contextMenu.node)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                    <span>Drop Table</span>
+                  </button>
+                </>
+              )}
             </>
           )}
 
-          {/* Database / Schema Context Menu */}
+          {/* Database / Schema / Folder Context Menu */}
           {(contextMenu.node.nodeType === 'database' ||
-            contextMenu.node.nodeType === 'schema') && (
+            contextMenu.node.nodeType === 'schema' ||
+            contextMenu.node.nodeType === 'folder') && (
             <>
+              <button
+                type="button"
+                data-testid="new-table-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-emerald-400"
+                onClick={() => handleNewTable(contextMenu.node)}
+              >
+                <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                <span>New Table...</span>
+              </button>
+
               <button
                 type="button"
                 className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
@@ -799,6 +859,40 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             </>
           )}
         </div>
+      )}
+
+      {/* Modals */}
+      {createTableTarget && (
+        <CreateTableModal
+          isOpen={true}
+          connectionId={createTableTarget.connectionId}
+          schemaName={createTableTarget.schemaName}
+          driver={createTableTarget.driver}
+          onClose={() => setCreateTableTarget(null)}
+          onSuccess={(newTableName, newSchema) => {
+            fetchSchema(createTableTarget.connectionId);
+            openTableTab({
+              connectionId: createTableTarget.connectionId,
+              tableName: newTableName,
+              schemaName: newSchema || createTableTarget.schemaName,
+              viewMode: 'structure',
+            });
+          }}
+        />
+      )}
+
+      {dropTableTarget && (
+        <DropTableModal
+          isOpen={true}
+          tableName={dropTableTarget.tableName}
+          schemaName={dropTableTarget.schemaName}
+          connectionId={dropTableTarget.connectionId}
+          driver={dropTableTarget.driver}
+          onClose={() => setDropTableTarget(null)}
+          onSuccess={() => {
+            fetchSchema(dropTableTarget.connectionId);
+          }}
+        />
       )}
     </div>
   );

@@ -302,4 +302,30 @@ describe('ObjectBrowser', () => {
     // System schemas should be grouped
     expect(screen.getByText('System Schemas (2)')).toBeInTheDocument();
   });
+
+  it('opens DropTableModal when Drop Table is clicked from table context menu', async () => {
+    render(<ObjectBrowser />);
+
+    const userTableNode = await screen.findByText('users');
+    fireEvent.contextMenu(userTableNode);
+
+    const dropTableBtn = await screen.findByTestId('drop-table-btn');
+    expect(dropTableBtn).toBeInTheDocument();
+    fireEvent.click(dropTableBtn);
+
+    expect(await screen.findByRole('heading', { name: /drop table/i })).toBeInTheDocument();
+  });
+
+  it('opens CreateTableModal when New Table is clicked from database context menu', async () => {
+    render(<ObjectBrowser />);
+
+    const mainDbNode = await screen.findByText('main');
+    fireEvent.contextMenu(mainDbNode);
+
+    const newTableBtn = await screen.findByTestId('new-table-btn');
+    expect(newTableBtn).toBeInTheDocument();
+    fireEvent.click(newTableBtn);
+
+    expect(await screen.findByRole('heading', { name: /create new table/i })).toBeInTheDocument();
+  });
 });

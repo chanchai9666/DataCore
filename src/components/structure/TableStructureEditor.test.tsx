@@ -253,4 +253,22 @@ describe('TableStructureEditor', () => {
     expect(screen.getByText(/CREATE TABLE "public"."categories"/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /copy sql/i })).toBeInTheDocument();
   });
+
+  it('opens DropTableModal when Drop Table toolbar button is clicked', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const dropBtn = await screen.findByTestId('drop-table-toolbar-btn');
+    fireEvent.click(dropBtn);
+
+    expect(await screen.findByRole('heading', { name: /drop table/i })).toBeInTheDocument();
+    expect(screen.getByTestId('drop-table-confirm-input')).toBeInTheDocument();
+  });
 });
