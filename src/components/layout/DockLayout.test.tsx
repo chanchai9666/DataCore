@@ -51,16 +51,10 @@ describe('DockLayout', () => {
   it('renders empty state when there are no open tabs', async () => {
     render(<DockLayout />);
     expect(screen.getByText(/no open tabs/i)).toBeInTheDocument();
-    await waitFor(() => {
-      expect(dbApi.getSchemaTree).toHaveBeenCalledWith('conn-1');
-    });
   });
 
   it('opens a new query tab when + button is clicked', async () => {
     render(<DockLayout />);
-    await waitFor(() => {
-      expect(dbApi.getSchemaTree).toHaveBeenCalledWith('conn-1');
-    });
 
     const addBtn = screen.getByTestId('add-query-tab-btn');
     fireEvent.click(addBtn);
@@ -138,7 +132,7 @@ describe('DockLayout', () => {
   it('collapses and expands the sidebar', async () => {
     render(<DockLayout />);
     await waitFor(() => {
-      expect(dbApi.getSchemaTree).toHaveBeenCalledWith('conn-1');
+      expect(screen.getByText(/explorer/i)).toBeInTheDocument();
     });
 
     const collapseBtn = screen.getByRole('button', { name: /collapse sidebar/i });
@@ -151,7 +145,6 @@ describe('DockLayout', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/explorer/i)).toBeInTheDocument();
-      expect(dbApi.getSchemaTree).toHaveBeenCalled();
     });
   });
 

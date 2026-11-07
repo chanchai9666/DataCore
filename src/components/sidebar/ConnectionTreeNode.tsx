@@ -41,7 +41,23 @@ export interface BrowserTreeNode {
   children?: BrowserTreeNode[];
   errorMessage?: string;
   isLoading?: boolean;
+  isConnected?: boolean;
   isDisconnected?: boolean;
+}
+
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+export function getConnectionStatus(data: BrowserTreeNode): ConnectionStatus {
+  if (data.isLoading) {
+    return 'connecting';
+  }
+  if (data.errorMessage) {
+    return 'error';
+  }
+  if (data.isConnected) {
+    return 'connected';
+  }
+  return 'disconnected';
 }
 
 export interface ObjectBrowserContextType {
@@ -131,15 +147,31 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
     );
   }
 
+  const isConnection = data.nodeType === 'connection';
+  const connectionStatus = isConnection ? getConnectionStatus(data) : null;
+  const showArrow = isConnection ? connectionStatus === 'connected' : !isLeaf;
+
   const getNodeIcon = () => {
     switch (data.nodeType) {
-      case 'connection':
+      case 'connection': {
+        const status = getConnectionStatus(data);
+        const iconColor =
+          status === 'connected'
+            ? 'text-emerald-500'
+            : status === 'connecting'
+            ? 'text-amber-500 animate-pulse'
+            : status === 'error'
+            ? 'text-red-500'
+            : 'text-gray-400';
+
         return (
           <Database
-            className={`w-4 h-4 shrink-0 ${data.isDisconnected ? 'text-gray-500' : 'text-sky-400'}`}
+            className={`w-4 h-4 shrink-0 ${iconColor}`}
             data-testid="icon-connection"
+            data-status={status}
           />
         );
+      }
       case 'database':
         return <Database className="w-4 h-4 text-amber-400 shrink-0" data-testid="icon-database" />;
       case 'schema':
@@ -198,12 +230,13 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
 
     if (data.nodeType === 'connection') {
       useConnectionStore.getState().setActiveConnection(data.connectionId);
-      if (data.isDisconnected && context.onConnectConnection) {
+      const status = getConnectionStatus(data);
+      if (status !== 'connected' && context.onConnectConnection) {
         context.onConnectConnection(data.connectionId);
+      } else if (status === 'connected') {
+        node.toggle();
       }
-    }
-
-    if (!isLeaf) {
+    } else if (!isLeaf) {
       node.toggle();
     }
   };
@@ -214,12 +247,10 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       handleOpenTableTab();
     } else if (data.nodeType === 'connection') {
       useConnectionStore.getState().setActiveConnection(data.connectionId);
-      if (data.isDisconnected && context.onConnectConnection) {
+      const status = getConnectionStatus(data);
+      if (status !== 'connected' && context.onConnectConnection) {
         context.onConnectConnection(data.connectionId);
-      } else if (data.errorMessage) {
-        context.onRefreshConnection?.(data.connectionId);
-      }
-      if (!isLeaf) {
+      } else if (status === 'connected') {
         node.toggle();
       }
     } else if (!isLeaf) {
@@ -253,17 +284,17 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         className="w-4 h-4 flex items-center justify-center shrink-0 mr-0.5 text-gray-400 hover:text-gray-200"
         onClick={(e) => {
           e.stopPropagation();
-          if (!isLeaf) node.toggle();
+          if (showArrow) node.toggle();
         }}
       >
-        {!isLeaf ? (
+        {showArrow ? (
           node.isOpen ? (
-            <ChevronDown className="w-3.5 h-3.5" />
+            <ChevronDown className="w-3.5 h-3.5" data-testid="chevron-down" />
           ) : (
-            <ChevronRight className="w-3.5 h-3.5" />
+            <ChevronRight className="w-3.5 h-3.5" data-testid="chevron-right" />
           )
         ) : (
-          <span className="w-3.5" />
+          <span className="w-3.5" data-testid="arrow-spacer" />
         )}
       </span>
 
@@ -279,13 +310,13 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       {data.nodeType === 'connection' && (
         <div className="flex items-center space-x-1 mr-1 shrink-0">
           {data.isLoading && (
-            <span title="Loading schema...">
-              <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />
+            <span title="Connecting...">
+              <Loader2 className="w-3 h-3 text-amber-500 animate-spin" data-testid="spinner-connecting" />
             </span>
           )}
           {data.errorMessage && !data.isLoading && (
             <span title={`Connection error: ${data.errorMessage}`}>
-              <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+              <AlertCircle className="w-3.5 h-3.5 text-red-500" data-testid="icon-connection-error" />
             </span>
           )}
         </div>

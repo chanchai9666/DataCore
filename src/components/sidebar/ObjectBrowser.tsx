@@ -317,7 +317,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<TreeApi<BrowserTreeNode>>(null);
   const [dimensions, setDimensions] = useState({ width: 280, height: 600 });
-  const [disconnectedIds, setDisconnectedIds] = useState<Set<string>>(new Set());
+  const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
 
   // Update container dimensions for react-arborist
   useEffect(() => {
@@ -375,55 +375,47 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     try {
       const tree = await dbApi.getSchemaTree(connectionId);
       setSchemas((prev) => ({ ...prev, [connectionId]: tree }));
+      setConnectedIds((prev) => new Set(prev).add(connectionId));
+      treeRef.current?.open(`conn-${connectionId}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`Failed to load schema for connection ${connectionId}:`, err);
       setErrorMap((prev) => ({ ...prev, [connectionId]: msg }));
+      setConnectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(connectionId);
+        return next;
+      });
       setSchemas((prev) => {
         const next = { ...prev };
         delete next[connectionId];
         return next;
       });
+      treeRef.current?.open(`conn-${connectionId}`);
     } finally {
       setLoadingMap((prev) => ({ ...prev, [connectionId]: false }));
     }
   }, []);
 
-  // Auto-refresh schema when a connection is added or edited
+  const lastProcessedSavedConnRef = useRef<string | null>(null);
+  // Auto-refresh schema when an already connected connection is edited
   useEffect(() => {
-    if (lastSavedConnectionId) {
+    if (lastSavedConnectionId && lastSavedConnectionId !== lastProcessedSavedConnRef.current) {
+      lastProcessedSavedConnRef.current = lastSavedConnectionId;
       const targetConn = (connections || []).find((c) => lastSavedConnectionId.startsWith(c.id));
-      if (targetConn) {
-        setDisconnectedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(targetConn.id);
-          return next;
-        });
+      if (targetConn && connectedIds.has(targetConn.id)) {
         fetchSchema(targetConn.id);
       }
     }
-  }, [lastSavedConnectionId, connections, fetchSchema]);
-
-  // Fetch schema for all connections if not yet loaded and not errored and not disconnected
-  useEffect(() => {
-    (connections || []).forEach((conn) => {
-      if (
-        !schemas[conn.id] &&
-        !loadingMap[conn.id] &&
-        !errorMap[conn.id] &&
-        !disconnectedIds.has(conn.id)
-      ) {
-        fetchSchema(conn.id);
-      }
-    });
-  }, [connections, fetchSchema, schemas, loadingMap, errorMap, disconnectedIds]);
+  }, [lastSavedConnectionId, connections, fetchSchema, connectedIds]);
 
   const treeData = useMemo<BrowserTreeNode[]>(() => {
     return (connections || []).map((conn) => {
-      const isDisconnected = disconnectedIds.has(conn.id);
+      const isConnected = connectedIds.has(conn.id);
       const connSchema = schemas[conn.id] || [];
       const isLoading = Boolean(loadingMap[conn.id]);
       const errorMsg = errorMap[conn.id];
+      const isDisconnected = !isConnected && !isLoading && !errorMsg;
 
       let children: BrowserTreeNode[];
 
@@ -475,11 +467,12 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         driver: conn.driver,
         errorMessage: errorMsg,
         isLoading,
+        isConnected,
         isDisconnected,
         children,
       };
     });
-  }, [connections, schemas, loadingMap, errorMap, disconnectedIds]);
+  }, [connections, schemas, loadingMap, errorMap, connectedIds]);
 
   const handleOpenTable = useCallback((node: BrowserTreeNode) => {
     openTableTab({
@@ -534,11 +527,6 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
   const handleRefresh = useCallback(
     (connectionId: string) => {
-      setDisconnectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(connectionId);
-        return next;
-      });
       fetchSchema(connectionId);
       setContextMenu(null);
     },
@@ -547,11 +535,6 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
   const handleConnect = useCallback(
     async (connectionId: string) => {
-      setDisconnectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(connectionId);
-        return next;
-      });
       setContextMenu(null);
       await fetchSchema(connectionId);
     },
@@ -586,7 +569,11 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       if (activeConnectionId === connectionId) {
         setActiveConnection(null);
       }
-      setDisconnectedIds((prev) => new Set(prev).add(connectionId));
+      setConnectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(connectionId);
+        return next;
+      });
       setSchemas((prev) => {
         const next = { ...prev };
         delete next[connectionId];
@@ -734,7 +721,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           {/* Connection Context Menu */}
           {contextMenu.node.nodeType === 'connection' && (
             <>
-              {contextMenu.node.isDisconnected || !schemas[contextMenu.node.connectionId] ? (
+              {!connectedIds.has(contextMenu.node.connectionId) ? (
                 <button
                   type="button"
                   data-testid="connect-connection-btn"

@@ -17,7 +17,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ![หน้าต่างหลัก](images/01-main-window.png)
 
-- ซ้าย: ต้นไม้ connection → database → schema → table พร้อมจุดสถานะการเชื่อมต่อ และการควบคุม Connect / Disconnect ผ่าน Context Menu โดยเมื่อเลือก Disconnect จะทำการตัดการเชื่อมต่อจริงในระดับ Backend (Teardown & Rollback Sessions ทั้งหมดของ connection นั้น) พร้อมทั้งปิด Tabs ที่เชื่อมโยง และโดยค่าเริ่มต้นจะไม่กางโครงสร้าง Tree อัตโนมัติหลัง Login หรือบันทึกการเชื่อมต่อ เพื่อความเป็นระเบียบและให้ผู้ใช้คลิกเลือกกางดูตามต้องการ
+- ซ้าย: ต้นไม้ connection → database → schema → table พร้อมระบบสีไอคอนสถานะการเชื่อมต่อ 4 ระดับ (ยังไม่ได้เชื่อมต่อ = สีเทา, กำลังเชื่อมต่อ = สีส้ม, เชื่อมต่อแล้ว = สีเขียว, เชื่อมต่อล้มเหลว = สีแดง) โดยลูกศร expander จะแสดงก็ต่อเมื่อเชื่อมต่อสำเร็จแล้วเท่านั้น เพื่อความเป็นระเบียบเรียบร้อยตามสไตล์ Navicat/DBeaver พร้อมการควบคุม Connect / Disconnect ผ่าน Context Menu หรือการคลิก/ดับเบิ้ลคลิก โดยเมื่อเลือก Disconnect จะทำการตัดการเชื่อมต่อจริงในระดับ Backend (Teardown & Rollback Sessions ทั้งหมดของ connection นั้น) พร้อมทั้งปิด Tabs ที่เชื่อมโยง และรีเซ็ตสถานะเป็นยังไม่ได้เชื่อมต่อ (สีเทา และซ่อนลูกศร)
 - บน: หลายแท็บ (Query, Table, Designer) แถบเครื่องมือ พร้อมปุ่ม Auto-Commit / Commit / Rollback
 - กลาง: SQL editor พร้อม syntax highlighting และ autocomplete
 - ล่าง: กริดผลลัพธ์ แก้ไขช่องได้ แสดง NULL ชัดเจน แบ่งหน้าทีละ 100 แถว พร้อมปุ่มเปิด Cell Detail Drawer สำหรับดู JSON/Text ยาว

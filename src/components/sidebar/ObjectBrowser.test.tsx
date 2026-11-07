@@ -143,6 +143,7 @@ describe('ObjectBrowser', () => {
 
   it('filters nodes based on search input and expands matching results', async () => {
     render(<ObjectBrowser />);
+    await expandToTables();
 
     const filterInput = screen.getByPlaceholderText(/search|filter/i);
     fireEvent.change(filterInput, { target: { value: 'orders' } });
@@ -184,8 +185,20 @@ describe('ObjectBrowser', () => {
     render(<ObjectBrowser />);
 
     const connElement = await screen.findByText('Production SQLite');
-    fireEvent.contextMenu(connElement);
 
+    // Initially disconnected: context menu shows Connect button
+    fireEvent.contextMenu(connElement);
+    const initialConnectBtn = await screen.findByTestId('connect-connection-btn');
+    expect(initialConnectBtn).toBeInTheDocument();
+
+    // Connect to the database
+    fireEvent.click(initialConnectBtn);
+    await waitFor(() => {
+      expect(dbApi.getSchemaTree).toHaveBeenCalledWith('conn-1');
+    });
+
+    // Right-click connection again: should now show Disconnect button
+    fireEvent.contextMenu(connElement);
     const disconnectBtn = await screen.findByTestId('disconnect-connection-btn');
     expect(disconnectBtn).toBeInTheDocument();
     fireEvent.click(disconnectBtn);
@@ -393,5 +406,97 @@ describe('ObjectBrowser', () => {
     fireEvent.click(newTableBtn);
 
     expect(await screen.findByRole('heading', { name: /create new table/i })).toBeInTheDocument();
+  });
+
+  describe('Database Connection Status Colors & Expander Arrow', () => {
+    it('shows gray icon and arrow spacer (no chevron) when disconnected', async () => {
+      render(<ObjectBrowser />);
+
+      const connNode = await screen.findByTestId('tree-node-Production SQLite');
+      const icon = connNode.querySelector('[data-testid="icon-connection"]');
+      expect(icon).toBeInTheDocument();
+      expect(icon).toHaveAttribute('data-status', 'disconnected');
+      expect(icon?.getAttribute('class')).toContain('text-gray-400');
+
+      // Expander arrow should NOT be visible when disconnected (arrow-spacer is shown instead)
+      const arrowSpacer = connNode.querySelector('[data-testid="arrow-spacer"]');
+      expect(arrowSpacer).toBeInTheDocument();
+      expect(connNode.querySelector('[data-testid="chevron-right"]')).toBeNull();
+      expect(connNode.querySelector('[data-testid="chevron-down"]')).toBeNull();
+    });
+
+    it('shows amber icon with pulse when connecting, with no chevron arrow', async () => {
+      let resolveSchema: (value: SchemaNode[]) => void = () => {};
+      const schemaPromise = new Promise<SchemaNode[]>((resolve) => {
+        resolveSchema = resolve;
+      });
+      vi.mocked(dbApi.getSchemaTree).mockReturnValueOnce(schemaPromise);
+
+      render(<ObjectBrowser />);
+
+      const connNode = await screen.findByTestId('tree-node-Production SQLite');
+      fireEvent.click(connNode); // Trigger connect
+
+      await waitFor(() => {
+        const freshNode = screen.getByTestId('tree-node-Production SQLite');
+        const icon = freshNode.querySelector('[data-testid="icon-connection"]');
+        expect(icon).toHaveAttribute('data-status', 'connecting');
+        expect(icon?.getAttribute('class')).toContain('text-amber-500');
+        expect(icon?.getAttribute('class')).toContain('animate-pulse');
+
+        // Chevron should still NOT be shown while connecting
+        expect(freshNode.querySelector('[data-testid="arrow-spacer"]')).toBeInTheDocument();
+        expect(freshNode.querySelector('[data-testid="chevron-right"]')).toBeNull();
+        expect(freshNode.querySelector('[data-testid="chevron-down"]')).toBeNull();
+      });
+
+      // Resolve schema
+      resolveSchema(mockSchema);
+      await waitFor(() => {
+        const freshNode = screen.getByTestId('tree-node-Production SQLite');
+        const icon = freshNode.querySelector('[data-testid="icon-connection"]');
+        expect(icon).toHaveAttribute('data-status', 'connected');
+      });
+    });
+
+    it('shows green icon and chevron arrow when connected', async () => {
+      vi.mocked(dbApi.getSchemaTree).mockResolvedValueOnce(mockSchema);
+      render(<ObjectBrowser />);
+
+      const connNode = await screen.findByTestId('tree-node-Production SQLite');
+      fireEvent.click(connNode); // Connect
+
+      await waitFor(() => {
+        const freshNode = screen.getByTestId('tree-node-Production SQLite');
+        const icon = freshNode.querySelector('[data-testid="icon-connection"]');
+        expect(icon).toHaveAttribute('data-status', 'connected');
+        expect(icon?.getAttribute('class')).toContain('text-emerald-500');
+
+        // Chevron arrow should now be shown because connection is connected
+        const chevron = freshNode.querySelector('[data-testid="chevron-down"], [data-testid="chevron-right"]');
+        expect(chevron).toBeInTheDocument();
+        expect(freshNode.querySelector('[data-testid="arrow-spacer"]')).toBeNull();
+      });
+    });
+
+    it('shows red icon and error status with no chevron arrow when connection fails', async () => {
+      vi.mocked(dbApi.getSchemaTree).mockRejectedValueOnce(new Error('Connection refused'));
+      render(<ObjectBrowser />);
+
+      const connNode = await screen.findByTestId('tree-node-Production SQLite');
+      fireEvent.click(connNode); // Trigger connect which fails
+
+      await waitFor(() => {
+        const freshNode = screen.getByTestId('tree-node-Production SQLite');
+        const icon = freshNode.querySelector('[data-testid="icon-connection"]');
+        expect(icon).toHaveAttribute('data-status', 'error');
+        expect(icon?.getAttribute('class')).toContain('text-red-500');
+
+        // Chevron arrow should NOT be shown on error
+        expect(freshNode.querySelector('[data-testid="arrow-spacer"]')).toBeInTheDocument();
+        expect(freshNode.querySelector('[data-testid="chevron-right"]')).toBeNull();
+        expect(freshNode.querySelector('[data-testid="chevron-down"]')).toBeNull();
+      });
+    });
   });
 });
