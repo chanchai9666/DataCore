@@ -62,10 +62,7 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
 
 function initializeFormData(initial?: ConnectionConfig | null): ConnectionFormData {
   if (!initial) {
-    return {
-      ...getDefaultFormData('sqlite'),
-      rememberPassword: true,
-    };
+    return getDefaultFormData('sqlite');
   }
 
   return {
@@ -76,7 +73,6 @@ function initializeFormData(initial?: ConnectionConfig | null): ConnectionFormDa
     database: initial.database || '',
     user: initial.user ?? (initial.driver === 'postgres' ? 'postgres' : initial.driver === 'mysql' ? 'root' : ''),
     password: '',
-    rememberPassword: true,
     folder: initial.folder || '',
     sslMode: 'prefer',
   };
@@ -97,32 +93,13 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
   const [testStatus, setTestStatus] = useState<TestStatus>({ type: 'idle' });
   const [isSaving, setIsSaving] = useState(false);
 
-  // Reset form when dialog opens or initialConnection changes
+  // Reset form when dialog opens or initialConnection changes (Always require manual password entry)
   useEffect(() => {
     if (isOpen) {
       setFormData(initializeFormData(initialConnection));
       setErrors({});
       setTestStatus({ type: 'idle' });
       setIsSaving(false);
-
-      if (initialConnection?.id) {
-        dbApi.getStoredPassword(initialConnection.id).then((storedPwd) => {
-          if (storedPwd !== null && storedPwd !== undefined) {
-            setFormData((prev) => ({
-              ...prev,
-              password: storedPwd,
-              rememberPassword: true,
-            }));
-          } else {
-            setFormData((prev) => ({
-              ...prev,
-              rememberPassword: false,
-            }));
-          }
-        }).catch((e) => {
-          console.debug('Failed to check stored password:', e);
-        });
-      }
     }
   }, [isOpen, initialConnection]);
 
@@ -252,13 +229,8 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
     const config = buildConnectionConfig();
 
     try {
-      if (formData.rememberPassword === false) {
-        await dbApi.deleteStoredPassword(config.id).catch(() => {});
-        await addConnection(config, undefined);
-      } else {
-        const password = resolvePassword();
-        await addConnection(config, password);
-      }
+      const password = resolvePassword();
+      await addConnection(config, password);
       if (onSaved) {
         onSaved(config);
       }
