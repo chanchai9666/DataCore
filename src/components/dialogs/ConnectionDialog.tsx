@@ -93,13 +93,32 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
   const [testStatus, setTestStatus] = useState<TestStatus>({ type: 'idle' });
   const [isSaving, setIsSaving] = useState(false);
 
-  // Reset form when dialog opens or initialConnection changes (Always require manual password entry)
+  // Reset form when dialog opens or initialConnection changes
   useEffect(() => {
     if (isOpen) {
       setFormData(initializeFormData(initialConnection));
       setErrors({});
       setTestStatus({ type: 'idle' });
       setIsSaving(false);
+
+      if (initialConnection?.id) {
+        dbApi.getStoredPassword(initialConnection.id).then((storedPwd) => {
+          if (storedPwd !== null && storedPwd !== undefined) {
+            setFormData((prev) => ({
+              ...prev,
+              password: storedPwd,
+              rememberPassword: true,
+            }));
+          } else {
+            setFormData((prev) => ({
+              ...prev,
+              rememberPassword: false,
+            }));
+          }
+        }).catch((e) => {
+          console.debug('Failed to check stored password:', e);
+        });
+      }
     }
   }, [isOpen, initialConnection]);
 
@@ -229,8 +248,13 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
     const config = buildConnectionConfig();
 
     try {
-      const password = resolvePassword();
-      await addConnection(config, password);
+      if (formData.rememberPassword === false) {
+        await dbApi.deleteStoredPassword(config.id).catch(() => {});
+        await addConnection(config, undefined);
+      } else {
+        const password = resolvePassword();
+        await addConnection(config, password);
+      }
       if (onSaved) {
         onSaved(config);
       }

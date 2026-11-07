@@ -27,7 +27,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 ![สร้าง Connection](images/02-connection-dialog.png)
 
 - เลือกชนิดฐานข้อมูล, ใส่ host/port/user/password
-- เก็บรหัสผ่านใน macOS Keychain
+- เก็บรหัสผ่านใน macOS Keychain ผ่านตัวเลือก Remember password (จำรหัสผ่าน) พร้อมระบบรักษาความปลอดภัยและการเปิด-ปิดการจำรหัสผ่าน
 - เลือกโหมด SSL และมีแท็บ SSH Tunnel สำหรับ remote
 - ปุ่ม Test Connection แสดงผลและเวลาตอบสนอง
 

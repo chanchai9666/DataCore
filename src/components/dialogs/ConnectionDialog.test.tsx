@@ -85,8 +85,10 @@ describe('ConnectionDialog', () => {
       expect(screen.getByLabelText(/user/i)).toHaveValue('postgres');
       expect(screen.getByLabelText(/database/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/remember password/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/remember password/i)).toBeChecked();
+      expect(screen.queryByText(/ห้ามเข้าถึงพวงกุญแจ/i)).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: /show password/i })).toBeInTheDocument();
-      expect(screen.getByText(/ห้ามเข้าถึงพวงกุญแจในเครื่อง — ให้ทำการคีย์เองแบบ 100%/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/ssl mode/i)).toBeInTheDocument();
     });
 
@@ -369,7 +371,7 @@ describe('ConnectionDialog', () => {
       expect(onClose).toHaveBeenCalled();
     });
 
-    it('requires manual password entry without accessing OS keychain and supports visibility toggle', async () => {
+    it('supports password visibility toggle and remembers password by default', async () => {
       render(<ConnectionDialog isOpen={true} onClose={onClose} />);
 
       // Switch to PostgreSQL
@@ -385,6 +387,41 @@ describe('ConnectionDialog', () => {
 
       fireEvent.change(passwordInput, { target: { value: 'manual-100-pass' } });
       expect(passwordInput.value).toBe('manual-100-pass');
+
+      const rememberCheckbox = screen.getByLabelText(/remember password/i);
+      expect(rememberCheckbox).toBeChecked();
+    });
+
+    it('deletes stored password from keychain when remember password checkbox is unchecked', async () => {
+      const initial: ConnectionConfig = {
+        id: 'conn-pg-2',
+        name: 'Postgres Without Saved Pass',
+        driver: 'postgres',
+        host: '127.0.0.1',
+        port: 5432,
+        database: 'testdb',
+        user: 'postgres',
+      };
+
+      render(<ConnectionDialog isOpen={true} onClose={onClose} initialConnection={initial} />);
+
+      const rememberCheckbox = screen.getByLabelText(/remember password/i);
+      expect(rememberCheckbox).toBeChecked();
+
+      fireEvent.click(rememberCheckbox);
+      expect(rememberCheckbox).not.toBeChecked();
+
+      fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(dbApi.deleteStoredPassword).toHaveBeenCalledWith('conn-pg-2');
+        expect(dbApi.saveConnection).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: 'conn-pg-2',
+          }),
+          undefined
+        );
+      });
     });
   });
 

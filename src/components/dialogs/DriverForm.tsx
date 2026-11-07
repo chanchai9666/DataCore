@@ -30,7 +30,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
   onChange,
   errors = {},
   disabled = false,
-  isEditing: _isEditing = false,
+  isEditing = false,
 }) => {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -195,7 +195,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                     value={formData.password || ''}
                     onChange={(e) => onChange('password', e.target.value)}
                     disabled={disabled}
-                    placeholder="Enter password..."
+                    placeholder={isEditing ? 'Leave blank to keep existing password' : '••••••••'}
                     className="w-full pl-3 pr-8 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
                   />
                   <button
@@ -210,11 +210,24 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                   </button>
                 </div>
 
-                {/* No Keychain Access Notice */}
-                <div className="mt-2">
-                  <div className="flex items-center space-x-1.5 text-[10.5px] text-amber-300/90 bg-amber-950/40 border border-amber-600/30 rounded px-2 py-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>ห้ามเข้าถึงพวงกุญแจในเครื่อง — ให้ทำการคีย์เองแบบ 100%</span>
+                {/* Remember Password Checkbox & Security Indicator */}
+                <div className="mt-2 space-y-1">
+                  <label className="flex items-center space-x-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      id="conn-remember-password"
+                      checked={formData.rememberPassword ?? true}
+                      onChange={(e) => onChange('rememberPassword', e.target.checked)}
+                      disabled={disabled}
+                      className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span className="text-[11px] text-gray-300 font-medium">
+                      Remember password
+                    </span>
+                  </label>
+                  <div className="flex items-center space-x-1 text-[10px] text-emerald-400/90 pl-5">
+                    <ShieldCheck className="w-3 h-3 shrink-0" />
+                    <span>Saved securely in OS Keychain (Encrypted at rest)</span>
                   </div>
                 </div>
               </div>
