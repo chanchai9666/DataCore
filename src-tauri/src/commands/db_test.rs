@@ -375,3 +375,63 @@ async fn test_connection_impl_uses_stored_keychain_password_when_none_provided()
     // Clean up
     let _ = store.delete_connection(&config.id);
 }
+
+#[tokio::test]
+async fn test_disconnect_connection_teardown_all_sessions() {
+    let dir = tempdir().expect("create temp dir");
+    let store_file = dir.path().join("connections.json");
+    let store = ConnectionStore::new(&store_file);
+    let session_mgr = SessionManager::new();
+
+    let config1 = ConnectionConfig {
+        id: "conn-1".to_string(),
+        name: "Conn 1".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: ":memory:".to_string(),
+        user: None,
+        folder: None,
+    };
+    let config2 = ConnectionConfig {
+        id: "conn-2".to_string(),
+        name: "Conn 2".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: ":memory:".to_string(),
+        user: None,
+        folder: None,
+    };
+
+    store.save_connection(&config1, None).expect("save conn 1");
+    store.save_connection(&config2, None).expect("save conn 2");
+
+    // Open two sessions under conn-1 and one session under conn-2
+    open_session_impl(&store, &session_mgr, "conn-1", "tab-1a")
+        .await
+        .expect("open 1a");
+    open_session_impl(&store, &session_mgr, "conn-1", "tab-1b")
+        .await
+        .expect("open 1b");
+    open_session_impl(&store, &session_mgr, "conn-2", "tab-2a")
+        .await
+        .expect("open 2a");
+
+    assert_eq!(session_mgr.active_session_count().await, 3);
+    assert!(session_mgr.has_session("tab-1a").await);
+    assert!(session_mgr.has_session("tab-1b").await);
+    assert!(session_mgr.has_session("tab-2a").await);
+
+    // Disconnect conn-1
+    let closed_count = disconnect_connection_impl(&session_mgr, "conn-1")
+        .await
+        .expect("disconnect conn-1");
+    assert_eq!(closed_count, 2);
+
+    // Verify conn-1 sessions are gone, conn-2 session remains
+    assert!(!session_mgr.has_session("tab-1a").await);
+    assert!(!session_mgr.has_session("tab-1b").await);
+    assert!(session_mgr.has_session("tab-2a").await);
+    assert_eq!(session_mgr.active_session_count().await, 1);
+}

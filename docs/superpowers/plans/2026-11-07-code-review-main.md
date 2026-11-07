@@ -28,7 +28,7 @@ pnpm / port 1420 strictPort ✓ ไม่แตะ `src-tauri/gen/` ✓ Zustand 
 
 ### Smells (judgement calls — ไม่ใช่ violation ตรง ๆ)
 
-- [ ] **S4. Duplicated Code** — `src/stores/tabStore.ts:64-78` มี `setAutoCommit` / `setQueryContent` ซ้ำรูปแบบเดียวกับ `updateTab` → ลบตัวที่ซ้ำ ใช้ `updateTab` เดียว
+- [x] **S4. Duplicated Code** — ปรับ `setAutoCommit` และ `setQueryContent` ใน `src/stores/tabStore.ts` ให้เรียกใช้ `updateTab` ลด code duplication (closes #11)
 - [ ] **S5. Data Clumps (common parameter ซ้ำ 12 จุด)** — `src/api/db.ts:28-60,98-155` ทุก invoke ส่งทั้ง `connectionId` + `connection_id` / `tabId` + `tab_id` — Tauri 2 แปลง snake→camelCase ให้อยู่แล้ว (ยกเว้นจุดที่ตั้งใจรับแบบ snake) → ตรวจฝั่ง Rust ว่ารับอย่างไร แล้วตัดฝั่งซ้ำทิ้ง
 - [ ] **S6. Duplicated Code ข้าม runtime + Divergent Change** — `src/types/db.ts:69-87` (`formatCellValue`) โคลน logic ของ `src-tauri/src/models/query.rs:70-80` (`to_display_string`) และเป็น runtime code ในไฟล์ **type** → เลือกเก็บ display logic ไว้ที่เดียว (กัน logic ต่างกันสองฝั่ง) หรือย้าย TS ออกจากไฟล์ type
 - [ ] **S7. Large Class / Long File** — `TableStructureEditor.tsx` (1782 บรรทัด, 31 `useState`) และ `ObjectBrowser.tsx` (932 บรรทัด) → แบ่งเป็น sub-component ตามโหมด
@@ -50,7 +50,7 @@ pnpm / port 1420 strictPort ✓ ไม่แตะ `src-tauri/gen/` ✓ Zustand 
 - [ ] **P1. Sort & Filter กริด** — spec: `"เรียงลำดับและกรองข้อมูล"` (`docs/db-manager-plan.md:133`) — ไม่มีโค้ด sorting/filtering ใน `DataGrid.tsx` / `DockLayout.tsx` → เปิด issue ใหม่เพื่อ implement หรือขยับไปทีหลัง MVP
 - [ ] **P2. Query History** — spec: `"ประวัติ query"` (`docs/db-manager-plan.md:147`) — ไม่มีในโค้ดทั้งระบบ → เปิด issue ใหม่
 - [ ] **P3. Mac shortcuts เพิ่ม** — spec: `"⌘+T แท็บใหม่, ⌘+W ปิดแท็บ, ⌘+F ค้นหา"` (`docs/db-manager-plan.md:152`) — มีแค่ `⌘+Enter` ใน `SqlEditor.tsx:125` → เปิด issue ใหม่
-- [ ] **P4. Disconnect ไม่ตัดจริง** — issue #5 ขอ `"ตัดการเชื่อมต่อจริง"` — `handleDisconnect` ทำเฉพาะฝั่ง UI (ล้าง schema, ปิด node, แสดง Connect) ไม่มี backend teardown: session/tab เดิมยังรัน query ได้หลัง "ตัดการเชื่อมต่อ" → เพิ่ม backend teardown (ปิด session/connection) + test
+- [x] **P4. Disconnect ไม่ตัดจริง** — เพิ่ม backend teardown ผ่าน `disconnect_connection` / `close_sessions_for_connection` พร้อม rollback และปิดแท็บที่เกี่ยวข้องผ่าน `closeTabsForConnection` ใน frontend พร้อม automated test (closes #11)
 - [x] **P5. เอกสารล้าสมัยหลายจุด (รวมกับ S3)** — ปรับแก้ README badge "Tests 185/185" และ README Roadmap ให้ตรงกับโค้ดจริงเรียบร้อยแล้ว (closes #8)
 
 ### (b) Scope creep (ไม่ต้องการเพิ่ม — แค่ทำเอกสารให้สอดคล้อง)

@@ -114,6 +114,33 @@ impl SessionManager {
         Ok(())
     }
 
+    /// Close and remove all sessions associated with a connection_id, rolling back any transactions.
+    pub async fn close_sessions_for_connection(&self, connection_id: &str) -> Result<usize, AppError> {
+        let entries_to_close: Vec<SessionEntry> = {
+            let mut map = self.sessions.write().await;
+            let tab_ids_to_remove: Vec<String> = map
+                .values()
+                .filter(|entry| entry.connection_id == connection_id)
+                .map(|entry| entry.tab_id.clone())
+                .collect();
+
+            let mut removed = Vec::with_capacity(tab_ids_to_remove.len());
+            for tid in tab_ids_to_remove {
+                if let Some(entry) = map.remove(&tid) {
+                    removed.push(entry);
+                }
+            }
+            removed
+        };
+
+        let count = entries_to_close.len();
+        for entry in entries_to_close {
+            let _ = entry.connection.rollback().await;
+        }
+
+        Ok(count)
+    }
+
     /// Check if tab has an active session
     pub async fn has_session(&self, tab_id: &str) -> bool {
         let map = self.sessions.read().await;

@@ -17,7 +17,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ![หน้าต่างหลัก](images/01-main-window.png)
 
-- ซ้าย: ต้นไม้ connection → database → schema → table พร้อมจุดสถานะการเชื่อมต่อ และการควบคุม Connect / Disconnect ผ่าน Context Menu โดยค่าเริ่มต้นจะไม่กางโครงสร้าง Tree อัตโนมัติหลัง Login หรือบันทึกการเชื่อมต่อ เพื่อความเป็นระเบียบและให้ผู้ใช้คลิกเลือกกางดูตามต้องการ
+- ซ้าย: ต้นไม้ connection → database → schema → table พร้อมจุดสถานะการเชื่อมต่อ และการควบคุม Connect / Disconnect ผ่าน Context Menu โดยเมื่อเลือก Disconnect จะทำการตัดการเชื่อมต่อจริงในระดับ Backend (Teardown & Rollback Sessions ทั้งหมดของ connection นั้น) พร้อมทั้งปิด Tabs ที่เชื่อมโยง และโดยค่าเริ่มต้นจะไม่กางโครงสร้าง Tree อัตโนมัติหลัง Login หรือบันทึกการเชื่อมต่อ เพื่อความเป็นระเบียบและให้ผู้ใช้คลิกเลือกกางดูตามต้องการ
 - บน: หลายแท็บ (Query, Table, Designer) แถบเครื่องมือ พร้อมปุ่ม Auto-Commit / Commit / Rollback
 - กลาง: SQL editor พร้อม syntax highlighting และ autocomplete
 - ล่าง: กริดผลลัพธ์ แก้ไขช่องได้ แสดง NULL ชัดเจน แบ่งหน้าทีละ 100 แถว พร้อมปุ่มเปิด Cell Detail Drawer สำหรับดู JSON/Text ยาว

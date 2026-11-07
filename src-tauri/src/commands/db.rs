@@ -64,6 +64,13 @@ pub async fn close_session_impl(
     session_mgr.close_session(tab_id).await
 }
 
+pub async fn disconnect_connection_impl(
+    session_mgr: &SessionManager,
+    connection_id: &str,
+) -> Result<usize, AppError> {
+    session_mgr.close_sessions_for_connection(connection_id).await
+}
+
 pub async fn execute_query_impl(
     session_mgr: &SessionManager,
     tab_id: &str,
@@ -202,6 +209,16 @@ pub async fn close_session(
     tab_id: String,
 ) -> Result<(), String> {
     close_session_impl(&session_mgr, &tab_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn disconnect_connection(
+    session_mgr: State<'_, SessionManager>,
+    connection_id: String,
+) -> Result<usize, String> {
+    disconnect_connection_impl(&session_mgr, &connection_id)
         .await
         .map_err(|e| e.to_string())
 }

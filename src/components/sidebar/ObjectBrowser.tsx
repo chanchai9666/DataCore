@@ -14,6 +14,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { useTabStore } from '../../stores/tabStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, SchemaNode } from '../../types/db';
 import { openTableTab, openQueryTab } from './tabHelpers';
@@ -582,10 +583,10 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
   const handleDisconnect = useCallback(
     (connectionId: string) => {
-      setDisconnectedIds((prev) => new Set(prev).add(connectionId));
       if (activeConnectionId === connectionId) {
         setActiveConnection(null);
       }
+      setDisconnectedIds((prev) => new Set(prev).add(connectionId));
       setSchemas((prev) => {
         const next = { ...prev };
         delete next[connectionId];
@@ -598,6 +599,13 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       });
       treeRef.current?.close(`conn-${connectionId}`);
       setContextMenu(null);
+
+      useTabStore
+        .getState()
+        .closeTabsForConnection(connectionId)
+        .catch((err) => {
+          console.error('Failed to teardown connection backend sessions:', err);
+        });
     },
     [activeConnectionId, setActiveConnection]
   );

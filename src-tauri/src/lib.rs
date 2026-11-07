@@ -34,6 +34,7 @@ pub fn run() {
             delete_stored_password,
             open_session,
             close_session,
+            disconnect_connection,
             execute_query,
             fetch_table_data,
             cancel_query,

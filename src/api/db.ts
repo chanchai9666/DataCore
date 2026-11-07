@@ -52,6 +52,13 @@ export const closeSession = async (tabId: string): Promise<void> => {
   });
 };
 
+export const disconnectConnection = async (connectionId: string): Promise<number> => {
+  return invoke<number>('disconnect_connection', {
+    connectionId,
+    connection_id: connectionId,
+  });
+};
+
 export const executeQuery = async (
   tabId: string,
   sql: string
@@ -171,6 +178,7 @@ export const dbApi = {
   deleteStoredPassword,
   openSession,
   closeSession,
+  disconnectConnection,
   executeQuery,
   executeDirectQuery,
   fetchTableData,

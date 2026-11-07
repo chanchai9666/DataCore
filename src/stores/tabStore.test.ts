@@ -6,6 +6,7 @@ import type { Tab } from '../types/db';
 vi.mock('../api/db', () => ({
   dbApi: {
     closeSession: vi.fn().mockResolvedValue(undefined),
+    disconnectConnection: vi.fn().mockResolvedValue(0),
   },
 }));
 
@@ -108,5 +109,48 @@ describe('tabStore', () => {
     const state = useTabStore.getState();
     expect(state.tabs[0].queryContent).toBe('SELECT * FROM users;');
     expect(state.tabs[0].autoCommit).toBe(false);
+  });
+
+  it('should close all tabs and trigger disconnectConnection for a specific connectionId', async () => {
+    vi.spyOn(dbApi, 'disconnectConnection').mockResolvedValue(2);
+
+    const tab1: Tab = {
+      id: 'tab-1',
+      connectionId: 'conn-1',
+      type: 'query',
+      title: 'Query 1',
+      autoCommit: true,
+      queryContent: '',
+    };
+    const tab2: Tab = {
+      id: 'tab-2',
+      connectionId: 'conn-1',
+      type: 'table',
+      title: 'Table 1',
+      autoCommit: true,
+      queryContent: '',
+    };
+    const tab3: Tab = {
+      id: 'tab-3',
+      connectionId: 'conn-2',
+      type: 'query',
+      title: 'Query 3',
+      autoCommit: true,
+      queryContent: '',
+    };
+
+    useTabStore.getState().openTab(tab1);
+    useTabStore.getState().openTab(tab2);
+    useTabStore.getState().openTab(tab3);
+
+    expect(useTabStore.getState().tabs).toHaveLength(3);
+
+    await useTabStore.getState().closeTabsForConnection('conn-1');
+
+    expect(dbApi.disconnectConnection).toHaveBeenCalledWith('conn-1');
+    const state = useTabStore.getState();
+    expect(state.tabs).toHaveLength(1);
+    expect(state.tabs[0].id).toBe('tab-3');
+    expect(state.activeTabId).toBe('tab-3');
   });
 });

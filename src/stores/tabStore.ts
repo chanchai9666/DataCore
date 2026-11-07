@@ -7,6 +7,7 @@ export interface TabStoreState {
   activeTabId: string | null;
   openTab: (tab: Tab) => void;
   closeTab: (tabId: string) => Promise<void>;
+  closeTabsForConnection: (connectionId: string) => Promise<void>;
   setActiveTab: (tabId: string | null) => void;
   setAutoCommit: (tabId: string, autoCommit: boolean) => void;
   setQueryContent: (tabId: string, queryContent: string) => void;
@@ -57,24 +58,36 @@ export const useTabStore = create<TabStoreState>((set, get) => ({
     });
   },
 
+  closeTabsForConnection: async (connectionId: string) => {
+    try {
+      await dbApi.disconnectConnection(connectionId);
+    } catch (err) {
+      console.error(`Failed to disconnect sessions for connection ${connectionId}:`, err);
+    }
+
+    const { tabs, activeTabId } = get();
+    const remainingTabs = tabs.filter((t) => t.connectionId !== connectionId);
+    let nextActiveId = activeTabId;
+    if (activeTabId && !remainingTabs.some((t) => t.id === activeTabId)) {
+      nextActiveId = remainingTabs.length > 0 ? remainingTabs[0].id : null;
+    }
+
+    set({
+      tabs: remainingTabs,
+      activeTabId: nextActiveId,
+    });
+  },
+
   setActiveTab: (tabId: string | null) => {
     set({ activeTabId: tabId });
   },
 
   setAutoCommit: (tabId: string, autoCommit: boolean) => {
-    set((state) => ({
-      tabs: state.tabs.map((tab) =>
-        tab.id === tabId ? { ...tab, autoCommit } : tab
-      ),
-    }));
+    get().updateTab(tabId, { autoCommit });
   },
 
   setQueryContent: (tabId: string, queryContent: string) => {
-    set((state) => ({
-      tabs: state.tabs.map((tab) =>
-        tab.id === tabId ? { ...tab, queryContent } : tab
-      ),
-    }));
+    get().updateTab(tabId, { queryContent });
   },
 
   updateTab: (tabId: string, updates: Partial<Tab>) => {
