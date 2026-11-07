@@ -2,30 +2,43 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use crate::error::AppError;
 use crate::models::ConnectionConfig;
-use crate::services::keychain;
+use crate::services::keychain::Vault;
 
 #[derive(Debug, Clone)]
 pub struct ConnectionStore {
     storage_path: PathBuf,
+    vault: Vault,
+}
+
+impl Default for ConnectionStore {
+    fn default() -> Self {
+        Self::new(Self::default_path())
+    }
 }
 
 impl ConnectionStore {
     pub fn default_path() -> PathBuf {
-        std::env::var("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("."))
-            .join(".datacore")
-            .join("connections.json")
+        Vault::default_dir().join("connections.json")
     }
 
     pub fn new<P: AsRef<Path>>(path: P) -> Self {
+        let storage_path = path.as_ref().to_path_buf();
+        let vault_dir = storage_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(Vault::default_dir);
         Self {
-            storage_path: path.as_ref().to_path_buf(),
+            storage_path,
+            vault: Vault::new(vault_dir),
         }
     }
 
     pub fn storage_path(&self) -> &Path {
         &self.storage_path
+    }
+
+    pub fn vault(&self) -> &Vault {
+        &self.vault
     }
 
     /// List all stored connection configurations
@@ -49,7 +62,7 @@ impl ConnectionStore {
         Ok(connections.into_iter().find(|c| c.id == id))
     }
 
-    /// Save or update a connection configuration, and securely store the password in keychain if provided
+    /// Save or update a connection configuration, and securely store the password in vault if provided
     pub fn save_connection(
         &self,
         config: &ConnectionConfig,
@@ -66,26 +79,36 @@ impl ConnectionStore {
         self.persist_connections(&connections)?;
 
         if let Some(pwd) = password {
-            keychain::save_password(&config.id, pwd)?;
+            self.vault.save_password(&config.id, pwd)?;
         }
 
         Ok(())
     }
 
-    /// Delete a connection configuration and its associated password from the keychain
+    /// Delete a connection configuration and its associated password from the vault
     pub fn delete_connection(&self, id: &str) -> Result<(), AppError> {
         let mut connections = self.list()?;
         connections.retain(|c| c.id != id);
 
         self.persist_connections(&connections)?;
-        let _ = keychain::delete_password(id);
+        let _ = self.vault.delete_password(id);
 
         Ok(())
     }
 
-    /// Retrieve password for a given connection id from the keychain
+    /// Retrieve password for a given connection id from the vault
     pub fn get_password(&self, id: &str) -> Result<Option<String>, AppError> {
-        keychain::get_password(id)
+        self.vault.get_password(id)
+    }
+
+    /// Delete password for a given connection id from the vault
+    pub fn delete_password(&self, id: &str) -> Result<(), AppError> {
+        self.vault.delete_password(id)
+    }
+
+    /// Save password directly into the vault
+    pub fn save_password(&self, id: &str, password: &str) -> Result<(), AppError> {
+        self.vault.save_password(id, password)
     }
 
     /// Helper to write connection list to disk atomically with directory creation
@@ -108,12 +131,7 @@ impl ConnectionStore {
 
         fs::write(&tmp_path, json)?;
         fs::rename(&tmp_path, &self.storage_path)?;
-        Ok(())
-    }
-}
 
-impl Default for ConnectionStore {
-    fn default() -> Self {
-        Self::new(Self::default_path())
+        Ok(())
     }
 }

@@ -230,7 +230,7 @@ impl DatabaseConnection for MySqlConnection {
                     .rows
                     .into_iter()
                     .filter_map(|r| {
-                        let name = r.get(0)?.as_text()?.to_string();
+                        let name = r.first()?.as_text()?.to_string();
                         let dtype = r.get(1)?.as_text()?.to_string();
                         let nullable = r.get(2).and_then(|c| c.as_text()).map(|s| s == "YES").unwrap_or(true);
                         Some(ColumnMeta::new(name, dtype, nullable))
@@ -247,7 +247,7 @@ impl DatabaseConnection for MySqlConnection {
 
         let mut tables = Vec::new();
         for row in query_res.rows {
-            let table_name = row.get(0).and_then(|c| c.as_text()).unwrap_or("").to_string();
+            let table_name = row.first().and_then(|c| c.as_text()).unwrap_or("").to_string();
             let table_type = row.get(1).and_then(|c| c.as_text()).unwrap_or("BASE TABLE");
 
             let node_type = if table_type.contains("VIEW") {

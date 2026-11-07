@@ -186,9 +186,10 @@ pub async fn get_stored_password(
 
 #[tauri::command]
 pub async fn delete_stored_password(
+    store: State<'_, ConnectionStore>,
     connection_id: String,
 ) -> Result<(), String> {
-    crate::services::keychain::delete_password(&connection_id).map_err(|e| e.to_string())
+    store.delete_password(&connection_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

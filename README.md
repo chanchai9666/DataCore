@@ -22,7 +22,7 @@
 
 * **ความเร็วและประสิทธิภาพสูงบน Apple Silicon:** พัฒนาด้วย **Tauri 2 + Rust + React 18** ให้แอปขนาดเล็ก รันแบบ Native ARM64 และใช้ทรัพยากรเครื่องน้อย
 * **รองรับ 3 ฐานข้อมูลหลัก:** เชื่อมต่อ **SQLite** (ทั้งไฟล์และ In-memory), **PostgreSQL** และ **MySQL**
-* **ระบบจัดการรหัสผ่านแบบ In-Memory ปลอดภัย:** จัดเก็บรหัสผ่านในหน่วยความจำ RAM ชั่วคราวระหว่าง Session เท่านั้น ไม่มีการบันทึก Plaintext Password ลงในไฟล์คอนฟิก และไม่เรียกใช้ OS Keychain เพื่อป้องกันปัญหา Authorization Popup รบกวนการใช้งาน
+* **ระบบจัดการรหัสผ่านแบบ Local Encrypted Vault:** จัดเก็บรหัสผ่านอย่างปลอดภัยใน Local Encrypted Vault (AES-256-GCM) แยกจากไฟล์คอนฟิก connection ไม่มีการบันทึก Plaintext Password ลงในไฟล์คอนฟิก และไม่เรียกใช้ OS Keychain เพื่อป้องกันปัญหา Authorization Popup รบกวนการใช้งาน พร้อมจำรหัสผ่านข้ามเซสชันการเปิด-ปิดโปรแกรมได้อย่างถูกต้อง
 * **Dedicated Transaction Sessions:** แยก Session การเชื่อมต่ออิสระต่อ 1 แท็บใน Query Editor รองรับคำสั่ง Transaction (`BEGIN`, `COMMIT`, `ROLLBACK`), Session Variables และ Temporary Tables ไม่ปนเปื้อนข้ามแท็บ
 * **Object Browser Tree View:** แสดงแผนผัง Connection → Database → Tables / Views ด้วย `react-arborist` พร้อมช่องค้นหากรองรายชื่อ และ Context Menu (เปิดตาราง, สร้าง Query, รีเฟรช Schema, สร้างตาราง, ลบตาราง)
 * **SQL Query Editor ทรงพลัง:** พัฒนาด้วย CodeMirror 6 รองรับ SQL Syntax Highlighting ตาม Dialect ของฐานข้อมูล, คีย์ลัด `⌘+Enter` (รันเฉพาะข้อความที่เลือกหรือทั้งไฟล์), ปุ่ม Cancel Query, สวิตช์ Auto-Commit ON/OFF, และปุ่ม Commit / Rollback

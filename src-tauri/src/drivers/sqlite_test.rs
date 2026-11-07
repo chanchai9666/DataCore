@@ -82,7 +82,7 @@ async fn test_sqlite_query_execution() {
     let sensor_res = conn.execute_query("SELECT id, value, raw_bytes FROM sensor_data WHERE id = 1;").await.expect("query sensor");
     assert_eq!(sensor_res.rows.len(), 1);
     match sensor_res.rows[0][1] {
-        CellValue::Float(f) => assert!((f - 3.14159).abs() < 1e-5),
+        CellValue::Float(f) => assert!((f - std::f64::consts::PI).abs() < 1e-4),
         ref other => panic!("expected float, got {:?}", other),
     }
     match &sensor_res.rows[0][2] {

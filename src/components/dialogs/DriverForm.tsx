@@ -227,7 +227,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                   </label>
                   <div className="flex items-center space-x-1 text-[10px] text-emerald-400/90 pl-5">
                     <ShieldCheck className="w-3 h-3 shrink-0" />
-                    <span>Saved in session memory (No OS Keychain access)</span>
+                    <span>Saved in local encrypted vault (No OS Keychain access)</span>
                   </div>
                 </div>
               </div>

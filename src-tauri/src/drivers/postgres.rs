@@ -223,7 +223,7 @@ impl DatabaseConnection for PostgresConnection {
                     .rows
                     .into_iter()
                     .filter_map(|r| {
-                        let name = r.get(0)?.as_text()?.to_string();
+                        let name = r.first()?.as_text()?.to_string();
                         let dtype = r.get(1)?.as_text()?.to_string();
                         let nullable = r.get(2).and_then(|c| c.as_text()).map(|s| s == "YES").unwrap_or(true);
                         Some(ColumnMeta::new(name, dtype, nullable))
@@ -244,7 +244,7 @@ impl DatabaseConnection for PostgresConnection {
         let mut schema_map: HashMap<String, Vec<SchemaNode>> = HashMap::new();
         if let Ok(schema_res) = self.execute_query(schema_sql).await {
             for row in schema_res.rows {
-                if let Some(sch) = row.get(0).and_then(|c| c.as_text()) {
+                if let Some(sch) = row.first().and_then(|c| c.as_text()) {
                     schema_map.entry(sch.to_string()).or_default();
                 }
             }
@@ -261,7 +261,7 @@ impl DatabaseConnection for PostgresConnection {
         let query_res = self.execute_query(sql).await?;
 
         for row in query_res.rows {
-            let schema_name = row.get(0).and_then(|c| c.as_text()).unwrap_or("public").to_string();
+            let schema_name = row.first().and_then(|c| c.as_text()).unwrap_or("public").to_string();
             let table_name = row.get(1).and_then(|c| c.as_text()).unwrap_or("").to_string();
             let table_type = row.get(2).and_then(|c| c.as_text()).unwrap_or("BASE TABLE");
 

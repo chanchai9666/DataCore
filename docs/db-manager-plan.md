@@ -27,7 +27,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 ![สร้าง Connection](images/02-connection-dialog.png)
 
 - เลือกชนิดฐานข้อมูล, ใส่ host/port/user/password
-- รองรับการกรอกรหัสผ่านโดยตรงและตัวเลือก Remember password (จัดเก็บในระดับ In-Memory Session เท่านั้น ปิดการเรียกใช้งาน OS Keychain โดยสมบูรณ์เพื่อป้องกันหน้าต่างขอสิทธิ์ของระบบปฏิบัติการ)
+- รองรับการกรอกรหัสผ่านโดยตรงและตัวเลือก Remember password (จำรหัสผ่านข้ามเซสชันการเปิด-ปิดโปรแกรม โดยจัดเก็บใน Local Encrypted Vault ที่เข้ารหัสด้วย AES-256-GCM ที่ `~/.datacore/vault.enc` พร้อมสิทธิ์ไฟล์ 0600 โดยปิดการเรียกใช้งาน OS Keychain โดยสมบูรณ์เพื่อป้องกันหน้าต่างขอสิทธิ์ของระบบปฏิบัติการ)
 - เลือกโหมด SSL และมีแท็บ SSH Tunnel สำหรับ remote
 - ปุ่ม Test Connection แสดงผลและเวลาตอบสนอง
 
@@ -58,7 +58,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 | Crate | ใช้ทำอะไร |
 |---|---|
 | `russh` | SSH tunnel |
-| In-memory store | เก็บรหัสผ่านในหน่วยความจำ RAM ชั่วคราวระหว่าง Session (ปิด OS Keychain ถาวรและนำ crate `keyring` ออก) |
+| `aes-gcm` / Vault store | จัดเก็บรหัสผ่านแบบถาวรใน Local Encrypted Vault ด้วย AES-256-GCM (`~/.datacore/vault.enc`) สิทธิ์ 0600 (ปิด OS Keychain ถาวรและนำ crate `keyring` ออก) |
 | `serde` / `serde_json` | แปลงข้อมูลระหว่าง Rust และ UI |
 | `csv` | import/export CSV |
 | `sqlparser` | แยก statement หลายคำสั่งใน editor |
@@ -123,7 +123,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - รองรับ SQLite, PostgreSQL, MySQL
 - ปุ่ม Test Connection แสดงเวลาตอบสนอง
 - จัดกลุ่ม connection เป็นโฟลเดอร์
-- เก็บรหัสผ่านใน macOS Keychain
+- เก็บรหัสผ่านใน Local Encrypted Vault (ปิดการเรียกใช้ OS Keychain)
 
 **Object Browser**
 - ต้นไม้ connection → database → schema → table / view

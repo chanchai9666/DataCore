@@ -1,6 +1,5 @@
 use crate::models::{ConnectionConfig, DatabaseDriver};
 use crate::services::connection_store::ConnectionStore;
-use crate::services::keychain;
 use std::fs;
 use tempfile::tempdir;
 
@@ -42,8 +41,8 @@ fn test_connection_storage_and_keychain_isolation() {
     assert!(json_content.contains("Production Postgres"));
     assert!(json_content.contains("conn-pg-1"));
 
-    // 3. Verify Keychain returns password
-    let retrieved_password = keychain::get_password(&conn1.id).expect("get password");
+    // 3. Verify Vault returns password via store helper and vault directly
+    let retrieved_password = store.vault().get_password(&conn1.id).expect("get password");
     assert_eq!(retrieved_password.as_deref(), Some(secret_password));
 
     // Also via store helper
@@ -72,10 +71,10 @@ fn test_connection_storage_and_keychain_isolation() {
 
     let connections = store.list().expect("list connections after adding sqlite");
     assert_eq!(connections.len(), 2);
-    let sqlite_pwd = keychain::get_password(&conn2.id).expect("get sqlite password");
+    let sqlite_pwd = store.get_password(&conn2.id).expect("get sqlite password");
     assert_eq!(sqlite_pwd, None);
 
-    // 6. Test delete connection removes both JSON entry and keychain password
+    // 6. Test delete connection removes both JSON entry and vault password
     store
         .delete_connection(&conn1.id)
         .expect("delete connection");
@@ -83,10 +82,10 @@ fn test_connection_storage_and_keychain_isolation() {
     assert_eq!(connections_after_delete.len(), 1);
     assert_eq!(connections_after_delete[0].id, conn2.id);
 
-    let deleted_pwd = keychain::get_password(&conn1.id).expect("get deleted password");
+    let deleted_pwd = store.get_password(&conn1.id).expect("get deleted password");
     assert_eq!(
         deleted_pwd, None,
-        "Password should be removed from keychain upon deletion"
+        "Password should be removed from vault upon deletion"
     );
 }
 
