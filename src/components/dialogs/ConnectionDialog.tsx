@@ -62,7 +62,10 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
 
 function initializeFormData(initial?: ConnectionConfig | null): ConnectionFormData {
   if (!initial) {
-    return getDefaultFormData('sqlite');
+    return {
+      ...getDefaultFormData('sqlite'),
+      rememberPassword: true,
+    };
   }
 
   return {
@@ -73,6 +76,7 @@ function initializeFormData(initial?: ConnectionConfig | null): ConnectionFormDa
     database: initial.database || '',
     user: initial.user ?? (initial.driver === 'postgres' ? 'postgres' : initial.driver === 'mysql' ? 'root' : ''),
     password: '',
+    rememberPassword: true,
     folder: initial.folder || '',
     sslMode: 'prefer',
   };
@@ -100,6 +104,25 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       setErrors({});
       setTestStatus({ type: 'idle' });
       setIsSaving(false);
+
+      if (initialConnection?.id) {
+        dbApi.getStoredPassword(initialConnection.id).then((storedPwd) => {
+          if (storedPwd !== null && storedPwd !== undefined) {
+            setFormData((prev) => ({
+              ...prev,
+              password: storedPwd,
+              rememberPassword: true,
+            }));
+          } else {
+            setFormData((prev) => ({
+              ...prev,
+              rememberPassword: false,
+            }));
+          }
+        }).catch((e) => {
+          console.debug('Failed to check stored password:', e);
+        });
+      }
     }
   }, [isOpen, initialConnection]);
 
@@ -229,8 +252,13 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
     const config = buildConnectionConfig();
 
     try {
-      const password = resolvePassword();
-      await addConnection(config, password);
+      if (formData.rememberPassword === false) {
+        await dbApi.deleteStoredPassword(config.id).catch(() => {});
+        await addConnection(config, undefined);
+      } else {
+        const password = resolvePassword();
+        await addConnection(config, password);
+      }
       if (onSaved) {
         onSaved(config);
       }

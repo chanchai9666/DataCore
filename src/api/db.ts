@@ -120,11 +120,31 @@ export const getSchemaTree = async (
   });
 };
 
+export const getStoredPassword = async (
+  connectionId: string
+): Promise<string | null> => {
+  return invoke<string | null>('get_stored_password', {
+    connectionId,
+    connection_id: connectionId,
+  });
+};
+
+export const deleteStoredPassword = async (
+  connectionId: string
+): Promise<void> => {
+  return invoke<void>('delete_stored_password', {
+    connectionId,
+    connection_id: connectionId,
+  });
+};
+
 export const dbApi = {
   testConnection,
   getConnections,
   saveConnection,
   deleteConnection,
+  getStoredPassword,
+  deleteStoredPassword,
   openSession,
   closeSession,
   executeQuery,

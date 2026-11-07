@@ -11,6 +11,8 @@ vi.mock('../../api/db', () => ({
     saveConnection: vi.fn(),
     getConnections: vi.fn(),
     deleteConnection: vi.fn(),
+    getStoredPassword: vi.fn().mockResolvedValue(null),
+    deleteStoredPassword: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -82,7 +84,10 @@ describe('ConnectionDialog', () => {
       expect(screen.getByLabelText(/port/i)).toHaveValue(5432);
       expect(screen.getByLabelText(/user/i)).toHaveValue('postgres');
       expect(screen.getByLabelText(/database/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/remember password/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/remember password/i)).toBeChecked();
+      expect(screen.getByRole('button', { name: /show password/i })).toBeInTheDocument();
       expect(screen.getByLabelText(/ssl mode/i)).toBeInTheDocument();
     });
 
@@ -200,7 +205,7 @@ describe('ConnectionDialog', () => {
 
       fireEvent.click(screen.getByRole('tab', { name: /postgres/i }));
       fireEvent.change(screen.getByLabelText(/database/i), { target: { value: 'mydb' } });
-      fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'secret123' } });
+      fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'secret123' } });
 
       const testBtn = screen.getByRole('button', { name: /test connection/i });
       fireEvent.click(testBtn);
@@ -271,7 +276,7 @@ describe('ConnectionDialog', () => {
       fireEvent.change(screen.getByLabelText(/database/i), {
         target: { value: 'analytics' },
       });
-      fireEvent.change(screen.getByLabelText(/password/i), {
+      fireEvent.change(screen.getByLabelText(/^password$/i), {
         target: { value: 'pgpass' },
       });
 
@@ -346,7 +351,7 @@ describe('ConnectionDialog', () => {
 
       render(<ConnectionDialog isOpen={true} onClose={onClose} initialConnection={initial} />);
 
-      fireEvent.change(screen.getByLabelText(/password/i), {
+      fireEvent.change(screen.getByLabelText(/^password$/i), {
         target: { value: 'new-secret-password' },
       });
 
@@ -363,6 +368,38 @@ describe('ConnectionDialog', () => {
       });
 
       expect(onClose).toHaveBeenCalled();
+    });
+
+    it('deletes stored password from keychain when remember password checkbox is unchecked', async () => {
+      const initial: ConnectionConfig = {
+        id: 'conn-pg-2',
+        name: 'Postgres Without Saved Pass',
+        driver: 'postgres',
+        host: '127.0.0.1',
+        port: 5432,
+        database: 'testdb',
+        user: 'postgres',
+      };
+
+      render(<ConnectionDialog isOpen={true} onClose={onClose} initialConnection={initial} />);
+
+      const rememberCheckbox = screen.getByLabelText(/remember password/i);
+      expect(rememberCheckbox).toBeChecked();
+
+      fireEvent.click(rememberCheckbox);
+      expect(rememberCheckbox).not.toBeChecked();
+
+      fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(dbApi.deleteStoredPassword).toHaveBeenCalledWith('conn-pg-2');
+        expect(dbApi.saveConnection).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: 'conn-pg-2',
+          }),
+          undefined
+        );
+      });
     });
   });
 

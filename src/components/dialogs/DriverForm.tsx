@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import type { DatabaseDriver } from '../../types/db';
 
 export interface ConnectionFormData {
@@ -9,6 +10,7 @@ export interface ConnectionFormData {
   database: string;
   user: string;
   password?: string;
+  rememberPassword?: boolean;
   folder?: string;
   sslMode?: string;
 }
@@ -30,6 +32,8 @@ export const DriverForm: React.FC<DriverFormProps> = ({
   disabled = false,
   isEditing = false,
 }) => {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <div className="space-y-4 text-sm text-gray-200">
       {/* General Settings: Connection Name & Folder */}
@@ -184,15 +188,48 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                 <label htmlFor="conn-password" className="block text-xs font-medium text-gray-300 mb-1">
                   Password
                 </label>
-                <input
-                  id="conn-password"
-                  type="password"
-                  value={formData.password || ''}
-                  onChange={(e) => onChange('password', e.target.value)}
-                  disabled={disabled}
-                  placeholder={isEditing ? 'Leave blank to keep existing password' : '••••••••'}
-                  className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
-                />
+                <div className="relative">
+                  <input
+                    id="conn-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password || ''}
+                    onChange={(e) => onChange('password', e.target.value)}
+                    disabled={disabled}
+                    placeholder={isEditing ? 'Leave blank to keep existing password' : '••••••••'}
+                    className="w-full pl-3 pr-8 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    tabIndex={-1}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 p-0.5 transition-colors"
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+
+                {/* Remember Password Checkbox & Security Indicator */}
+                <div className="mt-2 space-y-1">
+                  <label className="flex items-center space-x-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      id="conn-remember-password"
+                      checked={formData.rememberPassword ?? true}
+                      onChange={(e) => onChange('rememberPassword', e.target.checked)}
+                      disabled={disabled}
+                      className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span className="text-[11px] text-gray-300 font-medium">
+                      Remember password
+                    </span>
+                  </label>
+                  <div className="flex items-center space-x-1 text-[10px] text-emerald-400/90 pl-5">
+                    <ShieldCheck className="w-3 h-3 shrink-0" />
+                    <span>Saved securely in OS Keychain (Encrypted at rest)</span>
+                  </div>
+                </div>
               </div>
 
               <div>

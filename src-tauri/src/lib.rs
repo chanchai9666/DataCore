@@ -30,6 +30,8 @@ pub fn run() {
             get_connections,
             save_connection,
             delete_connection,
+            get_stored_password,
+            delete_stored_password,
             open_session,
             close_session,
             execute_query,
