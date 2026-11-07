@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, AlertCircle } from 'lucide-react';
 import { ColumnMeta } from '../../types/db';
 
@@ -33,6 +33,17 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
     });
     return initial;
   });
+
+  useEffect(() => {
+    const initial: Record<string, boolean> = {};
+    columns.forEach((col) => {
+      const lower = col.name.toLowerCase();
+      if (lower === 'id' || lower.includes('created_at') || lower.includes('updated_at')) {
+        initial[col.name] = true;
+      }
+    });
+    setNullFlags(initial);
+  }, [columns]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -207,7 +218,19 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
               gap: '12px',
             }}
           >
-            {columns.map((col) => {
+            {columns.length === 0 ? (
+              <div
+                style={{
+                  padding: '24px 16px',
+                  textAlign: 'center',
+                  color: labelColor,
+                  fontSize: '13px',
+                }}
+              >
+                No columns found for this table.
+              </div>
+            ) : (
+              columns.map((col) => {
               const isNullChecked = !!nullFlags[col.name];
               const isIdCol = col.name.toLowerCase() === 'id';
 
@@ -288,7 +311,8 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
                   />
                 </div>
               );
-            })}
+            })
+          )}
           </div>
 
           {/* Footer */}
@@ -321,7 +345,7 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || columns.length === 0}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -333,8 +357,8 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                opacity: isSubmitting ? 0.7 : 1,
+                cursor: isSubmitting || columns.length === 0 ? 'not-allowed' : 'pointer',
+                opacity: isSubmitting || columns.length === 0 ? 0.5 : 1,
               }}
             >
               <Plus size={14} />

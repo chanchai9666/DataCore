@@ -19,6 +19,7 @@ import { openQueryTab } from '../sidebar/tabHelpers';
 import { buildUpdateSql, buildDeleteSql, buildInsertSql } from '../grid/tableEditHelpers';
 import { InsertRowModal } from '../grid/InsertRowModal';
 import { TableStructureEditor } from '../structure/TableStructureEditor';
+import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
 import type { ConnectionConfig, QueryResult, Tab } from '../../types/db';
 
@@ -123,6 +124,28 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
         const rowCount = result.rows ? result.rows.length : 0;
         const total = result.rows_affected ?? rowCount;
+
+        // If table is empty, columns might be empty from driver query stream.
+        // Fallback to fetching column definitions from database schema metadata!
+        if (result.columns.length === 0) {
+          try {
+            const currentConnections = useConnectionStore.getState().connections;
+            const conn = currentConnections.find((c) => c.id === tab.connectionId);
+            const driver = conn?.driver ?? 'postgres';
+            const sql = getFetchColumnsSql(driver, tableName, tab.schemaName);
+            const structRes = await dbApi.executeQuery(tabId, sql);
+            const parsed = parseColumnsFromQueryResult(structRes, driver);
+            if (parsed.length > 0) {
+              result.columns = parsed.map((p) => ({
+                name: p.name,
+                data_type: p.dataType,
+                nullable: p.isNullable,
+              }));
+            }
+          } catch (colErr) {
+            console.warn('Failed to fallback columns in loadTableData:', colErr);
+          }
+        }
 
         setTableStates((prev) => ({
           ...prev,
@@ -334,19 +357,54 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
   );
 
   // Handle open add row dialog
-  const handleAddRow = useCallback(() => {
+  const handleAddRow = useCallback(async () => {
     if (!activeTab || activeTab.type !== 'table') return;
     const tabId = activeTab.id;
     const tableState = tableStates[tabId];
-    if (!tableState || !tableState.data) return;
+    if (!tableState) return;
+
+    let cols = tableState.data?.columns || [];
+
+    // If columns list is empty, fallback to fetching column metadata
+    if (cols.length === 0) {
+      try {
+        const conn = connections.find((c) => c.id === activeTab.connectionId);
+        const driver = conn?.driver ?? 'postgres';
+        const tableName = activeTab.tableName || activeTab.title;
+        const sql = getFetchColumnsSql(driver, tableName, activeTab.schemaName);
+        const structRes = await dbApi.executeQuery(tabId, sql);
+        const parsed = parseColumnsFromQueryResult(structRes, driver);
+        if (parsed.length > 0) {
+          cols = parsed.map((p) => ({
+            name: p.name,
+            data_type: p.dataType,
+            nullable: p.isNullable,
+          }));
+
+          setTableStates((prev) => ({
+            ...prev,
+            [tabId]: {
+              ...prev[tabId],
+              data: {
+                columns: cols,
+                rows: prev[tabId]?.data?.rows || [],
+                execution_time_ms: prev[tabId]?.data?.execution_time_ms || 0,
+              },
+            },
+          }));
+        }
+      } catch (err) {
+        console.warn('Fallback getFetchColumnsSql in handleAddRow failed:', err);
+      }
+    }
 
     setInsertModalState({
       tabId,
       tableName: activeTab.tableName || activeTab.title,
       schemaName: activeTab.schemaName,
-      columns: tableState.data.columns,
+      columns: cols,
     });
-  }, [activeTab, tableStates]);
+  }, [activeTab, tableStates, connections]);
 
   // Handle submitting new row
   const handleSubmitInsertRow = useCallback(

@@ -170,8 +170,12 @@ export function buildInsertSql(options: BuildInsertOptions): string {
   columns.forEach((col) => {
     if (Object.prototype.hasOwnProperty.call(values, col.name)) {
       const val = values[col.name];
-      // Skip undefined or empty string for auto-increment / serial primary keys if left empty
-      if (val === undefined || (val === '' && col.name.toLowerCase() === 'id')) {
+      const lowerName = col.name.toLowerCase();
+      const lowerType = (col.data_type || '').toLowerCase();
+      const isAutoCol = lowerName === 'id' || lowerType.includes('serial');
+
+      // Skip undefined or empty string/null for auto-increment / serial primary keys if left empty or null
+      if (val === undefined || (isAutoCol && (val === '' || val === null))) {
         return;
       }
       colNames.push(escapeIdentifier(col.name, driver));

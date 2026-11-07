@@ -87,4 +87,20 @@ describe('InsertRowModal', () => {
     fireEvent.click(cancelBtn);
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('displays message when columns list is empty and disables submit button', () => {
+    render(
+      <InsertRowModal
+        isOpen={true}
+        onClose={vi.fn()}
+        tableName="test_data"
+        columns={[]}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('No columns found for this table.')).toBeInTheDocument();
+    const submitBtn = screen.getByRole('button', { name: /Insert Row/i });
+    expect(submitBtn).toBeDisabled();
+  });
 });

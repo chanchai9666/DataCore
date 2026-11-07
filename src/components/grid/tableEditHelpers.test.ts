@@ -151,5 +151,25 @@ describe('tableEditHelpers', () => {
         `INSERT INTO "public"."products" ("code", "name", "price", "is_active") VALUES ('PRD-123456', 'Iced Latte', 65, TRUE);`
       );
     });
+
+    it('omits id / serial columns when value is null or empty so DB generates it', () => {
+      const sql = buildInsertSql({
+        driver: 'postgres',
+        tableName: 'test_data',
+        schemaName: 'public',
+        columns: [
+          { name: 'id', data_type: 'serial', nullable: false },
+          { name: 'name', data_type: 'varchar', nullable: false },
+        ],
+        values: {
+          id: null,
+          name: 'Sample Item',
+        },
+      });
+
+      expect(sql).toBe(
+        `INSERT INTO "public"."test_data" ("name") VALUES ('Sample Item');`
+      );
+    });
   });
 });

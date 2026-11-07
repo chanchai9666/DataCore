@@ -131,7 +131,9 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - แสดงข้อมูลแบบกริด Glide Data Grid (Virtual Scrolling)
 - แบ่งหน้าทีละ 100 แถว เพื่อประสิทธิภาพและความเร็วของ Tauri IPC
 - เรียงลำดับและกรองข้อมูล
-- แก้ไขช่อง (Inline Edit), เพิ่มแถว, ลบแถว แล้ว commit/rollback
+- แก้ไขช่อง (Inline Edit), เพิ่มแถว (Insert Row Modal), ลบแถว แล้ว commit/rollback
+- รองรับการดึง metadata ของคอลัมน์จาก `information_schema` แม้ตารางจะยังไม่มีข้อมูล (0 rows) เพื่อให้เปิดหน้าต่าง Insert Row กรอกข้อมูลได้ทันที
+- คำสั่ง INSERT จะละเว้นคอลัมน์ auto-increment / SERIAL / id ที่มีค่าว่างหรือ NULL เพื่อให้ฐานข้อมูลสร้าง Sequence ให้โดยอัตโนมัติ
 - แสดง `NULL` ชัดเจน
 - **Cell Detail Drawer / Modal:** ดูและแก้ไขข้อมูลยาว เช่น ข้อความยาว, JSON, หรือข้อมูล Binary
 

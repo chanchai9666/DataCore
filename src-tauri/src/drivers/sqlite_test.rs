@@ -46,6 +46,15 @@ async fn test_sqlite_query_execution() {
     assert_eq!(paged.rows[0][0], CellValue::Integer(2));
     assert_eq!(paged.rows[1][0], CellValue::Integer(3));
 
+    // Test fetch_table_data on empty table returns column metadata
+    conn.execute_query("CREATE TABLE empty_sample (id INTEGER PRIMARY KEY, note TEXT);").await.expect("create empty table");
+    let empty_data = conn.fetch_table_data(None, "empty_sample", 10, 0).await.expect("fetch empty table");
+    assert_eq!(empty_data.rows.len(), 0);
+    assert_eq!(empty_data.columns.len(), 2);
+    assert_eq!(empty_data.columns[0].name, "id");
+    assert_eq!(empty_data.columns[1].name, "note");
+    conn.execute_query("DROP TABLE empty_sample;").await.expect("drop empty table");
+
     // Test latency
     let latency = conn.test_connection().await.expect("test latency");
     assert!(latency < 1000);

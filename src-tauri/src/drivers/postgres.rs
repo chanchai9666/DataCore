@@ -199,7 +199,30 @@ impl DatabaseConnection for PostgresConnection {
         } else {
             format!("SELECT * FROM \"{}\" LIMIT {} OFFSET {};", escaped_table, limit, offset)
         };
-        self.execute_query(&sql).await
+        let mut res = self.execute_query(&sql).await?;
+        if res.columns.is_empty() {
+            let sch = schema.unwrap_or("public");
+            let col_sql = format!(
+                "SELECT column_name, data_type, is_nullable FROM information_schema.columns \
+                 WHERE table_name = '{}' AND table_schema = '{}' \
+                 ORDER BY ordinal_position;",
+                table.replace('\'', "''"),
+                sch.replace('\'', "''")
+            );
+            if let Ok(col_res) = self.execute_query(&col_sql).await {
+                res.columns = col_res
+                    .rows
+                    .into_iter()
+                    .filter_map(|r| {
+                        let name = r.get(0)?.as_text()?.to_string();
+                        let dtype = r.get(1)?.as_text()?.to_string();
+                        let nullable = r.get(2).and_then(|c| c.as_text()).map(|s| s == "YES").unwrap_or(true);
+                        Some(ColumnMeta::new(name, dtype, nullable))
+                    })
+                    .collect();
+            }
+        }
+        Ok(res)
     }
 
     async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError> {

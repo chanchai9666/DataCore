@@ -249,4 +249,56 @@ describe('DockLayout', () => {
 
     expect(await screen.findByRole('button', { name: /add row/i })).toBeInTheDocument();
   });
+
+  it('populates columns in InsertRowModal when table is empty and fetchTableData returns empty columns', async () => {
+    // Mock empty table data from fetchTableData
+    vi.mocked(dbApi.fetchTableData).mockResolvedValueOnce({
+      columns: [],
+      rows: [],
+      execution_time_ms: 2,
+      rows_affected: 0,
+    });
+
+    // Mock schema query result returning columns
+    vi.mocked(dbApi.executeQuery).mockImplementation(async (_tabId, sql) => {
+      if (sql.includes('PRAGMA table_info') || sql.includes('information_schema.columns')) {
+        return {
+          columns: [],
+          rows: [
+            ['1', 'id', 'INTEGER', '1', null, '1'],
+            ['2', 'username', 'TEXT', '0', null, '0'],
+          ],
+          execution_time_ms: 1,
+        };
+      }
+      return { columns: [], rows: [], execution_time_ms: 1 };
+    });
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 't-empty',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'test_empty',
+          tableName: 'test_empty',
+          schemaName: 'main',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 't-empty',
+    });
+
+    render(<DockLayout />);
+
+    const addRowBtn = await screen.findByRole('button', { name: /add row/i });
+    expect(addRowBtn).toBeInTheDocument();
+
+    fireEvent.click(addRowBtn);
+
+    // Modal should be open and contain input fields for the columns fetched via fallback
+    expect(await screen.findByText(/Insert New Row/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/username/i)).toBeInTheDocument();
+  });
 });
