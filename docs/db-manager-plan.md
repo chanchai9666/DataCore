@@ -81,7 +81,10 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
      }
      ```
 3. **กลไก Cancel Query ที่สมบูรณ์:**
-   - นอกจากการ drop async task บน Tokio แล้ว ฝั่ง Rust มีกลไกส่งคำสั่งยกเลิกไปยัง Database Server จริง (เช่น ส่ง `pg_cancel_backend(pid)` ใน Postgres หรือ `KILL QUERY <id>` ใน MySQL)
+   - ฝั่ง Rust มีกลไกส่งคำสั่งยกเลิกไปยัง Database Server จริงอย่างสมบูรณ์:
+     - **SQLite:** ใช้ `rusqlite::InterruptHandle` (`sqlite3_interrupt`) ซึ่ง thread-safe และไม่บล็อก connection lock
+     - **PostgreSQL:** บันทึก backend PID และส่ง `pg_cancel_backend(pid)` ผ่าน dedicated cancellation connection
+     - **MySQL:** บันทึก connection ID และส่งคำสั่ง `KILL QUERY <id>` ผ่าน dedicated cancellation connection
 
 ### 3.3 Frontend (npm packages)
 

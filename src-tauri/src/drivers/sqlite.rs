@@ -9,6 +9,7 @@ use crate::drivers::traits::{DatabaseConnection, SchemaNode, SchemaNodeType};
 #[derive(Clone)]
 pub struct SqliteConnection {
     conn: Arc<Mutex<rusqlite::Connection>>,
+    interrupt_handle: Arc<rusqlite::InterruptHandle>,
     database_name: String,
     autocommit: Arc<Mutex<bool>>,
 }
@@ -16,8 +17,10 @@ pub struct SqliteConnection {
 impl SqliteConnection {
     pub fn open_in_memory() -> Result<Self, AppError> {
         let conn = rusqlite::Connection::open_in_memory()?;
+        let interrupt_handle = Arc::new(conn.get_interrupt_handle());
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            interrupt_handle,
             database_name: "main".to_string(),
             autocommit: Arc::new(Mutex::new(true)),
         })
@@ -25,6 +28,7 @@ impl SqliteConnection {
 
     pub fn open(path: &str) -> Result<Self, AppError> {
         let conn = rusqlite::Connection::open(path)?;
+        let interrupt_handle = Arc::new(conn.get_interrupt_handle());
         let db_name = std::path::Path::new(path)
             .file_stem()
             .and_then(|s| s.to_str())
@@ -32,6 +36,7 @@ impl SqliteConnection {
             .to_string();
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            interrupt_handle,
             database_name: db_name,
             autocommit: Arc::new(Mutex::new(true)),
         })
@@ -167,6 +172,7 @@ impl DatabaseConnection for SqliteConnection {
     }
 
     async fn cancel(&self) -> Result<(), AppError> {
+        self.interrupt_handle.interrupt();
         Ok(())
     }
 

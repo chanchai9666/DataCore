@@ -111,3 +111,32 @@ async fn test_sqlite_query_execution() {
     let after_commit = conn.execute_query("SELECT * FROM users WHERE id = 5;").await.expect("check commit");
     assert_eq!(after_commit.rows.len(), 1);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_sqlite_query_cancellation() {
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+    let conn_clone = conn.clone();
+
+    // Spawn a long-running recursive query
+    let handle = tokio::spawn(async move {
+        conn_clone
+            .execute_query("WITH RECURSIVE cnt(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM cnt) SELECT count(*) FROM cnt;")
+            .await
+    });
+
+    // Brief delay to ensure query execution has begun
+    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+    // Interrupt/cancel the query
+    conn.cancel().await.expect("cancel call succeeds");
+
+    // Execution should be aborted and return an error
+    let res = handle.await.expect("task join");
+    assert!(res.is_err(), "query should be cancelled and return error");
+    let err_str = res.unwrap_err().to_string();
+    assert!(
+        err_str.to_lowercase().contains("interrupt") || err_str.to_lowercase().contains("interrupted"),
+        "error should mention interrupt, got: {}",
+        err_str
+    );
+}

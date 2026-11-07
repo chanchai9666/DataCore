@@ -60,7 +60,7 @@ pnpm / port 1420 strictPort ✓ ไม่แตะ `src-tauri/gen/` ✓ Zustand 
 
 ### (c) Implement แต่ผิด / stub
 
-- [ ] **W1. Cancel query เป็น no-op (หนักสุด)** — spec: `"ปุ่มยกเลิก query (พร้อมส่งสัญญาณยกเลิกไปยัง DB server)"` (`docs/db-manager-plan.md:145`) — `cancel()` คืน `Ok(())` ว่างเปล่าในทั้ง 3 drivers (`postgres.rs:326`, `mysql.rs:269`, `sqlite.rs:169`) — UI เรียกแล้วหาย loading แต่ query ยังรันจนจบ → implement จริง: `pg_cancel_backend` / `KILL QUERY` / `sqlite3_interrupt` + เขียน test
+- [x] **W1. Cancel query เป็น no-op (หนักสุด)** — implement การยกเลิกจริงครบทั้ง 3 drivers (SQLite: `InterruptHandle`/`sqlite3_interrupt`, Postgres: `pg_cancel_backend`, MySQL: `KILL QUERY`) พร้อม automated test ใน `sqlite_test.rs` เรียบร้อยแล้ว (closes #9)
 - [ ] **W2. buildInsertSql ข้ามเฉพาะ PK ชื่อ `id`/SERIAL ไม่ครบ** — issue #7 ต้องการ `"คอลัมน์ประเภท Primary Key / SERIAL ที่ถูกติ๊ก 'NULL / Default' ควรงดเว้นออกจากคำสั่ง INSERT"` — `src/components/grid/tableEditHelpers.ts:175` ใช้แค่ `lowerName === 'id' || lowerType.includes('serial')` — เคสที่ insert จะล้มเหลว: PK ชื่ออื่น (เช่น `customer_id`), MySQL AUTO_INCREMENT, UUID PK — ต้องให้ backend ส่ง metadata `is_primary_key` / `is_auto_increment` มาแล้วใช้ตัดสินจริง
 - [ ] **W3. executeDirectQuery แยก SQL ด้วย `split(';')`** — `src/api/db.ts:69-84` — default value / DDL ที่มี `;` อยู่ภายใน string ค่าใด ๆ จะถูกตัด SQL ผิด → ใช้ split ที่รู้ context (quote-aware) หรือส่งชุด statement เป็น array
 

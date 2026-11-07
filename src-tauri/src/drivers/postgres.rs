@@ -14,6 +14,8 @@ use crate::drivers::traits::{DatabaseConnection, SchemaNode, SchemaNodeType};
 pub struct PostgresConnection {
     conn: Arc<Mutex<sqlx::PgConnection>>,
     database_name: String,
+    connect_options: sqlx::postgres::PgConnectOptions,
+    backend_pid: i32,
 }
 
 impl PostgresConnection {
@@ -31,10 +33,17 @@ impl PostgresConnection {
             options = options.password(pwd);
         }
 
-        let conn = sqlx::PgConnection::connect_with(&options).await?;
+        let mut conn = sqlx::PgConnection::connect_with(&options).await?;
+        let backend_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid();")
+            .fetch_one(&mut conn)
+            .await
+            .unwrap_or(0);
+
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             database_name: config.database.clone(),
+            connect_options: options,
+            backend_pid,
         })
     }
 }
@@ -324,6 +333,14 @@ impl DatabaseConnection for PostgresConnection {
     }
 
     async fn cancel(&self) -> Result<(), AppError> {
+        if self.backend_pid > 0 {
+            if let Ok(mut cancel_conn) = sqlx::PgConnection::connect_with(&self.connect_options).await {
+                let _ = sqlx::query("SELECT pg_cancel_backend($1);")
+                    .bind(self.backend_pid)
+                    .execute(&mut cancel_conn)
+                    .await;
+            }
+        }
         Ok(())
     }
 

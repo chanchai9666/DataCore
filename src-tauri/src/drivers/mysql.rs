@@ -13,6 +13,8 @@ use crate::drivers::traits::{DatabaseConnection, SchemaNode, SchemaNodeType};
 pub struct MySqlConnection {
     conn: Arc<Mutex<sqlx::MySqlConnection>>,
     database_name: String,
+    connect_options: sqlx::mysql::MySqlConnectOptions,
+    connection_id: u64,
 }
 
 impl MySqlConnection {
@@ -29,10 +31,17 @@ impl MySqlConnection {
             options = options.password(pwd);
         }
 
-        let conn = sqlx::MySqlConnection::connect_with(&options).await?;
+        let mut conn = sqlx::MySqlConnection::connect_with(&options).await?;
+        let connection_id: u64 = sqlx::query_scalar("SELECT CONNECTION_ID();")
+            .fetch_one(&mut conn)
+            .await
+            .unwrap_or(0);
+
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             database_name: config.database.clone(),
+            connect_options: options,
+            connection_id,
         })
     }
 }
@@ -267,6 +276,12 @@ impl DatabaseConnection for MySqlConnection {
     }
 
     async fn cancel(&self) -> Result<(), AppError> {
+        if self.connection_id > 0 {
+            if let Ok(mut cancel_conn) = sqlx::MySqlConnection::connect_with(&self.connect_options).await {
+                let kill_sql = format!("KILL QUERY {};", self.connection_id);
+                let _ = sqlx::query(&kill_sql).execute(&mut cancel_conn).await;
+            }
+        }
         Ok(())
     }
 
