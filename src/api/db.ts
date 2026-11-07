@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ConnectionConfig, QueryResult, SchemaNode } from '../types/db';
+import { splitSqlStatements } from './sqlSplitter';
 
 export const testConnection = async (
   config: ConnectionConfig,
@@ -69,10 +70,7 @@ export const executeDirectQuery = async (
   const tempTabId = `temp-ddl-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
   await openSession(connectionId, tempTabId);
   try {
-    const statements = sql
-      .split(';')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
+    const statements = splitSqlStatements(sql);
 
     if (statements.length <= 1) {
       return await executeQuery(tempTabId, sql);

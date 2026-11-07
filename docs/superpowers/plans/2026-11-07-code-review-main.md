@@ -61,8 +61,8 @@ pnpm / port 1420 strictPort ✓ ไม่แตะ `src-tauri/gen/` ✓ Zustand 
 ### (c) Implement แต่ผิด / stub
 
 - [x] **W1. Cancel query เป็น no-op (หนักสุด)** — implement การยกเลิกจริงครบทั้ง 3 drivers (SQLite: `InterruptHandle`/`sqlite3_interrupt`, Postgres: `pg_cancel_backend`, MySQL: `KILL QUERY`) พร้อม automated test ใน `sqlite_test.rs` เรียบร้อยแล้ว (closes #9)
-- [ ] **W2. buildInsertSql ข้ามเฉพาะ PK ชื่อ `id`/SERIAL ไม่ครบ** — issue #7 ต้องการ `"คอลัมน์ประเภท Primary Key / SERIAL ที่ถูกติ๊ก 'NULL / Default' ควรงดเว้นออกจากคำสั่ง INSERT"` — `src/components/grid/tableEditHelpers.ts:175` ใช้แค่ `lowerName === 'id' || lowerType.includes('serial')` — เคสที่ insert จะล้มเหลว: PK ชื่ออื่น (เช่น `customer_id`), MySQL AUTO_INCREMENT, UUID PK — ต้องให้ backend ส่ง metadata `is_primary_key` / `is_auto_increment` มาแล้วใช้ตัดสินจริง
-- [ ] **W3. executeDirectQuery แยก SQL ด้วย `split(';')`** — `src/api/db.ts:69-84` — default value / DDL ที่มี `;` อยู่ภายใน string ค่าใด ๆ จะถูกตัด SQL ผิด → ใช้ split ที่รู้ context (quote-aware) หรือส่งชุด statement เป็น array
+- [x] **W2. buildInsertSql ข้ามเฉพาะ PK ชื่อ `id`/SERIAL ไม่ครบ** — รองรับ `is_primary_key`, `is_auto_increment`, PK รูปแบบต่าง ๆ (UUID, custom PK names `*_id`, AUTO_INCREMENT) ใน Rust `ColumnMeta`, TypeScript และ `tableEditHelpers.ts` พร้อม test (closes #10)
+- [x] **W3. executeDirectQuery แยก SQL ด้วย `split(';')`** — เพิ่มฟังก์ชัน `splitSqlStatements` ที่เป็น quote-aware และ comment-aware ใน `src/api/sqlSplitter.ts` พร้อม test ครอบคลุม (closes #10)
 
 ---
 

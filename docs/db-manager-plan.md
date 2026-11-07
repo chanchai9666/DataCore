@@ -74,12 +74,13 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
    - เนื่องจาก SQL รันแบบ runtime แปลงผลลัพธ์จาก `sqlx` dynamic rows ให้อยู่ในรูปแบบ `QueryResult`:
      ```rust
      pub struct QueryResult {
-         pub columns: Vec<ColumnMeta>,       // name, data_type, nullable
+         pub columns: Vec<ColumnMeta>,       // name, data_type, nullable, is_primary_key, is_auto_increment
          pub rows: Vec<Vec<CellValue>>,       // Value variant: Null, String, Number, Bool, Bytes(base64), Json
          pub execution_time_ms: u64,
          pub rows_affected: Option<u64>,
      }
      ```
+   - **Quote-aware SQL Parser/Splitter:** การรันคำสั่ง DDL หรือ batch direct query ใช้ `splitSqlStatements` ที่คำนึงถึง single/double quotes, backticks และ block/line comments ป้องกันการตัดผิดเมื่อค่ามี `;` อยู่ภายใน string literal
 3. **กลไก Cancel Query ที่สมบูรณ์:**
    - ฝั่ง Rust มีกลไกส่งคำสั่งยกเลิกไปยัง Database Server จริงอย่างสมบูรณ์:
      - **SQLite:** ใช้ `rusqlite::InterruptHandle` (`sqlite3_interrupt`) ซึ่ง thread-safe และไม่บล็อก connection lock

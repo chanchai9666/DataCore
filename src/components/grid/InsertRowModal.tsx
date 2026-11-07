@@ -27,7 +27,19 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
     const initial: Record<string, boolean> = {};
     columns.forEach((col) => {
       const lower = col.name.toLowerCase();
-      if (lower === 'id' || lower.includes('created_at') || lower.includes('updated_at')) {
+      const lowerType = (col.data_type || '').toLowerCase();
+      if (
+        col.is_primary_key ||
+        col.is_auto_increment ||
+        lower === 'id' ||
+        lower.endsWith('_id') ||
+        lower.endsWith('id') ||
+        lowerType.includes('serial') ||
+        lowerType.includes('auto_increment') ||
+        lowerType.includes('identity') ||
+        lower.includes('created_at') ||
+        lower.includes('updated_at')
+      ) {
         initial[col.name] = true;
       }
     });
@@ -38,7 +50,19 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
     const initial: Record<string, boolean> = {};
     columns.forEach((col) => {
       const lower = col.name.toLowerCase();
-      if (lower === 'id' || lower.includes('created_at') || lower.includes('updated_at')) {
+      const lowerType = (col.data_type || '').toLowerCase();
+      if (
+        col.is_primary_key ||
+        col.is_auto_increment ||
+        lower === 'id' ||
+        lower.endsWith('_id') ||
+        lower.endsWith('id') ||
+        lowerType.includes('serial') ||
+        lowerType.includes('auto_increment') ||
+        lowerType.includes('identity') ||
+        lower.includes('created_at') ||
+        lower.includes('updated_at')
+      ) {
         initial[col.name] = true;
       }
     });

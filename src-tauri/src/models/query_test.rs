@@ -4,41 +4,13 @@ use serde_json::json;
 #[test]
 fn test_query_result_serialization() {
     let columns = vec![
-        ColumnMeta {
-            name: "id".to_string(),
-            data_type: "INTEGER".to_string(),
-            nullable: false,
-        },
-        ColumnMeta {
-            name: "username".to_string(),
-            data_type: "TEXT".to_string(),
-            nullable: false,
-        },
-        ColumnMeta {
-            name: "score".to_string(),
-            data_type: "FLOAT".to_string(),
-            nullable: true,
-        },
-        ColumnMeta {
-            name: "is_active".to_string(),
-            data_type: "BOOLEAN".to_string(),
-            nullable: false,
-        },
-        ColumnMeta {
-            name: "metadata".to_string(),
-            data_type: "JSON".to_string(),
-            nullable: true,
-        },
-        ColumnMeta {
-            name: "payload".to_string(),
-            data_type: "BLOB".to_string(),
-            nullable: true,
-        },
-        ColumnMeta {
-            name: "notes".to_string(),
-            data_type: "TEXT".to_string(),
-            nullable: true,
-        },
+        ColumnMeta::new("id", "INTEGER", false),
+        ColumnMeta::new("username", "TEXT", false),
+        ColumnMeta::new("score", "FLOAT", true),
+        ColumnMeta::new("is_active", "BOOLEAN", false),
+        ColumnMeta::new("metadata", "JSON", true),
+        ColumnMeta::new("payload", "BLOB", true),
+        ColumnMeta::new("notes", "TEXT", true),
     ];
 
     let rows = vec![
@@ -156,4 +128,27 @@ fn test_cell_value_conversions_and_display() {
     let bytes_val = CellValue::Bytes("aGVsbG8=".to_string());
     assert_eq!(bytes_val.as_bytes_base64(), Some("aGVsbG8="));
     assert_eq!(bytes_val.to_display_string(), "[Binary: 8 bytes]");
+}
+
+#[test]
+fn test_column_meta_pk_auto_increment_serialization() {
+    let col = ColumnMeta::new("user_id", "BIGINT", false)
+        .with_primary_key(true)
+        .with_auto_increment(true);
+
+    assert_eq!(col.is_primary_key, Some(true));
+    assert_eq!(col.is_auto_increment, Some(true));
+
+    let json_str = serde_json::to_string(&col).expect("serialize col");
+    assert!(json_str.contains("\"is_primary_key\":true"));
+    assert!(json_str.contains("\"is_auto_increment\":true"));
+
+    let deserialized: ColumnMeta = serde_json::from_str(&json_str).expect("deserialize col");
+    assert_eq!(deserialized, col);
+
+    // Omitted fields default to None
+    let simple_json = r#"{"name":"title","data_type":"TEXT","nullable":true}"#;
+    let simple_col: ColumnMeta = serde_json::from_str(simple_json).expect("deserialize simple col");
+    assert_eq!(simple_col.is_primary_key, None);
+    assert_eq!(simple_col.is_auto_increment, None);
 }

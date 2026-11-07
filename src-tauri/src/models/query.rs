@@ -164,6 +164,10 @@ pub struct ColumnMeta {
     pub name: String,
     pub data_type: String,
     pub nullable: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_primary_key: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_auto_increment: Option<bool>,
 }
 
 impl ColumnMeta {
@@ -172,7 +176,19 @@ impl ColumnMeta {
             name: name.into(),
             data_type: data_type.into(),
             nullable,
+            is_primary_key: None,
+            is_auto_increment: None,
         }
+    }
+
+    pub fn with_primary_key(mut self, is_pk: bool) -> Self {
+        self.is_primary_key = Some(is_pk);
+        self
+    }
+
+    pub fn with_auto_increment(mut self, is_auto: bool) -> Self {
+        self.is_auto_increment = Some(is_auto);
+        self
     }
 }
 

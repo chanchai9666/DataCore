@@ -171,5 +171,41 @@ describe('tableEditHelpers', () => {
         `INSERT INTO "public"."test_data" ("name") VALUES ('Sample Item');`
       );
     });
+
+    it('omits custom primary key (customer_id, is_primary_key) or MySQL auto_increment when null or empty', () => {
+      const sqlCustomPk = buildInsertSql({
+        driver: 'postgres',
+        tableName: 'customers',
+        schemaName: 'public',
+        columns: [
+          { name: 'customer_id', data_type: 'uuid', nullable: false, is_primary_key: true },
+          { name: 'full_name', data_type: 'text', nullable: false },
+        ],
+        values: {
+          customer_id: null,
+          full_name: 'John Doe',
+        },
+      });
+      expect(sqlCustomPk).toBe(
+        `INSERT INTO "public"."customers" ("full_name") VALUES ('John Doe');`
+      );
+
+      const sqlMysqlAuto = buildInsertSql({
+        driver: 'mysql',
+        tableName: 'items',
+        schemaName: 'shop',
+        columns: [
+          { name: 'item_no', data_type: 'int auto_increment', nullable: false, is_auto_increment: true },
+          { name: 'title', data_type: 'varchar(100)', nullable: false },
+        ],
+        values: {
+          item_no: '',
+          title: 'Mechanical Keyboard',
+        },
+      });
+      expect(sqlMysqlAuto).toBe(
+        'INSERT INTO `shop`.`items` (`title`) VALUES (\'Mechanical Keyboard\');'
+      );
+    });
   });
 });

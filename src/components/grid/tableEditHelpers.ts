@@ -172,7 +172,15 @@ export function buildInsertSql(options: BuildInsertOptions): string {
       const val = values[col.name];
       const lowerName = col.name.toLowerCase();
       const lowerType = (col.data_type || '').toLowerCase();
-      const isAutoCol = lowerName === 'id' || lowerType.includes('serial');
+      const isAutoCol =
+        col.is_primary_key === true ||
+        col.is_auto_increment === true ||
+        lowerName === 'id' ||
+        lowerName.endsWith('_id') ||
+        lowerName.endsWith('id') ||
+        lowerType.includes('serial') ||
+        lowerType.includes('auto_increment') ||
+        lowerType.includes('identity');
 
       // Skip undefined or empty string/null for auto-increment / serial primary keys if left empty or null
       if (val === undefined || (isAutoCol && (val === '' || val === null))) {

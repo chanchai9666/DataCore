@@ -45,6 +45,8 @@ export interface ColumnMeta {
   name: string;
   data_type: string;
   nullable: boolean;
+  is_primary_key?: boolean;
+  is_auto_increment?: boolean;
 }
 
 export interface QueryResult {
