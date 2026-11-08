@@ -1,0 +1,46 @@
+:root {
+  /* Fonts */
+  --font-ui: -apple-system, "SF Pro Text", "Sukhumvit Set", "Thonburi", system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, "Sukhumvit Set", monospace;
+
+  /* Sizing & Density */
+  --h-row: 24px;
+  --h-row-sm: 22px;
+  --h-btn: 24px;
+  --h-toolbar: 56px;
+  --h-status: 22px;
+
+  /* Colors - Light (Default) */
+  --bg-toolbar: #ececee;
+  --bg-sidebar: #f4f4f6;
+  --bg-panel: #fafafb;
+  --bg-grid: #ffffff;
+  --row-alt: #f7f8fb;
+  --border: #d6d6da;
+  --text: #1c1c1e;
+  --text-muted: #6e6e73;
+  --accent: #2d6cdf;
+  --accent-hover: #2459b8;
+  --sel: #cfe0fb;
+  --danger: #d33a3a;
+  --success: #2e9e5b;
+  --warn: #c9861a;
+}
+
+.dark {
+  /* Colors - Dark (Charcoal / Off-black) */
+  --bg-toolbar: #323234;
+  --bg-sidebar: #262628;
+  --bg-panel: #2b2b2d;
+  --bg-grid: #1e1e20;
+  --row-alt: #232325;
+  --border: #3e3e42;
+  --text: #e8e8ea;
+  --text-muted: #9a9aa0;
+  --accent: #4a8bf0;
+  --accent-hover: #3b74cb;
+  --sel: #264f8c;
+  --danger: #ef6b6b;
+  --success: #4cc17f;
+  --warn: #e0a840;
+}

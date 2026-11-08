@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import App from '../../src/App';
 import { useConnectionStore } from '../../src/stores/connectionStore';
 import { useTabStore } from '../../src/stores/tabStore';
@@ -134,8 +134,9 @@ describe('E2E Workflow Test', () => {
     fireEvent.click(newConnBtn);
 
     // Dialog is visible
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('New Connection')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText('New Connection')).toBeInTheDocument();
 
     // Select SQLite driver tab
     const sqliteTab = screen.getByRole('tab', { name: /sqlite/i });

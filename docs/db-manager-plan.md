@@ -234,3 +234,37 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - ดู Process list / Active sessions
 - จัดการผู้ใช้และสิทธิ์
 - Auto-update ในตัวแอป
+
+---
+
+## 7. Classic Desktop DB Client UX/UI Redesign Roadmap (Issue #28)
+
+อ้างอิงแนวทางการออกแบบใน [DataCore-UX-UI-Redesign-Guide.md](docs/DataCore-UX-UI-Redesign-Guide.md) และเอกสารสรุปความต้องการ [concepts_brief.md](../concepts_brief.md) มีการวางแผนการปรับปรุง UX/UI แบบ Incremental เป็น 5 Phase:
+
+### Phase 1: Foundations & Design Tokens (🟢 ดำเนินการปัจจุบัน)
+- สร้าง `src/styles/tokens.css` กำหนดชุดตัวแปรสีทั้ง Light (default) และ Dark (Charcoal `#262628`/`#1e1e20`), Typography `--font-ui`, `--font-mono`, Spacing และ Component Heights
+- อัปเดต `tailwind.config.js` ขยาย font sizes (`xs: 11px`, `sm: 12px`, `base: 13px`), heights (`row: 24px`, `btn: 24px`, `toolbar: 56px`, `status: 22px`) และ semantic color tokens
+- จัดระเบียบ Button Hierarchy สไตล์ Classic Desktop (ลดสีสดเขียว/แดง ใช้ปุ่มเทาเรียบ และปุ่ม toolbar)
+- แก้ไข UI Bug ใน TitleBar (ลบเครื่องหมาย `+ ` ซ้ำซ้อนที่แสดง `+ + New Connection`)
+
+### Phase 2: Window Chrome & Layout Shell
+- พัฒนา `MainToolbar` (ความสูง 56px, `pl-[78px]` เว้นระยะให้ macOS traffic lights, กำหนด `data-tauri-drag-region`)
+- พัฒนา `StatusBar` (ความสูง 22px แสดง SQL ล่าสุด, row count, execution duration, active cell coordinate)
+- ปรับปรุง Sidebar: ลบหัวข้อซ้อน EXPLORER / OBJECT BROWSER เหลือ Search box + Tree อย่างเป็นระเบียบ
+- ปรับใช้ DB Type Badges สไตล์กลาง (`PG`, `MY`, `SQ`)
+
+### Phase 3: Table Viewer & Safe Pending Changes
+- ปรับแต่ง Glide Data Grid Theme สำหรับ Light/Dark canvas rendering ให้กลมกลืนกับ design tokens
+- One-line Filter Bar เหนือกริด (เปิด/ปิดด้วย `⌘F`)
+- Bottom Action Bar รวมปุ่ม Add/Delete Row, Pagination, Refresh, Stop, และ Commit/Discard
+- `pendingChangesStore` ใน Zustand สำหรับ stage การแก้ไขข้อมูลก่อนส่ง Batch Transaction บันทึกลงฐานข้อมูล
+
+### Phase 4: Table Designer & Objects View
+- Table Designer แบบ Inline Editable Grid พร้อม Sub-tabs (`Fields`, `Indexes`, `Foreign Keys`, `Triggers`, `SQL Preview`)
+- รองรับ DDL Generator สำหรับ PostgreSQL และ MySQL พร้อม dry-run warnings ก่อน Apply
+
+### Phase 5: macOS Native Polish
+- Tauri vibrancy window effects (`sidebar` background)
+- Native menu bar integration และ Keyboard Shortcuts (⌘N, ⌘T, ⌘W, ⌘R, ⌘↵, ⌘F, ⌘S)
+- รองรับ `prefers-color-scheme` อัตโนมัติ
+

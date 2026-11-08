@@ -85,14 +85,10 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           onClick={onNewConnection}
           data-testid="new-connection-btn"
           aria-label="New Connection"
-          className={`flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-            theme === 'dark'
-              ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm'
-              : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
-          }`}
+          className="flex items-center space-x-1.5 px-2.5 h-btn text-xs font-medium rounded bg-accent hover:bg-accent-hover text-white shadow-sm transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>+ New Connection</span>
+          <span>New Connection</span>
         </button>
 
         <button
@@ -100,13 +96,13 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           onClick={onToggleTheme}
           aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          className={`p-1.5 rounded-md transition-colors ${
+          className={`h-btn px-2 flex items-center justify-center rounded transition-colors ${
             theme === 'dark'
-              ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+              ? 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-black/5'
           }`}
         >
-          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
         </button>
       </div>
     </header>
