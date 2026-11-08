@@ -4,17 +4,18 @@ import DataEditor, {
   Item,
   GridSelection,
   CompactSelection,
-  Theme,
   GridCellKind,
   type GridColumn,
   type EditableGridCell,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
-import { Eye, Loader2, Database, Plus, Trash2, CheckCircle2, AlertCircle, Filter, Download } from 'lucide-react';
+import { Eye, Loader2, Database, CheckCircle2, AlertCircle, Filter, Download } from 'lucide-react';
 import { QueryResult, CellValue, TableFilterState, TableSortState } from '../../types/db';
-import { PaginationBar } from './PaginationBar';
 import { CellDetailDrawer } from './CellDetailDrawer';
 import { FilterBar } from './FilterBar';
+import { GridBottomBar } from './GridBottomBar';
+import { lightGridTheme, darkGridTheme } from './gridTheme';
+import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { createGridColumns, createCellContent } from './gridUtils';
 import { ExportModal } from '../transfer/ExportModal';
 
@@ -50,46 +51,6 @@ export interface DataGridProps {
   initialQuery?: string;
   onExport?: () => void;
 }
-
-const darkGridTheme: Partial<Theme> = {
-  accentColor: '#3b82f6',
-  accentLight: 'rgba(59, 130, 246, 0.25)',
-  bgCell: '#181818',
-  bgCellMedium: '#1f1f1f',
-  bgHeader: '#222222',
-  bgHeaderHasFocus: '#2a2a2a',
-  bgHeaderHovered: '#262626',
-  borderColor: '#333333',
-  headerBottomBorderColor: '#3a3a3a',
-  textDark: '#e5e7eb',
-  textMedium: '#9ca3af',
-  textLight: '#6b7280',
-  textHeader: '#d1d5db',
-  fontFamily: 'system-ui, -apple-system, sans-serif',
-  baseFontStyle: '13px',
-  headerFontStyle: '600 12px',
-  editorFontSize: '13px',
-};
-
-const lightGridTheme: Partial<Theme> = {
-  accentColor: '#2563eb',
-  accentLight: 'rgba(37, 99, 235, 0.18)',
-  bgCell: '#ffffff',
-  bgCellMedium: '#f9fafb',
-  bgHeader: '#f3f4f6',
-  bgHeaderHasFocus: '#e5e7eb',
-  bgHeaderHovered: '#ebebeb',
-  borderColor: '#e5e7eb',
-  headerBottomBorderColor: '#d1d5db',
-  textDark: '#111827',
-  textMedium: '#4b5563',
-  textLight: '#9ca3af',
-  textHeader: '#374151',
-  fontFamily: 'system-ui, -apple-system, sans-serif',
-  baseFontStyle: '13px',
-  headerFontStyle: '600 12px',
-  editorFontSize: '13px',
-};
 
 export const DataGrid: React.FC<DataGridProps> = ({
   data,
@@ -299,6 +260,59 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
   const gridTheme = theme === 'dark' ? darkGridTheme : lightGridTheme;
 
+  const tableKey = `${connectionId || 'default'}.${tableName || 'query'}`;
+  const hasPending = usePendingChangesStore((s) => s.hasPendingChanges(tableKey));
+  const pendingCount = usePendingChangesStore((s) => s.getPendingChangesCount(tableKey));
+
+  const handleDeleteSelected = useCallback(() => {
+    if (hasSelectedRows) {
+      if (selectedRowIndices.length > 1) {
+        if (window.confirm(`Are you sure you want to delete ${selectedRowIndices.length} rows?`)) {
+          if (onRowsDelete) {
+            onRowsDelete(selectedRowIndices);
+          } else if (onRowDelete) {
+            [...selectedRowIndices].sort((a, b) => b - a).forEach((idx) => onRowDelete(idx));
+          }
+        }
+      } else if (onRowDelete) {
+        onRowDelete(selectedRowIndices[0]);
+      }
+    } else if (selectedCell && onRowDelete) {
+      onRowDelete(selectedCell[1]);
+    }
+  }, [hasSelectedRows, selectedRowIndices, selectedCell, onRowsDelete, onRowDelete]);
+
+  const handleCellEditedWithStaging = useCallback(
+    (cell: readonly [number, number], newValue: EditableGridCell) => {
+      const [colIndex, rowIndex] = cell;
+      const colMeta = data?.columns[colIndex];
+      const oldValue = data?.rows[rowIndex]?.[colIndex];
+
+      if (colMeta) {
+        usePendingChangesStore.getState().stageCellEdit(tableKey, {
+          rowIndex,
+          colIndex,
+          colName: colMeta.name,
+          oldValue,
+          newValue: 'data' in newValue ? (newValue as any).data : newValue,
+        });
+      }
+
+      onCellEdited?.(cell, newValue);
+    },
+    [data, tableKey, onCellEdited]
+  );
+
+  const handleCommitChanges = () => {
+    usePendingChangesStore.getState().discardChanges(tableKey);
+    onRefresh?.();
+  };
+
+  const handleDiscardChanges = () => {
+    usePendingChangesStore.getState().discardChanges(tableKey);
+    onRefresh?.();
+  };
+
   return (
     <div
       data-testid="data-grid-container"
@@ -367,82 +381,6 @@ export const DataGrid: React.FC<DataGridProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {isEditable && onAddRow && (
-            <button
-              type="button"
-              aria-label="Add Row"
-              title="Insert new row"
-              onClick={onAddRow}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '3px 10px',
-                fontSize: '12px',
-                backgroundColor: '#059669',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: 500,
-              }}
-            >
-              <Plus size={13} />
-              Add Row
-            </button>
-          )}
-
-          {isEditable && (onRowDelete || onRowsDelete) && (
-            <button
-              type="button"
-              aria-label="Delete Selected Row"
-              title={
-                hasSelectedRows
-                  ? `Delete ${selectedRowIndices.length} selected row${selectedRowIndices.length > 1 ? 's' : ''}`
-                  : selectedCell
-                  ? `Delete row #${selectedCell[1] + 1}`
-                  : 'Select a cell/row to delete'
-              }
-              disabled={(!hasSelectedRows && !selectedCell) || rowsCount === 0 || isLoading}
-              onClick={() => {
-                if (hasSelectedRows) {
-                  if (selectedRowIndices.length > 1) {
-                    if (window.confirm(`Are you sure you want to delete ${selectedRowIndices.length} rows?`)) {
-                      if (onRowsDelete) {
-                        onRowsDelete(selectedRowIndices);
-                      } else if (onRowDelete) {
-                        [...selectedRowIndices].sort((a, b) => b - a).forEach((idx) => onRowDelete(idx));
-                      }
-                    }
-                  } else if (onRowDelete) {
-                    onRowDelete(selectedRowIndices[0]);
-                  }
-                } else if (selectedCell && onRowDelete) {
-                  onRowDelete(selectedCell[1]);
-                }
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '3px 10px',
-                fontSize: '12px',
-                backgroundColor: hasSelectedRows || selectedCell ? '#7f1d1d' : '#2b2b2b',
-                color: hasSelectedRows || selectedCell ? '#fca5a5' : '#666666',
-                border: '1px solid #444444',
-                borderRadius: '4px',
-                cursor: hasSelectedRows || selectedCell ? 'pointer' : 'not-allowed',
-                fontWeight: 500,
-                opacity: hasSelectedRows || selectedCell ? 1 : 0.6,
-              }}
-            >
-              <Trash2 size={13} />
-              {hasSelectedRows && selectedRowIndices.length > 1
-                ? `Delete (${selectedRowIndices.length}) Rows`
-                : 'Delete Row'}
-            </button>
-          )}
-
           {/* Filter Toggle Button */}
           <button
             type="button"
@@ -582,11 +520,13 @@ export const DataGrid: React.FC<DataGridProps> = ({
               rowSelect="multi"
               smoothScrollX
               smoothScrollY
+              rowHeight={24}
+              headerHeight={26}
               gridSelection={gridSelection}
               onGridSelectionChange={setGridSelection}
               onCellActivated={handleCellActivated}
               onCellClicked={handleCellClicked}
-              onCellEdited={onCellEdited}
+              onCellEdited={handleCellEditedWithStaging}
               onHeaderClicked={handleHeaderClicked}
               onColumnResize={handleColumnResize}
               theme={gridTheme}
@@ -595,7 +535,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
         )}
       </div>
 
-      {/* Filter Bar (above Pagination Bar) */}
+      {/* Filter Bar (above Bottom Action Bar) */}
       {isFilterVisible && (
         <FilterBar
           columns={data?.columns || []}
@@ -609,8 +549,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
         />
       )}
 
-      {/* Pagination Bar */}
-      <PaginationBar
+      {/* Bottom Action Bar */}
+      <GridBottomBar
         page={page}
         pageSize={pageSize}
         totalRows={computedTotalRows}
@@ -618,6 +558,13 @@ export const DataGrid: React.FC<DataGridProps> = ({
         onPageSizeChange={onPageSizeChange}
         onRefresh={onRefresh}
         isLoading={isLoading}
+        onAddRow={isEditable && onAddRow ? onAddRow : undefined}
+        onDeleteRow={isEditable ? handleDeleteSelected : undefined}
+        canDelete={isEditable && (hasSelectedRows || selectedCell !== null)}
+        hasPendingChanges={hasPending}
+        pendingCount={pendingCount}
+        onCommit={handleCommitChanges}
+        onDiscard={handleDiscardChanges}
       />
 
       {/* Detail Drawer */}

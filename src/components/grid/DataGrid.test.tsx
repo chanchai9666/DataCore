@@ -4,6 +4,7 @@ import { DataGrid } from './DataGrid';
 import { PaginationBar } from './PaginationBar';
 import { CellDetailDrawer } from './CellDetailDrawer';
 import { createGridColumns, createCellContent } from './gridUtils';
+import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { QueryResult } from '../../types/db';
 
 const getDisplayData = (cell: ReturnType<typeof createCellContent>): string => {
@@ -473,6 +474,32 @@ describe('DataGrid', () => {
       );
 
       expect(screen.getByText(/2 rows/i)).toBeInTheDocument();
+    });
+
+    it('integrates with pendingChangesStore and shows commit/discard actions', () => {
+      usePendingChangesStore.getState().stageCellEdit('c1.users', {
+        rowIndex: 0,
+        colIndex: 1,
+        colName: 'username',
+        oldValue: 'alice',
+        newValue: 'alice_updated',
+      });
+
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          connectionId="c1"
+          tableName="users"
+          isEditable={true}
+        />
+      );
+
+      const commitBtn = screen.getByRole('button', { name: /commit changes/i });
+      expect(commitBtn).not.toBeDisabled();
+      expect(commitBtn).toHaveTextContent('Commit (1)');
+
+      const discardBtn = screen.getByRole('button', { name: /discard changes/i });
+      expect(discardBtn).not.toBeDisabled();
     });
   });
 });
