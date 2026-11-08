@@ -545,4 +545,38 @@ describe('DockLayout', () => {
       expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(false);
     });
   });
+
+  it('sanitizes date/time cell editing with "0" to NULL in Auto-Commit mode', async () => {
+    (dbApi.fetchTableData as any).mockResolvedValueOnce({
+      columns: [
+        { name: 'id', data_type: 'uuid', nullable: false, is_primary_key: true },
+        { name: 'created_at', data_type: 'timestamptz', nullable: true },
+      ],
+      rows: [[{ Text: '8bbaac59-7488-429e-b8c2-3e284a14197c' }, { Text: '2026-11-08T00:00:00Z' }]],
+      execution_time_ms: 10,
+      rows_affected: 1,
+    });
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-date-edit',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'categories',
+          tableName: 'categories',
+          schemaName: 'public',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 'tab-date-edit',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalledWith('tab-date-edit', 'categories', 'public', 100, 0);
+    });
+  });
 });

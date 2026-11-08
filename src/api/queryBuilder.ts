@@ -104,28 +104,85 @@ export function qualifyTable(tableName: string, schemaName?: string, driver?: st
 }
 
 /**
+ * Helpers to identify SQL data types
+ */
+export function isDateTimeType(dataType?: string): boolean {
+  if (!dataType) return false;
+  const lower = dataType.toLowerCase();
+  return (
+    lower.includes('time') ||
+    lower.includes('date') ||
+    lower.includes('year')
+  );
+}
+
+export function isNumericType(dataType?: string): boolean {
+  if (!dataType) return false;
+  const lower = dataType.toLowerCase();
+  return (
+    lower.includes('int') ||
+    lower.includes('float') ||
+    lower.includes('double') ||
+    lower.includes('decimal') ||
+    lower.includes('numeric') ||
+    lower.includes('real')
+  );
+}
+
+/**
  * Formats a JavaScript value as a safe SQL literal according to driver and type.
  */
 export function formatSqlLiteral(
   val: unknown,
   driver?: DatabaseDriver | string,
-  _dataType?: string
+  dataType?: string
 ): string {
   if (val === null || val === undefined) {
     return 'NULL';
   }
 
+  const isDateTime = isDateTimeType(dataType);
+  const isNumeric = isNumericType(dataType);
+
   if (typeof val === 'string') {
     const trimmed = val.trim();
-    if (trimmed.toUpperCase() === 'NULL') {
+    const upper = trimmed.toUpperCase();
+
+    if (upper === 'NULL') {
       return 'NULL';
     }
+
+    if (isDateTime) {
+      if (trimmed === '' || trimmed === '0') {
+        return 'NULL';
+      }
+      if (upper === 'NOW' || upper === 'NOW()' || upper === 'CURRENT_TIMESTAMP') {
+        if (driver && driver.toLowerCase().includes('sqlite')) {
+          return "datetime('now')";
+        }
+        return 'NOW()';
+      }
+    }
+
+    if (isNumeric) {
+      if (trimmed === '') {
+        return 'NULL';
+      }
+      const num = Number(trimmed);
+      if (!isNaN(num)) {
+        return String(num);
+      }
+    }
+
     const escaped = val.replace(/'/g, "''");
     return `'${escaped}'`;
   }
 
   if (typeof val === 'number') {
     if (isNaN(val)) return 'NULL';
+    if (isDateTime && val === 0) {
+      return 'NULL';
+    }
     return String(val);
   }
 

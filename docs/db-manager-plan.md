@@ -286,6 +286,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - แสดงผลไฮไลต์สีบนเซลล์และแถวที่มีการเปลี่ยนแปลง (Blue/Green/Red tints)
 - ปุ่ม Commit รวมคำสั่ง SQL รันเป็น Batch Transaction และปุ่ม Discard คืนค่าเดิม
 
+### Phase 8: DataGrid Input Sanitization & Smart Type Handling (Issue #32 - กำลังดำเนินการ)
+- **Data/Time Type Sanitization:** จัดการการแก้ไขช่องวันที่/เวลา (`timestamp`, `timestamptz`, `date`, `time`) อย่างปลอดภัย หากผู้ใช้กรอก `0`, `""` หรือ `null` ในคอลัมน์ที่เป็น Nullable จะถูกแปลงเป็น `NULL` อัตโนมัติ ป้องกัน Database Error เช่น `date/time field value out of range: "0"`
+- **Date Keyword Support:** รองรับการพิมพ์คีย์เวิร์ดพิเศษ เช่น `now`, `now()`, `CURRENT_TIMESTAMP` เพื่อกำหนดเป็นเวลาปัจจุบันของฐานข้อมูล
+- **Numeric & Nullable Handling:** การเคลียร์ค่าเป็นช่องว่างในคอลัมน์ตัวเลข (`int`, `numeric`, `float`) หรือข้อความที่เป็น Nullable จะถูกแปลงเป็น `NULL` แทน Empty String ป้องกัน Type Mismatch Error ใน PostgreSQL/MySQL
+- **User Feedback & Status Badges:** ปรับปรุงข้อความแจ้งเตือนสถานะเมื่อทำการ Auto-Commit หรือเกิด Error ให้สื่อสารชัดเจนและเข้าใจง่าย
+
 
 
 

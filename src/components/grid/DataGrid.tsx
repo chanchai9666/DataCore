@@ -17,6 +17,7 @@ import { GridBottomBar } from './GridBottomBar';
 import { lightGridTheme, darkGridTheme } from './gridTheme';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { createGridColumns, createCellContent } from './gridUtils';
+import { sanitizeEditedCellValue } from './tableEditHelpers';
 import { formatSelectionAsText } from './clipboardUtils';
 import { toast } from 'sonner';
 import * as ContextMenu from '@radix-ui/react-context-menu';
@@ -398,12 +399,20 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
       if (!activeIsAutoCommit) {
         if (colMeta) {
+          let val: unknown = 'data' in newValue ? (newValue as any).data : newValue;
+          if (newValue.kind === GridCellKind.Text) {
+            if (val === 'NULL' || (val === '' && newValue.displayData === 'NULL')) {
+              val = null;
+            }
+          }
+          val = sanitizeEditedCellValue(val, colMeta);
+
           usePendingChangesStore.getState().stageCellEdit(tableKey, {
             rowIndex,
             colIndex,
             colName: colMeta.name,
             oldValue,
-            newValue: 'data' in newValue ? (newValue as any).data : newValue,
+            newValue: val,
           });
         }
       } else {

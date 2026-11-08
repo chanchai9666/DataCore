@@ -6,6 +6,7 @@ import {
   buildUpdateSql,
   buildDeleteSql,
   buildInsertSql,
+  sanitizeEditedCellValue,
 } from './tableEditHelpers';
 import type { ColumnMeta, CellValue } from '../../types/db';
 
@@ -206,6 +207,53 @@ describe('tableEditHelpers', () => {
       expect(sqlMysqlAuto).toBe(
         'INSERT INTO `shop`.`items` (`title`) VALUES (\'Mechanical Keyboard\');'
       );
+    });
+  });
+
+  describe('sanitizeEditedCellValue', () => {
+    const timestampCol: ColumnMeta = {
+      name: 'created_at',
+      data_type: 'timestamptz',
+      nullable: true,
+    };
+
+    const notNullTimestampCol: ColumnMeta = {
+      name: 'created_at',
+      data_type: 'timestamptz',
+      nullable: false,
+    };
+
+    const intCol: ColumnMeta = {
+      name: 'sort_order',
+      data_type: 'integer',
+      nullable: true,
+    };
+
+    it('converts "0", empty string, or "null" to null for nullable date/time columns', () => {
+      expect(sanitizeEditedCellValue('0', timestampCol)).toBeNull();
+      expect(sanitizeEditedCellValue(0, timestampCol)).toBeNull();
+      expect(sanitizeEditedCellValue('', timestampCol)).toBeNull();
+      expect(sanitizeEditedCellValue('   ', timestampCol)).toBeNull();
+      expect(sanitizeEditedCellValue('null', timestampCol)).toBeNull();
+      expect(sanitizeEditedCellValue('NULL', timestampCol)).toBeNull();
+    });
+
+    it('keeps original value if date/time column is not nullable', () => {
+      expect(sanitizeEditedCellValue('2026-11-08', notNullTimestampCol)).toBe('2026-11-08');
+    });
+
+    it('supports now() keywords for date/time columns', () => {
+      expect(sanitizeEditedCellValue('now', timestampCol)).toBe('NOW()');
+      expect(sanitizeEditedCellValue('NOW()', timestampCol)).toBe('NOW()');
+      expect(sanitizeEditedCellValue('current_timestamp', timestampCol)).toBe('NOW()');
+    });
+
+    it('converts empty string or "null" to null for nullable numeric columns', () => {
+      expect(sanitizeEditedCellValue('', intCol)).toBeNull();
+      expect(sanitizeEditedCellValue('   ', intCol)).toBeNull();
+      expect(sanitizeEditedCellValue('null', intCol)).toBeNull();
+      expect(sanitizeEditedCellValue('42', intCol)).toBe(42);
+      expect(sanitizeEditedCellValue(10, intCol)).toBe(10);
     });
   });
 });

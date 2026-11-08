@@ -18,7 +18,8 @@ import { SqlEditor } from '../editor/SqlEditor';
 import { DataGrid } from '../grid/DataGrid';
 import { dbApi } from '../../api/db';
 import { openQueryTab, openTableTab } from '../sidebar/tabHelpers';
-import { buildUpdateSql, buildDeleteSql, buildInsertSql } from '../grid/tableEditHelpers';
+import { buildUpdateSql, buildDeleteSql, buildInsertSql, sanitizeEditedCellValue } from '../grid/tableEditHelpers';
+import { extractCellValue } from '../grid/gridUtils';
 import { buildSqlWhereClause, filterInMemoryRows } from '../grid/filterUtils';
 import { sortInMemoryRows } from '../grid/sortUtils';
 import { InsertRowModal } from '../grid/InsertRowModal';
@@ -296,7 +297,11 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         rawNewVal = (newValueCell as any).data ?? null;
       }
 
-      if (oldVal === rawNewVal) return;
+      // Sanitize input based on column data type (date/time, numeric, etc.)
+      rawNewVal = sanitizeEditedCellValue(rawNewVal, column);
+
+      const oldRawVal = extractCellValue(oldVal).rawValue;
+      if (oldRawVal === rawNewVal) return;
 
       const conn = connections.find((c) => c.id === activeTab.connectionId);
       const driver = conn?.driver ?? 'postgres';
@@ -337,7 +342,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
       try {
         await dbApi.executeQuery(tabId, updateSql);
-        setTableStatus(tabId, { type: 'success', text: `Saved ${column.name} successfully` });
+        setTableStatus(tabId, { type: 'success', text: `Saved ${column.name} successfully (Auto-Commit)` });
       } catch (err) {
         // Rollback
         const rollbackRows = [...tableState.data.rows];

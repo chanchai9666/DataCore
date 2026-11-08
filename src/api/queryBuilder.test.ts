@@ -61,6 +61,27 @@ describe('queryBuilder', () => {
     it('formats objects as json strings', () => {
       expect(formatSqlLiteral({ key: 'val' }, 'postgres')).toBe("'{\"key\":\"val\"}'");
     });
+
+    it('formats date/time types safely: "0", empty string coerce to NULL', () => {
+      expect(formatSqlLiteral('0', 'postgres', 'timestamptz')).toBe('NULL');
+      expect(formatSqlLiteral(0, 'postgres', 'timestamp with time zone')).toBe('NULL');
+      expect(formatSqlLiteral('', 'postgres', 'timestamp')).toBe('NULL');
+      expect(formatSqlLiteral('   ', 'postgres', 'date')).toBe('NULL');
+    });
+
+    it('formats date/time keywords like NOW, NOW(), CURRENT_TIMESTAMP without quotes', () => {
+      expect(formatSqlLiteral('now', 'postgres', 'timestamptz')).toBe('NOW()');
+      expect(formatSqlLiteral('NOW()', 'postgres', 'timestamp')).toBe('NOW()');
+      expect(formatSqlLiteral('CURRENT_TIMESTAMP', 'postgres', 'timestamp')).toBe('NOW()');
+      expect(formatSqlLiteral('now', 'sqlite', 'datetime')).toBe("datetime('now')");
+    });
+
+    it('formats numeric types safely: empty string coerces to NULL and numeric strings unquoted', () => {
+      expect(formatSqlLiteral('', 'postgres', 'integer')).toBe('NULL');
+      expect(formatSqlLiteral('  ', 'postgres', 'numeric')).toBe('NULL');
+      expect(formatSqlLiteral('42', 'postgres', 'integer')).toBe('42');
+      expect(formatSqlLiteral('3.14', 'postgres', 'float8')).toBe('3.14');
+    });
   });
 
   describe('DDL Generation', () => {
@@ -143,6 +164,23 @@ describe('queryBuilder', () => {
         newValue: 'Bob',
       });
       expect(sql).toBe('UPDATE "public"."users" SET "name" = \'Bob\' WHERE "id" = 10;');
+    });
+
+    it('generates UPDATE sql for timestamp column with "0" safely converting to NULL', () => {
+      const dateCols = [
+        { name: 'id', data_type: 'uuid', nullable: false, is_primary_key: true },
+        { name: 'created_at', data_type: 'timestamptz', nullable: true },
+      ];
+      const sql = buildUpdateSql({
+        driver: 'postgres',
+        tableName: 'categories',
+        schemaName: 'public',
+        columns: dateCols,
+        row: [{ Text: '8bbaac59-7488-429e-b8c2-3e284a14197c' }, null],
+        colIndex: 1,
+        newValue: '0',
+      });
+      expect(sql).toBe('UPDATE "public"."categories" SET "created_at" = NULL WHERE "id" = \'8bbaac59-7488-429e-b8c2-3e284a14197c\';');
     });
 
     it('generates DELETE sql', () => {
