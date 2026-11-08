@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DockLayout } from './DockLayout';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, QueryResult } from '../../types/db';
 
@@ -490,6 +491,56 @@ describe('DockLayout', () => {
 
     await waitFor(() => {
       expect(screen.getAllByText(/2 rows/i).length).toBeGreaterThan(0);
+    });
+  });
+
+  it('handles staged changes and executes batch commit in Staging mode', async () => {
+    const tableKey = 'conn-1.users';
+    usePendingChangesStore.getState().clearAll();
+    usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-staging',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'users',
+          tableName: 'users',
+          schemaName: 'main',
+        },
+      ],
+      activeTabId: 'tab-staging',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalledWith('tab-staging', 'users', 'main', 100, 0);
+    });
+
+    // In staging mode, stage a cell edit
+    usePendingChangesStore.getState().stageCellEdit(tableKey, {
+      rowIndex: 0,
+      colIndex: 0,
+      colName: 'name',
+      oldValue: 'Alice',
+      newValue: 'Alice Bob',
+    });
+
+    const commitBtn = await screen.findByRole('button', { name: /commit changes/i });
+    expect(commitBtn).not.toBeDisabled();
+    expect(commitBtn).toHaveTextContent('Commit (1)');
+
+    // Click commit
+    fireEvent.click(commitBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-staging',
+        expect.stringContaining('UPDATE "users"')
+      );
+      expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(false);
     });
   });
 });

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { ObjectBrowser } from '../sidebar/ObjectBrowser';
 import { SqlEditor } from '../editor/SqlEditor';
 import { DataGrid } from '../grid/DataGrid';
@@ -370,6 +371,13 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       const row = tableState.data.rows[rowIndex];
       if (!row) return;
 
+      const tableKey = `${activeTab.connectionId}.${activeTab.tableName || activeTab.title}`;
+      const isAutoCommit = usePendingChangesStore.getState().isAutoCommitMode(tableKey);
+      if (!isAutoCommit) {
+        usePendingChangesStore.getState().stageDeleteRow(tableKey, rowIndex);
+        return;
+      }
+
       const confirmed = window.confirm(
         `Are you sure you want to delete row #${rowIndex + 1}? This action cannot be undone.`
       );
@@ -412,6 +420,15 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       const tabId = activeTab.id;
       const tableState = tableStates[tabId];
       if (!tableState || !tableState.data) return;
+
+      const tableKey = `${activeTab.connectionId}.${activeTab.tableName || activeTab.title}`;
+      const isAutoCommit = usePendingChangesStore.getState().isAutoCommitMode(tableKey);
+      if (!isAutoCommit) {
+        for (const idx of rowIndices) {
+          usePendingChangesStore.getState().stageDeleteRow(tableKey, idx);
+        }
+        return;
+      }
 
       const conn = connections.find((c) => c.id === activeTab.connectionId);
       const driver = conn?.driver ?? 'postgres';
@@ -498,6 +515,15 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     async (values: Record<string, unknown>) => {
       if (!insertModalState || !activeTab) return;
       const tabId = insertModalState.tabId;
+      const tableKey = `${activeTab.connectionId}.${insertModalState.tableName}`;
+      const isAutoCommit = usePendingChangesStore.getState().isAutoCommitMode(tableKey);
+
+      if (!isAutoCommit) {
+        usePendingChangesStore.getState().stageAddRow(tableKey, values);
+        setInsertModalState(null);
+        return;
+      }
+
       const conn = connections.find((c) => c.id === activeTab.connectionId);
       const driver = conn?.driver ?? 'postgres';
 
@@ -511,10 +537,107 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
       await dbApi.executeQuery(tabId, insertSql);
       setTableStatus(tabId, { type: 'success', text: 'Row inserted successfully' });
+      setInsertModalState(null);
       const tableState = tableStates[tabId];
       loadTableData(activeTab, tableState?.page ?? 1, tableState?.pageSize ?? 100);
     },
     [insertModalState, activeTab, connections, tableStates, loadTableData, setTableStatus]
+  );
+
+  // Handle batch commit of pending changes
+  const handleCommitChanges = useCallback(
+    async (tableKey: string) => {
+      if (!activeTab || activeTab.type !== 'table') return;
+      const tabId = activeTab.id;
+      const changes = usePendingChangesStore.getState().getTableChanges(tableKey);
+      const tableState = tableStates[tabId];
+      if (!tableState || !tableState.data) return;
+
+      const conn = connections.find((c) => c.id === activeTab.connectionId);
+      const driver = conn?.driver ?? 'postgres';
+      const tableName = activeTab.tableName || activeTab.title;
+      const schemaName = activeTab.schemaName;
+      const columns = tableState.data.columns;
+
+      const statements: string[] = [];
+
+      // 1. Added rows (INSERT)
+      for (const rowValues of changes.addedRows) {
+        const insertSql = buildInsertSql({
+          tableName,
+          schemaName,
+          columns,
+          values: rowValues,
+          driver,
+        });
+        statements.push(insertSql);
+      }
+
+      // 2. Cell edits (UPDATE)
+      const editsByRow: Record<number, Record<number, unknown>> = {};
+      for (const edit of Object.values(changes.cellEdits)) {
+        if (!editsByRow[edit.rowIndex]) editsByRow[edit.rowIndex] = {};
+        editsByRow[edit.rowIndex][edit.colIndex] = edit.newValue;
+      }
+
+      for (const [rowIndexStr, colMap] of Object.entries(editsByRow)) {
+        const rowIndex = Number(rowIndexStr);
+        const originalRow = tableState.data.rows[rowIndex];
+        if (!originalRow) continue;
+
+        for (const [colIndexStr, newVal] of Object.entries(colMap)) {
+          const colIndex = Number(colIndexStr);
+          const column = columns[colIndex];
+          if (!column) continue;
+          const updateSql = buildUpdateSql({
+            tableName,
+            schemaName,
+            columns,
+            row: originalRow,
+            colIndex,
+            newValue: newVal,
+            driver,
+          });
+          statements.push(updateSql);
+        }
+      }
+
+      // 3. Deleted rows (DELETE)
+      for (const delIdx of changes.deletedRowIndices) {
+        const row = tableState.data.rows[delIdx];
+        if (!row) continue;
+        const deleteSql = buildDeleteSql({
+          tableName,
+          schemaName,
+          columns,
+          row,
+          driver,
+        });
+        statements.push(deleteSql);
+      }
+
+      if (statements.length === 0) return;
+
+      try {
+        for (const stmt of statements) {
+          await dbApi.executeQuery(tabId, stmt);
+        }
+
+        usePendingChangesStore.getState().discardChanges(tableKey);
+        setTableStatus(tabId, {
+          type: 'success',
+          text: `Committed ${statements.length} change(s) successfully`,
+        });
+        loadTableData(activeTab, tableState.page, tableState.pageSize);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setTableStatus(tabId, {
+          type: 'error',
+          text: `Commit failed: ${msg}`,
+        });
+      }
+    },
+    [activeTab, tableStates, connections, loadTableData, setTableStatus]
   );
 
   // Handler for adding a new query tab
@@ -1063,6 +1186,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                         driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
                         connectionId={activeTab.connectionId}
                         tableName={activeTab.tableName}
+                        onCommitChanges={handleCommitChanges}
                       />
                     </div>
                   ) : (
