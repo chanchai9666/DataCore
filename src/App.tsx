@@ -6,6 +6,7 @@ import { DockLayout } from './components/layout/DockLayout';
 import { ConnectionDialog } from './components/dialogs/ConnectionDialog';
 import { useConnectionStore } from './stores/connectionStore';
 import { openQueryTab } from './components/sidebar/tabHelpers';
+import { useShortcuts } from './hooks/useShortcuts';
 import type { ConnectionConfig } from './types/db';
 
 export function App() {
@@ -14,8 +15,28 @@ export function App() {
   const [connectionToEdit, setConnectionToEdit] = useState<ConnectionConfig | null>(null);
   const [lastSavedConnectionId, setLastSavedConnectionId] = useState<string | null>(null);
 
-  // Theme management: default to dark mode (charcoal)
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  // System theme detection: defaults to system preference
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
+      return 'dark';
+    }
+    return 'dark';
+  });
+
+  // Listen for system appearance changes
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      setTheme(e.matches ? 'dark' : 'light');
+    };
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   // Load saved connections on application mount
   useEffect(() => {
@@ -59,6 +80,12 @@ export function App() {
       openQueryTab({ connectionId: activeConnectionId });
     }
   };
+
+  // Keyboard shortcuts integration: ⌘N (New Connection), ⌘T (New Query), ⌘W (Close Tab)
+  useShortcuts({
+    onNewConnection: handleOpenNewConnection,
+    onToggleTheme: handleToggleTheme,
+  });
 
   return (
     <div

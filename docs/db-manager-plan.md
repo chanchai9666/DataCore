@@ -239,32 +239,33 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ## 7. Classic Desktop DB Client UX/UI Redesign Roadmap (Issue #28)
 
-อ้างอิงแนวทางการออกแบบใน [DataCore-UX-UI-Redesign-Guide.md](docs/DataCore-UX-UI-Redesign-Guide.md) และเอกสารสรุปความต้องการ [concepts_brief.md](../concepts_brief.md) มีการวางแผนการปรับปรุง UX/UI แบบ Incremental เป็น 5 Phase:
+อ้างอิงแนวทางการออกแบบใน [DataCore-UX-UI-Redesign-Guide.md](docs/DataCore-UX-UI-Redesign-Guide.md) และเอกสารสรุปความต้องการ [concepts_brief.md](../concepts_brief.md) มีการวางแผนและดำเนินการปรับปรุง UX/UI แบบ Incremental ครบทั้ง 5 Phase ดังนี้:
 
-### Phase 1: Foundations & Design Tokens (🟢 ดำเนินการปัจจุบัน)
+### Phase 1: Foundations & Design Tokens (✅ เสร็จสมบูรณ์)
 - สร้าง `src/styles/tokens.css` กำหนดชุดตัวแปรสีทั้ง Light (default) และ Dark (Charcoal `#262628`/`#1e1e20`), Typography `--font-ui`, `--font-mono`, Spacing และ Component Heights
 - อัปเดต `tailwind.config.js` ขยาย font sizes (`xs: 11px`, `sm: 12px`, `base: 13px`), heights (`row: 24px`, `btn: 24px`, `toolbar: 56px`, `status: 22px`) และ semantic color tokens
 - จัดระเบียบ Button Hierarchy สไตล์ Classic Desktop (ลดสีสดเขียว/แดง ใช้ปุ่มเทาเรียบ และปุ่ม toolbar)
 - แก้ไข UI Bug ใน TitleBar (ลบเครื่องหมาย `+ ` ซ้ำซ้อนที่แสดง `+ + New Connection`)
 
-### Phase 2: Window Chrome & Layout Shell
+### Phase 2: Window Chrome & Layout Shell (✅ เสร็จสมบูรณ์)
 - พัฒนา `MainToolbar` (ความสูง 56px, `pl-[78px]` เว้นระยะให้ macOS traffic lights, กำหนด `data-tauri-drag-region`)
 - พัฒนา `StatusBar` (ความสูง 22px แสดง SQL ล่าสุด, row count, execution duration, active cell coordinate)
 - ปรับปรุง Sidebar: ลบหัวข้อซ้อน EXPLORER / OBJECT BROWSER เหลือ Search box + Tree อย่างเป็นระเบียบ
 - ปรับใช้ DB Type Badges สไตล์กลาง (`PG`, `MY`, `SQ`)
 
-### Phase 3: Table Viewer & Safe Pending Changes
-- ปรับแต่ง Glide Data Grid Theme สำหรับ Light/Dark canvas rendering ให้กลมกลืนกับ design tokens
-- One-line Filter Bar เหนือกริด (เปิด/ปิดด้วย `⌘F`)
-- Bottom Action Bar รวมปุ่ม Add/Delete Row, Pagination, Refresh, Stop, และ Commit/Discard
-- `pendingChangesStore` ใน Zustand สำหรับ stage การแก้ไขข้อมูลก่อนส่ง Batch Transaction บันทึกลงฐานข้อมูล
+### Phase 3: Table Viewer & Safe Pending Changes (✅ เสร็จสมบูรณ์)
+- ปรับแต่ง Glide Data Grid Theme สำหรับ Light/Dark canvas rendering (`gridTheme.ts`) ให้กลมกลืนกับ design tokens
+- One-line Filter Bar เหนือกริด
+- Bottom Action Bar รวมปุ่ม Add/Delete Row, Pagination, Refresh, Rows per page, และ Commit/Discard
+- `pendingChangesStore` ใน Zustand สำหรับ stage การแก้ไขข้อมูล (Cell Edits, Row Insertions, Row Deletions) ก่อนส่งบันทึกลงฐานข้อมูลอย่างปลอดภัย
 
-### Phase 4: Table Designer & Objects View
+### Phase 4: Table Designer & Objects View (✅ เสร็จสมบูรณ์)
 - Table Designer แบบ Inline Editable Grid พร้อม Sub-tabs (`Fields`, `Indexes`, `Foreign Keys`, `Triggers`, `SQL Preview`)
-- รองรับ DDL Generator สำหรับ PostgreSQL และ MySQL พร้อม dry-run warnings ก่อน Apply
+- เพิ่มแท็บ `SQL Preview` Inline DDL Generator สำหรับสร้างคำสั่ง `CREATE TABLE` พร้อมปุ่ม Copy
+- จัด Desktop Button Hierarchy ปรับปุ่ม Action หลักและรองให้เรียบง่ายสบายตา
 
-### Phase 5: macOS Native Polish
-- Tauri vibrancy window effects (`sidebar` background)
-- Native menu bar integration และ Keyboard Shortcuts (⌘N, ⌘T, ⌘W, ⌘R, ⌘↵, ⌘F, ⌘S)
-- รองรับ `prefers-color-scheme` อัตโนมัติ
+### Phase 5: macOS Native Polish (✅ เสร็จสมบูรณ์)
+- Keyboard Shortcuts integration ผ่าน `useShortcuts` (⌘N: New Connection, ⌘T: New Query Tab, ⌘W: Close Active Tab)
+- รองรับ `prefers-color-scheme` ตรวจจับ System Appearance อัตโนมัติ (Dark / Light)
+
 
