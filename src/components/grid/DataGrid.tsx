@@ -9,7 +9,7 @@ import DataEditor, {
   type EditableGridCell,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
-import { Eye, Loader2, Database, CheckCircle2, AlertCircle, Filter, Download } from 'lucide-react';
+import { Eye, Loader2, Database, CheckCircle2, AlertCircle, Filter, Download, X } from 'lucide-react';
 import { QueryResult, CellValue, TableFilterState, TableSortState } from '../../types/db';
 import { CellDetailDrawer } from './CellDetailDrawer';
 import { FilterBar } from './FilterBar';
@@ -93,6 +93,19 @@ export const DataGrid: React.FC<DataGridProps> = ({
   const [searchValue, setSearchValue] = useState('');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [internalFilterOpen, setInternalFilterOpen] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState<typeof statusMessage>(statusMessage);
+
+  useEffect(() => {
+    setCurrentStatus(statusMessage);
+    if (!statusMessage) return;
+
+    const duration = statusMessage.type === 'success' ? 4000 : 7000;
+    const timer = setTimeout(() => {
+      setCurrentStatus(null);
+    }, duration);
+
+    return () => clearTimeout(timer);
+  }, [statusMessage]);
   const [internalSortState, setInternalSortState] = useState<TableSortState | undefined>(undefined);
   const [internalColumnWidths, setInternalColumnWidths] = useState<Record<string, number>>({});
 
@@ -484,7 +497,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
             </span>
           )}
 
-          {statusMessage && (
+          {currentStatus && (
             <div
               data-testid="grid-status-badge"
               style={{
@@ -496,21 +509,42 @@ export const DataGrid: React.FC<DataGridProps> = ({
                 fontSize: '11px',
                 fontWeight: 500,
                 backgroundColor:
-                  statusMessage.type === 'success'
+                  currentStatus.type === 'success'
                     ? 'rgba(6, 78, 59, 0.7)'
                     : 'rgba(127, 29, 29, 0.7)',
-                color: statusMessage.type === 'success' ? '#34d399' : '#f87171',
+                color: currentStatus.type === 'success' ? '#34d399' : '#f87171',
                 border: `1px solid ${
-                  statusMessage.type === 'success' ? '#059669' : '#b91c1c'
+                  currentStatus.type === 'success' ? '#059669' : '#b91c1c'
                 }`,
               }}
             >
-              {statusMessage.type === 'success' ? (
+              {currentStatus.type === 'success' ? (
                 <CheckCircle2 size={12} />
               ) : (
                 <AlertCircle size={12} />
               )}
-              <span>{statusMessage.text}</span>
+              <span>{currentStatus.text}</span>
+              <button
+                type="button"
+                aria-label="Dismiss status message"
+                data-testid="dismiss-status-badge-btn"
+                onClick={() => setCurrentStatus(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '1px',
+                  marginLeft: '4px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  color: 'inherit',
+                  opacity: 0.7,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+              >
+                <X size={11} />
+              </button>
             </div>
           )}
         </div>

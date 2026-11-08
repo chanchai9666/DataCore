@@ -75,6 +75,27 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     Record<string, { type: 'success' | 'error'; text: string }>
   >({});
 
+  const setTableStatus = useCallback(
+    (tabId: string, message: { type: 'success' | 'error'; text: string }) => {
+      setTableStatusMessages((prev) => ({
+        ...prev,
+        [tabId]: message,
+      }));
+      const duration = message.type === 'success' ? 4000 : 7000;
+      setTimeout(() => {
+        setTableStatusMessages((prev) => {
+          if (prev[tabId]?.text === message.text) {
+            const next = { ...prev };
+            delete next[tabId];
+            return next;
+          }
+          return prev;
+        });
+      }, duration);
+    },
+    []
+  );
+
   // Insert row modal state
   const [insertModalState, setInsertModalState] = useState<{
     tabId: string;
@@ -292,10 +313,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        setTableStatusMessages((prev) => ({
-          ...prev,
-          [tabId]: { type: 'error', text: `Cannot update: ${msg}` },
-        }));
+        setTableStatus(tabId, { type: 'error', text: `Cannot update: ${msg}` });
         return;
       }
 
@@ -318,20 +336,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
       try {
         await dbApi.executeQuery(tabId, updateSql);
-        setTableStatusMessages((prev) => ({
-          ...prev,
-          [tabId]: { type: 'success', text: `Saved ${column.name} successfully` },
-        }));
-        setTimeout(() => {
-          setTableStatusMessages((prev) => {
-            if (prev[tabId]?.type === 'success') {
-              const copy = { ...prev };
-              delete copy[tabId];
-              return copy;
-            }
-            return prev;
-          });
-        }, 4000);
+        setTableStatus(tabId, { type: 'success', text: `Saved ${column.name} successfully` });
       } catch (err) {
         // Rollback
         const rollbackRows = [...tableState.data.rows];
@@ -348,10 +353,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         }));
 
         const msg = err instanceof Error ? err.message : String(err);
-        setTableStatusMessages((prev) => ({
-          ...prev,
-          [tabId]: { type: 'error', text: `Update failed: ${msg}` },
-        }));
+        setTableStatus(tabId, { type: 'error', text: `Update failed: ${msg}` });
       }
     },
     [activeTab, tableStates, connections]
@@ -387,29 +389,20 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        setTableStatusMessages((prev) => ({
-          ...prev,
-          [tabId]: { type: 'error', text: `Cannot delete: ${msg}` },
-        }));
+        setTableStatus(tabId, { type: 'error', text: `Cannot delete: ${msg}` });
         return;
       }
 
       try {
         await dbApi.executeQuery(tabId, deleteSql);
-        setTableStatusMessages((prev) => ({
-          ...prev,
-          [tabId]: { type: 'success', text: 'Row deleted successfully' },
-        }));
+        setTableStatus(tabId, { type: 'success', text: 'Row deleted successfully' });
         loadTableData(activeTab, tableState.page, tableState.pageSize);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        setTableStatusMessages((prev) => ({
-          ...prev,
-          [tabId]: { type: 'error', text: `Delete failed: ${msg}` },
-        }));
+        setTableStatus(tabId, { type: 'error', text: `Delete failed: ${msg}` });
       }
     },
-    [activeTab, tableStates, connections, loadTableData]
+    [activeTab, tableStates, connections, loadTableData, setTableStatus]
   );
 
   // Handle multi-row deletion
@@ -443,14 +436,11 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       }
 
       if (successCount > 0) {
-        setTableStatusMessages((prev) => ({
-          ...prev,
-          [tabId]: { type: 'success', text: `${successCount} row(s) deleted successfully` },
-        }));
+        setTableStatus(tabId, { type: 'success', text: `${successCount} row(s) deleted successfully` });
         loadTableData(activeTab, tableState.page, tableState.pageSize);
       }
     },
-    [activeTab, tableStates, connections, loadTableData]
+    [activeTab, tableStates, connections, loadTableData, setTableStatus]
   );
 
   // Handle open add row dialog
@@ -520,14 +510,11 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       });
 
       await dbApi.executeQuery(tabId, insertSql);
-      setTableStatusMessages((prev) => ({
-        ...prev,
-        [tabId]: { type: 'success', text: 'Row inserted successfully' },
-      }));
+      setTableStatus(tabId, { type: 'success', text: 'Row inserted successfully' });
       const tableState = tableStates[tabId];
       loadTableData(activeTab, tableState?.page ?? 1, tableState?.pageSize ?? 100);
     },
-    [insertModalState, activeTab, connections, tableStates, loadTableData]
+    [insertModalState, activeTab, connections, tableStates, loadTableData, setTableStatus]
   );
 
   // Handler for adding a new query tab

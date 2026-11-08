@@ -391,6 +391,40 @@ describe('DataGrid', () => {
     expect(screen.getByText('Saved successfully')).toBeInTheDocument();
   });
 
+  it('allows user to manually dismiss status message via close button', () => {
+    render(
+      <DataGrid
+        data={mockQueryResult}
+        statusMessage={{ type: 'success', text: 'Row inserted successfully' }}
+      />
+    );
+
+    expect(screen.getByText('Row inserted successfully')).toBeInTheDocument();
+    const dismissBtn = screen.getByTestId('dismiss-status-badge-btn');
+    fireEvent.click(dismissBtn);
+
+    expect(screen.queryByText('Row inserted successfully')).not.toBeInTheDocument();
+  });
+
+  it('automatically dismisses status message after timeout', () => {
+    vi.useFakeTimers();
+    render(
+      <DataGrid
+        data={mockQueryResult}
+        statusMessage={{ type: 'success', text: 'Temporary message' }}
+      />
+    );
+
+    expect(screen.getByText('Temporary message')).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(4000);
+    });
+
+    expect(screen.queryByText('Temporary message')).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
   describe('FilterBar Integration & Row Selection', () => {
     it('toggles FilterBar visibility when Filter button is clicked', () => {
       render(<DataGrid data={mockQueryResult} />);
