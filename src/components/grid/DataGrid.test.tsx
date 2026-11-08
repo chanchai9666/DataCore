@@ -6,6 +6,11 @@ import { CellDetailDrawer } from './CellDetailDrawer';
 import { createGridColumns, createCellContent } from './gridUtils';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { QueryResult } from '../../types/db';
+import * as tauriDialog from '@tauri-apps/plugin-dialog';
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  confirm: vi.fn(),
+}));
 
 export const latestDataEditorProps: any = {};
 
@@ -600,7 +605,7 @@ describe('DataGrid', () => {
       expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey)).toBe(true);
     });
 
-    it('prompts before discarding pending changes when switching from staging to auto-commit', () => {
+    it('prompts before discarding pending changes when switching from staging to auto-commit', async () => {
       const tableKey = 'c1.users';
       usePendingChangesStore.getState().clearAll();
       usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
@@ -612,6 +617,7 @@ describe('DataGrid', () => {
         newValue: 99,
       });
 
+      vi.mocked(tauriDialog.confirm).mockResolvedValue(false);
       const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
       render(
@@ -628,13 +634,15 @@ describe('DataGrid', () => {
 
       // User cancels prompt
       fireEvent.click(toggleBtn);
-      expect(confirmSpy).toHaveBeenCalled();
+      await act(async () => {});
       expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey)).toBe(false);
       expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(true);
 
       // User accepts prompt
+      vi.mocked(tauriDialog.confirm).mockResolvedValue(true);
       confirmSpy.mockReturnValue(true);
       fireEvent.click(toggleBtn);
+      await act(async () => {});
       expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey)).toBe(true);
       expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(false);
 

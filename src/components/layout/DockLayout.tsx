@@ -20,6 +20,7 @@ import { dbApi } from '../../api/db';
 import { openQueryTab, openTableTab } from '../sidebar/tabHelpers';
 import { buildUpdateSql, buildDeleteSql, buildInsertSql, sanitizeEditedCellValue } from '../grid/tableEditHelpers';
 import { extractCellValue } from '../grid/gridUtils';
+import { showConfirmDialog } from '../../utils/dialog';
 import { buildSqlWhereClause, filterInMemoryRows } from '../grid/filterUtils';
 import { sortInMemoryRows } from '../grid/sortUtils';
 import { InsertRowModal } from '../grid/InsertRowModal';
@@ -383,8 +384,9 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         return;
       }
 
-      const confirmed = window.confirm(
-        `Are you sure you want to delete row #${rowIndex + 1}? This action cannot be undone.`
+      const confirmed = await showConfirmDialog(
+        `Are you sure you want to delete row #${rowIndex + 1}? This action cannot be undone.`,
+        { title: 'Delete Row', kind: 'warning' }
       );
       if (!confirmed) return;
 
@@ -434,6 +436,12 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         }
         return;
       }
+
+      const confirmed = await showConfirmDialog(
+        `Are you sure you want to delete ${rowIndices.length} rows? This action cannot be undone.`,
+        { title: 'Delete Rows', kind: 'warning' }
+      );
+      if (!confirmed) return;
 
       const conn = connections.find((c) => c.id === activeTab.connectionId);
       const driver = conn?.driver ?? 'postgres';

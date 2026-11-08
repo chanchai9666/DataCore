@@ -18,6 +18,7 @@ import { lightGridTheme, darkGridTheme } from './gridTheme';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { createGridColumns, createCellContent } from './gridUtils';
 import { sanitizeEditedCellValue } from './tableEditHelpers';
+import { showConfirmDialog } from '../../utils/dialog';
 import { formatSelectionAsText } from './clipboardUtils';
 import { toast } from 'sonner';
 import * as ContextMenu from '@radix-ui/react-context-menu';
@@ -373,13 +374,17 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
   const gridTheme = theme === 'dark' ? darkGridTheme : lightGridTheme;
 
-  const handleDeleteSelected = useCallback(() => {
+  const handleDeleteSelected = useCallback(async () => {
     if (hasSelectedRows) {
       if (selectedRowIndices.length > 1) {
-        if (window.confirm(`Are you sure you want to delete ${selectedRowIndices.length} rows?`)) {
-          if (onRowsDelete) {
-            onRowsDelete(selectedRowIndices);
-          } else if (onRowDelete) {
+        if (onRowsDelete) {
+          onRowsDelete(selectedRowIndices);
+        } else if (onRowDelete) {
+          const confirmed = await showConfirmDialog(
+            `Are you sure you want to delete ${selectedRowIndices.length} rows?`,
+            { title: 'Delete Rows', kind: 'warning' }
+          );
+          if (confirmed) {
             [...selectedRowIndices].sort((a, b) => b - a).forEach((idx) => onRowDelete(idx));
           }
         }
@@ -422,7 +427,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
     [data, tableKey, activeIsAutoCommit, onCellEdited]
   );
 
-  const handleToggleAutoCommit = useCallback(() => {
+  const handleToggleAutoCommit = useCallback(async () => {
     if (onToggleAutoCommitProp) {
       onToggleAutoCommitProp();
       return;
@@ -431,8 +436,9 @@ export const DataGrid: React.FC<DataGridProps> = ({
       usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
     } else {
       if (hasPending) {
-        const confirmed = window.confirm(
-          'You have uncommitted changes in Staging Mode. Switching to Auto-Commit will discard these pending changes. Do you want to proceed?'
+        const confirmed = await showConfirmDialog(
+          'You have uncommitted changes in Staging Mode. Switching to Auto-Commit will discard these pending changes. Do you want to proceed?',
+          { title: 'Switch to Auto-Commit', kind: 'warning' }
         );
         if (!confirmed) return;
         usePendingChangesStore.getState().discardChanges(tableKey);

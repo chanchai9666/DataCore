@@ -35,6 +35,7 @@ import {
   ObjectBrowserContext,
   type BrowserTreeNode,
 } from './ConnectionTreeNode';
+import { showConfirmDialog } from '../../utils/dialog';
 
 const SYSTEM_SCHEMA_NAMES = new Set([
   'auth',
@@ -682,7 +683,11 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     async (connectionId: string) => {
       const conn = (connections || []).find((c) => c.id === connectionId);
       const connName = conn?.name || 'this connection';
-      if (window.confirm(`Are you sure you want to delete connection "${connName}"?`)) {
+      const confirmed = await showConfirmDialog(
+        `Are you sure you want to delete connection "${connName}"?`,
+        { title: 'Delete Connection', kind: 'warning' }
+      );
+      if (confirmed) {
         await removeConnection(connectionId);
         toast.success(`Deleted connection "${connName}"`);
       }

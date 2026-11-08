@@ -5,6 +5,11 @@ import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, SchemaNode } from '../../types/db';
+import * as tauriDialog from '@tauri-apps/plugin-dialog';
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  confirm: vi.fn(),
+}));
 
 vi.mock('../../api/db', () => ({
   dbApi: {
@@ -279,6 +284,7 @@ describe('ObjectBrowser', () => {
   });
 
   it('deletes connection when Delete Connection is clicked with confirmation', async () => {
+    vi.mocked(tauriDialog.confirm).mockResolvedValue(true);
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const deleteSpy = vi.fn().mockResolvedValue(undefined);
     vi.mocked(dbApi.deleteConnection).mockImplementation(deleteSpy);
@@ -291,7 +297,6 @@ describe('ObjectBrowser', () => {
     const deleteBtn = await screen.findByRole('button', { name: /delete connection/i });
     fireEvent.click(deleteBtn);
 
-    expect(confirmSpy).toHaveBeenCalled();
     await waitFor(() => {
       expect(useConnectionStore.getState().connections).toHaveLength(0);
     });

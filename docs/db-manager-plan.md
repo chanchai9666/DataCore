@@ -286,11 +286,16 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - แสดงผลไฮไลต์สีบนเซลล์และแถวที่มีการเปลี่ยนแปลง (Blue/Green/Red tints)
 - ปุ่ม Commit รวมคำสั่ง SQL รันเป็น Batch Transaction และปุ่ม Discard คืนค่าเดิม
 
-### Phase 8: DataGrid Input Sanitization & Smart Type Handling (Issue #32 - กำลังดำเนินการ)
+### Phase 8: DataGrid Input Sanitization & Smart Type Handling (✅ เสร็จสมบูรณ์ - Issue #32)
 - **Data/Time Type Sanitization:** จัดการการแก้ไขช่องวันที่/เวลา (`timestamp`, `timestamptz`, `date`, `time`) อย่างปลอดภัย หากผู้ใช้กรอก `0`, `""` หรือ `null` ในคอลัมน์ที่เป็น Nullable จะถูกแปลงเป็น `NULL` อัตโนมัติ ป้องกัน Database Error เช่น `date/time field value out of range: "0"`
 - **Date Keyword Support:** รองรับการพิมพ์คีย์เวิร์ดพิเศษ เช่น `now`, `now()`, `CURRENT_TIMESTAMP` เพื่อกำหนดเป็นเวลาปัจจุบันของฐานข้อมูล
 - **Numeric & Nullable Handling:** การเคลียร์ค่าเป็นช่องว่างในคอลัมน์ตัวเลข (`int`, `numeric`, `float`) หรือข้อความที่เป็น Nullable จะถูกแปลงเป็น `NULL` แทน Empty String ป้องกัน Type Mismatch Error ใน PostgreSQL/MySQL
 - **User Feedback & Status Badges:** ปรับปรุงข้อความแจ้งเตือนสถานะเมื่อทำการ Auto-Commit หรือเกิด Error ให้สื่อสารชัดเจนและเข้าใจง่าย
+
+### Phase 9: Native Confirmation Dialog & Safe Row Deletion (Issue #33 - กำลังดำเนินการ)
+- **Async Dialog Handling:** แก้ไขบั๊กการกดยกเลิกการลบแถวแต่รายการยังถูกลบ โดยเปลี่ยนจากการใช้ `window.confirm()` แบบซิงโครนัส (ซึ่งในสภาพแวดล้อม Tauri/WebKit จะคืนค่าเป็น `Promise` เสมอ ทำให้ถูกประเมินเป็น `true` ก่อนที่ผู้ใช้จะคลิก) มาเป็น `confirmDialog()` helper ที่เรียกใช้ `@tauri-apps/plugin-dialog` อย่างเป็นทางการ พร้อม `await` การตัดสินใจของผู้ใช้อย่างแท้จริง
+- **Safe Row & Multi-Row Deletion:** การลบแถวเดี่ยวและหลายแถวทั้งใน `DockLayout.tsx` และ `DataGrid.tsx` ต้องรอผลตอบกลับจาก Dialog ก่อนส่งคำสั่ง DELETE ไปยังฐานข้อมูลเสมอ หากกดยกเลิก (Cancel) จะไม่ทำรายการใดๆ ทั้งสิ้น
+- **Connection Deletion & Mode Toggling:** ปรับปรุงจุดยืนยันทั้งหมดในระบบให้เป็นแบบ Async เช่น การลบ Connection ใน `ObjectBrowser` และการสลับโหมดจาก Staging Mode ไป Auto-Commit เมื่อมี Pending Changes
 
 
 

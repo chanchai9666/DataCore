@@ -1,11 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { DockLayout } from './DockLayout';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, QueryResult } from '../../types/db';
+import * as tauriDialog from '@tauri-apps/plugin-dialog';
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  confirm: vi.fn(),
+}));
 
 vi.mock('../../api/db', () => ({
   dbApi: {
@@ -36,7 +41,9 @@ describe('DockLayout', () => {
   };
 
   beforeEach(() => {
+    cleanup();
     vi.clearAllMocks();
+    usePendingChangesStore.getState().clearAll();
     useConnectionStore.setState({
       connections: [mockConn],
       activeConnectionId: 'conn-1',
@@ -577,6 +584,93 @@ describe('DockLayout', () => {
 
     await waitFor(() => {
       expect(dbApi.fetchTableData).toHaveBeenCalledWith('tab-date-edit', 'categories', 'public', 100, 0);
+    });
+  });
+
+  it('cancels row deletion when user clicks Cancel in confirmation dialog', async () => {
+    vi.mocked(tauriDialog.confirm).mockResolvedValue(false);
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-delete-cancel',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'users',
+          tableName: 'users',
+          schemaName: 'main',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 'tab-delete-cancel',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalled();
+    });
+
+    // Select a cell via Inspect button to enable Delete button
+    const inspectBtn = await screen.findByRole('button', { name: /inspect cell/i });
+    fireEvent.click(inspectBtn);
+
+    // Find and click Delete button
+    const deleteBtn = await screen.findByRole('button', { name: /delete selected row|delete row/i });
+    expect(deleteBtn).not.toBeDisabled();
+    fireEvent.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(tauriDialog.confirm).toHaveBeenCalled();
+    });
+
+    // Ensure executeQuery with DELETE was NEVER called
+    expect(dbApi.executeQuery).not.toHaveBeenCalledWith(
+      'tab-delete-cancel',
+      expect.stringContaining('DELETE FROM')
+    );
+  });
+
+  it('proceeds with row deletion when user clicks OK in confirmation dialog', async () => {
+    vi.mocked(tauriDialog.confirm).mockResolvedValue(true);
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-delete-ok',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'users',
+          tableName: 'users',
+          schemaName: 'main',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 'tab-delete-ok',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalled();
+    });
+
+    // Select a cell via Inspect button to enable Delete button
+    const inspectBtn = await screen.findByRole('button', { name: /inspect cell/i });
+    fireEvent.click(inspectBtn);
+
+    const deleteBtn = await screen.findByRole('button', { name: /delete selected row|delete row/i });
+    expect(deleteBtn).not.toBeDisabled();
+    fireEvent.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(tauriDialog.confirm).toHaveBeenCalled();
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-delete-ok',
+        expect.stringContaining('DELETE FROM "users"')
+      );
     });
   });
 });
