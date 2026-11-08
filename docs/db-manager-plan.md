@@ -97,7 +97,8 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 | CodeMirror 6 + `@codemirror/lang-sql` | SQL editor พร้อม syntax & autocomplete |
 | Zustand | จัดการ client state (Connections, Tabs, Settings) |
 | TanStack Query | จัดการการโหลดข้อมูลและ server cache |
-| Tailwind CSS + shadcn/ui | หน้าตาและ UI component |
+| Tailwind CSS + Radix UI | หน้าตาและ UI primitives (Dialog, AlertDialog, ContextMenu) พร้อม A11y |
+| sonner | ระบบ Toast Notifications แจ้งเตือนสถานะการทำงาน |
 | lucide-react | ไอคอน |
 | sql-formatter | จัดรูปแบบ SQL |
 

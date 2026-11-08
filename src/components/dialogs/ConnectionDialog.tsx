@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { X, CheckCircle2, AlertCircle, Loader2, Database, PlugZap } from 'lucide-react';
+import { toast } from 'sonner';
 import { DriverForm, type ConnectionFormData } from './DriverForm';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { dbApi } from '../../api/db';
@@ -233,11 +235,14 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       const password = resolvePassword();
       const latency = await dbApi.testConnection(config, password);
       setTestStatus({ type: 'success', latency });
+      toast.success(`Connection successful (${latency} ms)`);
     } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       setTestStatus({
         type: 'error',
-        message: err instanceof Error ? err.message : String(err),
+        message: msg,
       });
+      toast.error(`Connection failed: ${msg}`);
     }
   };
 
@@ -255,58 +260,62 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
         const password = resolvePassword();
         await addConnection(config, password);
       }
+      toast.success(`Connection "${config.name}" saved successfully`);
       if (onSaved) {
         onSaved(config);
       }
       onClose();
     } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       setTestStatus({
         type: 'error',
-        message: err instanceof Error ? err.message : String(err),
+        message: msg,
       });
+      toast.error(`Failed to save connection: ${msg}`);
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="connection-dialog-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-    >
-      {/* Backdrop */}
-      <div
-        data-testid="connection-dialog-backdrop"
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
-      />
+    <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <Dialog.Portal>
+        {/* Backdrop */}
+        <Dialog.Overlay
+          data-testid="connection-dialog-backdrop"
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm transition-opacity"
+          onClick={onClose}
+        />
 
-      {/* Modal Container */}
-      <div
-        className="relative z-10 w-full max-w-xl bg-gray-900 border border-gray-700 rounded-lg shadow-2xl flex flex-col overflow-hidden max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 bg-gray-900/60">
-          <div className="flex items-center space-x-2">
-            <Database className="w-5 h-5 text-blue-400" />
-            <h2 id="connection-dialog-title" className="text-base font-semibold text-gray-100">
-              {initialConnection ? 'Edit Connection' : 'New Connection'}
-            </h2>
+        {/* Modal Container */}
+        <Dialog.Content
+          aria-describedby="connection-dialog-desc"
+          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl bg-gray-900 border border-gray-700 rounded-lg shadow-2xl flex flex-col overflow-hidden max-h-[90vh] focus:outline-none"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 bg-gray-900/60">
+            <div className="flex items-center space-x-2">
+              <Database className="w-5 h-5 text-blue-400" />
+              <Dialog.Title asChild>
+                <h2 id="connection-dialog-title" className="text-base font-semibold text-gray-100">
+                  {initialConnection ? 'Edit Connection' : 'New Connection'}
+                </h2>
+              </Dialog.Title>
+            </div>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </Dialog.Close>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+          <Dialog.Description id="connection-dialog-desc" className="sr-only">
+            Database connection settings form
+          </Dialog.Description>
 
         {/* Driver Tabs Selector */}
         <div className="px-5 pt-4 bg-gray-900">
@@ -414,14 +423,16 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-              className="px-3.5 py-1.5 rounded text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
-            >
-              Cancel
-            </button>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSaving}
+                className="px-3.5 py-1.5 rounded text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+            </Dialog.Close>
             <button
               type="button"
               onClick={handleSave}
@@ -439,7 +450,8 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
             </button>
           </div>
         </div>
-      </div>
-    </div>
-  );
+      </Dialog.Content>
+    </Dialog.Portal>
+  </Dialog.Root>
+);
 };

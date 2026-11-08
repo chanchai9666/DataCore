@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { Plus, Trash2, X, Loader2, Sparkles, Code2, AlertCircle, Layers } from 'lucide-react';
+import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
 import {
   composeDataType,
@@ -271,11 +273,13 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
 
     try {
       await dbApi.executeDirectQuery(connectionId, sqlPreview);
+      toast.success(`Table "${cleanName}" created successfully`);
       onSuccess(cleanName, targetSchema.trim() || undefined);
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
+      toast.error(`Failed to create table: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -286,30 +290,37 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
     .filter((n) => n.length > 0);
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-table-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150 overflow-y-auto"
-    >
-      <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full my-8 flex flex-col text-gray-200 max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800 bg-gray-950/40">
-          <div className="flex items-center space-x-2 text-emerald-400">
-            <Plus className="w-5 h-5" />
-            <h2 id="create-table-title" className="text-base font-semibold">
-              Create New Table
-            </h2>
+    <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150" />
+        <Dialog.Content
+          aria-describedby="create-table-desc"
+          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full flex flex-col text-gray-200 max-h-[90vh] focus:outline-none"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800 bg-gray-950/40">
+            <div className="flex items-center space-x-2 text-emerald-400">
+              <Plus className="w-5 h-5" />
+              <Dialog.Title asChild>
+                <h2 id="create-table-title" className="text-base font-semibold">
+                  Create New Table
+                </h2>
+              </Dialog.Title>
+            </div>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close dialog"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </Dialog.Close>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close dialog"
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+          <Dialog.Description id="create-table-desc" className="sr-only">
+            Form to configure and create a new database table
+          </Dialog.Description>
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-5">
@@ -688,14 +699,16 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
 
           {/* Footer */}
           <div className="flex justify-end space-x-3 pt-3 border-t border-gray-800">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2 text-xs font-medium text-gray-400 hover:text-white transition-colors"
-            >
-              Cancel
-            </button>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="px-4 py-2 text-xs font-medium text-gray-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+            </Dialog.Close>
             <button
               type="submit"
               disabled={loading || !tableName.trim()}
@@ -716,7 +729,8 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
-  );
+      </Dialog.Content>
+    </Dialog.Portal>
+  </Dialog.Root>
+);
 };

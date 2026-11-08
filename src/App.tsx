@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Toaster } from 'sonner';
 import { TitleBar } from './components/layout/TitleBar';
 import { DockLayout } from './components/layout/DockLayout';
 import { ConnectionDialog } from './components/dialogs/ConnectionDialog';
@@ -86,6 +87,9 @@ export function App() {
         onClose={handleCloseDialog}
         onSaved={handleSavedConnection}
       />
+
+      {/* Global Toast Notifications */}
+      <Toaster richColors theme={theme} position="bottom-right" />
     </div>
   );
 }

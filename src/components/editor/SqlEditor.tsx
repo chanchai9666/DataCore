@@ -3,6 +3,7 @@ import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { EditorView, keymap } from '@codemirror/view';
 import { Prec } from '@codemirror/state';
 import { sql, SQLite, PostgreSQL, MySQL, StandardSQL } from '@codemirror/lang-sql';
+import { toast } from 'sonner';
 import { EditorToolbar } from './EditorToolbar';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -165,9 +166,11 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     if (!targetTabId) return;
     try {
       await dbApi.commitTransaction(targetTabId);
+      toast.success('Transaction committed');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMessage(msg);
+      toast.error(`Commit failed: ${msg}`);
       onError?.(err);
     }
   }, [targetTabId, onError]);
@@ -177,9 +180,11 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     if (!targetTabId) return;
     try {
       await dbApi.rollbackTransaction(targetTabId);
+      toast.info('Transaction rolled back');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMessage(msg);
+      toast.error(`Rollback failed: ${msg}`);
       onError?.(err);
     }
   }, [targetTabId, onError]);

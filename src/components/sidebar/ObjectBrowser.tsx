@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Tree, TreeApi } from 'react-arborist';
+import { toast } from 'sonner';
 import {
   Search,
   RefreshCw,
@@ -527,6 +528,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     (connectionId: string) => {
       fetchSchema(connectionId);
       setContextMenu(null);
+      toast.success('Schema refreshed');
     },
     [fetchSchema]
   );
@@ -556,6 +558,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       const connName = conn?.name || 'this connection';
       if (window.confirm(`Are you sure you want to delete connection "${connName}"?`)) {
         await removeConnection(connectionId);
+        toast.success(`Deleted connection "${connName}"`);
       }
       setContextMenu(null);
     },
@@ -564,6 +567,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
   const handleDisconnect = useCallback(
     (connectionId: string) => {
+      const conn = (connections || []).find((c) => c.id === connectionId);
       if (activeConnectionId === connectionId) {
         setActiveConnection(null);
       }
@@ -580,6 +584,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       });
       treeRef.current?.close(`conn-${connectionId}`);
       setContextMenu(null);
+      toast.info(`Disconnected from "${conn?.name || 'connection'}"`);
 
       useTabStore
         .getState()
@@ -588,13 +593,14 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           console.error('Failed to teardown connection backend sessions:', err);
         });
     },
-    [activeConnectionId, setActiveConnection]
+    [activeConnectionId, setActiveConnection, connections, markDisconnected]
   );
 
   const handleCopyName = useCallback((textToCopy: string) => {
     if (navigator?.clipboard?.writeText) {
       navigator.clipboard.writeText(textToCopy);
     }
+    toast.success(`Copied "${textToCopy}" to clipboard`);
     setContextMenu(null);
   }, []);
 
