@@ -43,7 +43,7 @@ export interface DataGridProps {
 
 const darkGridTheme: Partial<Theme> = {
   accentColor: '#3b82f6',
-  accentLight: 'rgba(59, 130, 246, 0.1)',
+  accentLight: 'rgba(59, 130, 246, 0.25)',
   bgCell: '#181818',
   bgCellMedium: '#1f1f1f',
   bgHeader: '#222222',
@@ -63,7 +63,7 @@ const darkGridTheme: Partial<Theme> = {
 
 const lightGridTheme: Partial<Theme> = {
   accentColor: '#2563eb',
-  accentLight: 'rgba(37, 99, 235, 0.1)',
+  accentLight: 'rgba(37, 99, 235, 0.18)',
   bgCell: '#ffffff',
   bgCellMedium: '#f9fafb',
   bgHeader: '#f3f4f6',
@@ -481,7 +481,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
               columns={columns}
               rows={rowsCount}
               getCellContent={getCellContent}
-              rowMarkers="number"
+              rowMarkers="clickable-number"
               rowSelect="multi"
               smoothScrollX
               smoothScrollY

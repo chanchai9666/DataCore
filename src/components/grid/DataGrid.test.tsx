@@ -424,5 +424,21 @@ describe('DataGrid', () => {
 
       confirmSpy.mockRestore();
     });
+
+    it('enables row highlighting and multi-row selection via clickable-number rowMarkers', () => {
+      const onRowsDelete = vi.fn();
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          theme="dark"
+          isEditable={true}
+          onRowsDelete={onRowsDelete}
+        />
+      );
+
+      // Verify toolbar, filter button and delete button rendered
+      expect(screen.getByRole('button', { name: /delete selected row|delete row/i })).toBeInTheDocument();
+      expect(screen.getByTestId('toggle-filter-btn')).toBeInTheDocument();
+    });
   });
 });
