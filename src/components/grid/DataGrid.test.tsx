@@ -628,4 +628,24 @@ describe('DataGrid', () => {
       expect(editor).toHaveAttribute('data-show-search', 'false');
     });
   });
+
+  describe('Context Menu for DataGrid', () => {
+    it('opens context menu on right click and triggers Copy, Copy with Headers, Select All, Find', async () => {
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+
+      render(<DataGrid data={mockQueryResult} />);
+      const editor = screen.getByTestId('mock-data-editor');
+
+      fireEvent.contextMenu(editor);
+
+      expect(await screen.findByTestId('ctx-menu-copy')).toBeInTheDocument();
+      expect(screen.getByTestId('ctx-menu-copy-headers')).toBeInTheDocument();
+      expect(screen.getByTestId('ctx-menu-select-all')).toBeInTheDocument();
+      expect(screen.getByTestId('ctx-menu-find')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('ctx-menu-copy'));
+      expect(writeTextMock).toHaveBeenCalled();
+    });
+  });
 });
