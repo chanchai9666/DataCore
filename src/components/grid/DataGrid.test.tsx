@@ -609,6 +609,38 @@ describe('DataGrid', () => {
       expect(text.startsWith('id\tusername')).toBe(true);
       expect(text).toContain('alice');
     });
+
+    it('copies empty string cell to clipboard without ignoring it', async () => {
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+
+      const dataWithEmptyStr: QueryResult = {
+        columns: [{ name: 'val', data_type: 'TEXT', nullable: true }],
+        rows: [['']],
+        execution_time_ms: 1,
+      };
+
+      render(<DataGrid data={dataWithEmptyStr} />);
+      const container = screen.getByTestId('data-grid-container');
+
+      fireEvent.keyDown(container, { key: 'c', metaKey: true });
+      expect(writeTextMock).toHaveBeenCalledWith('');
+    });
+
+    it('does not intercept Cmd+A when focused inside an input element', () => {
+      render(
+        <DataGrid data={mockQueryResult} isFilterOpen={true} />
+      );
+      const input = screen.getByPlaceholderText(/filter value/i);
+
+      // Focus input and press Cmd+A
+      input.focus();
+      const preventDefaultSpy = vi.fn();
+      fireEvent.keyDown(input, { key: 'a', metaKey: true, preventDefault: preventDefaultSpy });
+
+      // In-grid selection should NOT be select-all
+      expect(preventDefaultSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe('In-Grid Search (Cmd+F)', () => {

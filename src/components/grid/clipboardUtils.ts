@@ -10,9 +10,9 @@ export function formatSelectionAsText(
   selection: GridSelection,
   data: QueryResult,
   includeHeaders: boolean = false
-): string {
+): string | null {
   if (!data || !data.rows || data.rows.length === 0 || !data.columns || data.columns.length === 0) {
-    return '';
+    return null;
   }
 
   const numCols = data.columns.length;
@@ -55,7 +55,7 @@ export function formatSelectionAsText(
   }
 
   if (targetCols.length === 0 || targetRows.length === 0) {
-    return '';
+    return null;
   }
 
   const lines: string[] = [];

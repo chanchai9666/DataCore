@@ -137,11 +137,16 @@ export const DataGrid: React.FC<DataGridProps> = ({
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'Alt') isAltPressedRef.current = false;
     };
+    const handleBlur = () => {
+      isAltPressedRef.current = false;
+    };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
     };
   }, []);
 
@@ -175,6 +180,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
       const isAlt = event?.altKey === true || isAltPressedRef.current;
 
       if (isAlt) {
+        event?.preventDefault?.();
         const colName = data.columns[colIndex].name;
         let nextSort: TableSortState | undefined;
         if (activeSortState?.column === colName) {
@@ -388,15 +394,20 @@ export const DataGrid: React.FC<DataGridProps> = ({
         };
       }
       const text = formatSelectionAsText(sel, data, includeHeaders);
-      if (text) {
+      if (text !== null) {
         if (navigator?.clipboard?.writeText) {
-          navigator.clipboard.writeText(text).catch((err) => {
-            console.error('Failed to copy to clipboard', err);
-          });
+          navigator.clipboard
+            .writeText(text)
+            .then(() => {
+              toast.success(
+                includeHeaders ? 'Copied with headers to clipboard' : 'Copied to clipboard'
+              );
+            })
+            .catch((err) => {
+              console.error('Failed to copy to clipboard', err);
+              toast.error('Failed to copy to clipboard');
+            });
         }
-        toast.success(
-          includeHeaders ? 'Copied with headers to clipboard' : 'Copied to clipboard'
-        );
       }
     },
     [data, gridSelection, selectedCell]
@@ -407,6 +418,16 @@ export const DataGrid: React.FC<DataGridProps> = ({
       e.preventDefault();
       setShowSearch(false);
       setSearchValue('');
+      return;
+    }
+
+    const target = e.target as HTMLElement;
+    if (
+      target &&
+      (target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable)
+    ) {
       return;
     }
 
