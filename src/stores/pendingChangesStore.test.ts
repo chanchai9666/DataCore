@@ -69,4 +69,22 @@ describe('pendingChangesStore', () => {
     expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(false);
     expect(usePendingChangesStore.getState().getPendingChangesCount(tableKey)).toBe(0);
   });
+
+  it('manages auto-commit mode per tableKey', () => {
+    const tableKey1 = 'conn1.users';
+    const tableKey2 = 'conn1.orders';
+
+    // Default should be true (Auto-Commit on)
+    expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey1)).toBe(true);
+    expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey2)).toBe(true);
+
+    // Toggle tableKey1 to false (Staging mode)
+    usePendingChangesStore.getState().setAutoCommitMode(tableKey1, false);
+    expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey1)).toBe(false);
+    expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey2)).toBe(true);
+
+    // Toggle tableKey1 back to true
+    usePendingChangesStore.getState().setAutoCommitMode(tableKey1, true);
+    expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey1)).toBe(true);
+  });
 });

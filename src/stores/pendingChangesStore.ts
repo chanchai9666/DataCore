@@ -17,6 +17,9 @@ export interface TablePendingState {
 
 export interface PendingChangesStoreState {
   tables: Record<string, TablePendingState>;
+  autoCommitModes: Record<string, boolean>;
+  setAutoCommitMode: (tableKey: string, enabled: boolean) => void;
+  isAutoCommitMode: (tableKey: string) => boolean;
   stageCellEdit: (tableKey: string, change: CellChange) => void;
   stageAddRow: (tableKey: string, initialData?: Record<string, unknown>) => void;
   stageDeleteRow: (tableKey: string, rowIndex: number) => void;
@@ -36,6 +39,21 @@ const initialTableState: TablePendingState = {
 
 export const usePendingChangesStore = create<PendingChangesStoreState>((set, get) => ({
   tables: {},
+  autoCommitModes: {},
+
+  setAutoCommitMode: (tableKey: string, enabled: boolean) => {
+    set((state) => ({
+      autoCommitModes: {
+        ...state.autoCommitModes,
+        [tableKey]: enabled,
+      },
+    }));
+  },
+
+  isAutoCommitMode: (tableKey: string) => {
+    const val = get().autoCommitModes[tableKey];
+    return val !== undefined ? val : true;
+  },
 
   stageCellEdit: (tableKey: string, change: CellChange) => {
     set((state) => {
@@ -152,7 +170,7 @@ export const usePendingChangesStore = create<PendingChangesStoreState>((set, get
   },
 
   clearAll: () => {
-    set({ tables: {} });
+    set({ tables: {}, autoCommitModes: {} });
   },
 }));
 
