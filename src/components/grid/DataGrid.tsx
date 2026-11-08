@@ -88,6 +88,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
 }) => {
   const [selectedCell, setSelectedCell] = useState<Item | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [internalFilterOpen, setInternalFilterOpen] = useState(false);
   const [internalSortState, setInternalSortState] = useState<TableSortState | undefined>(undefined);
@@ -400,6 +402,13 @@ export const DataGrid: React.FC<DataGridProps> = ({
   );
 
   const handleContainerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape' && showSearch) {
+      e.preventDefault();
+      setShowSearch(false);
+      setSearchValue('');
+      return;
+    }
+
     const isCmdOrCtrl = e.metaKey || e.ctrlKey;
     if (!isCmdOrCtrl) return;
 
@@ -409,6 +418,9 @@ export const DataGrid: React.FC<DataGridProps> = ({
     } else if (e.key.toLowerCase() === 'c') {
       e.preventDefault();
       handleCopy(e.shiftKey);
+    } else if (e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      setShowSearch((prev) => !prev);
     }
   };
 
@@ -635,6 +647,13 @@ export const DataGrid: React.FC<DataGridProps> = ({
               onCellEdited={handleCellEditedWithStaging}
               onHeaderClicked={handleHeaderClicked}
               onColumnResize={handleColumnResize}
+              showSearch={showSearch}
+              onSearchClose={() => {
+                setShowSearch(false);
+                setSearchValue('');
+              }}
+              searchValue={searchValue}
+              onSearchValueChange={setSearchValue}
               theme={gridTheme}
             />
           </div>

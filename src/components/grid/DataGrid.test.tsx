@@ -34,6 +34,12 @@ vi.mock('@glideapps/glide-data-grid', async () => {
           >
             Header Alt Click
           </button>
+          <button
+            data-testid="mock-search-close"
+            onClick={() => props.onSearchClose?.()}
+          >
+            Close Search
+          </button>
         </div>
       );
     },
@@ -602,6 +608,24 @@ describe('DataGrid', () => {
       const text = writeTextMock.mock.calls[0][0];
       expect(text.startsWith('id\tusername')).toBe(true);
       expect(text).toContain('alice');
+    });
+  });
+
+  describe('In-Grid Search (Cmd+F)', () => {
+    it('toggles showSearch on DataEditor when Cmd+F is pressed', () => {
+      render(<DataGrid data={mockQueryResult} />);
+      const container = screen.getByTestId('data-grid-container');
+      const editor = screen.getByTestId('mock-data-editor');
+
+      expect(editor).toHaveAttribute('data-show-search', 'false');
+
+      fireEvent.keyDown(container, { key: 'f', metaKey: true });
+      expect(editor).toHaveAttribute('data-show-search', 'true');
+
+      // Close search
+      const closeBtn = screen.getByTestId('mock-search-close');
+      fireEvent.click(closeBtn);
+      expect(editor).toHaveAttribute('data-show-search', 'false');
     });
   });
 });
