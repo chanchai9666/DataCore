@@ -355,4 +355,23 @@ describe('TableStructureEditor', () => {
       );
     });
   });
+
+  it('switches to SQL Preview tab and displays inline DDL schema definition', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const ddlTabBtn = await screen.findByTestId('tab-ddl-btn');
+    fireEvent.click(ddlTabBtn);
+
+    expect(screen.getByText(/SQL Schema Definition \(DDL\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/CREATE TABLE "public"."categories"/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /copy sql/i })).toBeInTheDocument();
+  });
 });
