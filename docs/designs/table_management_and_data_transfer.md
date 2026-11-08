@@ -8,10 +8,12 @@
 
 ## Overview
 
-ชุดฟีเจอร์ยกระดับการจัดการตารางและการถ่ายโอนข้อมูลสำหรับ DataCore ออกแบบมาเพื่อให้ผู้ใช้งานบน macOS (Apple Silicon) สามารถจัดการตาราง ฐานข้อมูล และการย้ายข้อมูลได้อย่างครบถ้วน รวดเร็ว และประหยัดทรัพยากรตามมาตรฐานสากล โดยมุ่งเน้น 3 ความสามารถหลักในระยะนี้:
+ชุดฟีเจอร์ยกระดับการจัดการตารางและการถ่ายโอนข้อมูลสำหรับ DataCore ออกแบบมาเพื่อให้ผู้ใช้งานบน macOS (Apple Silicon) สามารถจัดการตาราง ฐานข้อมูล และการย้ายข้อมูลได้อย่างครบถ้วน รวดเร็ว และประหยัดทรัพยากรตามมาตรฐานสากล โดยมุ่งเน้น 5 ความสามารถหลัก:
 1. **Table List View:** หน้าจอภาพรวมตารางระดับ Schema ในรูปแบบ Detailed Metadata Grid (แสดงจำนวนแถวโดยประมาณจากแค็ตตาล็อกระบบ, ขนาดข้อมูล, ขนาด Index, Engine, Collation) โดยไม่เกิด Table Lock
-2. **Duplicate Table (Native SQL Quick Clone):** เมนูลัดคลิกขวาทำซ้ำตารางในฐานข้อมูลเดียวกันอย่างรวดเร็ว ทำงานผ่าน Native SQL ของ Database Engine โดยตรง (เสร็จในระดับมิลลิวินาที ไม่ดึงข้อมูลผ่าน Client RAM)
-3. **Streaming SQL Import & Export:** ระบบส่งออก DDL/DML และนำเข้าไฟล์ SQL Script ขนาดใหญ่แบบสตรีมมิ่งผ่าน Rust `BufReader` ที่จัดการและกรองคำสั่ง `DELIMITER` ของ MySQL ออกอย่างถูกต้อง พร้อมระบบยกเลิก (Cancellation) ที่ปลอดภัย
+2. **Table List Context Menu:** เมนูคลิกขวาบนรายการตารางใน Table List View เพิ่มความสะดวกในการเปิดดูข้อมูล, แก้ไขโครงสร้าง, ทำซ้ำ, คัดลอกข้ามฐานข้อมูล, Export และ Drop ตาราง
+3. **Duplicate Table (Native SQL Quick Clone):** เมนูลัดคลิกขวาทำซ้ำตารางในฐานข้อมูลเดียวกันอย่างรวดเร็ว ทำงานผ่าน Native SQL ของ Database Engine โดยตรง (เสร็จในระดับมิลลิวินาที ไม่ดึงข้อมูลผ่าน Client RAM)
+4. **Cross-Database Table Copy (Navicat-Style):** คัดลอกตารางจากฐานข้อมูล A ไปยังฐานข้อมูล B (ข้าม Connection/Database/Schema) พร้อมระบบ Auto Type Mapping และ Streaming Batch INSERT
+5. **Streaming SQL Import & Export:** ระบบส่งออก DDL/DML และนำเข้าไฟล์ SQL Script ขนาดใหญ่แบบสตรีมมิ่งผ่าน Rust `BufReader` ที่จัดการและกรองคำสั่ง `DELIMITER` ของ MySQL ออกอย่างถูกต้อง พร้อมระบบยกเลิก (Cancellation) ที่ปลอดภัย
 
 ## The Problem
 
@@ -28,13 +30,18 @@
 * **G3 (Streaming SQL Import/Export):**
   - ส่งออก DDL + Multi-row Batch INSERT (500–1,000 แถว) เป็นไฟล์ `.sql`
   - นำเข้าไฟล์ `.sql` ขนาดใหญ่ระดับหลาย GB ผ่าน Streaming `BufReader` ใน Rust โดยตัดทิ้งและจัดการคำสั่ง `DELIMITER` ของ MySQL อย่างถูกต้องโดยไม่เกิด Syntax Error บน Database Driver
-* **G4 (Integrated Architecture & Cancellation):**
+* **G4 (Cross-Database Table Copy):**
+  - รองรับการคัดลอกตารางจากฐานข้อมูล A ไป B ข้ามการเชื่อมต่อและข้ามเอนจิน (SQLite, MySQL, PostgreSQL)
+  - แปลงชนิดข้อมูลเข้ากับ Dialect ปลายทางอัตโนมัติ (Type Mapping) และสตรีมข้อมูลผ่าน Batch INSERT ใน Rust
+* **G5 (Table List Context Menu):**
+  - แสดงเมนูคลิกขวาบนแถวตารางในหน้า Table List View สำหรับคำสั่ง Open Data, Edit Structure, Duplicate, Copy to DB, Export SQL Dump, Export Data, Drop Table
+* **G6 (Integrated Architecture & Cancellation):**
   - รวมศูนย์ API Call ทั้งหมดไว้ใน `src/api/db.ts` และต่อยอดโมเดลจาก `data_transfer.rs`
   - รองรับการกดยกเลิก (Cancellation) ผ่านกลไก Database Session ที่มีอยู่เดิม พร้อมทำ `ROLLBACK` ธุรกรรมทันที
 
 ## Non-Goals
 
-* **NG1 (Cross-Connection Streaming Replication Engine):** ไม่สร้างเอนจินสตรีมมิ่งข้อมูลข้ามเซิร์ฟเวอร์/ข้าม Connection ในเฟสนี้ เพื่อป้องกันความซับซ้อนเชิงโครงสร้าง (DDL Incompatibility และ Foreign Key Dependency Locks) โดยผู้ใช้สามารถใช้ฟังก์ชัน **SQL Export ➜ SQL Import** ในการถ่ายโอนตารางข้ามเซิร์ฟเวอร์ได้อย่างปลอดภัยและตรวจสอบได้
+* **NG1 (Continuous Real-Time CDC Replication):** ไม่ครอบคลุมการซิงก์ข้อมูลแบบต่อเนื่องหรือ Real-time CDC (เป็นการย้ายตารางตามคำสั่ง On-Demand เท่านั้น)
 * **NG2 (Real-Time CDC / Continuous Replication):** ไม่ครอบคลุมการซิงก์ข้อมูลแบบต่อเนื่องหรือ Real-time Replication/CDC
 * **NG3 (Full Database Stored Routines Dump):** ไม่ครอบคลุมการดึงและแปลง Stored Procedures, Functions, และ Triggers ที่มีความซับซ้อนสูงในการ Export SQL ระยะแรก มุ่งเน้นไปที่ Tables, Columns, Primary Keys, Indexes และ Data Rows เป็นหลัก
 * **NG4 (Simple Cards View in Table List):** ละเว้นมุมมอง Simple Cards เพื่อไม่ให้เกิดความซ้ำซ้อนกับ Sidebar Tree ของ Object Browser (เน้น Detailed Metadata Grid เป็นหลัก)

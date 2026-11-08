@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Search,
   RefreshCw,
@@ -8,10 +8,19 @@ import {
   Wrench,
   Database,
   ArrowUpDown,
+  Download,
+  Trash2,
+  Share2,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
 import type { TableMetadata } from '../../types/dataTransfer';
 import { openTableTab } from '../sidebar/tabHelpers';
+import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
+import { ExportSqlModal } from '../transfer/ExportSqlModal';
+import { ExportModal } from '../transfer/ExportModal';
+import { DropTableModal } from '../structure/DropTableModal';
 
 export function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 B';
@@ -34,10 +43,15 @@ export function formatApproxRows(count: number): string {
 export interface TableListTabProps {
   connectionId: string;
   schemaName?: string;
+  driver?: string;
   theme?: 'dark' | 'light';
   onOpenTable?: (tableName: string) => void;
   onOpenStructure?: (tableName: string) => void;
   onDuplicateTable?: (tableName: string) => void;
+  onCopyTableToDb?: (tableName: string) => void;
+  onExportSql?: (tableName: string) => void;
+  onExportData?: (tableName: string) => void;
+  onDropTable?: (tableName: string) => void;
 }
 
 type SortField = 'name' | 'approxRowCount' | 'totalSizeBytes' | 'engine';
@@ -46,10 +60,15 @@ type SortOrder = 'asc' | 'desc';
 export const TableListTab: React.FC<TableListTabProps> = ({
   connectionId,
   schemaName,
+  driver,
   theme = 'dark',
   onOpenTable,
   onOpenStructure,
   onDuplicateTable,
+  onCopyTableToDb,
+  onExportSql,
+  onExportData,
+  onDropTable,
 }) => {
   const [tables, setTables] = useState<TableMetadata[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -57,6 +76,32 @@ export const TableListTab: React.FC<TableListTabProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    table: TableMetadata;
+  } | null>(null);
+
+  // Active modals state
+  const [activeDuplicateTable, setActiveDuplicateTable] = useState<string | null>(null);
+  const [activeExportSqlTable, setActiveExportSqlTable] = useState<string | null>(null);
+  const [activeExportDataTable, setActiveExportDataTable] = useState<string | null>(null);
+  const [activeDropTable, setActiveDropTable] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = () => setContextMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    window.addEventListener('click', handleOutsideClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   const handleOpenData = (tableName: string) => {
     if (onOpenTable) {
@@ -82,6 +127,55 @@ export const TableListTab: React.FC<TableListTabProps> = ({
         viewMode: 'structure',
       });
     }
+  };
+
+  const handleTriggerDuplicate = (tableName: string) => {
+    if (onDuplicateTable) {
+      onDuplicateTable(tableName);
+    } else {
+      setActiveDuplicateTable(tableName);
+    }
+    setContextMenu(null);
+  };
+
+  const handleTriggerCopyTableToDb = (tableName: string) => {
+    if (onCopyTableToDb) {
+      onCopyTableToDb(tableName);
+    }
+    setContextMenu(null);
+  };
+
+  const handleTriggerExportSql = (tableName: string) => {
+    if (onExportSql) {
+      onExportSql(tableName);
+    } else {
+      setActiveExportSqlTable(tableName);
+    }
+    setContextMenu(null);
+  };
+
+  const handleTriggerExportData = (tableName: string) => {
+    if (onExportData) {
+      onExportData(tableName);
+    } else {
+      setActiveExportDataTable(tableName);
+    }
+    setContextMenu(null);
+  };
+
+  const handleTriggerDropTable = (tableName: string) => {
+    if (onDropTable) {
+      onDropTable(tableName);
+    } else {
+      setActiveDropTable(tableName);
+    }
+    setContextMenu(null);
+  };
+
+  const handleCopyName = (name: string) => {
+    navigator.clipboard.writeText(name);
+    toast.success(`Copied table name "${name}" to clipboard`);
+    setContextMenu(null);
   };
 
   const fetchTables = async () => {
@@ -245,6 +339,11 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                 <tr
                   key={table.name}
                   onDoubleClick={() => handleOpenData(table.name)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setContextMenu({ mouseX: e.clientX, mouseY: e.clientY, table });
+                  }}
                   className="hover:bg-[#2a2d2e] transition-colors group cursor-pointer"
                 >
                   <td className="py-2 px-3 flex items-center gap-2 font-mono text-white">
@@ -296,18 +395,16 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                       >
                         <Wrench className="w-3 h-3" />
                       </button>
-                      {onDuplicateTable && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDuplicateTable(table.name);
-                          }}
-                          title="Duplicate Table"
-                          className="p-1 rounded hover:bg-[#383838] text-gray-400 hover:text-white"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </button>
-                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTriggerDuplicate(table.name);
+                        }}
+                        title="Duplicate Table"
+                        className="p-1 rounded hover:bg-[#383838] text-gray-400 hover:text-white"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -316,6 +413,162 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           </table>
         )}
       </div>
+
+      {/* Table Context Menu */}
+      {contextMenu && (
+        <div
+          role="menu"
+          data-testid="table-list-context-menu"
+          className="fixed z-50 bg-[#1e1e1e] border border-[#333333] rounded-md shadow-2xl py-1 text-xs text-gray-200 min-w-[190px] select-none animate-in fade-in duration-100"
+          style={{ top: contextMenu.mouseY, left: contextMenu.mouseX }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1.5 text-[11px] font-mono text-gray-400 border-b border-[#2d2d2d] flex items-center gap-1.5 truncate">
+            <TableIcon className="w-3 h-3 text-blue-400 shrink-0" />
+            <span className="truncate font-semibold text-white">{contextMenu.table.name}</span>
+          </div>
+
+          <button
+            type="button"
+            data-testid="ctx-open-table"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            onClick={() => {
+              handleOpenData(contextMenu.table.name);
+              setContextMenu(null);
+            }}
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+            <span>Open Table Data</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-design-table"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            onClick={() => {
+              handleOpenStructure(contextMenu.table.name);
+              setContextMenu(null);
+            }}
+          >
+            <Wrench className="w-3.5 h-3.5 text-amber-400" />
+            <span>Design Table Structure</span>
+          </button>
+
+          <div className="border-t border-[#2d2d2d] my-1" />
+
+          <button
+            type="button"
+            data-testid="ctx-duplicate-table"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            onClick={() => handleTriggerDuplicate(contextMenu.table.name)}
+          >
+            <Copy className="w-3.5 h-3.5 text-purple-400" />
+            <span>Duplicate Table...</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-copy-to-db"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            onClick={() => handleTriggerCopyTableToDb(contextMenu.table.name)}
+          >
+            <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Copy Table to Database...</span>
+          </button>
+
+          <div className="border-t border-[#2d2d2d] my-1" />
+
+          <button
+            type="button"
+            data-testid="ctx-export-sql"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            onClick={() => handleTriggerExportSql(contextMenu.table.name)}
+          >
+            <Download className="w-3.5 h-3.5 text-blue-400" />
+            <span>Export as SQL Dump...</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-export-data"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            onClick={() => handleTriggerExportData(contextMenu.table.name)}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Export Table Data...</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-copy-name"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            onClick={() => handleCopyName(contextMenu.table.name)}
+          >
+            <Copy className="w-3.5 h-3.5 text-gray-400" />
+            <span>Copy Table Name</span>
+          </button>
+
+          <div className="border-t border-[#2d2d2d] my-1" />
+
+          <button
+            type="button"
+            data-testid="ctx-drop-table"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-950/40 text-red-400"
+            onClick={() => handleTriggerDropTable(contextMenu.table.name)}
+          >
+            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+            <span>Drop Table</span>
+          </button>
+        </div>
+      )}
+
+      {/* Internal Modals */}
+      {activeDuplicateTable && (
+        <DuplicateTableModal
+          isOpen={true}
+          connectionId={connectionId}
+          sourceTableName={activeDuplicateTable}
+          schemaName={schemaName}
+          onClose={() => setActiveDuplicateTable(null)}
+          onSuccess={() => {
+            fetchTables();
+          }}
+        />
+      )}
+
+      {activeExportSqlTable && (
+        <ExportSqlModal
+          isOpen={true}
+          connectionId={connectionId}
+          tableName={activeExportSqlTable}
+          schemaName={schemaName}
+          onClose={() => setActiveExportSqlTable(null)}
+        />
+      )}
+
+      {activeExportDataTable && (
+        <ExportModal
+          isOpen={true}
+          tableName={activeExportDataTable}
+          schemaName={schemaName}
+          connectionId={connectionId}
+          onClose={() => setActiveExportDataTable(null)}
+        />
+      )}
+
+      {activeDropTable && (
+        <DropTableModal
+          isOpen={true}
+          tableName={activeDropTable}
+          schemaName={schemaName}
+          connectionId={connectionId}
+          driver={driver}
+          onClose={() => setActiveDropTable(null)}
+          onSuccess={() => {
+            fetchTables();
+          }}
+        />
+      )}
     </div>
   );
 };

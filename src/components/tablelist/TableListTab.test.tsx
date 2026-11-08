@@ -176,4 +176,86 @@ describe('TableListTab component', () => {
 
     expect(dbApi.getTableListMetadata).toHaveBeenCalledTimes(2);
   });
+
+  it('opens context menu on table row right click and triggers actions', async () => {
+    const onOpenTable = vi.fn();
+    const onOpenStructure = vi.fn();
+    const onDuplicateTable = vi.fn();
+    const onCopyTableToDb = vi.fn();
+
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+        onOpenTable={onOpenTable}
+        onOpenStructure={onOpenStructure}
+        onDuplicateTable={onDuplicateTable}
+        onCopyTableToDb={onCopyTableToDb}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+
+    const usersRow = screen.getByText('users').closest('tr');
+    expect(usersRow).not.toBeNull();
+
+    // Right click
+    fireEvent.contextMenu(usersRow!, { clientX: 200, clientY: 300 });
+
+    const menu = screen.getByTestId('table-list-context-menu');
+    expect(menu).toBeInTheDocument();
+
+    // Verify menu items
+    expect(screen.getByTestId('ctx-open-table')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-design-table')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-duplicate-table')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-copy-to-db')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-export-sql')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-export-data')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-copy-name')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-drop-table')).toBeInTheDocument();
+
+    // Click Open Table Data
+    fireEvent.click(screen.getByTestId('ctx-open-table'));
+    expect(onOpenTable).toHaveBeenCalledWith('users');
+    expect(screen.queryByTestId('table-list-context-menu')).not.toBeInTheDocument();
+
+    // Reopen menu and test Design Table Structure
+    fireEvent.contextMenu(usersRow!, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-design-table'));
+    expect(onOpenStructure).toHaveBeenCalledWith('users');
+
+    // Reopen menu and test Duplicate
+    fireEvent.contextMenu(usersRow!, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-duplicate-table'));
+    expect(onDuplicateTable).toHaveBeenCalledWith('users');
+
+    // Reopen menu and test Copy Table to DB
+    fireEvent.contextMenu(usersRow!, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-copy-to-db'));
+    expect(onCopyTableToDb).toHaveBeenCalledWith('users');
+  });
+
+  it('closes context menu when Escape is pressed', async () => {
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+
+    const usersRow = screen.getByText('users').closest('tr');
+    fireEvent.contextMenu(usersRow!, { clientX: 200, clientY: 300 });
+    expect(screen.getByTestId('table-list-context-menu')).toBeInTheDocument();
+
+    // Press Escape
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByTestId('table-list-context-menu')).not.toBeInTheDocument();
+  });
 });
