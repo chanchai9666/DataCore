@@ -7,6 +7,39 @@ import { createGridColumns, createCellContent } from './gridUtils';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { QueryResult } from '../../types/db';
 
+export const latestDataEditorProps: any = {};
+
+vi.mock('@glideapps/glide-data-grid', async () => {
+  const actual = await vi.importActual<any>('@glideapps/glide-data-grid');
+  return {
+    ...actual,
+    default: (props: any) => {
+      Object.assign(latestDataEditorProps, props);
+      return (
+        <div
+          data-testid="mock-data-editor"
+          data-column-select={props.columnSelect}
+          data-show-search={props.showSearch ? 'true' : 'false'}
+          data-search-value={props.searchValue}
+        >
+          <button
+            data-testid="mock-header-click"
+            onClick={(e) => props.onHeaderClicked?.(1, e)}
+          >
+            Header Click
+          </button>
+          <button
+            data-testid="mock-header-alt-click"
+            onClick={(e) => props.onHeaderClicked?.(1, { ...e, altKey: true })}
+          >
+            Header Alt Click
+          </button>
+        </div>
+      );
+    },
+  };
+});
+
 const getDisplayData = (cell: ReturnType<typeof createCellContent>): string => {
   return (cell as any).displayData;
 };
@@ -500,6 +533,33 @@ describe('DataGrid', () => {
 
       const discardBtn = screen.getByRole('button', { name: /discard changes/i });
       expect(discardBtn).not.toBeDisabled();
+    });
+  });
+
+  describe('Column Selection & Alt-Click Sort', () => {
+    it('sets columnSelect to multi and exclusive blending', () => {
+      render(<DataGrid data={mockQueryResult} />);
+      const editor = screen.getByTestId('mock-data-editor');
+      expect(editor).toHaveAttribute('data-column-select', 'multi');
+    });
+
+    it('selects column on regular header click without triggering sort', () => {
+      const onSortChange = vi.fn();
+      render(<DataGrid data={mockQueryResult} onSortChange={onSortChange} />);
+      const headerBtn = screen.getByTestId('mock-header-click');
+      fireEvent.click(headerBtn);
+      expect(onSortChange).not.toHaveBeenCalled();
+    });
+
+    it('triggers sort on Alt+click on header', () => {
+      const onSortChange = vi.fn();
+      render(<DataGrid data={mockQueryResult} onSortChange={onSortChange} />);
+      const altHeaderBtn = screen.getByTestId('mock-header-alt-click');
+      fireEvent.click(altHeaderBtn);
+      expect(onSortChange).toHaveBeenCalledWith({
+        column: 'username',
+        direction: 'ASC',
+      });
     });
   });
 });

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import DataEditor, {
   GridCell,
   Item,
@@ -124,6 +124,22 @@ export const DataGrid: React.FC<DataGridProps> = ({
     }
   };
 
+  const isAltPressedRef = useRef(false);
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Alt') isAltPressedRef.current = true;
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Alt') isAltPressedRef.current = false;
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
   const selectedRowIndices = useMemo(() => {
     return gridSelection.rows.toArray();
   }, [gridSelection.rows]);
@@ -149,25 +165,41 @@ export const DataGrid: React.FC<DataGridProps> = ({
   }, [data?.columns, activeColumnWidths, activeSortState]);
 
   const handleHeaderClicked = useCallback(
-    (colIndex: number) => {
+    (colIndex: number, event?: any) => {
       if (!data?.columns || colIndex < 0 || colIndex >= data.columns.length) return;
-      const colName = data.columns[colIndex].name;
+      const isAlt = event?.altKey === true || isAltPressedRef.current;
 
-      let nextSort: TableSortState | undefined;
-      if (activeSortState?.column === colName) {
-        if (activeSortState.direction === 'ASC') {
-          nextSort = { column: colName, direction: 'DESC' };
+      if (isAlt) {
+        const colName = data.columns[colIndex].name;
+        let nextSort: TableSortState | undefined;
+        if (activeSortState?.column === colName) {
+          if (activeSortState.direction === 'ASC') {
+            nextSort = { column: colName, direction: 'DESC' };
+          } else {
+            nextSort = undefined; // Cycle to None
+          }
         } else {
-          nextSort = undefined; // Cycle to None
+          nextSort = { column: colName, direction: 'ASC' };
+        }
+
+        if (onSortChange) {
+          onSortChange(nextSort);
+        } else {
+          setInternalSortState(nextSort);
         }
       } else {
-        nextSort = { column: colName, direction: 'ASC' };
-      }
-
-      if (onSortChange) {
-        onSortChange(nextSort);
-      } else {
-        setInternalSortState(nextSort);
+        const isMulti = event?.shiftKey || event?.metaKey || event?.ctrlKey;
+        setGridSelection((prev) => {
+          let nextCols = CompactSelection.fromSingleSelection(colIndex);
+          if (isMulti && prev.columns) {
+            nextCols = prev.columns.add(colIndex);
+          }
+          return {
+            columns: nextCols,
+            rows: CompactSelection.empty(),
+            current: undefined,
+          };
+        });
       }
     },
     [data?.columns, activeSortState, onSortChange]
@@ -518,6 +550,10 @@ export const DataGrid: React.FC<DataGridProps> = ({
               getCellContent={getCellContent}
               rowMarkers="clickable-number"
               rowSelect="multi"
+              columnSelect="multi"
+              columnSelectionBlending="exclusive"
+              rowSelectionBlending="exclusive"
+              rangeSelectionBlending="exclusive"
               smoothScrollX
               smoothScrollY
               rowHeight={24}
