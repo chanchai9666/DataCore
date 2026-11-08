@@ -223,6 +223,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **SQL Import / Export (Navicat Standard - เสร็จสมบูรณ์)**:
     - *Export SQL:* สร้างไฟล์ Dump `.sql` เลือกได้ทั้ง Structure Only, Data Only, หรือ Structure & Data พร้อม Multi-row Batch INSERT (500–1,000 แถว)
     - *Import SQL:* ตัวอ่านและรันคำสั่งสตรีมมิ่ง `BufReader` ใน Rust รองรับไฟล์ขนาดใหญ่ระดับหลาย GB (เพดาน RAM < 32MB) กรองและตัดทิ้งคำสั่ง `DELIMITER` ของ MySQL อัตโนมัติ ป้องกัน Syntax Error และรองรับการสั่งยกเลิก (Cancellation) เพื่อ Rollback ทันที
+- **การคัดลอกข้อมูลในตารางและการค้นหา In-Grid (Issue #30)**:
+  - รองรับการคัดลอกข้อมูลทุกรูปแบบ: เซลล์เดี่ยว, ช่วงเซลล์ (Range), ทั้งแถว (Multi-row selection), และทั้งคอลัมน์แนวดิ่ง (Column selection)
+  - เลือกว่าจะมี Headers ติดไปด้วยหรือไม่ผ่านปุ่มลัด `Cmd+Shift+C` หรือคลิกขวา Context Menu
+  - คลิกหัวคอลัมน์เพื่อเลือกทั้งคอลัมน์แนวตั้ง และกด `Alt+Click` เพื่อเรียงลำดับข้อมูล (Sort Column)
+  - รองรับ `Cmd+A` เพื่อเลือกข้อมูลทั้งหมดในตาราง (Select All)
+  - รองรับการค้นหาข้อมูลในตารางด้วย `Cmd+F` มี Find Bar แสดงจำนวนผลลัพธ์และกระโดดไฮไลท์ข้ามเซลล์ที่ตรงคำค้นหา
 - Copy เป็น CSV / JSON / INSERT statement จากกริด
 - Backup / Dump ฐานข้อมูล
 
