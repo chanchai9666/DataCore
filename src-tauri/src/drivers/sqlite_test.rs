@@ -41,14 +41,21 @@ async fn test_sqlite_query_execution() {
     assert_eq!(result.rows[1][3], CellValue::Null);
 
     // Test fetch_table_data with limit and offset (Pagination)
-    let paged = conn.fetch_table_data(None, "users", 2, 1).await.expect("fetch table data with pagination");
+    let paged = conn.fetch_table_data(None, "users", 2, 1, None).await.expect("fetch table data with pagination");
     assert_eq!(paged.rows.len(), 2);
     assert_eq!(paged.rows[0][0], CellValue::Integer(2));
     assert_eq!(paged.rows[1][0], CellValue::Integer(3));
+    assert_eq!(paged.rows_affected, Some(3)); // Total rows count
+
+    // Test fetch_table_data with filter
+    let filtered = conn.fetch_table_data(None, "users", 10, 0, Some("name = 'Bob'")).await.expect("filter table data");
+    assert_eq!(filtered.rows.len(), 1);
+    assert_eq!(filtered.rows[0][1], CellValue::Text("Bob".to_string()));
+    assert_eq!(filtered.rows_affected, Some(1));
 
     // Test fetch_table_data on empty table returns column metadata
     conn.execute_query("CREATE TABLE empty_sample (id INTEGER PRIMARY KEY, note TEXT);").await.expect("create empty table");
-    let empty_data = conn.fetch_table_data(None, "empty_sample", 10, 0).await.expect("fetch empty table");
+    let empty_data = conn.fetch_table_data(None, "empty_sample", 10, 0, None).await.expect("fetch empty table");
     assert_eq!(empty_data.rows.len(), 0);
     assert_eq!(empty_data.columns.len(), 2);
     assert_eq!(empty_data.columns[0].name, "id");

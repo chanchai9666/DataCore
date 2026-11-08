@@ -9,10 +9,11 @@ import DataEditor, {
   type EditableGridCell,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
-import { Eye, Loader2, Database, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { QueryResult, CellValue } from '../../types/db';
+import { Eye, Loader2, Database, Plus, Trash2, CheckCircle2, AlertCircle, Filter } from 'lucide-react';
+import { QueryResult, CellValue, TableFilterState } from '../../types/db';
 import { PaginationBar } from './PaginationBar';
 import { CellDetailDrawer } from './CellDetailDrawer';
+import { FilterBar } from './FilterBar';
 import { createGridColumns, createCellContent } from './gridUtils';
 
 export interface DataGridProps {
@@ -26,10 +27,18 @@ export interface DataGridProps {
   onRefresh?: () => void;
   onCellEdited?: (cell: readonly [number, number], newValue: EditableGridCell) => void;
   onRowDelete?: (rowIndex: number) => void;
+  onRowsDelete?: (rowIndices: number[]) => void;
   onAddRow?: () => void;
   isEditable?: boolean;
   statusMessage?: { type: 'success' | 'error'; text: string } | null;
   theme?: 'dark' | 'light';
+  filterState?: TableFilterState;
+  onFilterChange?: (state: TableFilterState) => void;
+  onApplyFilter?: () => void;
+  onClearFilter?: () => void;
+  isFilterOpen?: boolean;
+  onToggleFilter?: () => void;
+  driver?: string;
 }
 
 const darkGridTheme: Partial<Theme> = {
@@ -83,18 +92,71 @@ export const DataGrid: React.FC<DataGridProps> = ({
   onRefresh,
   onCellEdited,
   onRowDelete,
+  onRowsDelete,
   onAddRow,
   isEditable = false,
   statusMessage = null,
   theme = 'dark',
+  filterState,
+  onFilterChange,
+  onApplyFilter,
+  onClearFilter,
+  isFilterOpen,
+  onToggleFilter,
+  driver,
 }) => {
   const [selectedCell, setSelectedCell] = useState<Item | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [internalFilterOpen, setInternalFilterOpen] = useState(false);
   const [gridSelection, setGridSelection] = useState<GridSelection>({
     columns: CompactSelection.empty(),
     rows: CompactSelection.empty(),
     current: undefined,
   });
+
+  const [internalFilterState, setInternalFilterState] = useState<TableFilterState>({
+    enabled: true,
+    conjunction: 'AND',
+    conditions: [
+      {
+        id: 'c1',
+        column: data?.columns?.[0]?.name || '',
+        operator: '=',
+        value: '',
+      },
+    ],
+  });
+
+  const activeFilterState = filterState ?? internalFilterState;
+  const handleFilterChange = onFilterChange ?? setInternalFilterState;
+
+  const isFilterVisible = isFilterOpen !== undefined ? isFilterOpen : internalFilterOpen;
+  const handleToggleFilter = () => {
+    if (onToggleFilter) {
+      onToggleFilter();
+    } else {
+      setInternalFilterOpen((prev) => !prev);
+    }
+  };
+
+  const selectedRowIndices = useMemo(() => {
+    return gridSelection.rows.toArray();
+  }, [gridSelection.rows]);
+
+  const hasSelectedRows = selectedRowIndices.length > 0;
+
+  const isFilterActive = useMemo(() => {
+    return (
+      activeFilterState.enabled &&
+      activeFilterState.conditions.some(
+        (c) =>
+          c.column &&
+          (c.operator === 'IS NULL' ||
+            c.operator === 'IS NOT NULL' ||
+            (c.value !== undefined && c.value.trim() !== ''))
+      )
+    );
+  }, [activeFilterState]);
 
   const columns = useMemo(() => {
     if (!data?.columns) return [];
@@ -266,36 +328,87 @@ export const DataGrid: React.FC<DataGridProps> = ({
             </button>
           )}
 
-          {isEditable && onRowDelete && (
+          {isEditable && (onRowDelete || onRowsDelete) && (
             <button
               type="button"
               aria-label="Delete Selected Row"
               title={
-                selectedCell
+                hasSelectedRows
+                  ? `Delete ${selectedRowIndices.length} selected row${selectedRowIndices.length > 1 ? 's' : ''}`
+                  : selectedCell
                   ? `Delete row #${selectedCell[1] + 1}`
                   : 'Select a cell/row to delete'
               }
-              disabled={!selectedCell || rowsCount === 0 || isLoading}
-              onClick={() => selectedCell && onRowDelete(selectedCell[1])}
+              disabled={(!hasSelectedRows && !selectedCell) || rowsCount === 0 || isLoading}
+              onClick={() => {
+                if (hasSelectedRows) {
+                  if (selectedRowIndices.length > 1) {
+                    if (window.confirm(`Are you sure you want to delete ${selectedRowIndices.length} rows?`)) {
+                      if (onRowsDelete) {
+                        onRowsDelete(selectedRowIndices);
+                      } else if (onRowDelete) {
+                        [...selectedRowIndices].sort((a, b) => b - a).forEach((idx) => onRowDelete(idx));
+                      }
+                    }
+                  } else if (onRowDelete) {
+                    onRowDelete(selectedRowIndices[0]);
+                  }
+                } else if (selectedCell && onRowDelete) {
+                  onRowDelete(selectedCell[1]);
+                }
+              }}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
                 padding: '3px 10px',
                 fontSize: '12px',
-                backgroundColor: selectedCell ? '#7f1d1d' : '#2b2b2b',
-                color: selectedCell ? '#fca5a5' : '#666666',
+                backgroundColor: hasSelectedRows || selectedCell ? '#7f1d1d' : '#2b2b2b',
+                color: hasSelectedRows || selectedCell ? '#fca5a5' : '#666666',
                 border: '1px solid #444444',
                 borderRadius: '4px',
-                cursor: selectedCell ? 'pointer' : 'not-allowed',
+                cursor: hasSelectedRows || selectedCell ? 'pointer' : 'not-allowed',
                 fontWeight: 500,
-                opacity: selectedCell ? 1 : 0.6,
+                opacity: hasSelectedRows || selectedCell ? 1 : 0.6,
               }}
             >
               <Trash2 size={13} />
-              Delete Row
+              {hasSelectedRows && selectedRowIndices.length > 1
+                ? `Delete (${selectedRowIndices.length}) Rows`
+                : 'Delete Row'}
             </button>
           )}
+
+          {/* Filter Toggle Button */}
+          <button
+            type="button"
+            aria-label="Toggle Filter"
+            title="Toggle Filter Bar"
+            data-testid="toggle-filter-btn"
+            onClick={handleToggleFilter}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '3px 10px',
+              fontSize: '12px',
+              backgroundColor: isFilterActive
+                ? '#1e3a8a'
+                : isFilterVisible
+                ? '#2563eb'
+                : 'var(--btn-bg, #2b2b2b)',
+              color: '#ffffff',
+              border: isFilterActive
+                ? '1px solid #3b82f6'
+                : '1px solid var(--border-color, #444444)',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 500,
+            }}
+          >
+            <Filter size={13} />
+            Filter
+          </button>
 
           <button
             type="button"
@@ -369,6 +482,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
               rows={rowsCount}
               getCellContent={getCellContent}
               rowMarkers="number"
+              rowSelect="multi"
               smoothScrollX
               smoothScrollY
               gridSelection={gridSelection}
@@ -381,6 +495,20 @@ export const DataGrid: React.FC<DataGridProps> = ({
           </div>
         )}
       </div>
+
+      {/* Filter Bar (above Pagination Bar) */}
+      {isFilterVisible && (
+        <FilterBar
+          columns={data?.columns || []}
+          filterState={activeFilterState}
+          onChange={handleFilterChange}
+          onApply={onApplyFilter || (() => {})}
+          onClear={onClearFilter || (() => {})}
+          onClose={() => handleToggleFilter()}
+          theme={theme}
+          driver={driver}
+        />
+      )}
 
       {/* Pagination Bar */}
       <PaginationBar

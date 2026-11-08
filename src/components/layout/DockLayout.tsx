@@ -17,11 +17,12 @@ import { DataGrid } from '../grid/DataGrid';
 import { dbApi } from '../../api/db';
 import { openQueryTab } from '../sidebar/tabHelpers';
 import { buildUpdateSql, buildDeleteSql, buildInsertSql } from '../grid/tableEditHelpers';
+import { buildSqlWhereClause, filterInMemoryRows } from '../grid/filterUtils';
 import { InsertRowModal } from '../grid/InsertRowModal';
 import { TableStructureEditor } from '../structure/TableStructureEditor';
 import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
-import type { ConnectionConfig, QueryResult, Tab } from '../../types/db';
+import type { ConnectionConfig, QueryResult, Tab, TableFilterState } from '../../types/db';
 
 export interface DockLayoutProps {
   theme?: 'dark' | 'light';
@@ -45,7 +46,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
   onEditConnection,
   lastSavedConnectionId,
 }) => {
-  const { tabs, activeTabId, setActiveTab, closeTab } = useTabStore();
+  const { tabs, activeTabId, setActiveTab, closeTab, updateTab } = useTabStore();
   const { connections, activeConnectionId } = useConnectionStore();
 
   // Sidebar collapse & resize state
@@ -94,10 +95,23 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
   // Function to load table data for a table tab
   const loadTableData = useCallback(
-    async (tab: Tab, page = 1, pageSize = 100) => {
+    async (tab: Tab, page = 1, pageSize = 100, customFilter?: TableFilterState | null) => {
       const tabId = tab.id;
       const tableName = tab.tableName;
       if (!tableName) return;
+
+      const currentFilter = customFilter !== undefined ? customFilter : tab.filterState;
+      const currentConnections = useConnectionStore.getState().connections;
+      const conn = currentConnections.find((c) => c.id === tab.connectionId);
+      const driver = conn?.driver ?? 'postgres';
+
+      let sqlFilter: string | undefined = undefined;
+      if (currentFilter && currentFilter.enabled && currentFilter.conditions.length > 0) {
+        const clause = buildSqlWhereClause(currentFilter.conditions, currentFilter.conjunction, driver);
+        if (clause) {
+          sqlFilter = clause;
+        }
+      }
 
       setTableStates((prev) => ({
         ...prev,
@@ -114,13 +128,22 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       try {
         await dbApi.openSession(tab.connectionId, tabId);
         const offset = (page - 1) * pageSize;
-        const result = await dbApi.fetchTableData(
-          tabId,
-          tableName,
-          tab.schemaName,
-          pageSize,
-          offset
-        );
+        const result = sqlFilter
+          ? await dbApi.fetchTableData(
+              tabId,
+              tableName,
+              tab.schemaName,
+              pageSize,
+              offset,
+              sqlFilter
+            )
+          : await dbApi.fetchTableData(
+              tabId,
+              tableName,
+              tab.schemaName,
+              pageSize,
+              offset
+            );
 
         const rowCount = result.rows ? result.rows.length : 0;
         const total = result.rows_affected ?? rowCount;
@@ -351,6 +374,47 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           ...prev,
           [tabId]: { type: 'error', text: `Delete failed: ${msg}` },
         }));
+      }
+    },
+    [activeTab, tableStates, connections, loadTableData]
+  );
+
+  // Handle multi-row deletion
+  const handleRowsDelete = useCallback(
+    async (rowIndices: number[]) => {
+      if (!activeTab || activeTab.type !== 'table' || rowIndices.length === 0) return;
+      const tabId = activeTab.id;
+      const tableState = tableStates[tabId];
+      if (!tableState || !tableState.data) return;
+
+      const conn = connections.find((c) => c.id === activeTab.connectionId);
+      const driver = conn?.driver ?? 'postgres';
+
+      let successCount = 0;
+      for (const idx of rowIndices) {
+        const row = tableState.data.rows[idx];
+        if (!row) continue;
+        try {
+          const deleteSql = buildDeleteSql({
+            tableName: activeTab.tableName || activeTab.title,
+            schemaName: activeTab.schemaName,
+            columns: tableState.data.columns,
+            row,
+            driver,
+          });
+          await dbApi.executeQuery(tabId, deleteSql);
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to delete row index ${idx}:`, err);
+        }
+      }
+
+      if (successCount > 0) {
+        setTableStatusMessages((prev) => ({
+          ...prev,
+          [tabId]: { type: 'success', text: `${successCount} row(s) deleted successfully` },
+        }));
+        loadTableData(activeTab, tableState.page, tableState.pageSize);
       }
     },
     [activeTab, tableStates, connections, loadTableData]
@@ -710,8 +774,39 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
               {/* Bottom: DataGrid displaying QueryResult */}
               <div className="flex-1 min-h-[100px] flex flex-col overflow-hidden">
                 <DataGrid
-                  data={queryResults[activeTab.id] ?? null}
+                  data={
+                    activeTab.filterState && activeTab.filterState.enabled && queryResults[activeTab.id]
+                      ? {
+                          ...queryResults[activeTab.id]!,
+                          rows: filterInMemoryRows(
+                            queryResults[activeTab.id]!.columns,
+                            queryResults[activeTab.id]!.rows,
+                            activeTab.filterState.conditions,
+                            activeTab.filterState.conjunction
+                          ),
+                        }
+                      : queryResults[activeTab.id] ?? null
+                  }
                   theme={theme}
+                  filterState={activeTab.filterState}
+                  onFilterChange={(newFilter) => updateTab(activeTab.id, { filterState: newFilter })}
+                  onApplyFilter={() => {}}
+                  onClearFilter={() => {
+                    const cleared: TableFilterState = {
+                      enabled: false,
+                      conjunction: 'AND',
+                      conditions: [
+                        {
+                          id: 'c1',
+                          column: queryResults[activeTab.id]?.columns?.[0]?.name || '',
+                          operator: '=',
+                          value: '',
+                        },
+                      ],
+                    };
+                    updateTab(activeTab.id, { filterState: cleared });
+                  }}
+                  driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
                 />
               </div>
             </div>
@@ -812,8 +907,43 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                         isEditable={true}
                         onCellEdited={handleCellEdited}
                         onRowDelete={handleRowDelete}
+                        onRowsDelete={handleRowsDelete}
                         onAddRow={handleAddRow}
                         statusMessage={tableStatusMessages[activeTab.id]}
+                        filterState={activeTab.filterState}
+                        onFilterChange={(newFilter) =>
+                          updateTab(activeTab.id, { filterState: newFilter })
+                        }
+                        onApplyFilter={() =>
+                          loadTableData(
+                            activeTab,
+                            1,
+                            tableStates[activeTab.id]?.pageSize ?? 100
+                          )
+                        }
+                        onClearFilter={() => {
+                          const cleared: TableFilterState = {
+                            enabled: false,
+                            conjunction: 'AND',
+                            conditions: [
+                              {
+                                id: 'c1',
+                                column:
+                                  tableStates[activeTab.id]?.data?.columns?.[0]?.name || '',
+                                operator: '=',
+                                value: '',
+                              },
+                            ],
+                          };
+                          updateTab(activeTab.id, { filterState: cleared });
+                          loadTableData(
+                            activeTab,
+                            1,
+                            tableStates[activeTab.id]?.pageSize ?? 100,
+                            cleared
+                          );
+                        }}
+                        driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
                       />
                     </div>
                   ) : (

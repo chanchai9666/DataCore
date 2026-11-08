@@ -199,15 +199,40 @@ impl DatabaseConnection for MySqlConnection {
         Ok(QueryResult::new(columns, rows_out, elapsed, rows_affected))
     }
 
-    async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32) -> Result<QueryResult, AppError> {
+    async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>) -> Result<QueryResult, AppError> {
         let escaped_table = table.replace('`', "``");
-        let sql = if let Some(sch) = schema {
+        let from_clause = if let Some(sch) = schema {
             let escaped_schema = sch.replace('`', "``");
-            format!("SELECT * FROM `{}`.`{}` LIMIT {} OFFSET {};", escaped_schema, escaped_table, limit, offset)
+            format!("`{}`.`{}`", escaped_schema, escaped_table)
         } else {
-            format!("SELECT * FROM `{}` LIMIT {} OFFSET {};", escaped_table, limit, offset)
+            format!("`{}`", escaped_table)
         };
+
+        let where_clause = match filter {
+            Some(f) if !f.trim().is_empty() => format!(" WHERE {}", f.trim()),
+            _ => String::new(),
+        };
+
+        let count_sql = format!("SELECT COUNT(*) FROM {}{};", from_clause, where_clause);
+        let total_count = match self.execute_query(&count_sql).await {
+            Ok(count_res) => {
+                if let Some(first_row) = count_res.rows.first() {
+                    match first_row.first() {
+                        Some(CellValue::Integer(n)) => Some(*n as u64),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            }
+            Err(_) => None,
+        };
+
+        let sql = format!("SELECT * FROM {}{} LIMIT {} OFFSET {};", from_clause, where_clause, limit, offset);
         let mut res = self.execute_query(&sql).await?;
+        if total_count.is_some() {
+            res.rows_affected = total_count;
+        }
         if res.columns.is_empty() {
             let col_sql = if let Some(sch) = schema {
                 format!(

@@ -294,4 +294,104 @@ describe('DockLayout', () => {
     expect(await screen.findByText(/Insert New Row/i)).toBeInTheDocument();
     expect(await screen.findByLabelText(/username/i)).toBeInTheDocument();
   });
+
+  it('applies server-side filter in table tab when filter conditions are submitted', async () => {
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 't-filter',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'users',
+          tableName: 'users',
+          schemaName: 'main',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 't-filter',
+    });
+
+    render(<DockLayout />);
+
+    // Initially loads without filter
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalledWith('t-filter', 'users', 'main', 100, 0);
+    });
+
+    // Click Filter toggle button in DataGrid toolbar
+    const filterBtn = await screen.findByTestId('toggle-filter-btn');
+    fireEvent.click(filterBtn);
+
+    // Filter input is available for default condition
+    const valInputs = await screen.findAllByPlaceholderText(/enter filter value\.\.\./i);
+    fireEvent.change(valInputs[0], { target: { value: 'Alice' } });
+
+    // Click Apply button
+    const applyBtn = screen.getByRole('button', { name: /apply/i });
+    fireEvent.click(applyBtn);
+
+    // Should call fetchTableData with WHERE clause
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalledWith(
+        't-filter',
+        'users',
+        'main',
+        100,
+        0,
+        expect.stringContaining(`"name" = 'Alice'`)
+      );
+    });
+  });
+
+  it('applies client-side filter in query tab to filter displayed result rows', async () => {
+    vi.mocked(dbApi.executeQuery).mockResolvedValueOnce({
+      columns: [
+        { name: 'name', data_type: 'TEXT', nullable: false },
+        { name: 'id', data_type: 'INTEGER', nullable: false },
+      ],
+      rows: [
+        [{ Text: 'Alice' }, { Integer: 1 }],
+        [{ Text: 'Bob' }, { Integer: 2 }],
+      ],
+      execution_time_ms: 5,
+    } as QueryResult);
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'q-filter',
+          connectionId: 'conn-1',
+          type: 'query',
+          title: 'Query 1',
+          queryContent: 'SELECT * FROM users;',
+          autoCommit: true,
+        },
+      ],
+      activeTabId: 'q-filter',
+    });
+
+    render(<DockLayout />);
+
+    // Run query
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    fireEvent.click(runBtn);
+
+    // Filter toggle button should appear in DataGrid
+    const filterBtn = await screen.findByTestId('toggle-filter-btn');
+    fireEvent.click(filterBtn);
+
+    // Filter input
+    const valInputs = await screen.findAllByPlaceholderText(/enter filter value\.\.\./i);
+    fireEvent.change(valInputs[0], { target: { value: 'Alice' } });
+
+    // Click Apply
+    const applyBtn = screen.getByRole('button', { name: /apply/i });
+    fireEvent.click(applyBtn);
+
+    // In-memory filter active: DataGrid footer shows 1 rows
+    await waitFor(() => {
+      expect(screen.getByText(/1 rows/i)).toBeInTheDocument();
+    });
+  });
 });

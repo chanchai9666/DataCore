@@ -98,7 +98,8 @@ export const fetchTableData = async (
   table: string,
   schema?: string,
   limit: number = 100,
-  offset: number = 0
+  offset: number = 0,
+  filter?: string
 ): Promise<QueryResult> => {
   return invoke<QueryResult>('fetch_table_data', {
     tabId,
@@ -107,6 +108,7 @@ export const fetchTableData = async (
     table,
     limit,
     offset,
+    filter: filter ?? null,
   });
 };
 

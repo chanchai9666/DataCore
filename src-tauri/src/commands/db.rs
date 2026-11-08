@@ -87,9 +87,10 @@ pub async fn fetch_table_data_impl(
     table: &str,
     limit: u32,
     offset: u32,
+    filter: Option<&str>,
 ) -> Result<QueryResult, AppError> {
     let conn = session_mgr.get_session(tab_id).await?;
-    conn.fetch_table_data(schema, table, limit, offset).await
+    conn.fetch_table_data(schema, table, limit, offset, filter).await
 }
 
 pub async fn cancel_query_impl(
@@ -243,8 +244,9 @@ pub async fn fetch_table_data(
     table: String,
     limit: u32,
     offset: u32,
+    filter: Option<String>,
 ) -> Result<QueryResult, String> {
-    fetch_table_data_impl(&session_mgr, &tab_id, schema.as_deref(), &table, limit, offset)
+    fetch_table_data_impl(&session_mgr, &tab_id, schema.as_deref(), &table, limit, offset, filter.as_deref())
         .await
         .map_err(|e| e.to_string())
 }

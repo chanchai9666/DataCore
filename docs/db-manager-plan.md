@@ -20,7 +20,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - ซ้าย: ต้นไม้ connection → database → schema → table พร้อมระบบสีไอคอนสถานะการเชื่อมต่อ 4 ระดับ (ยังไม่ได้เชื่อมต่อ = สีเทา, กำลังเชื่อมต่อ = สีส้ม, เชื่อมต่อแล้ว = สีเขียว, เชื่อมต่อล้มเหลว = สีแดง) โดยลูกศร expander จะแสดงก็ต่อเมื่อเชื่อมต่อสำเร็จแล้วเท่านั้น เพื่อความเป็นระเบียบเรียบร้อยตามสไตล์ Navicat/DBeaver พร้อมการควบคุม Connect / Disconnect ผ่าน Context Menu หรือการคลิก/ดับเบิ้ลคลิก โดยเมื่อเลือก Disconnect จะทำการตัดการเชื่อมต่อจริงในระดับ Backend (Teardown & Rollback Sessions ทั้งหมดของ connection นั้น) พร้อมทั้งปิด Tabs ที่เชื่อมโยง และรีเซ็ตสถานะเป็นยังไม่ได้เชื่อมต่อ (สีเทา และซ่อนลูกศร)
 - บน: หลายแท็บ (Query, Table, Designer) แถบเครื่องมือ พร้อมปุ่ม Auto-Commit / Commit / Rollback
 - กลาง: SQL editor พร้อม syntax highlighting และ autocomplete
-- ล่าง: กริดผลลัพธ์ แก้ไขช่องได้ แสดง NULL ชัดเจน แบ่งหน้าทีละ 100 แถว พร้อมปุ่มเปิด Cell Detail Drawer สำหรับดู JSON/Text ยาว
+- ล่าง: กริดผลลัพธ์ Glide Data Grid แก้ไขช่องได้ แสดง NULL ชัดเจน แบ่งหน้าทีละ 100 แถว พร้อมปุ่มเปิด Cell Detail Drawer สำหรับดู JSON/Text ยาว, แถบฟิวเตอร์ค้นหาข้อมูลสไตล์ Navicat (Filter Bar Builder พร้อม SQL WHERE preview และปุ่ม Toggle), และระบบไฮไลท์ทั้งแถวเมื่อคลิกที่หมายเลขของแถว รองรับ Multi-row selection ด้วย Shift/Cmd
 
 ### 2.2 หน้าต่างสร้าง Connection
 
@@ -134,7 +134,8 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 **Table Viewer**
 - แสดงข้อมูลแบบกริด Glide Data Grid (Virtual Scrolling)
 - แบ่งหน้าทีละ 100 แถว เพื่อประสิทธิภาพและความเร็วของ Tauri IPC
-- เรียงลำดับและกรองข้อมูล
+- **Navicat-style Filter Bar:** แถบฟิวเตอร์ค้นหาข้อมูลแบบ Filter Builder สามารถระบุ `[Column] [Operator] [Value]` พร้อมปุ่ม `+ Add Condition` ตัวเชื่อม `AND` / `OR`, Checkbox เปิด/ปิดเงื่อนไข, ปุ่ม Clear, ปุ่ม Apply, กด Enter เพื่อ Apply ทันที และพรีวิว SQL WHERE clause (กรองระดับ Server-side สำหรับ Table Tab และ In-memory สำหรับ Query Tab พร้อมจดจำ State แยกตามแต่ละแท็บ)
+- **Row Header Selection & Highlight:** คลิกที่หมายเลขแถว (Row Marker 1, 2, 3...) แล้วไฮไลท์ทั้งแถว พร้อมรองรับ Multi-row selection ด้วย Shift/Cmd และเชื่อมต่อกับปุ่ม Delete Row เป็น `Delete (N) Rows`
 - แก้ไขช่อง (Inline Edit), เพิ่มแถว (Insert Row Modal), ลบแถว แล้ว commit/rollback
 - รองรับการดึง metadata ของคอลัมน์จาก `information_schema` แม้ตารางจะยังไม่มีข้อมูล (0 rows) เพื่อให้เปิดหน้าต่าง Insert Row กรอกข้อมูลได้ทันที
 - คำสั่ง INSERT จะละเว้นคอลัมน์ auto-increment / SERIAL / id ที่มีค่าว่างหรือ NULL เพื่อให้ฐานข้อมูลสร้าง Sequence ให้โดยอัตโนมัติ

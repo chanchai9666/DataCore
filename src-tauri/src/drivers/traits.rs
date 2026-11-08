@@ -56,7 +56,7 @@ impl SchemaNode {
 pub trait DatabaseConnection: Send + Sync {
     async fn test_connection(&self) -> Result<u64, AppError>; // คืนค่า Latency (ms)
     async fn execute_query(&self, sql: &str) -> Result<QueryResult, AppError>;
-    async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32) -> Result<QueryResult, AppError>;
+    async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>) -> Result<QueryResult, AppError>;
     async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError>;
     async fn commit(&self) -> Result<(), AppError>;
     async fn rollback(&self) -> Result<(), AppError>;

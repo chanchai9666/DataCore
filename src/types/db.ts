@@ -66,6 +66,32 @@ export interface Tab {
   schemaName?: string;
   tableName?: string;
   viewMode?: 'data' | 'structure';
+  filterState?: TableFilterState;
+}
+
+export type FilterOperator =
+  | '='
+  | '!='
+  | '>'
+  | '<'
+  | '>='
+  | '<='
+  | 'LIKE'
+  | 'NOT LIKE'
+  | 'IS NULL'
+  | 'IS NOT NULL';
+
+export interface FilterCondition {
+  id: string;
+  column: string;
+  operator: FilterOperator;
+  value: string;
+}
+
+export interface TableFilterState {
+  enabled: boolean;
+  conjunction: 'AND' | 'OR';
+  conditions: FilterCondition[];
 }
 
 export function formatCellValue(val: CellValue): string {
