@@ -23,6 +23,7 @@ import { sortInMemoryRows } from '../grid/sortUtils';
 import { InsertRowModal } from '../grid/InsertRowModal';
 import { TableStructureEditor } from '../structure/TableStructureEditor';
 import { TableListTab } from '../tablelist/TableListTab';
+import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
 import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
 import type { ConnectionConfig, QueryResult, Tab, TableFilterState, TableSortState } from '../../types/db';
@@ -80,6 +81,13 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     tableName: string;
     schemaName?: string;
     columns: QueryResult['columns'];
+  } | null>(null);
+
+  // Duplicate table modal state
+  const [duplicateModalTarget, setDuplicateModalTarget] = useState<{
+    connectionId: string;
+    sourceTableName: string;
+    schemaName?: string;
   } | null>(null);
 
   // Per-tab table view mode ('data' vs 'structure')
@@ -801,8 +809,11 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                   });
                 }}
                 onDuplicateTable={(tableName: string) => {
-                  // Will be integrated in Issue #24
-                  console.log('Duplicate table requested:', tableName);
+                  setDuplicateModalTarget({
+                    connectionId: activeTab.connectionId,
+                    sourceTableName: tableName,
+                    schemaName: activeTab.schemaName,
+                  });
                 }}
               />
             </div>
@@ -1104,6 +1115,25 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           columns={insertModalState.columns}
           onSubmit={handleSubmitInsertRow}
           theme={theme}
+        />
+      )}
+
+      {/* Duplicate Table Modal */}
+      {duplicateModalTarget && (
+        <DuplicateTableModal
+          isOpen={true}
+          connectionId={duplicateModalTarget.connectionId}
+          sourceTableName={duplicateModalTarget.sourceTableName}
+          schemaName={duplicateModalTarget.schemaName}
+          onClose={() => setDuplicateModalTarget(null)}
+          onSuccess={(newTableName) => {
+            // Automatically open the newly duplicated table data
+            openTableTab({
+              connectionId: duplicateModalTarget.connectionId,
+              tableName: newTableName,
+              schemaName: duplicateModalTarget.schemaName,
+            });
+          }}
         />
       )}
     </div>

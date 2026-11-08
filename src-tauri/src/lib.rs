@@ -47,6 +47,7 @@ pub fn run() {
             export_data,
             import_data,
             get_table_list_metadata,
+            duplicate_table,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

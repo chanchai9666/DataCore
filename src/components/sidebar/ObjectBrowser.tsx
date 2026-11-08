@@ -25,6 +25,7 @@ import { CreateTableModal } from '../structure/CreateTableModal';
 import { DropTableModal } from '../structure/DropTableModal';
 import { ImportModal } from '../transfer/ImportModal';
 import { ExportModal } from '../transfer/ExportModal';
+import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
 import {
   ConnectionTreeNode,
   ObjectBrowserContext,
@@ -335,6 +336,12 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     schemaName?: string;
   } | null>(null);
 
+  const [duplicateModalTarget, setDuplicateModalTarget] = useState<{
+    connectionId: string;
+    sourceTableName: string;
+    schemaName?: string;
+  } | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<TreeApi<BrowserTreeNode>>(null);
   const [dimensions, setDimensions] = useState({ width: 280, height: 600 });
@@ -568,6 +575,15 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     setExportModalTarget({
       connectionId: node.connectionId,
       tableName: node.tableName || node.name,
+      schemaName: node.schemaName,
+    });
+    setContextMenu(null);
+  }, []);
+
+  const handleDuplicateTable = useCallback((node: BrowserTreeNode) => {
+    setDuplicateModalTarget({
+      connectionId: node.connectionId,
+      sourceTableName: node.tableName || node.name,
       schemaName: node.schemaName,
     });
     setContextMenu(null);
@@ -890,6 +906,16 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                     <Download className="w-3.5 h-3.5 text-blue-400" />
                     <span>Export Table Data...</span>
                   </button>
+
+                  <button
+                    type="button"
+                    data-testid="duplicate-table-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    onClick={() => handleDuplicateTable(contextMenu.node)}
+                  >
+                    <Copy className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Duplicate Table...</span>
+                  </button>
                 </>
               )}
 
@@ -1042,6 +1068,19 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           tableName={exportModalTarget.tableName}
           connectionId={exportModalTarget.connectionId}
           onClose={() => setExportModalTarget(null)}
+        />
+      )}
+
+      {duplicateModalTarget && (
+        <DuplicateTableModal
+          isOpen={true}
+          connectionId={duplicateModalTarget.connectionId}
+          sourceTableName={duplicateModalTarget.sourceTableName}
+          schemaName={duplicateModalTarget.schemaName}
+          onClose={() => setDuplicateModalTarget(null)}
+          onSuccess={() => {
+            fetchSchema(duplicateModalTarget.connectionId);
+          }}
         />
       )}
     </div>

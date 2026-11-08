@@ -3,11 +3,13 @@ use crate::models::{
     DatabaseDriver, ExportOptions, ExportResult, ImportOptions, ImportPreview, ImportResult,
     TableMetadata,
 };
+use crate::models::transfer::DuplicateTableOptions;
 use crate::services::connection_store::ConnectionStore;
 use crate::services::data_transfer::{
     export_data_impl, import_data_impl, preview_import_file_impl,
 };
 use crate::services::table_list::get_table_list_metadata_impl;
+use crate::services::duplicate_table::duplicate_table_impl;
 use crate::session::SessionManager;
 
 #[tauri::command]
@@ -96,4 +98,23 @@ pub async fn import_data(
     )
     .await
     .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn duplicate_table(
+    store: State<'_, ConnectionStore>,
+    options: DuplicateTableOptions,
+) -> Result<(), String> {
+    let config = store
+        .get(&options.connection_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Connection '{}' not found", options.connection_id))?;
+    let password = store.get_password(&options.connection_id).map_err(|e| e.to_string())?;
+    let conn = SessionManager::create_connection(&config, password.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    duplicate_table_impl(conn.as_ref(), config.driver, &options)
+        .await
+        .map_err(|e| e.to_string())
 }
