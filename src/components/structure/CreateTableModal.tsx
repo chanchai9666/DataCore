@@ -12,6 +12,7 @@ import {
   type NewTableColumnConfig,
   type TableIndexConfig,
 } from './tableManagementHelpers';
+import { createTableSchema } from '../../schemas/tableSchema';
 
 export interface CreateTableModalProps {
   isOpen: boolean;
@@ -252,14 +253,17 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = tableName.trim();
-    if (!cleanName) {
-      setError('Table name is required.');
-      return;
-    }
-
     const validCols = columns.filter((c) => c.name.trim().length > 0);
-    if (validCols.length === 0) {
-      setError('Please define at least one column.');
+
+    const validationResult = createTableSchema.safeParse({
+      tableName: cleanName,
+      schema: targetSchema.trim() || undefined,
+      columns: validCols,
+    });
+
+    if (!validationResult.success) {
+      const firstIssue = validationResult.error.issues[0];
+      setError(firstIssue?.message || 'Invalid table configuration.');
       return;
     }
 

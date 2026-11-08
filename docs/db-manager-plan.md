@@ -98,6 +98,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 | Zustand | จัดการ client state (Connections, Tabs, Settings) |
 | TanStack Query | จัดการการโหลดข้อมูลและ server cache |
 | Tailwind CSS + Radix UI | หน้าตาและ UI primitives (Dialog, AlertDialog, ContextMenu) พร้อม A11y |
+| React Hook Form + Zod | จัดการสถานะ Form และ Data validation แบบ Type-safe |
 | sonner | ระบบ Toast Notifications แจ้งเตือนสถานะการทำงาน |
 | lucide-react | ไอคอน |
 | sql-formatter | จัดรูปแบบ SQL |

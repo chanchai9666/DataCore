@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X, CheckCircle2, AlertCircle, Loader2, Database, PlugZap } from 'lucide-react';
 import { toast } from 'sonner';
 import { DriverForm, type ConnectionFormData } from './DriverForm';
+import { validateConnectionForm } from '../../schemas/connectionSchema';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, DatabaseDriver } from '../../types/db';
@@ -169,34 +170,9 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
   }, []);
 
   const validateForm = (isTesting: boolean = false): boolean => {
-    const newErrors: Partial<Record<keyof ConnectionFormData, string>> = {};
-
-    if (!isTesting && !formData.name.trim()) {
-      newErrors.name = 'Connection name is required';
-    }
-
-    if (formData.driver === 'sqlite') {
-      if (!formData.database.trim()) {
-        newErrors.database = 'Database path is required';
-      }
-    } else {
-      if (!formData.host.trim()) {
-        newErrors.host = 'Host is required';
-      }
-      const portNum = Number(formData.port);
-      if (formData.port === '' || isNaN(portNum) || portNum <= 0 || !Number.isInteger(portNum)) {
-        newErrors.port = 'Port must be a valid positive integer';
-      }
-      if (!formData.database.trim()) {
-        newErrors.database = 'Database name is required';
-      }
-      if (!formData.user.trim()) {
-        newErrors.user = 'User is required';
-      }
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const { success, errors: validationErrors } = validateConnectionForm(formData, isTesting);
+    setErrors(validationErrors as Partial<Record<keyof ConnectionFormData, string>>);
+    return success;
   };
 
   const buildConnectionConfig = (): ConnectionConfig => {
