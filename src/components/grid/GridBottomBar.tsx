@@ -12,6 +12,8 @@ import {
   ChevronsRight,
   LayoutGrid,
   FileText,
+  Zap,
+  Edit3,
 } from 'lucide-react';
 
 export interface GridBottomBarProps {
@@ -19,6 +21,10 @@ export interface GridBottomBarProps {
   onAddRow?: () => void;
   onDeleteRow?: () => void;
   canDelete?: boolean;
+
+  // Auto-Commit vs Staging Mode
+  isAutoCommit?: boolean;
+  onToggleAutoCommit?: () => void;
 
   // Pending Changes
   hasPendingChanges?: boolean;
@@ -48,6 +54,8 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
   onAddRow,
   onDeleteRow,
   canDelete = false,
+  isAutoCommit = true,
+  onToggleAutoCommit,
   hasPendingChanges = false,
   pendingCount = 0,
   onCommit,
@@ -103,6 +111,38 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
 
         {/* Commit / Discard Stage */}
         <div className="h-3.5 w-px bg-line mx-1" />
+
+        {onToggleAutoCommit && (
+          <button
+            type="button"
+            onClick={onToggleAutoCommit}
+            aria-label="Toggle Auto-Commit Mode"
+            title={
+              isAutoCommit
+                ? 'Auto-commit is ON (Changes save directly). Click to switch to Staging Mode.'
+                : 'Staging Mode (Manual Commit). Click to switch to Auto-Commit.'
+            }
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
+              isAutoCommit
+                ? 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10'
+                : 'bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25'
+            }`}
+          >
+            {isAutoCommit ? (
+              <>
+                <Zap size={11} className="text-amber-500" />
+                <span className="hidden sm:inline">Auto-Commit: On</span>
+                <span className="sm:hidden">Auto</span>
+              </>
+            ) : (
+              <>
+                <Edit3 size={11} className="text-amber-500" />
+                <span className="hidden sm:inline">Staging Mode</span>
+                <span className="sm:hidden">Stage</span>
+              </>
+            )}
+          </button>
+        )}
 
         <button
           type="button"

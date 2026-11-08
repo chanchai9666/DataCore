@@ -61,4 +61,22 @@ describe('GridBottomBar Component', () => {
     fireEvent.click(screen.getByRole('button', { name: /delete selected row/i }));
     expect(onDeleteRow).toHaveBeenCalledTimes(1);
   });
+
+  it('renders auto-commit toggle and fires callback when clicked', () => {
+    const onToggle = vi.fn();
+    const { rerender } = render(
+      <GridBottomBar isAutoCommit={true} onToggleAutoCommit={onToggle} />
+    );
+
+    const toggleBtn = screen.getByRole('button', { name: /toggle auto-commit mode/i });
+    expect(toggleBtn).toBeInTheDocument();
+    expect(toggleBtn).toHaveTextContent(/auto-commit/i);
+
+    fireEvent.click(toggleBtn);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+
+    // Re-render in staging mode
+    rerender(<GridBottomBar isAutoCommit={false} onToggleAutoCommit={onToggle} />);
+    expect(toggleBtn).toHaveTextContent(/staging mode/i);
+  });
 });
