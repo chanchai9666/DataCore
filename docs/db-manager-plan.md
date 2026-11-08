@@ -213,10 +213,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **จุดเข้าใช้งาน (UI Entry Points):**
     - **Object Browser:** คลิกขวาที่ตาราง -> เลือก *"Import Data into Table..."* หรือ *"Export Table Data..."*
     - **Data Grid Toolbar:** ปุ่ม *"Export"* บนแถบเครื่องมือ โดยเลือกได้ระหว่าง *"Current View (Filtered/Sorted)"* หรือ *"All Table Rows"*
+    - **Main Toolbar (Desktop Chrome):** ปุ่ม *"Import"* และ *"Export"* แสดง Dropdown Menu สไตล์เดสก์ท็อปให้เลือกการถ่ายโอนข้อมูล (CSV/JSON) หรือคำสั่งสคริปต์ SQL Dump (.sql) และปุ่ม *"Backup"* ทำการเปิด Database SQL Dump ทันที
   - **Auto-refresh & Feedback:** เมื่อ Import สำเร็จจะทำการรีเฟรชข้อมูลในแท็บของตารางที่เปิดอยู่โดยอัตโนมัติ พร้อมแสดงข้อความสรุปผ่าน Toast notification (`sonner`)
 - **การจัดการตารางและการถ่ายโอนข้อมูลขั้นสูง (ดู [Technical Design Doc](designs/table_management_and_data_transfer.md))**:
   - **Table List View (เสร็จสมบูรณ์)**: หน้าจอภาพรวมตารางระดับ Database/Schema ในรูปแบบ Detailed Metadata Grid (Glide Data Grid แสดง Estimated Rows ปราศจาก Table Lock, Data Size, Index Size, Storage Engine, Collation พร้อม Search Filter ค้นหาชื่อตาราง)
-  - **Table List Context Menu**: เมนูคลิกขวาบนแถวตารางใน Table List View (Open Data, Design Structure, Duplicate Table, Copy Table to DB, Export SQL Dump, Export Data, Drop Table)
+  - **Table List Context Menu**: เมนูคลิกขวาบนแถวตารางใน Table List View (Open Data, Design Structure, Duplicate Table, Copy Table to DB, Export as SQL Dump, Export Table Data, Import as SQL Dump, Import Table Data, Copy Table Name, Drop Table)
   - **Duplicate Table (Native SQL Quick Clone - เสร็จสมบูรณ์)**: เมนูลัดคลิกขวาที่ตารางเพื่อโคลนโครงสร้างและข้อมูลลงใน schema เดียวกันอย่างรวดเร็วระดับมิลลิวินาที ผ่านคำสั่ง Native SQL ของฐานข้อมูลเดิมโดยตรง (`CREATE TABLE ... LIKE / AS SELECT`) ไม่กินหน่วยความจำฝั่ง Client
   - **Cross-Database Table Copy (Navicat Data Transfer)**: คัดลอกตารางจากฐานข้อมูล A ไป B ข้ามการเชื่อมต่อและข้ามเอนจิน (SQLite, MySQL, PostgreSQL) พร้อมระบบ Auto Type Mapping และสตรีมข้อมูลผ่าน Batch INSERT ใน Rust
   - **SQL Import / Export (Navicat Standard - เสร็จสมบูรณ์)**:

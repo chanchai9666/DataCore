@@ -182,6 +182,8 @@ describe('TableListTab component', () => {
     const onOpenStructure = vi.fn();
     const onDuplicateTable = vi.fn();
     const onCopyTableToDb = vi.fn();
+    const onImportSql = vi.fn();
+    const onImportData = vi.fn();
 
     render(
       <TableListTab
@@ -191,6 +193,8 @@ describe('TableListTab component', () => {
         onOpenStructure={onOpenStructure}
         onDuplicateTable={onDuplicateTable}
         onCopyTableToDb={onCopyTableToDb}
+        onImportSql={onImportSql}
+        onImportData={onImportData}
       />
     );
 
@@ -214,6 +218,8 @@ describe('TableListTab component', () => {
     expect(screen.getByTestId('ctx-copy-to-db')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-export-sql')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-export-data')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-import-sql')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-import-data')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-copy-name')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-drop-table')).toBeInTheDocument();
 
@@ -236,6 +242,16 @@ describe('TableListTab component', () => {
     fireEvent.contextMenu(usersRow!, { clientX: 200, clientY: 300 });
     fireEvent.click(screen.getByTestId('ctx-copy-to-db'));
     expect(onCopyTableToDb).toHaveBeenCalledWith('users');
+
+    // Reopen menu and test Import as SQL Dump
+    fireEvent.contextMenu(usersRow!, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-import-sql'));
+    expect(onImportSql).toHaveBeenCalledWith('users');
+
+    // Reopen menu and test Import Table Data
+    fireEvent.contextMenu(usersRow!, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-import-data'));
+    expect(onImportData).toHaveBeenCalledWith('users');
   });
 
   it('closes context menu when Escape is pressed', async () => {

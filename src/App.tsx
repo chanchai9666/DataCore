@@ -1,19 +1,38 @@
 import { useState, useEffect } from 'react';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { MainToolbar } from './components/chrome/MainToolbar';
 import { StatusBar } from './components/chrome/StatusBar';
 import { DockLayout } from './components/layout/DockLayout';
 import { ConnectionDialog } from './components/dialogs/ConnectionDialog';
+import { ExportSqlModal } from './components/transfer/ExportSqlModal';
+import { ImportSqlModal } from './components/transfer/ImportSqlModal';
+import { ExportModal } from './components/transfer/ExportModal';
+import { ImportModal } from './components/transfer/ImportModal';
 import { useConnectionStore } from './stores/connectionStore';
-import { openQueryTab } from './components/sidebar/tabHelpers';
+import { useTabStore } from './stores/tabStore';
+import { openQueryTab, openTableListTab } from './components/sidebar/tabHelpers';
 import { useShortcuts } from './hooks/useShortcuts';
+import { dbApi } from './api/db';
 import type { ConnectionConfig } from './types/db';
 
 export function App() {
   const { loadConnections, setActiveConnection, activeConnectionId } = useConnectionStore();
+  const { tabs, activeTabId } = useTabStore();
   const [isConnectionDialogOpen, setIsConnectionDialogOpen] = useState(false);
   const [connectionToEdit, setConnectionToEdit] = useState<ConnectionConfig | null>(null);
   const [lastSavedConnectionId, setLastSavedConnectionId] = useState<string | null>(null);
+
+  // Global Transfer Modals
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [isImportSqlModalOpen, setIsImportSqlModalOpen] = useState(false);
+  const [isExportSqlModalOpen, setIsExportSqlModalOpen] = useState(false);
+  const [isExportDataModalOpen, setIsExportDataModalOpen] = useState(false);
+  const [globalImportDataTarget, setGlobalImportDataTarget] = useState<{
+    tableName: string;
+    columns: { name: string; dataType: string }[];
+  } | null>(null);
+
+  const activeTab = tabs.find((t) => t.id === activeTabId);
 
   // System theme detection: defaults to system preference
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -81,6 +100,68 @@ export function App() {
     }
   };
 
+  const handleOpenTable = () => {
+    if (activeConnectionId) {
+      openTableListTab({ connectionId: activeConnectionId });
+    }
+  };
+
+  const handleBackup = () => {
+    if (activeConnectionId) {
+      setIsBackupModalOpen(true);
+    }
+  };
+
+  const handleImportSql = () => {
+    if (activeConnectionId) {
+      setIsImportSqlModalOpen(true);
+    }
+  };
+
+  const handleImportData = async () => {
+    if (!activeConnectionId) return;
+    if (activeTab?.type === 'table' && activeTab.tableName) {
+      try {
+        const res = await dbApi.executeDirectQuery(
+          activeConnectionId,
+          `SELECT * FROM ${activeTab.tableName} LIMIT 0`
+        );
+        const cols = (res.columns || []).map((c) => ({
+          name: c.name,
+          dataType: c.data_type,
+        }));
+        setGlobalImportDataTarget({
+          tableName: activeTab.tableName,
+          columns: cols,
+        });
+      } catch {
+        setGlobalImportDataTarget({
+          tableName: activeTab.tableName,
+          columns: [],
+        });
+      }
+    } else {
+      openTableListTab({ connectionId: activeConnectionId });
+      toast.info('Please open or right-click a table to import data into it.');
+    }
+  };
+
+  const handleExportSql = () => {
+    if (activeConnectionId) {
+      setIsExportSqlModalOpen(true);
+    }
+  };
+
+  const handleExportData = () => {
+    if (!activeConnectionId) return;
+    if (activeTab?.type === 'table' && activeTab.tableName) {
+      setIsExportDataModalOpen(true);
+    } else {
+      toast.info('Please open a table tab to export its data, or export as SQL dump.');
+      setIsExportSqlModalOpen(true);
+    }
+  };
+
   // Keyboard shortcuts integration: ⌘N (New Connection), ⌘T (New Query), ⌘W (Close Tab)
   useShortcuts({
     onNewConnection: handleOpenNewConnection,
@@ -100,6 +181,12 @@ export function App() {
         onNewConnection={handleOpenNewConnection}
         onConnect={handleOpenNewConnection}
         onNewQuery={handleNewQuery}
+        onOpenTable={handleOpenTable}
+        onBackup={handleBackup}
+        onImportSql={handleImportSql}
+        onImportData={handleImportData}
+        onExportSql={handleExportSql}
+        onExportData={handleExportData}
         onEditConnection={(conn) => {
           setConnectionToEdit(conn);
           setIsConnectionDialogOpen(true);
@@ -129,6 +216,59 @@ export function App() {
         onClose={handleCloseDialog}
         onSaved={handleSavedConnection}
       />
+
+      {/* Global Backup Modal (SQL Dump) */}
+      {isBackupModalOpen && activeConnectionId && (
+        <ExportSqlModal
+          isOpen={true}
+          connectionId={activeConnectionId}
+          schemaName={activeTab?.schemaName}
+          tableName={activeTab?.type === 'table' ? activeTab.tableName : undefined}
+          onClose={() => setIsBackupModalOpen(false)}
+        />
+      )}
+
+      {/* Global Import SQL Modal */}
+      {isImportSqlModalOpen && activeConnectionId && (
+        <ImportSqlModal
+          isOpen={true}
+          connectionId={activeConnectionId}
+          schemaName={activeTab?.schemaName}
+          onClose={() => setIsImportSqlModalOpen(false)}
+        />
+      )}
+
+      {/* Global Export SQL Modal */}
+      {isExportSqlModalOpen && activeConnectionId && (
+        <ExportSqlModal
+          isOpen={true}
+          connectionId={activeConnectionId}
+          schemaName={activeTab?.schemaName}
+          tableName={activeTab?.type === 'table' ? activeTab.tableName : undefined}
+          onClose={() => setIsExportSqlModalOpen(false)}
+        />
+      )}
+
+      {/* Global Export Table Data Modal */}
+      {isExportDataModalOpen && activeConnectionId && activeTab?.tableName && (
+        <ExportModal
+          isOpen={true}
+          connectionId={activeConnectionId}
+          tableName={activeTab.tableName}
+          onClose={() => setIsExportDataModalOpen(false)}
+        />
+      )}
+
+      {/* Global Import Table Data Modal */}
+      {globalImportDataTarget && activeConnectionId && (
+        <ImportModal
+          isOpen={true}
+          connectionId={activeConnectionId}
+          tableName={globalImportDataTarget.tableName}
+          tableColumns={globalImportDataTarget.columns}
+          onClose={() => setGlobalImportDataTarget(null)}
+        />
+      )}
 
       {/* Global Toast Notifications */}
       <Toaster richColors theme={theme} position="bottom-right" />

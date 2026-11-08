@@ -65,4 +65,68 @@ describe('MainToolbar Component', () => {
     fireEvent.click(toggleBtn);
     expect(onToggleTheme).toHaveBeenCalledTimes(1);
   });
+
+  it('triggers onOpenTable when Table button is clicked', () => {
+    useConnectionStore.setState({ activeConnectionId: 'c1' });
+    const onOpenTable = vi.fn();
+    render(<MainToolbar onOpenTable={onOpenTable} />);
+    const tableBtn = screen.getByTestId('toolbar-table-btn');
+    fireEvent.click(tableBtn);
+    expect(onOpenTable).toHaveBeenCalledTimes(1);
+  });
+
+  it('triggers onBackup when Backup button is clicked', () => {
+    useConnectionStore.setState({ activeConnectionId: 'c1' });
+    const onBackup = vi.fn();
+    render(<MainToolbar onBackup={onBackup} />);
+    const backupBtn = screen.getByTestId('toolbar-backup-btn');
+    fireEvent.click(backupBtn);
+    expect(onBackup).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens Import dropdown and triggers onImportData and onImportSql', () => {
+    useConnectionStore.setState({ activeConnectionId: 'c1' });
+    const onImportData = vi.fn();
+    const onImportSql = vi.fn();
+    render(<MainToolbar onImportData={onImportData} onImportSql={onImportSql} />);
+
+    const importBtn = screen.getByTestId('toolbar-import-btn');
+    fireEvent.click(importBtn);
+
+    expect(screen.getByTestId('toolbar-import-dropdown')).toBeInTheDocument();
+    const importDataBtn = screen.getByTestId('toolbar-import-data-btn');
+
+    fireEvent.click(importDataBtn);
+    expect(onImportData).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('toolbar-import-dropdown')).not.toBeInTheDocument();
+
+    // Reopen and click import SQL
+    fireEvent.click(importBtn);
+    const importSqlBtn = screen.getByTestId('toolbar-import-sql-btn');
+    fireEvent.click(importSqlBtn);
+    expect(onImportSql).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens Export dropdown and triggers onExportData and onExportSql', () => {
+    useConnectionStore.setState({ activeConnectionId: 'c1' });
+    const onExportData = vi.fn();
+    const onExportSql = vi.fn();
+    render(<MainToolbar onExportData={onExportData} onExportSql={onExportSql} />);
+
+    const exportBtn = screen.getByTestId('toolbar-export-btn');
+    fireEvent.click(exportBtn);
+
+    expect(screen.getByTestId('toolbar-export-dropdown')).toBeInTheDocument();
+    const exportDataBtn = screen.getByTestId('toolbar-export-data-btn');
+
+    fireEvent.click(exportDataBtn);
+    expect(onExportData).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('toolbar-export-dropdown')).not.toBeInTheDocument();
+
+    // Reopen and click export SQL
+    fireEvent.click(exportBtn);
+    const exportSqlBtn = screen.getByTestId('toolbar-export-sql-btn');
+    fireEvent.click(exportSqlBtn);
+    expect(onExportSql).toHaveBeenCalledTimes(1);
+  });
 });

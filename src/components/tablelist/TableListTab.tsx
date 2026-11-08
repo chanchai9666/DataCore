@@ -9,6 +9,8 @@ import {
   Database,
   ArrowUpDown,
   Download,
+  Upload,
+  FileCode,
   Trash2,
   Share2,
   FileSpreadsheet,
@@ -21,6 +23,8 @@ import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
 import { CrossDbCopyModal } from '../transfer/CrossDbCopyModal';
 import { ExportSqlModal } from '../transfer/ExportSqlModal';
 import { ExportModal } from '../transfer/ExportModal';
+import { ImportModal } from '../transfer/ImportModal';
+import { ImportSqlModal } from '../transfer/ImportSqlModal';
 import { DropTableModal } from '../structure/DropTableModal';
 
 export function formatBytes(bytes: number): string {
@@ -52,6 +56,8 @@ export interface TableListTabProps {
   onCopyTableToDb?: (tableName: string) => void;
   onExportSql?: (tableName: string) => void;
   onExportData?: (tableName: string) => void;
+  onImportSql?: (tableName: string) => void;
+  onImportData?: (tableName: string) => void;
   onDropTable?: (tableName: string) => void;
 }
 
@@ -69,6 +75,8 @@ export const TableListTab: React.FC<TableListTabProps> = ({
   onCopyTableToDb,
   onExportSql,
   onExportData,
+  onImportSql,
+  onImportData,
   onDropTable,
 }) => {
   const [tables, setTables] = useState<TableMetadata[]>([]);
@@ -90,6 +98,11 @@ export const TableListTab: React.FC<TableListTabProps> = ({
   const [activeCopyTableToDb, setActiveCopyTableToDb] = useState<string | null>(null);
   const [activeExportSqlTable, setActiveExportSqlTable] = useState<string | null>(null);
   const [activeExportDataTable, setActiveExportDataTable] = useState<string | null>(null);
+  const [activeImportSqlTable, setActiveImportSqlTable] = useState<string | null>(null);
+  const [activeImportDataTarget, setActiveImportDataTarget] = useState<{
+    tableName: string;
+    columns: { name: string; dataType: string }[];
+  } | null>(null);
   const [activeDropTable, setActiveDropTable] = useState<string | null>(null);
 
   useEffect(() => {
@@ -165,6 +178,42 @@ export const TableListTab: React.FC<TableListTabProps> = ({
       setActiveExportDataTable(tableName);
     }
     setContextMenu(null);
+  };
+
+  const handleTriggerImportSql = (tableName: string) => {
+    if (onImportSql) {
+      onImportSql(tableName);
+    } else {
+      setActiveImportSqlTable(tableName);
+    }
+    setContextMenu(null);
+  };
+
+  const handleTriggerImportData = async (tableName: string) => {
+    setContextMenu(null);
+    if (onImportData) {
+      onImportData(tableName);
+      return;
+    }
+    try {
+      const res = await dbApi.executeDirectQuery(
+        connectionId,
+        `SELECT * FROM ${tableName} LIMIT 0`
+      );
+      const cols = (res.columns || []).map((c) => ({
+        name: c.name,
+        dataType: c.data_type,
+      }));
+      setActiveImportDataTarget({
+        tableName,
+        columns: cols,
+      });
+    } catch {
+      setActiveImportDataTarget({
+        tableName,
+        columns: [],
+      });
+    }
   };
 
   const handleTriggerDropTable = (tableName: string) => {
@@ -504,6 +553,26 @@ export const TableListTab: React.FC<TableListTabProps> = ({
 
           <button
             type="button"
+            data-testid="ctx-import-sql"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            onClick={() => handleTriggerImportSql(contextMenu.table.name)}
+          >
+            <FileCode className="w-3.5 h-3.5 text-blue-400" />
+            <span>Import as SQL Dump...</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-import-data"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            onClick={() => handleTriggerImportData(contextMenu.table.name)}
+          >
+            <Upload className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Import Table Data...</span>
+          </button>
+
+          <button
+            type="button"
             data-testid="ctx-copy-name"
             className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
             onClick={() => handleCopyName(contextMenu.table.name)}
@@ -569,6 +638,31 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           tableName={activeExportDataTable}
           connectionId={connectionId}
           onClose={() => setActiveExportDataTable(null)}
+        />
+      )}
+
+      {activeImportSqlTable && (
+        <ImportSqlModal
+          isOpen={true}
+          connectionId={connectionId}
+          schemaName={schemaName}
+          onClose={() => setActiveImportSqlTable(null)}
+          onSuccess={() => {
+            fetchTables();
+          }}
+        />
+      )}
+
+      {activeImportDataTarget && (
+        <ImportModal
+          isOpen={true}
+          connectionId={connectionId}
+          tableName={activeImportDataTarget.tableName}
+          tableColumns={activeImportDataTarget.columns}
+          onClose={() => setActiveImportDataTarget(null)}
+          onImportSuccess={() => {
+            fetchTables();
+          }}
         />
       )}
 
