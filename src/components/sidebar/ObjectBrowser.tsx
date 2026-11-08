@@ -26,6 +26,8 @@ import { DropTableModal } from '../structure/DropTableModal';
 import { ImportModal } from '../transfer/ImportModal';
 import { ExportModal } from '../transfer/ExportModal';
 import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
+import { ExportSqlModal } from '../transfer/ExportSqlModal';
+import { ImportSqlModal } from '../transfer/ImportSqlModal';
 import {
   ConnectionTreeNode,
   ObjectBrowserContext,
@@ -342,6 +344,17 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     schemaName?: string;
   } | null>(null);
 
+  const [exportSqlModalTarget, setExportSqlModalTarget] = useState<{
+    connectionId: string;
+    tableName?: string;
+    schemaName?: string;
+  } | null>(null);
+
+  const [importSqlModalTarget, setImportSqlModalTarget] = useState<{
+    connectionId: string;
+    schemaName?: string;
+  } | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<TreeApi<BrowserTreeNode>>(null);
   const [dimensions, setDimensions] = useState({ width: 280, height: 600 });
@@ -584,6 +597,24 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     setDuplicateModalTarget({
       connectionId: node.connectionId,
       sourceTableName: node.tableName || node.name,
+      schemaName: node.schemaName,
+    });
+    setContextMenu(null);
+  }, []);
+
+  const handleExportSql = useCallback((node: BrowserTreeNode) => {
+    const isTable = node.nodeType === 'table' || node.nodeType === 'view';
+    setExportSqlModalTarget({
+      connectionId: node.connectionId,
+      tableName: isTable ? node.tableName || node.name : undefined,
+      schemaName: node.schemaName,
+    });
+    setContextMenu(null);
+  }, []);
+
+  const handleImportSql = useCallback((node: BrowserTreeNode) => {
+    setImportSqlModalTarget({
+      connectionId: node.connectionId,
       schemaName: node.schemaName,
     });
     setContextMenu(null);
@@ -842,6 +873,36 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
               <button
                 type="button"
+                data-testid="schema-run-sql-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleImportSql(contextMenu.node)}
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Run SQL Script...</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="schema-export-sql-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleExportSql(contextMenu.node)}
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Export as SQL Dump...</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="connection-run-sql-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleImportSql(contextMenu.node)}
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Run SQL Script...</span>
+              </button>
+
+              <button
+                type="button"
                 className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
                 onClick={() => handleRefresh(contextMenu.node.connectionId)}
               >
@@ -915,6 +976,16 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                   >
                     <Copy className="w-3.5 h-3.5 text-purple-400" />
                     <span>Duplicate Table...</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="export-sql-table-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    onClick={() => handleExportSql(contextMenu.node)}
+                  >
+                    <Download className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Export as SQL Dump...</span>
                   </button>
                 </>
               )}
@@ -991,6 +1062,36 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               >
                 <FileCode className="w-3.5 h-3.5 text-blue-400" />
                 <span>New Query</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="schema-run-sql-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleImportSql(contextMenu.node)}
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Run SQL Script...</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="schema-export-sql-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleExportSql(contextMenu.node)}
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Export as SQL Dump...</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="connection-run-sql-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => handleImportSql(contextMenu.node)}
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Run SQL Script...</span>
               </button>
 
               <button
@@ -1080,6 +1181,28 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           onClose={() => setDuplicateModalTarget(null)}
           onSuccess={() => {
             fetchSchema(duplicateModalTarget.connectionId);
+          }}
+        />
+      )}
+
+      {exportSqlModalTarget && (
+        <ExportSqlModal
+          isOpen={true}
+          connectionId={exportSqlModalTarget.connectionId}
+          tableName={exportSqlModalTarget.tableName}
+          schemaName={exportSqlModalTarget.schemaName}
+          onClose={() => setExportSqlModalTarget(null)}
+        />
+      )}
+
+      {importSqlModalTarget && (
+        <ImportSqlModal
+          isOpen={true}
+          connectionId={importSqlModalTarget.connectionId}
+          schemaName={importSqlModalTarget.schemaName}
+          onClose={() => setImportSqlModalTarget(null)}
+          onSuccess={() => {
+            fetchSchema(importSqlModalTarget.connectionId);
           }}
         />
       )}

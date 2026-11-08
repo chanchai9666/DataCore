@@ -89,3 +89,15 @@ export interface SqlImportOptions {
   filePath: string;
   errorPolicy: 'abort' | 'continue';
 }
+
+export interface SqlExportResult {
+  totalTables: number;
+  totalRows: number;
+  fileSizeBytes: number;
+}
+
+export interface SqlImportResult {
+  totalStatements: number;
+  successfulStatements: number;
+  failedStatements: number;
+}

@@ -1,6 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ConnectionConfig, QueryResult, SchemaNode } from '../types/db';
-import type { TableMetadata, DuplicateTableOptions } from '../types/dataTransfer';
+import type {
+  TableMetadata,
+  DuplicateTableOptions,
+  SqlExportOptions,
+  SqlExportResult,
+  SqlImportOptions,
+  SqlImportResult,
+} from '../types/dataTransfer';
 import { splitSqlStatements } from './sqlSplitter';
 
 export const testConnection = async (
@@ -197,6 +204,22 @@ export const duplicateTable = async (
   });
 };
 
+export const exportSql = async (
+  options: SqlExportOptions
+): Promise<SqlExportResult> => {
+  return invoke<SqlExportResult>('export_sql', {
+    options,
+  });
+};
+
+export const importSql = async (
+  options: SqlImportOptions
+): Promise<SqlImportResult> => {
+  return invoke<SqlImportResult>('import_sql', {
+    options,
+  });
+};
+
 export const dbApi = {
   testConnection,
   getConnections,
@@ -217,4 +240,6 @@ export const dbApi = {
   getSchemaTree,
   getTableListMetadata,
   duplicateTable,
+  exportSql,
+  importSql,
 };

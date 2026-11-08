@@ -154,3 +154,25 @@ pub struct SqlImportOptions {
     #[serde(alias = "error_policy")]
     pub error_policy: String, // "abort" | "continue"
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SqlExportResult {
+    #[serde(alias = "total_tables")]
+    pub total_tables: usize,
+    #[serde(alias = "total_rows")]
+    pub total_rows: usize,
+    #[serde(alias = "file_size_bytes")]
+    pub file_size_bytes: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SqlImportResult {
+    #[serde(alias = "total_statements")]
+    pub total_statements: usize,
+    #[serde(alias = "successful_statements")]
+    pub successful_statements: usize,
+    #[serde(alias = "failed_statements")]
+    pub failed_statements: usize,
+}

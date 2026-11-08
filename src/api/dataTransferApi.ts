@@ -103,6 +103,45 @@ export const pickExportFile = async (
   return selected || null;
 };
 
+export const pickSqlImportFile = async (): Promise<string | null> => {
+  const selected = await open({
+    multiple: false,
+    directory: false,
+    filters: [
+      {
+        name: 'SQL Script Files (*.sql)',
+        extensions: ['sql', 'txt'],
+      },
+      {
+        name: 'All Files (*.*)',
+        extensions: ['*'],
+      },
+    ],
+  });
+  if (!selected) return null;
+  return Array.isArray(selected) ? selected[0] : selected;
+};
+
+export const pickSqlExportFile = async (
+  defaultName: string
+): Promise<string | null> => {
+  const finalDefaultName = defaultName.endsWith('.sql') ? defaultName : `${defaultName}.sql`;
+  const selected = await save({
+    defaultPath: finalDefaultName,
+    filters: [
+      {
+        name: 'SQL Dump File (*.sql)',
+        extensions: ['sql'],
+      },
+      {
+        name: 'All Files (*.*)',
+        extensions: ['*'],
+      },
+    ],
+  });
+  return selected || null;
+};
+
 export const onTransferProgress = async (
   callback: (progress: TransferProgress) => void
 ): Promise<UnlistenFn> => {
