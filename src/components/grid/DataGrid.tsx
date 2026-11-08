@@ -10,12 +10,13 @@ import DataEditor, {
   type EditableGridCell,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
-import { Eye, Loader2, Database, Plus, Trash2, CheckCircle2, AlertCircle, Filter } from 'lucide-react';
+import { Eye, Loader2, Database, Plus, Trash2, CheckCircle2, AlertCircle, Filter, Download } from 'lucide-react';
 import { QueryResult, CellValue, TableFilterState, TableSortState } from '../../types/db';
 import { PaginationBar } from './PaginationBar';
 import { CellDetailDrawer } from './CellDetailDrawer';
 import { FilterBar } from './FilterBar';
 import { createGridColumns, createCellContent } from './gridUtils';
+import { ExportModal } from '../transfer/ExportModal';
 
 export interface DataGridProps {
   data: QueryResult | null;
@@ -44,6 +45,10 @@ export interface DataGridProps {
   onSortChange?: (sortState: TableSortState | undefined) => void;
   columnWidths?: Record<string, number>;
   onColumnResize?: (columnId: string, newWidth: number) => void;
+  connectionId?: string;
+  tableName?: string;
+  initialQuery?: string;
+  onExport?: () => void;
 }
 
 const darkGridTheme: Partial<Theme> = {
@@ -113,9 +118,14 @@ export const DataGrid: React.FC<DataGridProps> = ({
   onSortChange,
   columnWidths,
   onColumnResize,
+  connectionId,
+  tableName,
+  initialQuery,
+  onExport,
 }) => {
   const [selectedCell, setSelectedCell] = useState<Item | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [internalFilterOpen, setInternalFilterOpen] = useState(false);
   const [internalSortState, setInternalSortState] = useState<TableSortState | undefined>(undefined);
   const [internalColumnWidths, setInternalColumnWidths] = useState<Record<string, number>>({});
@@ -490,6 +500,39 @@ export const DataGrid: React.FC<DataGridProps> = ({
             <Eye size={13} />
             Inspect Cell
           </button>
+
+          {(onExport || (connectionId && tableName)) && (
+            <button
+              type="button"
+              aria-label="Export Data"
+              title="Export table data to CSV or JSON"
+              data-testid="grid-export-btn"
+              onClick={() => {
+                if (onExport) {
+                  onExport();
+                } else {
+                  setIsExportModalOpen(true);
+                }
+              }}
+              disabled={isLoading}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '3px 10px',
+                fontSize: '12px',
+                backgroundColor: 'var(--btn-bg, #2b2b2b)',
+                color: 'var(--text-primary, #ffffff)',
+                border: '1px solid var(--border-color, #444444)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+            >
+              <Download size={13} />
+              Export
+            </button>
+          )}
         </div>
       </div>
 
@@ -584,6 +627,18 @@ export const DataGrid: React.FC<DataGridProps> = ({
         cellInfo={activeCellInfo}
         onSaveValue={handleSaveDrawerValue}
       />
+
+      {/* Export Modal */}
+      {connectionId && tableName && (
+        <ExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          connectionId={connectionId}
+          tableName={tableName}
+          initialQuery={initialQuery}
+          totalRows={computedTotalRows}
+        />
+      )}
     </div>
   );
 };

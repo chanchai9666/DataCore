@@ -1,0 +1,274 @@
+use std::io::Write;
+use tempfile::NamedTempFile;
+use crate::drivers::{DatabaseConnection, SqliteConnection};
+use crate::models::{
+    CellValue, ColumnMapping, ColumnMeta, ExportOptions, ImportErrorPolicy, ImportOptions,
+    JsonStructure, QueryResult, TransferFormat, TransferProgress,
+};
+use crate::services::data_transfer::{
+    detect_csv_delimiter, export_query_result_to_writer, generate_batch_insert_sql,
+    import_data_impl, parse_csv_preview, parse_json_preview,
+};
+
+#[test]
+fn test_detect_csv_delimiter() {
+    let comma_sample = "id,name,age\n1,Alice,30\n2,Bob,25";
+    assert_eq!(detect_csv_delimiter(comma_sample), ',');
+
+    let semicolon_sample = "id;name;age\n1;Alice;30\n2;Bob;25";
+    assert_eq!(detect_csv_delimiter(semicolon_sample), ';');
+
+    let tab_sample = "id\tname\tage\n1\tAlice\t30\n2\tBob\t25";
+    assert_eq!(detect_csv_delimiter(tab_sample), '\t');
+}
+
+#[test]
+fn test_parse_csv_preview() {
+    let csv_content = "id,name,email\n1,John Doe,john@example.com\n2,Jane,jane@example.com";
+    let preview = parse_csv_preview(csv_content.as_bytes(), Some(',')).expect("preview csv");
+
+    assert_eq!(preview.detected_delimiter, ',');
+    assert_eq!(preview.headers, vec!["id", "name", "email"]);
+    assert_eq!(preview.preview_rows.len(), 2);
+    assert_eq!(preview.preview_rows[0], vec!["1", "John Doe", "john@example.com"]);
+}
+
+#[test]
+fn test_parse_json_array_preview() {
+    let json_content = r#"[
+        {"id": 1, "name": "Alice", "active": true},
+        {"id": 2, "name": "Bob", "active": false}
+    ]"#;
+    let preview = parse_json_preview(json_content.as_bytes()).expect("preview json array");
+
+    assert_eq!(preview.headers, vec!["active", "id", "name"]);
+    assert_eq!(preview.preview_rows.len(), 2);
+    assert_eq!(preview.preview_rows[0][1], "1");
+    assert_eq!(preview.preview_rows[0][2], "Alice");
+}
+
+#[test]
+fn test_parse_ndjson_preview() {
+    let ndjson_content = "{\"id\": 10, \"name\": \"Charlie\"}\n{\"id\": 20, \"name\": \"Dave\"}\n";
+    let preview = parse_json_preview(ndjson_content.as_bytes()).expect("preview ndjson");
+
+    assert_eq!(preview.headers, vec!["id", "name"]);
+    assert_eq!(preview.preview_rows.len(), 2);
+    assert_eq!(preview.preview_rows[1][0], "20");
+    assert_eq!(preview.preview_rows[1][1], "Dave");
+}
+
+#[test]
+fn test_export_query_result_to_csv() {
+    let query_result = QueryResult {
+        columns: vec![
+            ColumnMeta::new("id", "INTEGER", false),
+            ColumnMeta::new("name", "TEXT", true),
+        ],
+        rows: vec![
+            vec![CellValue::Integer(1), CellValue::Text("Alice".to_string())],
+            vec![CellValue::Integer(2), CellValue::Null],
+        ],
+        execution_time_ms: 10,
+        rows_affected: None,
+    };
+
+    let mut buf = Vec::new();
+    let options = ExportOptions {
+        format: TransferFormat::Csv,
+        delimiter: Some(','),
+        include_headers: true,
+        json_structure: None,
+    };
+
+    let (rows, bytes) = export_query_result_to_writer(&query_result, &mut buf, &options).expect("export csv");
+    assert_eq!(rows, 2);
+    assert!(bytes > 0);
+
+    let output = String::from_utf8(buf).expect("utf8");
+    assert!(output.contains("id,name\n"));
+    assert!(output.contains("1,Alice\n"));
+    assert!(output.contains("2,\n"));
+}
+
+#[test]
+fn test_export_query_result_to_json_array() {
+    let query_result = QueryResult {
+        columns: vec![
+            ColumnMeta::new("id", "INTEGER", false),
+            ColumnMeta::new("name", "TEXT", true),
+        ],
+        rows: vec![
+            vec![CellValue::Integer(1), CellValue::Text("Alice".to_string())],
+        ],
+        execution_time_ms: 5,
+        rows_affected: None,
+    };
+
+    let mut buf = Vec::new();
+    let options = ExportOptions {
+        format: TransferFormat::Json,
+        delimiter: None,
+        include_headers: true,
+        json_structure: Some(JsonStructure::Array),
+    };
+
+    let (rows, _) = export_query_result_to_writer(&query_result, &mut buf, &options).expect("export json");
+    assert_eq!(rows, 1);
+
+    let output = String::from_utf8(buf).expect("utf8");
+    let parsed: serde_json::Value = serde_json::from_str(&output).expect("valid json array");
+    assert!(parsed.is_array());
+    assert_eq!(parsed[0]["name"], "Alice");
+}
+
+#[test]
+fn test_generate_batch_insert_sql() {
+    let table = "users";
+    let target_columns = vec!["name".to_string(), "age".to_string(), "is_active".to_string()];
+    let rows = vec![
+        vec!["O'Connor".to_string(), "28".to_string(), "true".to_string()],
+        vec!["".to_string(), "null".to_string(), "false".to_string()],
+    ];
+
+    let sql = generate_batch_insert_sql(table, &target_columns, &rows, "sqlite");
+    assert!(sql.contains("INSERT INTO \"users\" (\"name\", \"age\", \"is_active\") VALUES"));
+    assert!(sql.contains("('O''Connor', 28, 1)"));
+    assert!(sql.contains("(NULL, NULL, 0)"));
+}
+
+#[tokio::test]
+async fn test_import_csv_sqlite() {
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+    conn.execute_query("CREATE TABLE employees (name TEXT, age INTEGER, email TEXT);")
+        .await
+        .expect("create table");
+
+    let mut temp_csv = NamedTempFile::new().expect("create temp file");
+    writeln!(temp_csv, "Full Name,User Age,Email Address").unwrap();
+    writeln!(temp_csv, "Alice Smith,30,alice@example.com").unwrap();
+    writeln!(temp_csv, "Bob Jones,25,bob@example.com").unwrap();
+    temp_csv.flush().unwrap();
+
+    let options = ImportOptions {
+        file_path: temp_csv.path().to_str().unwrap().to_string(),
+        format: TransferFormat::Csv,
+        delimiter: Some(','),
+        has_headers: true,
+        column_mappings: vec![
+            ColumnMapping {
+                source_column: "Full Name".to_string(),
+                target_column: "name".to_string(),
+            },
+            ColumnMapping {
+                source_column: "User Age".to_string(),
+                target_column: "age".to_string(),
+            },
+            ColumnMapping {
+                source_column: "Email Address".to_string(),
+                target_column: "email".to_string(),
+            },
+        ],
+        error_policy: ImportErrorPolicy::Abort,
+        batch_size: Some(10),
+    };
+
+    let result = import_data_impl(&conn, "employees", &options, "sqlite", None::<fn(TransferProgress)>)
+        .await
+        .expect("import csv");
+
+    assert_eq!(result.total_rows, 2);
+    assert_eq!(result.imported_rows, 2);
+    assert_eq!(result.skipped_rows, 0);
+
+    let query_res = conn.execute_query("SELECT COUNT(*) FROM employees;").await.expect("count");
+    assert_eq!(query_res.rows[0][0], CellValue::Integer(2));
+}
+
+#[tokio::test]
+async fn test_import_csv_skip_invalid_rows() {
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+    conn.execute_query("CREATE TABLE products (id INTEGER PRIMARY KEY, sku TEXT UNIQUE, price REAL);")
+        .await
+        .expect("create table");
+
+    let mut temp_csv = NamedTempFile::new().expect("create temp file");
+    writeln!(temp_csv, "sku,price").unwrap();
+    writeln!(temp_csv, "SKU-001,19.99").unwrap();
+    writeln!(temp_csv, "SKU-001,29.99").unwrap(); // Duplicate SKU, will violate UNIQUE constraint
+    writeln!(temp_csv, "SKU-002,49.99").unwrap();
+    temp_csv.flush().unwrap();
+
+    let options = ImportOptions {
+        file_path: temp_csv.path().to_str().unwrap().to_string(),
+        format: TransferFormat::Csv,
+        delimiter: Some(','),
+        has_headers: true,
+        column_mappings: vec![
+            ColumnMapping {
+                source_column: "sku".to_string(),
+                target_column: "sku".to_string(),
+            },
+            ColumnMapping {
+                source_column: "price".to_string(),
+                target_column: "price".to_string(),
+            },
+        ],
+        error_policy: ImportErrorPolicy::Skip,
+        batch_size: Some(2),
+    };
+
+    let result = import_data_impl(&conn, "products", &options, "sqlite", None::<fn(TransferProgress)>)
+        .await
+        .expect("import csv skip");
+
+    assert_eq!(result.total_rows, 3);
+    assert_eq!(result.imported_rows, 2);
+    assert_eq!(result.skipped_rows, 1);
+}
+
+#[tokio::test]
+async fn test_import_json_sqlite() {
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+    conn.execute_query("CREATE TABLE books (title TEXT, author TEXT, year INTEGER);")
+        .await
+        .expect("create table");
+
+    let mut temp_json = NamedTempFile::new().expect("create temp file");
+    let json_data = r#"[
+        {"title": "The Rust Book", "author": "Steve Klabnik", "year": 2018},
+        {"title": "Programming Rust", "author": "Jim Blandy", "year": 2021}
+    ]"#;
+    write!(temp_json, "{}", json_data).unwrap();
+    temp_json.flush().unwrap();
+
+    let options = ImportOptions {
+        file_path: temp_json.path().to_str().unwrap().to_string(),
+        format: TransferFormat::Json,
+        delimiter: None,
+        has_headers: true,
+        column_mappings: vec![
+            ColumnMapping {
+                source_column: "title".to_string(),
+                target_column: "title".to_string(),
+            },
+            ColumnMapping {
+                source_column: "author".to_string(),
+                target_column: "author".to_string(),
+            },
+            ColumnMapping {
+                source_column: "year".to_string(),
+                target_column: "year".to_string(),
+            },
+        ],
+        error_policy: ImportErrorPolicy::Abort,
+        batch_size: Some(10),
+    };
+
+    let result = import_data_impl(&conn, "books", &options, "sqlite", None::<fn(TransferProgress)>)
+        .await
+        .expect("import json");
+
+    assert_eq!(result.total_rows, 2);
+    assert_eq!(result.imported_rows, 2);
+}

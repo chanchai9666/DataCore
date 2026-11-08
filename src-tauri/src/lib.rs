@@ -22,6 +22,7 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(ConnectionStore::default())
         .manage(SessionManager::default())
         .invoke_handler(tauri::generate_handler![
@@ -42,6 +43,9 @@ pub fn run() {
             commit_transaction,
             rollback_transaction,
             get_schema_tree,
+            preview_import_file,
+            export_data,
+            import_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

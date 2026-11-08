@@ -200,8 +200,20 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ### ระดับ 4: ข้อมูลเข้า-ออก
 
-- Export: CSV, JSON, SQL (INSERT), Excel
-- Import: CSV, JSON, SQL file
+- **ระบบ Import / Export ข้อมูล (CSV & JSON - เสร็จสมบูรณ์)**:
+  - **Backend Streaming Engine (Rust):** ประมวลผลแบบสตรีมมิ่งผ่าน Rust (`csv` และ `serde_json`) อ่าน/เขียนไฟล์ลงดิสก์โดยตรง ไม่นำข้อมูลทั้งหมดโหลดเข้า RAM ของ React WebView รองรับไฟล์ขนาดใหญ่ได้อย่างราบรื่น
+  - **Multi-row Batch Insertion:** ทำการรวมคำสั่ง INSERT เป็นชุด (Batch ขนาด 500–1,000 แถว) เพื่อลด overhead ของ IPC และ round-trip ไปยังฐานข้อมูล
+  - **รูปแบบไฟล์ที่รองรับ:**
+    - **CSV:** ระบบตรวจจับตัวคั่นอัตโนมัติ (Auto-delimiter detection สำหรับ `,`, `;`, `\t`), จัดการ Escape/Quote ตามมาตรฐาน RFC 4180, เลือกว่ามีแถวหัวตาราง (Header) หรือไม่
+    - **JSON:** รองรับทั้ง Standard JSON Array (`[ { ... } ]`) และ NDJSON / JSON Lines (`{ ... }\n{ ... }`)
+  - **Column Mapping UI (Import):** แสดงพรีวิว 5 แถวแรก, จับคู่ชื่อคอลัมน์จากไฟล์เข้ากับคอลัมน์ของตารางปลายทางแบบอัตโนมัติ (Auto-mapping) พร้อมตัวเลือกจับคู่ด้วยตนเอง หรือเลือกข้ามคอลัมน์ (Skip)
+  - **Error Handling Policy:** ตัวเลือกระหว่าง **Atomic Transaction** (เป็นค่าเริ่มต้น: หากแถวใดเกิดข้อผิดพลาดจะ Rollback ทั้งหมดเพื่อความปลอดภัยของข้อมูล) หรือ **Skip Invalid Rows** (ข้ามแถวที่ error และบันทึกแถวที่ถูกต้อง)
+  - **Progress Tracking & Cancellation:** แถบแสดงความคืบหน้าแบบ Real-time (จำนวนแถวที่ประมวลผลแล้วและเวลาที่ใช้) พร้อมปุ่ม Cancel เพื่อยกเลิกและ Rollback ทันที
+  - **Native macOS File Dialog:** ใช้ `@tauri-apps/plugin-dialog` และ `tauri-plugin-dialog` สำหรับกล่องเลือกไฟล์เปิด/บันทึกไฟล์แบบเนทีฟของ macOS
+  - **จุดเข้าใช้งาน (UI Entry Points):**
+    - **Object Browser:** คลิกขวาที่ตาราง -> เลือก *"Import Data into Table..."* หรือ *"Export Table Data..."*
+    - **Data Grid Toolbar:** ปุ่ม *"Export"* บนแถบเครื่องมือ โดยเลือกได้ระหว่าง *"Current View (Filtered/Sorted)"* หรือ *"All Table Rows"*
+  - **Auto-refresh & Feedback:** เมื่อ Import สำเร็จจะทำการรีเฟรชข้อมูลในแท็บของตารางที่เปิดอยู่โดยอัตโนมัติ พร้อมแสดงข้อความสรุปผ่าน Toast notification (`sonner`)
 - Copy เป็น CSV / JSON / INSERT statement จากกริด
 - Backup / Dump ฐานข้อมูล
 

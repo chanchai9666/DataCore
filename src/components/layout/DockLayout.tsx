@@ -1031,6 +1031,8 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                           });
                         }}
                         driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
+                        connectionId={activeTab.connectionId}
+                        tableName={activeTab.tableName}
                       />
                     </div>
                   ) : (

@@ -13,6 +13,8 @@ import {
   Copy,
   Plus,
   Wrench,
+  Upload,
+  Download,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
@@ -21,6 +23,8 @@ import type { ConnectionConfig, SchemaNode } from '../../types/db';
 import { openTableTab, openQueryTab } from './tabHelpers';
 import { CreateTableModal } from '../structure/CreateTableModal';
 import { DropTableModal } from '../structure/DropTableModal';
+import { ImportModal } from '../transfer/ImportModal';
+import { ExportModal } from '../transfer/ExportModal';
 import {
   ConnectionTreeNode,
   ObjectBrowserContext,
@@ -318,6 +322,19 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     driver?: string;
   } | null>(null);
 
+  const [importModalTarget, setImportModalTarget] = useState<{
+    connectionId: string;
+    tableName: string;
+    schemaName?: string;
+    columns: { name: string; dataType: string }[];
+  } | null>(null);
+
+  const [exportModalTarget, setExportModalTarget] = useState<{
+    connectionId: string;
+    tableName: string;
+    schemaName?: string;
+  } | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<TreeApi<BrowserTreeNode>>(null);
   const [dimensions, setDimensions] = useState({ width: 280, height: 600 });
@@ -507,6 +524,43 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       tableName: node.tableName || node.name,
       schemaName: node.schemaName,
       driver: node.driver,
+    });
+    setContextMenu(null);
+  }, []);
+
+  const handleImportTable = useCallback(async (node: BrowserTreeNode) => {
+    const tableName = node.tableName || node.name;
+    try {
+      const res = await dbApi.executeDirectQuery(
+        node.connectionId,
+        `SELECT * FROM ${tableName} LIMIT 0`
+      );
+      const cols = (res.columns || []).map((c) => ({
+        name: c.name,
+        dataType: c.data_type,
+      }));
+      setImportModalTarget({
+        connectionId: node.connectionId,
+        tableName,
+        schemaName: node.schemaName,
+        columns: cols,
+      });
+    } catch {
+      setImportModalTarget({
+        connectionId: node.connectionId,
+        tableName,
+        schemaName: node.schemaName,
+        columns: [],
+      });
+    }
+    setContextMenu(null);
+  }, []);
+
+  const handleExportTable = useCallback((node: BrowserTreeNode) => {
+    setExportModalTarget({
+      connectionId: node.connectionId,
+      tableName: node.tableName || node.name,
+      schemaName: node.schemaName,
     });
     setContextMenu(null);
   }, []);
@@ -797,15 +851,37 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               </button>
 
               {contextMenu.node.nodeType === 'table' && (
-                <button
-                  type="button"
-                  data-testid="edit-structure-btn"
-                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
-                  onClick={() => handleEditStructure(contextMenu.node)}
-                >
-                  <Wrench className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Edit Structure</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    data-testid="edit-structure-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    onClick={() => handleEditStructure(contextMenu.node)}
+                  >
+                    <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Edit Structure</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="import-data-table-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    onClick={() => handleImportTable(contextMenu.node)}
+                  >
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Import Data...</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="export-data-table-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    onClick={() => handleExportTable(contextMenu.node)}
+                  >
+                    <Download className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Export Table Data...</span>
+                  </button>
+                </>
               )}
 
               <button
@@ -920,6 +996,28 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           onSuccess={() => {
             fetchSchema(dropTableTarget.connectionId);
           }}
+        />
+      )}
+
+      {importModalTarget && (
+        <ImportModal
+          isOpen={true}
+          tableName={importModalTarget.tableName}
+          connectionId={importModalTarget.connectionId}
+          tableColumns={importModalTarget.columns}
+          onClose={() => setImportModalTarget(null)}
+          onImportSuccess={() => {
+            fetchSchema(importModalTarget.connectionId);
+          }}
+        />
+      )}
+
+      {exportModalTarget && (
+        <ExportModal
+          isOpen={true}
+          tableName={exportModalTarget.tableName}
+          connectionId={exportModalTarget.connectionId}
+          onClose={() => setExportModalTarget(null)}
         />
       )}
     </div>
