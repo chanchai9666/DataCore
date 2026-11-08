@@ -626,13 +626,13 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         >
           {/* Sidebar Header with collapse button */}
           <div
-            className={`flex items-center justify-between px-3 py-2 border-b text-xs font-semibold ${
+            className={`flex items-center justify-between px-3 py-1.5 border-b text-xs font-semibold ${
               theme === 'dark'
                 ? 'border-gray-800 text-gray-400'
                 : 'border-gray-200 text-gray-600'
             }`}
           >
-            <span className="uppercase tracking-wider">Explorer</span>
+            <span className="font-semibold text-gray-300">Explorer</span>
             <button
               type="button"
               onClick={() => setSidebarCollapsed(true)}

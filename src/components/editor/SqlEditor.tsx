@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { EditorToolbar } from './EditorToolbar';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { useStatusStore } from '../../stores/statusStore';
 import { dbApi } from '../../api/db';
 import type { QueryResult } from '../../types/db';
 
@@ -106,10 +107,20 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         setExecutionTimeMs(result.execution_time_ms);
         setRowCount(result.rows ? result.rows.length : 0);
         setRowsAffected(result.rows_affected ?? null);
+        useStatusStore.getState().setStatus({
+          lastQuery: sqlToExecute,
+          executionTimeMs: result.execution_time_ms,
+          rowCount: result.rows ? result.rows.length : (result.rows_affected ?? 0),
+          statusMessage: null,
+        });
         onQueryResult?.(result);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         setErrorMessage(msg);
+        useStatusStore.getState().setStatus({
+          lastQuery: sqlToExecute,
+          statusMessage: `Error: ${msg}`,
+        });
         onError?.(err);
       } finally {
         setIsRunning(false);

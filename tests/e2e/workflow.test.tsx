@@ -170,7 +170,7 @@ describe('E2E Workflow Test', () => {
     fireEvent.click(addTabBtn);
 
     // Verify Query tab is opened
-    expect(await screen.findByText(/Query/i)).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: /Query/i })).toBeInTheDocument();
     const queryTab = useTabStore.getState().tabs.find((t) => t.type === 'query')!;
 
     // 3a. Execute DDL query: CREATE TABLE

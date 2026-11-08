@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { openTableTab, openQueryTab, openTableListTab } from './tabHelpers';
+import { DbBadge } from './DbBadge';
 
 export type BrowserNodeType =
   | 'connection'
@@ -323,9 +324,10 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         {data.name}
       </span>
 
-      {/* Status Badges for Connection Nodes */}
+      {/* Status Badges & DB Type for Connection Nodes */}
       {data.nodeType === 'connection' && (
         <div className="flex items-center space-x-1 mr-1 shrink-0">
+          <DbBadge driver={data.driver} />
           {data.isLoading && (
             <span title="Connecting...">
               <Loader2 className="w-3 h-3 text-amber-500 animate-spin" data-testid="spinner-connecting" />

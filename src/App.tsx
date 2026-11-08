@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Toaster } from 'sonner';
-import { TitleBar } from './components/layout/TitleBar';
+import { MainToolbar } from './components/chrome/MainToolbar';
+import { StatusBar } from './components/chrome/StatusBar';
 import { DockLayout } from './components/layout/DockLayout';
 import { ConnectionDialog } from './components/dialogs/ConnectionDialog';
 import { useConnectionStore } from './stores/connectionStore';
+import { openQueryTab } from './components/sidebar/tabHelpers';
 import type { ConnectionConfig } from './types/db';
 
 export function App() {
-  const { loadConnections, setActiveConnection } = useConnectionStore();
+  const { loadConnections, setActiveConnection, activeConnectionId } = useConnectionStore();
   const [isConnectionDialogOpen, setIsConnectionDialogOpen] = useState(false);
   const [connectionToEdit, setConnectionToEdit] = useState<ConnectionConfig | null>(null);
   const [lastSavedConnectionId, setLastSavedConnectionId] = useState<string | null>(null);
 
-  // Theme management: default to dark mode
+  // Theme management: default to dark mode (charcoal)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   // Load saved connections on application mount
@@ -52,17 +54,25 @@ export function App() {
     setLastSavedConnectionId(`${saved.id}-${Date.now()}`);
   };
 
+  const handleNewQuery = () => {
+    if (activeConnectionId) {
+      openQueryTab({ connectionId: activeConnectionId });
+    }
+  };
+
   return (
     <div
       className={`flex flex-col h-screen w-screen overflow-hidden select-none ${
-        theme === 'dark' ? 'dark bg-gray-950 text-gray-100' : 'bg-gray-100 text-gray-900'
+        theme === 'dark' ? 'dark bg-panel text-text' : 'bg-panel text-text'
       }`}
     >
-      {/* Top Title Bar with macOS window controls spacing */}
-      <TitleBar
+      {/* Top Main Desktop Toolbar (56px) with traffic light clearance */}
+      <MainToolbar
         theme={theme}
         onToggleTheme={handleToggleTheme}
         onNewConnection={handleOpenNewConnection}
+        onConnect={handleOpenNewConnection}
+        onNewQuery={handleNewQuery}
         onEditConnection={(conn) => {
           setConnectionToEdit(conn);
           setIsConnectionDialogOpen(true);
@@ -70,15 +80,20 @@ export function App() {
       />
 
       {/* Main Workspace (Sidebar + Docking Tabs) */}
-      <DockLayout
-        theme={theme}
-        onNewConnection={handleOpenNewConnection}
-        onEditConnection={(conn) => {
-          setConnectionToEdit(conn);
-          setIsConnectionDialogOpen(true);
-        }}
-        lastSavedConnectionId={lastSavedConnectionId}
-      />
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        <DockLayout
+          theme={theme}
+          onNewConnection={handleOpenNewConnection}
+          onEditConnection={(conn) => {
+            setConnectionToEdit(conn);
+            setIsConnectionDialogOpen(true);
+          }}
+          lastSavedConnectionId={lastSavedConnectionId}
+        />
+      </div>
+
+      {/* Bottom Global Status Bar (22px) */}
+      <StatusBar />
 
       {/* Connection Modal Dialog */}
       <ConnectionDialog

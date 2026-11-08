@@ -744,9 +744,9 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   return (
     <div className="flex flex-col h-full w-full bg-gray-900 border-r border-gray-800 text-gray-200 select-none">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800">
-        <span className="text-xs font-semibold tracking-wider uppercase text-gray-400">
-          Object Browser
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-800">
+        <span className="text-xs font-semibold text-gray-300">
+          Connections
         </span>
         <div className="flex items-center space-x-1">
           {onNewConnection && (
