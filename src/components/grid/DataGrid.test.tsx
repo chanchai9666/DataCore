@@ -574,6 +574,72 @@ describe('DataGrid', () => {
       const discardBtn = screen.getByRole('button', { name: /discard changes/i });
       expect(discardBtn).not.toBeDisabled();
     });
+
+    it('toggles between auto-commit and staging mode via toggle button', () => {
+      const tableKey = 'c1.users';
+      usePendingChangesStore.getState().clearAll();
+
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          connectionId="c1"
+          tableName="users"
+          isEditable={true}
+        />
+      );
+
+      const toggleBtn = screen.getByRole('button', { name: /toggle auto-commit mode/i });
+      expect(toggleBtn).toHaveTextContent(/auto-commit: on/i);
+
+      // Click to switch to staging mode
+      fireEvent.click(toggleBtn);
+      expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey)).toBe(false);
+
+      // Click to switch back to auto-commit mode
+      fireEvent.click(toggleBtn);
+      expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey)).toBe(true);
+    });
+
+    it('prompts before discarding pending changes when switching from staging to auto-commit', () => {
+      const tableKey = 'c1.users';
+      usePendingChangesStore.getState().clearAll();
+      usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
+      usePendingChangesStore.getState().stageCellEdit(tableKey, {
+        rowIndex: 0,
+        colIndex: 0,
+        colName: 'id',
+        oldValue: 1,
+        newValue: 99,
+      });
+
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          connectionId="c1"
+          tableName="users"
+          isEditable={true}
+        />
+      );
+
+      const toggleBtn = screen.getByRole('button', { name: /toggle auto-commit mode/i });
+      expect(toggleBtn).toHaveTextContent(/staging mode/i);
+
+      // User cancels prompt
+      fireEvent.click(toggleBtn);
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey)).toBe(false);
+      expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(true);
+
+      // User accepts prompt
+      confirmSpy.mockReturnValue(true);
+      fireEvent.click(toggleBtn);
+      expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey)).toBe(true);
+      expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(false);
+
+      confirmSpy.mockRestore();
+    });
   });
 
   describe('Column Selection & Alt-Click Sort', () => {

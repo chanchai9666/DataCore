@@ -53,6 +53,9 @@ export interface DataGridProps {
   tableName?: string;
   initialQuery?: string;
   onExport?: () => void;
+  isAutoCommit?: boolean;
+  onToggleAutoCommit?: () => void;
+  onCommitChanges?: (tableKey: string) => void;
 }
 
 export const DataGrid: React.FC<DataGridProps> = ({
@@ -86,6 +89,9 @@ export const DataGrid: React.FC<DataGridProps> = ({
   tableName,
   initialQuery,
   onExport,
+  isAutoCommit: isAutoCommitProp,
+  onToggleAutoCommit: onToggleAutoCommitProp,
+  onCommitChanges,
 }) => {
   const [selectedCell, setSelectedCell] = useState<Item | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -244,19 +250,69 @@ export const DataGrid: React.FC<DataGridProps> = ({
     [onColumnResize]
   );
 
-  const rowsCount = data?.rows?.length || 0;
-  const computedTotalRows = totalRows !== undefined ? totalRows : rowsCount;
+  const tableKey = `${connectionId || 'default'}.${tableName || 'query'}`;
+  const storeIsAutoCommit = usePendingChangesStore((s) => s.isAutoCommitMode(tableKey));
+  const activeIsAutoCommit = isAutoCommitProp !== undefined ? isAutoCommitProp : storeIsAutoCommit;
+  const tableChanges = usePendingChangesStore((s) => s.tables[tableKey]);
+  const hasPending = usePendingChangesStore((s) => s.hasPendingChanges(tableKey));
+  const pendingCount = usePendingChangesStore((s) => s.getPendingChangesCount(tableKey));
+
+  const baseRowsCount = data?.rows?.length || 0;
+  const addedRowsCount = tableChanges?.addedRows?.length || 0;
+  const rowsCount = baseRowsCount + addedRowsCount;
+  const computedTotalRows = totalRows !== undefined ? totalRows + addedRowsCount : rowsCount;
 
   const getCellContent = useCallback(
     ([col, row]: Item): GridCell => {
-      if (!data || !data.rows[row] || col >= data.columns.length) {
+      if (!data || col >= data.columns.length) {
         return createCellContent(null);
       }
-      const cellValue = data.rows[row][col];
       const columnMeta = data.columns[col];
-      return createCellContent(cellValue, columnMeta);
+
+      // 1. Staged added row
+      if (row >= baseRowsCount) {
+        const addedIdx = row - baseRowsCount;
+        const addedRow = tableChanges?.addedRows?.[addedIdx];
+        const rawVal = addedRow ? (addedRow[columnMeta.name] as CellValue) : null;
+        const cell = createCellContent(rawVal, columnMeta);
+        return {
+          ...cell,
+          themeOverride: {
+            ...cell.themeOverride,
+            bgCell: theme === 'dark' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(209, 250, 229, 0.85)',
+          },
+        };
+      }
+
+      // 2. Staged deleted row or edited cell
+      const isDeleted = tableChanges?.deletedRowIndices?.includes(row);
+      const cellEditKey = `${row}:${col}`;
+      const cellEdit = tableChanges?.cellEdits?.[cellEditKey];
+
+      const rawVal = cellEdit ? (cellEdit.newValue as CellValue) : data.rows[row]?.[col];
+      let cell = createCellContent(rawVal, columnMeta);
+
+      if (isDeleted) {
+        cell = {
+          ...cell,
+          themeOverride: {
+            ...cell.themeOverride,
+            bgCell: theme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(254, 226, 226, 0.85)',
+          },
+        };
+      } else if (cellEdit) {
+        cell = {
+          ...cell,
+          themeOverride: {
+            ...cell.themeOverride,
+            bgCell: theme === 'dark' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(219, 234, 254, 0.85)',
+          },
+        };
+      }
+
+      return cell;
     },
-    [data]
+    [data, baseRowsCount, tableChanges, theme]
   );
 
   const activeCellInfo = useMemo(() => {
@@ -316,10 +372,6 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
   const gridTheme = theme === 'dark' ? darkGridTheme : lightGridTheme;
 
-  const tableKey = `${connectionId || 'default'}.${tableName || 'query'}`;
-  const hasPending = usePendingChangesStore((s) => s.hasPendingChanges(tableKey));
-  const pendingCount = usePendingChangesStore((s) => s.getPendingChangesCount(tableKey));
-
   const handleDeleteSelected = useCallback(() => {
     if (hasSelectedRows) {
       if (selectedRowIndices.length > 1) {
@@ -344,24 +396,49 @@ export const DataGrid: React.FC<DataGridProps> = ({
       const colMeta = data?.columns[colIndex];
       const oldValue = data?.rows[rowIndex]?.[colIndex];
 
-      if (colMeta) {
-        usePendingChangesStore.getState().stageCellEdit(tableKey, {
-          rowIndex,
-          colIndex,
-          colName: colMeta.name,
-          oldValue,
-          newValue: 'data' in newValue ? (newValue as any).data : newValue,
-        });
+      if (!activeIsAutoCommit) {
+        if (colMeta) {
+          usePendingChangesStore.getState().stageCellEdit(tableKey, {
+            rowIndex,
+            colIndex,
+            colName: colMeta.name,
+            oldValue,
+            newValue: 'data' in newValue ? (newValue as any).data : newValue,
+          });
+        }
+      } else {
+        onCellEdited?.(cell, newValue);
       }
-
-      onCellEdited?.(cell, newValue);
     },
-    [data, tableKey, onCellEdited]
+    [data, tableKey, activeIsAutoCommit, onCellEdited]
   );
 
+  const handleToggleAutoCommit = useCallback(() => {
+    if (onToggleAutoCommitProp) {
+      onToggleAutoCommitProp();
+      return;
+    }
+    if (activeIsAutoCommit) {
+      usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
+    } else {
+      if (hasPending) {
+        const confirmed = window.confirm(
+          'You have uncommitted changes in Staging Mode. Switching to Auto-Commit will discard these pending changes. Do you want to proceed?'
+        );
+        if (!confirmed) return;
+        usePendingChangesStore.getState().discardChanges(tableKey);
+      }
+      usePendingChangesStore.getState().setAutoCommitMode(tableKey, true);
+    }
+  }, [onToggleAutoCommitProp, activeIsAutoCommit, hasPending, tableKey]);
+
   const handleCommitChanges = () => {
-    usePendingChangesStore.getState().discardChanges(tableKey);
-    onRefresh?.();
+    if (onCommitChanges) {
+      onCommitChanges(tableKey);
+    } else {
+      usePendingChangesStore.getState().discardChanges(tableKey);
+      onRefresh?.();
+    }
   };
 
   const handleDiscardChanges = () => {
@@ -786,6 +863,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
         onAddRow={isEditable && onAddRow ? onAddRow : undefined}
         onDeleteRow={isEditable ? handleDeleteSelected : undefined}
         canDelete={isEditable && (hasSelectedRows || selectedCell !== null)}
+        isAutoCommit={activeIsAutoCommit}
+        onToggleAutoCommit={handleToggleAutoCommit}
         hasPendingChanges={hasPending}
         pendingCount={pendingCount}
         onCommit={handleCommitChanges}
