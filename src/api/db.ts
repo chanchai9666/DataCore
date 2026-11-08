@@ -7,6 +7,8 @@ import type {
   SqlExportResult,
   SqlImportOptions,
   SqlImportResult,
+  CrossDbCopyTableOptions,
+  CrossDbCopyResult,
 } from '../types/dataTransfer';
 import { splitSqlStatements } from './sqlSplitter';
 
@@ -220,6 +222,14 @@ export const importSql = async (
   });
 };
 
+export const copyTableCrossDb = async (
+  options: CrossDbCopyTableOptions
+): Promise<CrossDbCopyResult> => {
+  return invoke<CrossDbCopyResult>('copy_table_cross_db', {
+    options,
+  });
+};
+
 export const dbApi = {
   testConnection,
   getConnections,
@@ -242,4 +252,5 @@ export const dbApi = {
   duplicateTable,
   exportSql,
   importSql,
+  copyTableCrossDb,
 };

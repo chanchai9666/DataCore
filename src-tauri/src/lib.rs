@@ -50,6 +50,7 @@ pub fn run() {
             duplicate_table,
             export_sql,
             import_sql,
+            copy_table_cross_db,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

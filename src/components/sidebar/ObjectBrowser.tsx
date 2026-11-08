@@ -15,6 +15,7 @@ import {
   Wrench,
   Upload,
   Download,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
@@ -26,6 +27,7 @@ import { DropTableModal } from '../structure/DropTableModal';
 import { ImportModal } from '../transfer/ImportModal';
 import { ExportModal } from '../transfer/ExportModal';
 import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
+import { CrossDbCopyModal } from '../transfer/CrossDbCopyModal';
 import { ExportSqlModal } from '../transfer/ExportSqlModal';
 import { ImportSqlModal } from '../transfer/ImportSqlModal';
 import {
@@ -344,6 +346,12 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     schemaName?: string;
   } | null>(null);
 
+  const [crossDbCopyModalTarget, setCrossDbCopyModalTarget] = useState<{
+    connectionId: string;
+    sourceTableName: string;
+    schemaName?: string;
+  } | null>(null);
+
   const [exportSqlModalTarget, setExportSqlModalTarget] = useState<{
     connectionId: string;
     tableName?: string;
@@ -595,6 +603,15 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
   const handleDuplicateTable = useCallback((node: BrowserTreeNode) => {
     setDuplicateModalTarget({
+      connectionId: node.connectionId,
+      sourceTableName: node.tableName || node.name,
+      schemaName: node.schemaName,
+    });
+    setContextMenu(null);
+  }, []);
+
+  const handleCopyTableCrossDb = useCallback((node: BrowserTreeNode) => {
+    setCrossDbCopyModalTarget({
       connectionId: node.connectionId,
       sourceTableName: node.tableName || node.name,
       schemaName: node.schemaName,
@@ -980,6 +997,16 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
                   <button
                     type="button"
+                    data-testid="copy-table-cross-db-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    onClick={() => handleCopyTableCrossDb(contextMenu.node)}
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Copy Table to Database...</span>
+                  </button>
+
+                  <button
+                    type="button"
                     data-testid="export-sql-table-btn"
                     className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
                     onClick={() => handleExportSql(contextMenu.node)}
@@ -1181,6 +1208,19 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           onClose={() => setDuplicateModalTarget(null)}
           onSuccess={() => {
             fetchSchema(duplicateModalTarget.connectionId);
+          }}
+        />
+      )}
+
+      {crossDbCopyModalTarget && (
+        <CrossDbCopyModal
+          isOpen={true}
+          sourceConnectionId={crossDbCopyModalTarget.connectionId}
+          sourceTableName={crossDbCopyModalTarget.sourceTableName}
+          sourceSchemaName={crossDbCopyModalTarget.schemaName}
+          onClose={() => setCrossDbCopyModalTarget(null)}
+          onSuccess={() => {
+            fetchSchema(crossDbCopyModalTarget.connectionId);
           }}
         />
       )}

@@ -101,3 +101,21 @@ export interface SqlImportResult {
   successfulStatements: number;
   failedStatements: number;
 }
+
+export interface CrossDbCopyTableOptions {
+  sourceConnectionId: string;
+  sourceSchema?: string;
+  sourceTable: string;
+  targetConnectionId: string;
+  targetSchema?: string;
+  targetTable: string;
+  copyStructure: boolean;
+  dropTargetIfExists: boolean;
+  copyData: boolean;
+  batchSize?: number;
+}
+
+export interface CrossDbCopyResult {
+  rowsTransferred: number;
+  elapsedMs: number;
+}

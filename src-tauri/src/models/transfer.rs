@@ -176,3 +176,37 @@ pub struct SqlImportResult {
     #[serde(alias = "failed_statements")]
     pub failed_statements: usize,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CrossDbCopyTableOptions {
+    #[serde(alias = "source_connection_id")]
+    pub source_connection_id: String,
+    #[serde(alias = "source_schema")]
+    pub source_schema: Option<String>,
+    #[serde(alias = "source_table")]
+    pub source_table: String,
+    #[serde(alias = "target_connection_id")]
+    pub target_connection_id: String,
+    #[serde(alias = "target_schema")]
+    pub target_schema: Option<String>,
+    #[serde(alias = "target_table")]
+    pub target_table: String,
+    #[serde(alias = "copy_structure")]
+    pub copy_structure: bool,
+    #[serde(alias = "drop_target_if_exists")]
+    pub drop_target_if_exists: bool,
+    #[serde(alias = "copy_data")]
+    pub copy_data: bool,
+    #[serde(default, alias = "batch_size")]
+    pub batch_size: Option<usize>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CrossDbCopyResult {
+    #[serde(alias = "rows_transferred")]
+    pub rows_transferred: usize,
+    #[serde(alias = "elapsed_ms")]
+    pub elapsed_ms: u64,
+}

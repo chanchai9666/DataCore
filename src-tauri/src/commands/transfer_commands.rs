@@ -4,7 +4,8 @@ use crate::models::{
     TableMetadata,
 };
 use crate::models::transfer::{
-    DuplicateTableOptions, SqlExportOptions, SqlExportResult, SqlImportOptions, SqlImportResult,
+    CrossDbCopyResult, CrossDbCopyTableOptions, DuplicateTableOptions, SqlExportOptions,
+    SqlExportResult, SqlImportOptions, SqlImportResult,
 };
 use crate::services::connection_store::ConnectionStore;
 use crate::services::data_transfer::{
@@ -13,6 +14,7 @@ use crate::services::data_transfer::{
 use crate::services::table_list::get_table_list_metadata_impl;
 use crate::services::duplicate_table::duplicate_table_impl;
 use crate::services::sql_transfer::{export_sql_impl, import_sql_impl};
+use crate::services::cross_db_transfer::copy_table_cross_db_impl;
 use crate::session::SessionManager;
 
 #[tauri::command]
@@ -163,4 +165,44 @@ pub async fn import_sql(
     import_sql_impl(conn.as_ref(), &options, Some(on_progress))
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn copy_table_cross_db(
+    app: AppHandle,
+    store: State<'_, ConnectionStore>,
+    options: CrossDbCopyTableOptions,
+) -> Result<CrossDbCopyResult, String> {
+    let src_config = store
+        .get(&options.source_connection_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Source connection '{}' not found", options.source_connection_id))?;
+    let src_pass = store.get_password(&options.source_connection_id).map_err(|e| e.to_string())?;
+    let src_conn = SessionManager::create_connection(&src_config, src_pass.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let tgt_config = store
+        .get(&options.target_connection_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Target connection '{}' not found", options.target_connection_id))?;
+    let tgt_pass = store.get_password(&options.target_connection_id).map_err(|e| e.to_string())?;
+    let tgt_conn = SessionManager::create_connection(&tgt_config, tgt_pass.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let on_progress = move |progress| {
+        let _ = app.emit("transfer://progress", progress);
+    };
+
+    copy_table_cross_db_impl(
+        src_conn.as_ref(),
+        src_config.driver,
+        tgt_conn.as_ref(),
+        tgt_config.driver,
+        &options,
+        Some(on_progress),
+    )
+    .await
+    .map_err(|e| e.to_string())
 }

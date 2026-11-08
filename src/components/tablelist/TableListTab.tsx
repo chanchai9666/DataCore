@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search,
   RefreshCw,
@@ -18,6 +18,7 @@ import { dbApi } from '../../api/db';
 import type { TableMetadata } from '../../types/dataTransfer';
 import { openTableTab } from '../sidebar/tabHelpers';
 import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
+import { CrossDbCopyModal } from '../transfer/CrossDbCopyModal';
 import { ExportSqlModal } from '../transfer/ExportSqlModal';
 import { ExportModal } from '../transfer/ExportModal';
 import { DropTableModal } from '../structure/DropTableModal';
@@ -86,6 +87,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
 
   // Active modals state
   const [activeDuplicateTable, setActiveDuplicateTable] = useState<string | null>(null);
+  const [activeCopyTableToDb, setActiveCopyTableToDb] = useState<string | null>(null);
   const [activeExportSqlTable, setActiveExportSqlTable] = useState<string | null>(null);
   const [activeExportDataTable, setActiveExportDataTable] = useState<string | null>(null);
   const [activeDropTable, setActiveDropTable] = useState<string | null>(null);
@@ -141,6 +143,8 @@ export const TableListTab: React.FC<TableListTabProps> = ({
   const handleTriggerCopyTableToDb = (tableName: string) => {
     if (onCopyTableToDb) {
       onCopyTableToDb(tableName);
+    } else {
+      setActiveCopyTableToDb(tableName);
     }
     setContextMenu(null);
   };
@@ -536,6 +540,19 @@ export const TableListTab: React.FC<TableListTabProps> = ({
         />
       )}
 
+      {activeCopyTableToDb && (
+        <CrossDbCopyModal
+          isOpen={true}
+          sourceConnectionId={connectionId}
+          sourceTableName={activeCopyTableToDb}
+          sourceSchemaName={schemaName}
+          onClose={() => setActiveCopyTableToDb(null)}
+          onSuccess={() => {
+            fetchTables();
+          }}
+        />
+      )}
+
       {activeExportSqlTable && (
         <ExportSqlModal
           isOpen={true}
@@ -550,7 +567,6 @@ export const TableListTab: React.FC<TableListTabProps> = ({
         <ExportModal
           isOpen={true}
           tableName={activeExportDataTable}
-          schemaName={schemaName}
           connectionId={connectionId}
           onClose={() => setActiveExportDataTable(null)}
         />

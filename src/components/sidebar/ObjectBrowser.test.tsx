@@ -393,6 +393,20 @@ describe('ObjectBrowser', () => {
     expect(await screen.findByRole('heading', { name: /drop table/i })).toBeInTheDocument();
   });
 
+  it('opens CrossDbCopyModal when Copy Table to Database is clicked from table context menu', async () => {
+    render(<ObjectBrowser />);
+    await expandToTables();
+
+    const userTableNode = await screen.findByText('users');
+    fireEvent.contextMenu(userTableNode);
+
+    const copyBtn = await screen.findByTestId('copy-table-cross-db-btn');
+    expect(copyBtn).toBeInTheDocument();
+    fireEvent.click(copyBtn);
+
+    expect(await screen.findByText('Copy Table to Database (Cross-DB Transfer)')).toBeInTheDocument();
+  });
+
   it('opens CreateTableModal when New Table is clicked from database context menu', async () => {
     render(<ObjectBrowser />);
 

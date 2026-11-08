@@ -258,4 +258,23 @@ describe('TableListTab component', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByTestId('table-list-context-menu')).not.toBeInTheDocument();
   });
+
+  it('opens CrossDbCopyModal when Copy Table to Database is clicked and no custom handler is provided', async () => {
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+
+    const usersRow = screen.getByText('users').closest('tr');
+    fireEvent.contextMenu(usersRow!, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-copy-to-db'));
+
+    expect(await screen.findByText('Copy Table to Database (Cross-DB Transfer)')).toBeInTheDocument();
+  });
 });
