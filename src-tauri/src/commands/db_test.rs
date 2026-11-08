@@ -76,24 +76,30 @@ async fn test_session_lifecycle() {
     );
 
     // 5. Test pagination (fetch_table_data) on tab-1
-    let paged = fetch_table_data_impl(&session_mgr, "tab-1", None, "tab1_table", 10, 0, None)
+    let paged = fetch_table_data_impl(&session_mgr, "tab-1", None, "tab1_table", 10, 0, None, None, None)
         .await
         .expect("fetch table data");
     assert_eq!(paged.rows.len(), 1);
     assert_eq!(paged.rows_affected, Some(1));
 
     // 5b. Test fetch_table_data with filter
-    let filtered_empty = fetch_table_data_impl(&session_mgr, "tab-1", None, "tab1_table", 10, 0, Some("note = 'non-existent'"))
+    let filtered_empty = fetch_table_data_impl(&session_mgr, "tab-1", None, "tab1_table", 10, 0, Some("note = 'non-existent'"), None, None)
         .await
         .expect("fetch filtered data");
     assert_eq!(filtered_empty.rows.len(), 0);
     assert_eq!(filtered_empty.rows_affected, Some(0));
 
-    let filtered_match = fetch_table_data_impl(&session_mgr, "tab-1", None, "tab1_table", 10, 0, Some("note LIKE '%created%'"))
+    let filtered_match = fetch_table_data_impl(&session_mgr, "tab-1", None, "tab1_table", 10, 0, Some("note LIKE '%created%'"), None, None)
         .await
         .expect("fetch filtered match");
     assert_eq!(filtered_match.rows.len(), 1);
     assert_eq!(filtered_match.rows_affected, Some(1));
+
+    // 5c. Test fetch_table_data with sort
+    let sorted_desc = fetch_table_data_impl(&session_mgr, "tab-1", None, "tab1_table", 10, 0, None, Some("id"), Some("DESC"))
+        .await
+        .expect("fetch sorted data");
+    assert_eq!(sorted_desc.rows.len(), 1);
 
     // 6. Test transaction management (set_autocommit, rollback, commit) on tab-1
     set_autocommit_impl(&session_mgr, "tab-1", false)

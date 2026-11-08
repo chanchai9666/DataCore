@@ -6,11 +6,12 @@ import DataEditor, {
   CompactSelection,
   Theme,
   GridCellKind,
+  type GridColumn,
   type EditableGridCell,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
 import { Eye, Loader2, Database, Plus, Trash2, CheckCircle2, AlertCircle, Filter } from 'lucide-react';
-import { QueryResult, CellValue, TableFilterState } from '../../types/db';
+import { QueryResult, CellValue, TableFilterState, TableSortState } from '../../types/db';
 import { PaginationBar } from './PaginationBar';
 import { CellDetailDrawer } from './CellDetailDrawer';
 import { FilterBar } from './FilterBar';
@@ -39,6 +40,10 @@ export interface DataGridProps {
   isFilterOpen?: boolean;
   onToggleFilter?: () => void;
   driver?: string;
+  sortState?: TableSortState;
+  onSortChange?: (sortState: TableSortState | undefined) => void;
+  columnWidths?: Record<string, number>;
+  onColumnResize?: (columnId: string, newWidth: number) => void;
 }
 
 const darkGridTheme: Partial<Theme> = {
@@ -104,10 +109,19 @@ export const DataGrid: React.FC<DataGridProps> = ({
   isFilterOpen,
   onToggleFilter,
   driver,
+  sortState,
+  onSortChange,
+  columnWidths,
+  onColumnResize,
 }) => {
   const [selectedCell, setSelectedCell] = useState<Item | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [internalFilterOpen, setInternalFilterOpen] = useState(false);
+  const [internalSortState, setInternalSortState] = useState<TableSortState | undefined>(undefined);
+  const [internalColumnWidths, setInternalColumnWidths] = useState<Record<string, number>>({});
+
+  const activeSortState = sortState !== undefined ? sortState : internalSortState;
+  const activeColumnWidths = columnWidths ?? internalColumnWidths;
   const [gridSelection, setGridSelection] = useState<GridSelection>({
     columns: CompactSelection.empty(),
     rows: CompactSelection.empty(),
@@ -160,8 +174,48 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
   const columns = useMemo(() => {
     if (!data?.columns) return [];
-    return createGridColumns(data.columns);
-  }, [data?.columns]);
+    return createGridColumns(data.columns, activeColumnWidths, activeSortState);
+  }, [data?.columns, activeColumnWidths, activeSortState]);
+
+  const handleHeaderClicked = useCallback(
+    (colIndex: number) => {
+      if (!data?.columns || colIndex < 0 || colIndex >= data.columns.length) return;
+      const colName = data.columns[colIndex].name;
+
+      let nextSort: TableSortState | undefined;
+      if (activeSortState?.column === colName) {
+        if (activeSortState.direction === 'ASC') {
+          nextSort = { column: colName, direction: 'DESC' };
+        } else {
+          nextSort = undefined; // Cycle to None
+        }
+      } else {
+        nextSort = { column: colName, direction: 'ASC' };
+      }
+
+      if (onSortChange) {
+        onSortChange(nextSort);
+      } else {
+        setInternalSortState(nextSort);
+      }
+    },
+    [data?.columns, activeSortState, onSortChange]
+  );
+
+  const handleColumnResize = useCallback(
+    (col: GridColumn, newSize: number) => {
+      const colId = col.id ?? col.title;
+      if (onColumnResize && colId) {
+        onColumnResize(colId, newSize);
+      } else if (colId) {
+        setInternalColumnWidths((prev) => ({
+          ...prev,
+          [colId]: newSize,
+        }));
+      }
+    },
+    [onColumnResize]
+  );
 
   const rowsCount = data?.rows?.length || 0;
   const computedTotalRows = totalRows !== undefined ? totalRows : rowsCount;
@@ -490,6 +544,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
               onCellActivated={handleCellActivated}
               onCellClicked={handleCellClicked}
               onCellEdited={onCellEdited}
+              onHeaderClicked={handleHeaderClicked}
+              onColumnResize={handleColumnResize}
               theme={gridTheme}
             />
           </div>

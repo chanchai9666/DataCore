@@ -56,6 +56,11 @@ export interface QueryResult {
   rows_affected?: number | null;
 }
 
+export interface TableSortState {
+  column: string;
+  direction: 'ASC' | 'DESC';
+}
+
 export interface Tab {
   id: string;
   connectionId: string;
@@ -67,6 +72,8 @@ export interface Tab {
   tableName?: string;
   viewMode?: 'data' | 'structure';
   filterState?: TableFilterState;
+  sortState?: TableSortState;
+  columnWidths?: Record<string, number>;
 }
 
 export type FilterOperator =

@@ -80,6 +80,7 @@ pub async fn execute_query_impl(
     conn.execute_query(sql).await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn fetch_table_data_impl(
     session_mgr: &SessionManager,
     tab_id: &str,
@@ -88,9 +89,11 @@ pub async fn fetch_table_data_impl(
     limit: u32,
     offset: u32,
     filter: Option<&str>,
+    sort_col: Option<&str>,
+    sort_dir: Option<&str>,
 ) -> Result<QueryResult, AppError> {
     let conn = session_mgr.get_session(tab_id).await?;
-    conn.fetch_table_data(schema, table, limit, offset, filter).await
+    conn.fetch_table_data(schema, table, limit, offset, filter, sort_col, sort_dir).await
 }
 
 pub async fn cancel_query_impl(
@@ -236,6 +239,7 @@ pub async fn execute_query(
         .map_err(|e| e.to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn fetch_table_data(
     session_mgr: State<'_, SessionManager>,
@@ -245,10 +249,22 @@ pub async fn fetch_table_data(
     limit: u32,
     offset: u32,
     filter: Option<String>,
+    sort_col: Option<String>,
+    sort_dir: Option<String>,
 ) -> Result<QueryResult, String> {
-    fetch_table_data_impl(&session_mgr, &tab_id, schema.as_deref(), &table, limit, offset, filter.as_deref())
-        .await
-        .map_err(|e| e.to_string())
+    fetch_table_data_impl(
+        &session_mgr,
+        &tab_id,
+        schema.as_deref(),
+        &table,
+        limit,
+        offset,
+        filter.as_deref(),
+        sort_col.as_deref(),
+        sort_dir.as_deref(),
+    )
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

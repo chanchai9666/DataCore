@@ -99,7 +99,9 @@ export const fetchTableData = async (
   schema?: string,
   limit: number = 100,
   offset: number = 0,
-  filter?: string
+  filter?: string,
+  sortCol?: string,
+  sortDir?: 'ASC' | 'DESC'
 ): Promise<QueryResult> => {
   return invoke<QueryResult>('fetch_table_data', {
     tabId,
@@ -109,6 +111,10 @@ export const fetchTableData = async (
     limit,
     offset,
     filter: filter ?? null,
+    sortCol: sortCol ?? null,
+    sort_col: sortCol ?? null,
+    sortDir: sortDir ?? null,
+    sort_dir: sortDir ?? null,
   });
 };
 

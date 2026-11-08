@@ -18,11 +18,12 @@ import { dbApi } from '../../api/db';
 import { openQueryTab } from '../sidebar/tabHelpers';
 import { buildUpdateSql, buildDeleteSql, buildInsertSql } from '../grid/tableEditHelpers';
 import { buildSqlWhereClause, filterInMemoryRows } from '../grid/filterUtils';
+import { sortInMemoryRows } from '../grid/sortUtils';
 import { InsertRowModal } from '../grid/InsertRowModal';
 import { TableStructureEditor } from '../structure/TableStructureEditor';
 import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
-import type { ConnectionConfig, QueryResult, Tab, TableFilterState } from '../../types/db';
+import type { ConnectionConfig, QueryResult, Tab, TableFilterState, TableSortState } from '../../types/db';
 
 export interface DockLayoutProps {
   theme?: 'dark' | 'light';
@@ -95,12 +96,19 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
   // Function to load table data for a table tab
   const loadTableData = useCallback(
-    async (tab: Tab, page = 1, pageSize = 100, customFilter?: TableFilterState | null) => {
+    async (
+      tab: Tab,
+      page = 1,
+      pageSize = 100,
+      customFilter?: TableFilterState | null,
+      customSort?: TableSortState | null
+    ) => {
       const tabId = tab.id;
       const tableName = tab.tableName;
       if (!tableName) return;
 
       const currentFilter = customFilter !== undefined ? customFilter : tab.filterState;
+      const currentSort = customSort !== undefined ? customSort : tab.sortState;
       const currentConnections = useConnectionStore.getState().connections;
       const conn = currentConnections.find((c) => c.id === tab.connectionId);
       const driver = conn?.driver ?? 'postgres';
@@ -112,6 +120,9 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           sqlFilter = clause;
         }
       }
+
+      const sortCol = currentSort?.column;
+      const sortDir = currentSort?.direction;
 
       setTableStates((prev) => ({
         ...prev,
@@ -128,7 +139,18 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       try {
         await dbApi.openSession(tab.connectionId, tabId);
         const offset = (page - 1) * pageSize;
-        const result = sqlFilter
+        const result = sortCol
+          ? await dbApi.fetchTableData(
+              tabId,
+              tableName,
+              tab.schemaName,
+              pageSize,
+              offset,
+              sqlFilter,
+              sortCol,
+              sortDir
+            )
+          : sqlFilter
           ? await dbApi.fetchTableData(
               tabId,
               tableName,
@@ -774,19 +796,31 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
               {/* Bottom: DataGrid displaying QueryResult */}
               <div className="flex-1 min-h-[100px] flex flex-col overflow-hidden">
                 <DataGrid
-                  data={
-                    activeTab.filterState && activeTab.filterState.enabled && queryResults[activeTab.id]
-                      ? {
-                          ...queryResults[activeTab.id]!,
-                          rows: filterInMemoryRows(
-                            queryResults[activeTab.id]!.columns,
-                            queryResults[activeTab.id]!.rows,
-                            activeTab.filterState.conditions,
-                            activeTab.filterState.conjunction
-                          ),
-                        }
-                      : queryResults[activeTab.id] ?? null
-                  }
+                  data={(() => {
+                    const raw = queryResults[activeTab.id];
+                    if (!raw) return null;
+                    let rows = raw.rows;
+                    if (activeTab.filterState && activeTab.filterState.enabled) {
+                      rows = filterInMemoryRows(
+                        raw.columns,
+                        rows,
+                        activeTab.filterState.conditions,
+                        activeTab.filterState.conjunction
+                      );
+                    }
+                    if (activeTab.sortState) {
+                      rows = sortInMemoryRows(
+                        raw.columns,
+                        rows,
+                        activeTab.sortState.column,
+                        activeTab.sortState.direction
+                      );
+                    }
+                    return {
+                      ...raw,
+                      rows,
+                    };
+                  })()}
                   theme={theme}
                   filterState={activeTab.filterState}
                   onFilterChange={(newFilter) => updateTab(activeTab.id, { filterState: newFilter })}
@@ -805,6 +839,17 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                       ],
                     };
                     updateTab(activeTab.id, { filterState: cleared });
+                  }}
+                  sortState={activeTab.sortState}
+                  onSortChange={(newSort) => updateTab(activeTab.id, { sortState: newSort })}
+                  columnWidths={activeTab.columnWidths}
+                  onColumnResize={(colId, newWidth) => {
+                    updateTab(activeTab.id, {
+                      columnWidths: {
+                        ...(activeTab.columnWidths || {}),
+                        [colId]: newWidth,
+                      },
+                    });
                   }}
                   driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
                 />
@@ -942,6 +987,26 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                             tableStates[activeTab.id]?.pageSize ?? 100,
                             cleared
                           );
+                        }}
+                        sortState={activeTab.sortState}
+                        onSortChange={(newSort) => {
+                          updateTab(activeTab.id, { sortState: newSort });
+                          loadTableData(
+                            activeTab,
+                            1,
+                            tableStates[activeTab.id]?.pageSize ?? 100,
+                            undefined,
+                            newSort
+                          );
+                        }}
+                        columnWidths={activeTab.columnWidths}
+                        onColumnResize={(colId, newWidth) => {
+                          updateTab(activeTab.id, {
+                            columnWidths: {
+                              ...(activeTab.columnWidths || {}),
+                              [colId]: newWidth,
+                            },
+                          });
                         }}
                         driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
                       />

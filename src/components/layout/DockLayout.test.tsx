@@ -394,4 +394,76 @@ describe('DockLayout', () => {
       expect(screen.getByText(/1 rows/i)).toBeInTheDocument();
     });
   });
+
+  it('applies server-side sorting in table tab when tab has sortState', async () => {
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 't-sort',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'users',
+          tableName: 'users',
+          schemaName: 'main',
+          autoCommit: true,
+          queryContent: '',
+          sortState: { column: 'name', direction: 'DESC' },
+        },
+      ],
+      activeTabId: 't-sort',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalledWith(
+        't-sort',
+        'users',
+        'main',
+        100,
+        0,
+        undefined,
+        'name',
+        'DESC'
+      );
+    });
+  });
+
+  it('applies client-side sorting in query tab when sortState is set', async () => {
+    vi.mocked(dbApi.executeQuery).mockResolvedValueOnce({
+      columns: [
+        { name: 'name', data_type: 'TEXT', nullable: false },
+        { name: 'id', data_type: 'INTEGER', nullable: false },
+      ],
+      rows: [
+        [{ Text: 'Bob' }, { Integer: 2 }],
+        [{ Text: 'Alice' }, { Integer: 1 }],
+      ],
+      execution_time_ms: 5,
+    } as QueryResult);
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'q-sort',
+          connectionId: 'conn-1',
+          type: 'query',
+          title: 'Query 1',
+          queryContent: 'SELECT * FROM users;',
+          autoCommit: true,
+          sortState: { column: 'name', direction: 'ASC' },
+        },
+      ],
+      activeTabId: 'q-sort',
+    });
+
+    render(<DockLayout />);
+
+    const runBtn = screen.getByRole('button', { name: /run query/i });
+    fireEvent.click(runBtn);
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/2 rows/i).length).toBeGreaterThan(0);
+    });
+  });
 });

@@ -1,16 +1,26 @@
 import { GridCell, GridCellKind, GridColumn } from '@glideapps/glide-data-grid';
-import { CellValue, ColumnMeta } from '../../types/db';
+import { CellValue, ColumnMeta, TableSortState } from '../../types/db';
 
-export function createGridColumns(columns: ColumnMeta[]): GridColumn[] {
+export function createGridColumns(
+  columns: ColumnMeta[],
+  columnWidths?: Record<string, number>,
+  sortState?: TableSortState
+): GridColumn[] {
   return columns.map((col) => {
     // Estimate width based on title and data_type
     const titleLen = col.name.length;
     const typeLen = col.data_type?.length || 0;
-    const width = Math.max(120, Math.min(320, (titleLen + typeLen) * 10 + 60));
+    const defaultWidth = Math.max(120, Math.min(320, (titleLen + typeLen) * 10 + 60));
+    const width = columnWidths?.[col.name] ?? defaultWidth;
+
+    let title = col.name;
+    if (sortState && sortState.column === col.name) {
+      title += sortState.direction === 'ASC' ? ' ▲' : ' ▼';
+    }
 
     return {
       id: col.name,
-      title: col.name,
+      title,
       width,
       hasMenu: false,
     };

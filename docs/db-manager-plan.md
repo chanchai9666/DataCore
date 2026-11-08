@@ -136,6 +136,8 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - แบ่งหน้าทีละ 100 แถว เพื่อประสิทธิภาพและความเร็วของ Tauri IPC
 - **Navicat-style Filter Bar:** แถบฟิวเตอร์ค้นหาข้อมูลแบบ Filter Builder สามารถระบุ `[Column] [Operator] [Value]` พร้อมปุ่ม `+ Add Condition` ตัวเชื่อม `AND` / `OR`, Checkbox เปิด/ปิดเงื่อนไข, ปุ่ม Clear, ปุ่ม Apply, กด Enter เพื่อ Apply ทันที และพรีวิว SQL WHERE clause (กรองระดับ Server-side สำหรับ Table Tab และ In-memory สำหรับ Query Tab พร้อมจดจำ State แยกตามแต่ละแท็บ)
 - **Row Header Selection & Highlight:** คลิกที่หมายเลขแถว (Row Marker `clickable-number` 1, 2, 3...) แล้วไฮไลท์ทั้งแถวด้วยสีฟ้าเด่นชัด (`accentLight: rgba(59, 130, 246, 0.25)`) พร้อมรองรับ Multi-row selection ด้วย Shift/Cmd และเชื่อมต่อกับปุ่ม Delete Row เป็น `Delete (N) Rows`
+- **Order By คอลัมน์ (Column Sorting):** คลิกที่ Header คอลัมน์เพื่อเรียงลำดับข้อมูลสลับระหว่าง `ASC (▲)` -> `DESC (▼)` -> `None (ลำดับเริ่มต้น)` โดย Table Tab ทำงานแบบ Server-side ผ่าน SQL `ORDER BY` และ Query Tab ทำงานแบบ Client-side In-memory
+- **Column Resizing:** รองรับการลากขอบ Header คอลัมน์เพื่อย่อ/ขยายความกว้างได้อย่างอิสระ พร้อมบันทึกขนาดคอลัมน์คงอยู่แยกตามแต่ละแท็บ (Persist column widths per tab)
 - แก้ไขช่อง (Inline Edit), เพิ่มแถว (Insert Row Modal), ลบแถว แล้ว commit/rollback
 - รองรับการดึง metadata ของคอลัมน์จาก `information_schema` แม้ตารางจะยังไม่มีข้อมูล (0 rows) เพื่อให้เปิดหน้าต่าง Insert Row กรอกข้อมูลได้ทันที
 - คำสั่ง INSERT จะละเว้นคอลัมน์ auto-increment / SERIAL / id ที่มีค่าว่างหรือ NULL เพื่อให้ฐานข้อมูลสร้าง Sequence ให้โดยอัตโนมัติ

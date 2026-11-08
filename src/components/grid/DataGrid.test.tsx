@@ -440,5 +440,39 @@ describe('DataGrid', () => {
       expect(screen.getByRole('button', { name: /delete selected row|delete row/i })).toBeInTheDocument();
       expect(screen.getByTestId('toggle-filter-btn')).toBeInTheDocument();
     });
+
+    it('renders column header with sort indicator and custom widths in createGridColumns', () => {
+      const cols = createGridColumns(
+        mockQueryResult.columns,
+        { id: 250 },
+        { column: 'id', direction: 'ASC' }
+      );
+      expect(cols[0].title).toBe('id ▲');
+      expect((cols[0] as { width?: number }).width).toBe(250);
+
+      const colsDesc = createGridColumns(
+        mockQueryResult.columns,
+        undefined,
+        { column: 'id', direction: 'DESC' }
+      );
+      expect(colsDesc[0].title).toBe('id ▼');
+    });
+
+    it('accepts sortState, onSortChange, columnWidths, and onColumnResize props', () => {
+      const onSortChange = vi.fn();
+      const onColumnResize = vi.fn();
+
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          sortState={{ column: 'username', direction: 'ASC' }}
+          onSortChange={onSortChange}
+          columnWidths={{ username: 300 }}
+          onColumnResize={onColumnResize}
+        />
+      );
+
+      expect(screen.getByText(/2 rows/i)).toBeInTheDocument();
+    });
   });
 });

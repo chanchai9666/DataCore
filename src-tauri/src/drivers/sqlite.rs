@@ -114,7 +114,7 @@ impl DatabaseConnection for SqliteConnection {
         }
     }
 
-    async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>) -> Result<QueryResult, AppError> {
+    async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>, sort_col: Option<&str>, sort_dir: Option<&str>) -> Result<QueryResult, AppError> {
         let escaped_table = table.replace('"', "\"\"");
         let from_clause = if let Some(sch) = schema {
             let escaped_schema = sch.replace('"', "\"\"");
@@ -125,6 +125,15 @@ impl DatabaseConnection for SqliteConnection {
 
         let where_clause = match filter {
             Some(f) if !f.trim().is_empty() => format!(" WHERE {}", f.trim()),
+            _ => String::new(),
+        };
+
+        let order_clause = match sort_col {
+            Some(col) if !col.trim().is_empty() => {
+                let escaped_col = col.trim().replace('"', "\"\"");
+                let dir = if sort_dir == Some("DESC") { "DESC" } else { "ASC" };
+                format!(" ORDER BY \"{}\" {}", escaped_col, dir)
+            }
             _ => String::new(),
         };
 
@@ -143,7 +152,7 @@ impl DatabaseConnection for SqliteConnection {
             Err(_) => None,
         };
 
-        let sql = format!("SELECT * FROM {}{} LIMIT {} OFFSET {};", from_clause, where_clause, limit, offset);
+        let sql = format!("SELECT * FROM {}{}{} LIMIT {} OFFSET {};", from_clause, where_clause, order_clause, limit, offset);
         let mut res = self.execute_query(&sql).await?;
         if total_count.is_some() {
             res.rows_affected = total_count;
