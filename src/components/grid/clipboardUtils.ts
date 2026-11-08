@@ -1,11 +1,9 @@
 import { GridSelection } from '@glideapps/glide-data-grid';
-import { QueryResult } from '../../types/db';
+import { QueryResult, CellValue } from '../../types/db';
+import { extractCellValue } from './gridUtils';
 
 export function formatCellValue(val: unknown): string {
-  if (val === null || val === undefined) {
-    return 'NULL';
-  }
-  return String(val);
+  return extractCellValue(val as CellValue).displayString;
 }
 
 export function formatSelectionAsText(

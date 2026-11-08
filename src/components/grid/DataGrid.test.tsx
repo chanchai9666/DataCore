@@ -562,4 +562,46 @@ describe('DataGrid', () => {
       });
     });
   });
+
+  describe('Copy Shortcuts (Cmd+A, Cmd+C, Cmd+Shift+C)', () => {
+    it('selects all rows and columns when Cmd+A is pressed', () => {
+      render(<DataGrid data={mockQueryResult} />);
+      const container = screen.getByTestId('data-grid-container');
+      fireEvent.keyDown(container, { key: 'a', metaKey: true });
+      expect(latestDataEditorProps.gridSelection.columns.length).toBe(mockQueryResult.columns.length);
+      expect(latestDataEditorProps.gridSelection.rows.length).toBe(mockQueryResult.rows.length);
+    });
+
+    it('copies selection to clipboard without headers when Cmd+C is pressed', async () => {
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+
+      render(<DataGrid data={mockQueryResult} />);
+      const container = screen.getByTestId('data-grid-container');
+
+      fireEvent.keyDown(container, { key: 'a', metaKey: true });
+      fireEvent.keyDown(container, { key: 'c', metaKey: true });
+
+      expect(writeTextMock).toHaveBeenCalled();
+      const text = writeTextMock.mock.calls[0][0];
+      expect(text.startsWith('id\tusername')).toBe(false);
+      expect(text).toContain('alice');
+    });
+
+    it('copies selection to clipboard with headers when Cmd+Shift+C is pressed', async () => {
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+
+      render(<DataGrid data={mockQueryResult} />);
+      const container = screen.getByTestId('data-grid-container');
+
+      fireEvent.keyDown(container, { key: 'a', metaKey: true });
+      fireEvent.keyDown(container, { key: 'c', metaKey: true, shiftKey: true });
+
+      expect(writeTextMock).toHaveBeenCalled();
+      const text = writeTextMock.mock.calls[0][0];
+      expect(text.startsWith('id\tusername')).toBe(true);
+      expect(text).toContain('alice');
+    });
+  });
 });

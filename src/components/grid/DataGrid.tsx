@@ -17,6 +17,8 @@ import { GridBottomBar } from './GridBottomBar';
 import { lightGridTheme, darkGridTheme } from './gridTheme';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { createGridColumns, createCellContent } from './gridUtils';
+import { formatSelectionAsText } from './clipboardUtils';
+import { toast } from 'sonner';
 import { ExportModal } from '../transfer/ExportModal';
 
 export interface DataGridProps {
@@ -345,9 +347,76 @@ export const DataGrid: React.FC<DataGridProps> = ({
     onRefresh?.();
   };
 
+  const handleSelectAll = useCallback(() => {
+    if (!data?.columns?.length || !data?.rows?.length) return;
+    let allCols = CompactSelection.empty();
+    for (let i = 0; i < data.columns.length; i++) {
+      allCols = allCols.add(i);
+    }
+    let allRows = CompactSelection.empty();
+    for (let i = 0; i < data.rows.length; i++) {
+      allRows = allRows.add(i);
+    }
+    setGridSelection({
+      columns: allCols,
+      rows: allRows,
+      current: undefined,
+    });
+  }, [data?.columns?.length, data?.rows?.length]);
+
+  const handleCopy = useCallback(
+    (includeHeaders: boolean) => {
+      if (!data) return;
+      let sel = gridSelection;
+      if (
+        sel.columns.length === 0 &&
+        sel.rows.length === 0 &&
+        !sel.current?.cell &&
+        !sel.current?.range &&
+        selectedCell
+      ) {
+        sel = {
+          ...sel,
+          current: {
+            cell: selectedCell,
+            range: { x: selectedCell[0], y: selectedCell[1], width: 1, height: 1 },
+            rangeStack: [],
+          },
+        };
+      }
+      const text = formatSelectionAsText(sel, data, includeHeaders);
+      if (text) {
+        if (navigator?.clipboard?.writeText) {
+          navigator.clipboard.writeText(text).catch((err) => {
+            console.error('Failed to copy to clipboard', err);
+          });
+        }
+        toast.success(
+          includeHeaders ? 'Copied with headers to clipboard' : 'Copied to clipboard'
+        );
+      }
+    },
+    [data, gridSelection, selectedCell]
+  );
+
+  const handleContainerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+    if (!isCmdOrCtrl) return;
+
+    if (e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      handleSelectAll();
+    } else if (e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      handleCopy(e.shiftKey);
+    }
+  };
+
   return (
     <div
       data-testid="data-grid-container"
+      tabIndex={0}
+      onKeyDown={handleContainerKeyDown}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -548,6 +617,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
               columns={columns}
               rows={rowsCount}
               getCellContent={getCellContent}
+              getCellsForSelection={true}
               rowMarkers="clickable-number"
               rowSelect="multi"
               columnSelect="multi"
