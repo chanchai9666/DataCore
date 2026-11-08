@@ -214,6 +214,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Object Browser:** คลิกขวาที่ตาราง -> เลือก *"Import Data into Table..."* หรือ *"Export Table Data..."*
     - **Data Grid Toolbar:** ปุ่ม *"Export"* บนแถบเครื่องมือ โดยเลือกได้ระหว่าง *"Current View (Filtered/Sorted)"* หรือ *"All Table Rows"*
   - **Auto-refresh & Feedback:** เมื่อ Import สำเร็จจะทำการรีเฟรชข้อมูลในแท็บของตารางที่เปิดอยู่โดยอัตโนมัติ พร้อมแสดงข้อความสรุปผ่าน Toast notification (`sonner`)
+- **การจัดการตารางและการถ่ายโอนข้อมูลขั้นสูง (อยู่ระหว่างการพัฒนา - ดู [Technical Design Doc](designs/table_management_and_data_transfer.md))**:
+  - **Table List View:** หน้าจอภาพรวมตารางระดับ Database/Schema ในรูปแบบ Detailed Metadata Grid (Glide Data Grid แสดง Estimated Rows ปราศจาก Table Lock, Data Size, Index Size, Storage Engine, Collation พร้อม Search Filter ค้นหาชื่อตาราง)
+  - **Duplicate Table (Native SQL Quick Clone):** เมนูลัดคลิกขวาที่ตารางเพื่อโคลนโครงสร้างและข้อมูลลงใน schema เดียวกันอย่างรวดเร็วระดับมิลลิวินาที ผ่านคำสั่ง Native SQL ของฐานข้อมูลเดิมโดยตรง (`CREATE TABLE ... LIKE / AS SELECT`) ไม่กินหน่วยความจำฝั่ง Client
+  - **SQL Import / Export (Navicat Standard):**
+    - *Export SQL:* สร้างไฟล์ Dump `.sql` เลือกได้ทั้ง Structure Only, Data Only, หรือ Structure & Data พร้อม Multi-row Batch INSERT (500–1,000 แถว)
+    - *Import SQL:* ตัวอ่านและรันคำสั่งสตรีมมิ่ง `BufReader` ใน Rust รองรับไฟล์ขนาดใหญ่ระดับหลาย GB (เพดาน RAM < 32MB) กรองและตัดทิ้งคำสั่ง `DELIMITER` ของ MySQL อัตโนมัติ ป้องกัน Syntax Error และรองรับการสั่งยกเลิก (Cancellation) เพื่อ Rollback ทันที
 - Copy เป็น CSV / JSON / INSERT statement จากกริด
 - Backup / Dump ฐานข้อมูล
 

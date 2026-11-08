@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FileCode,
   Table,
+  Database,
   Plus,
   X,
   PanelLeftClose,
@@ -15,12 +16,13 @@ import { ObjectBrowser } from '../sidebar/ObjectBrowser';
 import { SqlEditor } from '../editor/SqlEditor';
 import { DataGrid } from '../grid/DataGrid';
 import { dbApi } from '../../api/db';
-import { openQueryTab } from '../sidebar/tabHelpers';
+import { openQueryTab, openTableTab } from '../sidebar/tabHelpers';
 import { buildUpdateSql, buildDeleteSql, buildInsertSql } from '../grid/tableEditHelpers';
 import { buildSqlWhereClause, filterInMemoryRows } from '../grid/filterUtils';
 import { sortInMemoryRows } from '../grid/sortUtils';
 import { InsertRowModal } from '../grid/InsertRowModal';
 import { TableStructureEditor } from '../structure/TableStructureEditor';
+import { TableListTab } from '../tablelist/TableListTab';
 import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
 import type { ConnectionConfig, QueryResult, Tab, TableFilterState, TableSortState } from '../../types/db';
@@ -696,7 +698,9 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                       : 'text-gray-600 hover:bg-gray-200/60 hover:text-gray-900 border-r-gray-200'
                   }`}
                 >
-                  {tab.type === 'table' ? (
+                  {tab.type === 'table-list' ? (
+                    <Database className="w-3.5 h-3.5 flex-shrink-0 text-purple-400" />
+                  ) : tab.type === 'table' ? (
                     <Table className="w-3.5 h-3.5 flex-shrink-0 text-emerald-400" />
                   ) : (
                     <FileCode className="w-3.5 h-3.5 flex-shrink-0 text-blue-400" />
@@ -773,6 +777,34 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                   <span>Add Connection</span>
                 </button>
               ) : null}
+            </div>
+          ) : activeTab.type === 'table-list' ? (
+            /* Table List View Tab */
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <TableListTab
+                connectionId={activeTab.connectionId}
+                schemaName={activeTab.schemaName}
+                theme={theme}
+                onOpenTable={(tableName: string) => {
+                  openTableTab({
+                    connectionId: activeTab.connectionId,
+                    tableName,
+                    schemaName: activeTab.schemaName,
+                  });
+                }}
+                onOpenStructure={(tableName: string) => {
+                  openTableTab({
+                    connectionId: activeTab.connectionId,
+                    tableName,
+                    schemaName: activeTab.schemaName,
+                    viewMode: 'structure',
+                  });
+                }}
+                onDuplicateTable={(tableName: string) => {
+                  // Will be integrated in Issue #24
+                  console.log('Duplicate table requested:', tableName);
+                }}
+              />
             </div>
           ) : activeTab.type === 'query' ? (
             /* Query Tab: Split view (Editor on top, DataGrid on bottom with vertical resizer) */

@@ -15,7 +15,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
-import { openTableTab, openQueryTab } from './tabHelpers';
+import { openTableTab, openQueryTab, openTableListTab } from './tabHelpers';
 
 export type BrowserNodeType =
   | 'connection'
@@ -65,6 +65,7 @@ export interface ObjectBrowserContextType {
   onRefreshConnection?: (connectionId: string) => void;
   onConnectConnection?: (connectionId: string) => void;
   onOpenTable?: (node: BrowserTreeNode) => void;
+  onOpenTableList?: (node: BrowserTreeNode) => void;
   onNewQuery?: (node: BrowserTreeNode) => void;
   onEditConnection?: (connectionId: string) => void;
   onDeleteConnection?: (connectionId: string) => void;
@@ -82,6 +83,9 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
   const data = node.data;
   const isLeaf = node.isLeaf;
   const isTableOrView = data.nodeType === 'table' || data.nodeType === 'view';
+  const isTablesFolder =
+    data.nodeType === 'folder' &&
+    (data.name.startsWith('Tables') || data.id.includes('folder-tables'));
 
   // Special node rendering: error state under a connection
   if (data.nodeType === 'error') {
@@ -209,6 +213,17 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
     }
   };
 
+  const handleOpenTableListTab = () => {
+    if (context.onOpenTableList) {
+      context.onOpenTableList(data);
+    } else {
+      openTableListTab({
+        connectionId: data.connectionId,
+        schemaName: data.schemaName,
+      });
+    }
+  };
+
   const handleNewQueryTab = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (context.onNewQuery) {
@@ -245,6 +260,8 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
     e.stopPropagation();
     if (isTableOrView) {
       handleOpenTableTab();
+    } else if (isTablesFolder) {
+      handleOpenTableListTab();
     } else if (data.nodeType === 'connection') {
       useConnectionStore.getState().setActiveConnection(data.connectionId);
       const status = getConnectionStatus(data);

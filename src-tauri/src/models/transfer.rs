@@ -90,3 +90,67 @@ pub struct TransferProgress {
     pub total_rows: Option<usize>,
     pub status: String,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TableMetadata {
+    pub name: String,
+    #[serde(alias = "approx_row_count")]
+    pub approx_row_count: i64,
+    #[serde(alias = "data_size_bytes")]
+    pub data_size_bytes: u64,
+    #[serde(alias = "index_size_bytes")]
+    pub index_size_bytes: u64,
+    #[serde(alias = "total_size_bytes")]
+    pub total_size_bytes: u64,
+    pub engine: Option<String>,
+    pub collation: Option<String>,
+    pub comment: Option<String>,
+    #[serde(alias = "created_at")]
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateTableOptions {
+    #[serde(alias = "connection_id")]
+    pub connection_id: String,
+    pub schema: Option<String>,
+    #[serde(alias = "source_table")]
+    pub source_table: String,
+    #[serde(alias = "new_table_name")]
+    pub new_table_name: String,
+    #[serde(alias = "copy_data")]
+    pub copy_data: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SqlExportOptions {
+    #[serde(alias = "connection_id")]
+    pub connection_id: String,
+    pub schema: Option<String>,
+    pub tables: Vec<String>,
+    #[serde(alias = "file_path")]
+    pub file_path: String,
+    #[serde(alias = "include_drop_table")]
+    pub include_drop_table: bool,
+    #[serde(alias = "include_structure")]
+    pub include_structure: bool,
+    #[serde(alias = "include_data")]
+    pub include_data: bool,
+    #[serde(default, alias = "batch_size")]
+    pub batch_size: Option<usize>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SqlImportOptions {
+    #[serde(alias = "connection_id")]
+    pub connection_id: String,
+    pub schema: Option<String>,
+    #[serde(alias = "file_path")]
+    pub file_path: String,
+    #[serde(alias = "error_policy")]
+    pub error_policy: String, // "abort" | "continue"
+}

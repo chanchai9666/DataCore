@@ -64,7 +64,7 @@ export interface TableSortState {
 export interface Tab {
   id: string;
   connectionId: string;
-  type: 'query' | 'table';
+  type: 'query' | 'table' | 'table-list';
   title: string;
   autoCommit: boolean;
   queryContent: string;

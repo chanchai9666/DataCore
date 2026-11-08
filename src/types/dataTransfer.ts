@@ -51,3 +51,41 @@ export interface TransferProgress {
   total_rows?: number;
   status: string;
 }
+
+export interface TableMetadata {
+  name: string;
+  approxRowCount: number;
+  dataSizeBytes: number;
+  indexSizeBytes: number;
+  totalSizeBytes: number;
+  engine?: string;
+  collation?: string;
+  comment?: string;
+  createdAt?: string;
+}
+
+export interface DuplicateTableOptions {
+  connectionId: string;
+  schema?: string;
+  sourceTable: string;
+  newTableName: string;
+  copyData: boolean;
+}
+
+export interface SqlExportOptions {
+  connectionId: string;
+  schema?: string;
+  tables: string[];
+  filePath: string;
+  includeDropTable: boolean;
+  includeStructure: boolean;
+  includeData: boolean;
+  batchSize?: number;
+}
+
+export interface SqlImportOptions {
+  connectionId: string;
+  schema?: string;
+  filePath: string;
+  errorPolicy: 'abort' | 'continue';
+}

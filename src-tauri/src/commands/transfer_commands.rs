@@ -1,12 +1,34 @@
 use tauri::{AppHandle, Emitter, State};
 use crate::models::{
     DatabaseDriver, ExportOptions, ExportResult, ImportOptions, ImportPreview, ImportResult,
+    TableMetadata,
 };
 use crate::services::connection_store::ConnectionStore;
 use crate::services::data_transfer::{
     export_data_impl, import_data_impl, preview_import_file_impl,
 };
+use crate::services::table_list::get_table_list_metadata_impl;
 use crate::session::SessionManager;
+
+#[tauri::command]
+pub async fn get_table_list_metadata(
+    store: State<'_, ConnectionStore>,
+    connection_id: String,
+    schema: Option<String>,
+) -> Result<Vec<TableMetadata>, String> {
+    let config = store
+        .get(&connection_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+    let password = store.get_password(&connection_id).map_err(|e| e.to_string())?;
+    let conn = SessionManager::create_connection(&config, password.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    get_table_list_metadata_impl(conn.as_ref(), config.driver, schema.as_deref())
+        .await
+        .map_err(|e| e.to_string())
+}
 
 #[tauri::command]
 pub async fn preview_import_file(

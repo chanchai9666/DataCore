@@ -46,6 +46,7 @@ pub fn run() {
             preview_import_file,
             export_data,
             import_data,
+            get_table_list_metadata,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

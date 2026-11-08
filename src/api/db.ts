@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ConnectionConfig, QueryResult, SchemaNode } from '../types/db';
+import type { TableMetadata } from '../types/dataTransfer';
 import { splitSqlStatements } from './sqlSplitter';
 
 export const testConnection = async (
@@ -177,6 +178,17 @@ export const deleteStoredPassword = async (
   });
 };
 
+export const getTableListMetadata = async (
+  connectionId: string,
+  schema?: string
+): Promise<TableMetadata[]> => {
+  return invoke<TableMetadata[]>('get_table_list_metadata', {
+    connectionId,
+    connection_id: connectionId,
+    schema: schema ?? null,
+  });
+};
+
 export const dbApi = {
   testConnection,
   getConnections,
@@ -195,4 +207,5 @@ export const dbApi = {
   commitTransaction,
   rollbackTransaction,
   getSchemaTree,
+  getTableListMetadata,
 };

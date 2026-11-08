@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { openQueryTab, openTableTab } from './tabHelpers';
+import { openQueryTab, openTableTab, openTableListTab } from './tabHelpers';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import type { ConnectionConfig } from '../../types/db';
@@ -104,6 +104,49 @@ describe('tabHelpers', () => {
       expect(tabs).toHaveLength(1);
       expect(tabs[0].queryContent).toBe('');
       expect(tabs[0].title).toBe('Query (Postgres DB)');
+    });
+  });
+
+  describe('openTableListTab', () => {
+    it('opens a table-list tab with schema name', () => {
+      openTableListTab({
+        connectionId: 'conn-pg-1',
+        schemaName: 'public',
+      });
+
+      const tabs = useTabStore.getState().tabs;
+      expect(tabs).toHaveLength(1);
+      expect(tabs[0].id).toBe('tables:conn-pg-1:public');
+      expect(tabs[0].type).toBe('table-list');
+      expect(tabs[0].title).toBe('Tables (public)');
+      expect(tabs[0].schemaName).toBe('public');
+    });
+
+    it('falls back to default schema when schemaName is undefined', () => {
+      openTableListTab({
+        connectionId: 'conn-sqlite-1',
+      });
+
+      const tabs = useTabStore.getState().tabs;
+      expect(tabs).toHaveLength(1);
+      expect(tabs[0].id).toBe('tables:conn-sqlite-1:default');
+      expect(tabs[0].type).toBe('table-list');
+      expect(tabs[0].title).toBe('Tables');
+    });
+
+    it('focuses existing tab instead of creating duplicate', () => {
+      openTableListTab({
+        connectionId: 'conn-pg-1',
+        schemaName: 'public',
+      });
+      openTableListTab({
+        connectionId: 'conn-pg-1',
+        schemaName: 'public',
+      });
+
+      const tabs = useTabStore.getState().tabs;
+      expect(tabs).toHaveLength(1);
+      expect(useTabStore.getState().activeTabId).toBe('tables:conn-pg-1:public');
     });
   });
 });

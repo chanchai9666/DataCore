@@ -8,6 +8,36 @@ export interface OpenTableTabParams {
   viewMode?: 'data' | 'structure';
 }
 
+export interface OpenTableListTabParams {
+  connectionId: string;
+  schemaName?: string;
+}
+
+export function openTableListTab({
+  connectionId,
+  schemaName,
+}: OpenTableListTabParams): void {
+  const fullId = `tables:${connectionId}:${schemaName || 'default'}`;
+  const existingTab = useTabStore.getState().tabs.find((t) => t.id === fullId);
+
+  if (existingTab) {
+    useTabStore.getState().setActiveTab(fullId);
+    return;
+  }
+
+  const title = schemaName ? `Tables (${schemaName})` : 'Tables';
+
+  useTabStore.getState().openTab({
+    id: fullId,
+    connectionId,
+    type: 'table-list',
+    title,
+    schemaName,
+    autoCommit: true,
+    queryContent: '',
+  });
+}
+
 export interface OpenQueryTabParams {
   connectionId: string;
   connectionName?: string;

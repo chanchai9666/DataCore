@@ -20,7 +20,7 @@ import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, SchemaNode } from '../../types/db';
-import { openTableTab, openQueryTab } from './tabHelpers';
+import { openTableTab, openQueryTab, openTableListTab } from './tabHelpers';
 import { CreateTableModal } from '../structure/CreateTableModal';
 import { DropTableModal } from '../structure/DropTableModal';
 import { ImportModal } from '../transfer/ImportModal';
@@ -499,6 +499,14 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     setContextMenu(null);
   }, []);
 
+  const handleOpenTableList = useCallback((node: BrowserTreeNode) => {
+    openTableListTab({
+      connectionId: node.connectionId,
+      schemaName: node.schemaName,
+    });
+    setContextMenu(null);
+  }, []);
+
   const handleEditStructure = useCallback((node: BrowserTreeNode) => {
     openTableTab({
       connectionId: node.connectionId,
@@ -736,6 +744,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               onRefreshConnection: handleRefresh,
               onConnectConnection: handleConnect,
               onOpenTable: handleOpenTable,
+              onOpenTableList: handleOpenTableList,
               onNewQuery: handleNewQuery,
               onEditConnection: handleEditConnection,
               onDeleteConnection: handleDeleteConnection,
@@ -924,6 +933,21 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             contextMenu.node.nodeType === 'schema' ||
             contextMenu.node.nodeType === 'folder') && (
             <>
+              {(contextMenu.node.id.includes('folder-tables') ||
+                contextMenu.node.name.startsWith('Tables') ||
+                contextMenu.node.nodeType === 'database' ||
+                contextMenu.node.nodeType === 'schema') && (
+                <button
+                  type="button"
+                  data-testid="view-table-list-btn"
+                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-purple-400 font-medium"
+                  onClick={() => handleOpenTableList(contextMenu.node)}
+                >
+                  <Table className="w-3.5 h-3.5 text-purple-400" />
+                  <span>View Tables (Details)</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 data-testid="new-table-btn"
