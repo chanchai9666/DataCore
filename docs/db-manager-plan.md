@@ -275,4 +275,16 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - Keyboard Shortcuts integration ผ่าน `useShortcuts` (⌘N: New Connection, ⌘T: New Query Tab, ⌘W: Close Active Tab)
 - รองรับ `prefers-color-scheme` ตรวจจับ System Appearance อัตโนมัติ (Dark / Light)
 
+### Phase 6: Table Copy & In-Grid Search (✅ เสร็จสมบูรณ์)
+- รองรับการคัดลอกระดับช่อง, ทั้งแถว, ทั้งคอลัมน์แนวดิ่ง และทั้งตาราง (Cmd+A, Cmd+C, Cmd+Shift+C พร้อม Header)
+- ระบบค้นหาข้อมูลในตาราง In-Grid Find Bar (Cmd+F) พร้อม Match Counter และกระโดดไปยังผลลัพธ์
+- Right-click Context Menu สำหรับคัดลอก ค้นหา และเลือกทั้งหมด
+
+### Phase 7: Auto-Commit vs Staging Mode (กำลังดำเนินการ)
+- สวิตช์สลับโหมด Auto-Commit vs Manual Staging Mode บน GridBottomBar
+- โหมด Staging: รวบรวม Cell Edits, Insert Rows, Delete Rows ไว้ใน pendingChangesStore
+- แสดงผลไฮไลต์สีบนเซลล์และแถวที่มีการเปลี่ยนแปลง (Blue/Green/Red tints)
+- ปุ่ม Commit รวมคำสั่ง SQL รันเป็น Batch Transaction และปุ่ม Discard คืนค่าเดิม
+
+
 
