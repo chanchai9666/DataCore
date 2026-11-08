@@ -508,6 +508,8 @@ describe('DockLayout', () => {
           title: 'users',
           tableName: 'users',
           schemaName: 'main',
+          autoCommit: true,
+          queryContent: '',
         },
       ],
       activeTabId: 'tab-staging',
