@@ -280,11 +280,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - ระบบค้นหาข้อมูลในตาราง In-Grid Find Bar (Cmd+F) พร้อม Match Counter และกระโดดไปยังผลลัพธ์
 - Right-click Context Menu สำหรับคัดลอก ค้นหา และเลือกทั้งหมด
 
-### Phase 7: Auto-Commit vs Staging Mode (กำลังดำเนินการ)
+### Phase 7: Auto-Commit vs Staging Mode (✅ เสร็จสมบูรณ์)
 - สวิตช์สลับโหมด Auto-Commit vs Manual Staging Mode บน GridBottomBar
 - โหมด Staging: รวบรวม Cell Edits, Insert Rows, Delete Rows ไว้ใน pendingChangesStore
 - แสดงผลไฮไลต์สีบนเซลล์และแถวที่มีการเปลี่ยนแปลง (Blue/Green/Red tints)
 - ปุ่ม Commit รวมคำสั่ง SQL รันเป็น Batch Transaction และปุ่ม Discard คืนค่าเดิม
+
 
 
 

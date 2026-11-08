@@ -34,13 +34,13 @@
 - Modify: `src/stores/pendingChangesStore.ts`
 - Test: `src/stores/pendingChangesStore.test.ts`
 
-- [ ] Write failing test in `src/stores/pendingChangesStore.test.ts` verifying:
+- [x] Write failing test in `src/stores/pendingChangesStore.test.ts` verifying:
   - Default `isAutoCommitMode(tableKey)` returns `true`
   - `setAutoCommitMode(tableKey, false)` changes it to `false`
   - `isAutoCommitMode` operates per tableKey
-- [ ] Implement `isAutoCommit` state dictionary, `setAutoCommitMode`, and `isAutoCommitMode` selector in `src/stores/pendingChangesStore.ts`
-- [ ] Run `pnpm test src/stores/pendingChangesStore.test.ts` to verify
-- [ ] Commit changes: `git commit -am "feat(store): add autoCommitMode management to pendingChangesStore (#31)"`
+- [x] Implement `isAutoCommit` state dictionary, `setAutoCommitMode`, and `isAutoCommitMode` selector in `src/stores/pendingChangesStore.ts`
+- [x] Run `pnpm test src/stores/pendingChangesStore.test.ts` to verify
+- [x] Commit changes: `git commit -am "feat(store): add autoCommitMode management to pendingChangesStore (#31)"`
 
 ---
 
@@ -50,13 +50,13 @@
 - Modify: `src/components/grid/GridBottomBar.tsx`
 - Test: `src/components/grid/GridBottomBar.test.tsx`
 
-- [ ] Write failing tests in `src/components/grid/GridBottomBar.test.tsx`:
+- [x] Write failing tests in `src/components/grid/GridBottomBar.test.tsx`:
   - Renders mode toggle button showing Auto-Commit state
   - Calls `onToggleAutoCommit` when clicked
   - Shows warning / disabled state or handles clicks appropriately
-- [ ] Add `isAutoCommit: boolean` and `onToggleAutoCommit: () => void` props to `GridBottomBarProps` and render clean toggle pill button next to Commit/Discard buttons
-- [ ] Run `pnpm test src/components/grid/GridBottomBar.test.tsx` to verify
-- [ ] Commit changes: `git commit -am "feat(grid): add auto-commit toggle button to GridBottomBar (#31)"`
+- [x] Add `isAutoCommit: boolean` and `onToggleAutoCommit: () => void` props to `GridBottomBarProps` and render clean toggle pill button next to Commit/Discard buttons
+- [x] Run `pnpm test src/components/grid/GridBottomBar.test.tsx` to verify
+- [x] Commit changes: `git commit -am "feat(grid): add auto-commit toggle button to GridBottomBar (#31)"`
 
 ---
 
@@ -66,13 +66,13 @@
 - Modify: `src/components/grid/DataGrid.tsx`
 - Test: `src/components/grid/DataGrid.test.tsx`
 
-- [ ] Write failing tests in `src/components/grid/DataGrid.test.tsx`:
+- [x] Write failing tests in `src/components/grid/DataGrid.test.tsx`:
   - In Staging mode, edited cell displays staged value with `themeOverride` highlight
   - Staged deleted row displays with red background tint
   - Staged added rows are appended and displayed with green background tint
-- [ ] Implement visual indicators in `getCellContent`, `rowsCount` computation, and cell edits in `DataGrid.tsx`
-- [ ] Run `pnpm test src/components/grid/DataGrid.test.tsx` to verify
-- [ ] Commit changes: `git commit -am "feat(grid): render visual highlights for staged edits, additions and deletions (#31)"`
+- [x] Implement visual indicators in `getCellContent`, `rowsCount` computation, and cell edits in `DataGrid.tsx`
+- [x] Run `pnpm test src/components/grid/DataGrid.test.tsx` to verify
+- [x] Commit changes: `git commit -am "feat(grid): render visual highlights for staged edits, additions and deletions (#31)"`
 
 ---
 
@@ -82,17 +82,17 @@
 - Modify: `src/components/layout/DockLayout.tsx`
 - Test: `src/components/layout/DockLayout.test.tsx`
 
-- [ ] Update `handleCellEdited`, `handleRowDelete`, and `handleSubmitInsertRow` in `DockLayout.tsx`:
+- [x] Update `handleCellEdited`, `handleRowDelete`, and `handleSubmitInsertRow` in `DockLayout.tsx`:
   - If in Auto-Commit mode: execute SQL directly as before
   - If in Staging mode: stage in `pendingChangesStore` without executing SQL immediately
-- [ ] Implement `handleCommitChanges`:
+- [x] Implement `handleCommitChanges`:
   - Gather all pending cell edits, additions, and deletions for `tableKey`
   - Generate SQL statements and execute via `dbApi.executeQuery`
   - Clear pending changes and show status badge
-- [ ] Implement `handleToggleAutoCommit`:
+- [x] Implement `handleToggleAutoCommit`:
   - If switching from Staging to Auto-Commit and `hasPendingChanges`, prompt confirmation before clearing or switching
-- [ ] Run full test suite: `pnpm test` and `pnpm build`
-- [ ] Commit changes: `git commit -am "feat(layout): integrate staging workflow and batch commit in DockLayout (#31)"`
+- [x] Run full test suite: `pnpm test` and `pnpm build`
+- [x] Commit changes: `git commit -am "feat(layout): integrate staging workflow and batch commit in DockLayout (#31)"`
 
 ---
 
@@ -102,6 +102,6 @@
 - Modify: `docs/superpowers/specs/2026-11-08-staging-mode-design.md`
 - Modify: `docs/db-manager-plan.md`
 
-- [ ] Verify complete workflow with `pnpm test` (all 357+ tests passing) and `pnpm build`
-- [ ] Update `docs/db-manager-plan.md` to mark Phase 7 completed
-- [ ] Commit and close GitHub issue #31 with summary
+- [x] Verify complete workflow with `pnpm test` (all 357+ tests passing) and `pnpm build`
+- [x] Update `docs/db-manager-plan.md` to mark Phase 7 completed
+- [x] Commit and close GitHub issue #31 with summary
