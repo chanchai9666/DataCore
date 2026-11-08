@@ -146,6 +146,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 **Query Editor**
 - หลายแท็บ (**Dedicated Connection ต่อ 1 แท็บ**)
+- **Connection-Aware Query Tab Control:** ซ่อนปุ่ม `New Query Tab` ในหน้า Empty State และปุ่มบวก (+) บน Tab Bar เมื่อยังไม่ได้เชื่อมต่อฐานข้อมูลใดๆ เพื่อป้องกันการเปิด Query Tab โดยไม่มี connection ที่เชื่อมต่ออยู่ พร้อมแสดงข้อความแนะนำให้เชื่อมต่อฐานข้อมูลจาก Object Browser
 - **สวิตช์ Auto-Commit (ON / OFF)** พร้อมปุ่ม **Commit** และ **Rollback** บนแถบเครื่องมือ
 - syntax highlighting + autocomplete ชื่อตาราง/คอลัมน์
 - รันทั้งหมดหรือเฉพาะส่วนที่เลือก (⌘+Enter)

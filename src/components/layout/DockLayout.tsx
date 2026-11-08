@@ -48,7 +48,8 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
   lastSavedConnectionId,
 }) => {
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab } = useTabStore();
-  const { connections, activeConnectionId } = useConnectionStore();
+  const { connections, activeConnectionId, connectedConnectionIds } = useConnectionStore();
+  const hasConnectedDatabase = (connectedConnectionIds?.length ?? 0) > 0;
 
   // Sidebar collapse & resize state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -521,27 +522,29 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
   // Handler for adding a new query tab
   const handleAddNewQueryTab = useCallback(() => {
+    if (!connectedConnectionIds || connectedConnectionIds.length === 0) {
+      return;
+    }
+
     const activeTab = tabs.find((t) => t.id === activeTabId);
-    let targetConn = connections.find((c) => c.id === activeTab?.connectionId);
+    let targetConnId: string | undefined;
 
-    if (!targetConn && activeConnectionId) {
-      targetConn = connections.find((c) => c.id === activeConnectionId);
-    }
-    if (!targetConn && connections.length > 0) {
-      targetConn = connections[0];
+    if (activeTab?.connectionId && connectedConnectionIds.includes(activeTab.connectionId)) {
+      targetConnId = activeTab.connectionId;
+    } else if (activeConnectionId && connectedConnectionIds.includes(activeConnectionId)) {
+      targetConnId = activeConnectionId;
+    } else {
+      targetConnId = connectedConnectionIds[0];
     }
 
+    const targetConn = connections.find((c) => c.id === targetConnId);
     if (targetConn) {
       openQueryTab({
         connectionId: targetConn.id,
         connectionName: targetConn.name,
       });
-    } else {
-      if (onNewConnection) {
-        onNewConnection();
-      }
     }
-  }, [tabs, activeTabId, connections, activeConnectionId, onNewConnection]);
+  }, [tabs, activeTabId, connections, activeConnectionId, connectedConnectionIds]);
 
   // Sidebar resize mouse listeners
   const handleMouseDownResize = (e: React.MouseEvent) => {
@@ -717,20 +720,22 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           </div>
 
           {/* Add Query Tab Button */}
-          <button
-            type="button"
-            data-testid="add-query-tab-btn"
-            onClick={handleAddNewQueryTab}
-            aria-label="New Query Tab"
-            title="New Query Tab"
-            className={`p-2 transition-colors flex-shrink-0 ${
-              theme === 'dark'
-                ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-            }`}
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          {hasConnectedDatabase && (
+            <button
+              type="button"
+              data-testid="add-query-tab-btn"
+              onClick={handleAddNewQueryTab}
+              aria-label="New Query Tab"
+              title="New Query Tab"
+              className={`p-2 transition-colors flex-shrink-0 ${
+                theme === 'dark'
+                  ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+              }`}
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Tab Body */}
@@ -739,18 +744,35 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
             /* Empty State */
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-500">
               <Layers className="w-16 h-16 mb-4 opacity-25" />
-              <h3 className="text-base font-semibold mb-1">No open tabs</h3>
+              <h3 className="text-base font-semibold mb-1">
+                {hasConnectedDatabase ? 'No open tabs' : 'No database connected'}
+              </h3>
               <p className="text-xs max-w-sm mb-4">
-                Select a table from the Object Browser or click the + button to open a new query tab.
+                {hasConnectedDatabase
+                  ? 'Select a table from the Object Browser or click the + button to open a new query tab.'
+                  : 'Connect to a database in the Object Browser to start querying or viewing tables.'}
               </p>
-              <button
-                type="button"
-                onClick={handleAddNewQueryTab}
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>New Query Tab</span>
-              </button>
+              {hasConnectedDatabase ? (
+                <button
+                  type="button"
+                  data-testid="empty-new-query-tab-btn"
+                  onClick={handleAddNewQueryTab}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>New Query Tab</span>
+                </button>
+              ) : connections.length === 0 && onNewConnection ? (
+                <button
+                  type="button"
+                  data-testid="empty-add-connection-btn"
+                  onClick={onNewConnection}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Connection</span>
+                </button>
+              ) : null}
             </div>
           ) : activeTab.type === 'query' ? (
             /* Query Tab: Split view (Editor on top, DataGrid on bottom with vertical resizer) */

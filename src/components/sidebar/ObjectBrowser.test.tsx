@@ -60,6 +60,7 @@ describe('ObjectBrowser', () => {
     useConnectionStore.setState({
       connections: [mockConnection],
       activeConnectionId: 'conn-1',
+      connectedConnectionIds: [],
       loading: false,
       error: null,
     });

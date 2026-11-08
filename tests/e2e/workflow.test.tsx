@@ -127,7 +127,7 @@ describe('E2E Workflow Test', () => {
 
     // 1. Initial State: TitleBar renders with "DataCore", ObjectBrowser and empty state exist
     expect(screen.getByText('DataCore')).toBeInTheDocument();
-    expect(screen.getByText(/no open tabs/i)).toBeInTheDocument();
+    expect(screen.getByText(/no database connected|no open tabs/i)).toBeInTheDocument();
 
     // 2. Open ConnectionDialog and add SQLite connection
     const newConnBtn = screen.getByRole('button', { name: /\+ New Connection|New Connection/i });
@@ -161,8 +161,11 @@ describe('E2E Workflow Test', () => {
     const connNode = await screen.findByTestId('tree-node-My SQLite DB');
     expect(connNode).toBeInTheDocument();
 
+    // Connect to the database
+    fireEvent.click(connNode);
+
     // 3. Open a Query tab via the + button in tab bar
-    const addTabBtn = screen.getByTestId('add-query-tab-btn');
+    const addTabBtn = await screen.findByTestId('add-query-tab-btn');
     fireEvent.click(addTabBtn);
 
     // Verify Query tab is opened
@@ -205,8 +208,7 @@ describe('E2E Workflow Test', () => {
     fireEvent.mouseUp(window);
 
     // 4. Open Table tab via Object Browser
-    // Expand tree structure on demand: Connection -> database -> Tables
-    fireEvent.click(await screen.findByTestId('tree-node-My SQLite DB'));
+    // Expand tree structure on demand: database -> Tables
     fireEvent.click(await screen.findByTestId('tree-node-main'));
     fireEvent.click(await screen.findByTestId('tree-node-Tables (1)'));
 

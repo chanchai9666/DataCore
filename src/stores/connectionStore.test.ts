@@ -98,4 +98,34 @@ describe('connectionStore', () => {
     expect(state.connections).toHaveLength(0);
     expect(state.activeConnectionId).toBeNull();
   });
+
+  it('should mark connection as connected and disconnected', () => {
+    const store = useConnectionStore.getState();
+    expect(store.connectedConnectionIds).toEqual([]);
+
+    store.markConnected('conn-1');
+    expect(useConnectionStore.getState().connectedConnectionIds).toEqual(['conn-1']);
+
+    // Duplicate connect call does not duplicate id
+    store.markConnected('conn-1');
+    expect(useConnectionStore.getState().connectedConnectionIds).toEqual(['conn-1']);
+
+    store.markConnected('conn-2');
+    expect(useConnectionStore.getState().connectedConnectionIds).toEqual(['conn-1', 'conn-2']);
+
+    store.markDisconnected('conn-1');
+    expect(useConnectionStore.getState().connectedConnectionIds).toEqual(['conn-2']);
+  });
+
+  it('should clean up connectedConnectionIds when connection is removed', async () => {
+    useConnectionStore.setState({
+      connections: [mockConfig],
+      connectedConnectionIds: ['conn-1'],
+    });
+    vi.mocked(dbApi.deleteConnection).mockResolvedValueOnce(undefined);
+
+    await useConnectionStore.getState().removeConnection('conn-1');
+
+    expect(useConnectionStore.getState().connectedConnectionIds).toEqual([]);
+  });
 });

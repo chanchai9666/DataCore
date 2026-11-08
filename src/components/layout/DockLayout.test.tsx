@@ -39,6 +39,7 @@ describe('DockLayout', () => {
     useConnectionStore.setState({
       connections: [mockConn],
       activeConnectionId: 'conn-1',
+      connectedConnectionIds: ['conn-1'],
       loading: false,
       error: null,
     });
@@ -62,6 +63,31 @@ describe('DockLayout', () => {
     const tabs = useTabStore.getState().tabs;
     expect(tabs).toHaveLength(1);
     expect(tabs[0].type).toBe('query');
+  });
+
+  it('hides New Query Tab and + button when no database is connected', async () => {
+    useConnectionStore.setState({
+      connectedConnectionIds: [],
+    });
+    render(<DockLayout />);
+
+    expect(screen.queryByTestId('add-query-tab-btn')).toBeNull();
+    expect(screen.queryByTestId('empty-new-query-tab-btn')).toBeNull();
+    expect(screen.getByText(/no database connected/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/connect to a database in the object browser/i)
+    ).toBeInTheDocument();
+  });
+
+  it('shows New Query Tab and + button when a database is connected', async () => {
+    useConnectionStore.setState({
+      connectedConnectionIds: ['conn-1'],
+    });
+    render(<DockLayout />);
+
+    expect(screen.getByTestId('add-query-tab-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('empty-new-query-tab-btn')).toBeInTheDocument();
+    expect(screen.getByText(/no open tabs/i)).toBeInTheDocument();
   });
 
   it('switches between query and table tabs', async () => {

@@ -293,6 +293,9 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     activeConnectionId,
     setActiveConnection,
     removeConnection,
+    connectedConnectionIds,
+    markConnected,
+    markDisconnected,
   } = useConnectionStore();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -317,7 +320,6 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<TreeApi<BrowserTreeNode>>(null);
   const [dimensions, setDimensions] = useState({ width: 280, height: 600 });
-  const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
 
   // Update container dimensions for react-arborist
   useEffect(() => {
@@ -375,17 +377,13 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     try {
       const tree = await dbApi.getSchemaTree(connectionId);
       setSchemas((prev) => ({ ...prev, [connectionId]: tree }));
-      setConnectedIds((prev) => new Set(prev).add(connectionId));
+      markConnected(connectionId);
       treeRef.current?.open(`conn-${connectionId}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`Failed to load schema for connection ${connectionId}:`, err);
       setErrorMap((prev) => ({ ...prev, [connectionId]: msg }));
-      setConnectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(connectionId);
-        return next;
-      });
+      markDisconnected(connectionId);
       setSchemas((prev) => {
         const next = { ...prev };
         delete next[connectionId];
@@ -395,7 +393,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     } finally {
       setLoadingMap((prev) => ({ ...prev, [connectionId]: false }));
     }
-  }, []);
+  }, [markConnected, markDisconnected]);
 
   const lastProcessedSavedConnRef = useRef<string | null>(null);
   // Auto-refresh schema when an already connected connection is edited
@@ -403,15 +401,15 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     if (lastSavedConnectionId && lastSavedConnectionId !== lastProcessedSavedConnRef.current) {
       lastProcessedSavedConnRef.current = lastSavedConnectionId;
       const targetConn = (connections || []).find((c) => lastSavedConnectionId.startsWith(c.id));
-      if (targetConn && connectedIds.has(targetConn.id)) {
+      if (targetConn && connectedConnectionIds.includes(targetConn.id)) {
         fetchSchema(targetConn.id);
       }
     }
-  }, [lastSavedConnectionId, connections, fetchSchema, connectedIds]);
+  }, [lastSavedConnectionId, connections, fetchSchema, connectedConnectionIds]);
 
   const treeData = useMemo<BrowserTreeNode[]>(() => {
     return (connections || []).map((conn) => {
-      const isConnected = connectedIds.has(conn.id);
+      const isConnected = connectedConnectionIds.includes(conn.id);
       const connSchema = schemas[conn.id] || [];
       const isLoading = Boolean(loadingMap[conn.id]);
       const errorMsg = errorMap[conn.id];
@@ -472,7 +470,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         children,
       };
     });
-  }, [connections, schemas, loadingMap, errorMap, connectedIds]);
+  }, [connections, schemas, loadingMap, errorMap, connectedConnectionIds]);
 
   const handleOpenTable = useCallback((node: BrowserTreeNode) => {
     openTableTab({
@@ -569,11 +567,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       if (activeConnectionId === connectionId) {
         setActiveConnection(null);
       }
-      setConnectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(connectionId);
-        return next;
-      });
+      markDisconnected(connectionId);
       setSchemas((prev) => {
         const next = { ...prev };
         delete next[connectionId];
@@ -721,7 +715,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           {/* Connection Context Menu */}
           {contextMenu.node.nodeType === 'connection' && (
             <>
-              {!connectedIds.has(contextMenu.node.connectionId) ? (
+              {!connectedConnectionIds.includes(contextMenu.node.connectionId) ? (
                 <button
                   type="button"
                   data-testid="connect-connection-btn"
