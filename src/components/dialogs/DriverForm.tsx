@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, FolderOpen } from 'lucide-react';
 import type { DatabaseDriver } from '../../types/db';
+import { pickSqliteDatabaseFile } from '../../utils/dialog';
 
 export interface ConnectionFormData {
   name: string;
@@ -33,6 +34,20 @@ export const DriverForm: React.FC<DriverFormProps> = ({
   isEditing = false,
 }) => {
   const [showPassword, setShowPassword] = useState(false);
+
+  const handleBrowseFile = async () => {
+    const selected = await pickSqliteDatabaseFile();
+    if (selected) {
+      onChange('database', selected);
+      // Auto-suggest connection name if currently empty
+      if (!formData.name.trim()) {
+        const fileName = selected.split(/[/\\]/).pop() || '';
+        if (fileName) {
+          onChange('name', fileName);
+        }
+      }
+    }
+  };
 
   return (
     <div className="space-y-4 text-sm text-gray-200">
@@ -79,26 +94,45 @@ export const DriverForm: React.FC<DriverFormProps> = ({
 
         {/* SQLite Driver Form */}
         {driver === 'sqlite' && (
-          <div>
-            <label htmlFor="conn-database" className="block text-xs font-medium text-gray-300 mb-1">
+          <div className="space-y-2">
+            <label htmlFor="conn-database" className="block text-xs font-medium text-gray-300">
               Database Path <span className="text-red-400">*</span>
             </label>
-            <input
-              id="conn-database"
-              type="text"
-              value={formData.database}
-              onChange={(e) => onChange('database', e.target.value)}
-              disabled={disabled}
-              placeholder=":memory: or /path/to/database.db"
-              className={`w-full px-3 py-1.5 rounded bg-gray-800 border ${
-                errors.database ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-              } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs font-mono`}
-            />
+            <div className="flex items-center gap-2">
+              <input
+                id="conn-database"
+                type="text"
+                value={formData.database}
+                onChange={(e) => onChange('database', e.target.value)}
+                disabled={disabled}
+                placeholder=":memory: or select a .db/.sqlite file"
+                className={`flex-1 px-3 py-1.5 rounded bg-gray-800 border ${
+                  errors.database ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
+                } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs font-mono`}
+              />
+              <button
+                type="button"
+                onClick={handleBrowseFile}
+                disabled={disabled}
+                title="Browse SQLite file from disk"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              >
+                <FolderOpen size={14} />
+                <span>Browse...</span>
+              </button>
+            </div>
             {errors.database ? (
               <p className="mt-1 text-xs text-red-400">{errors.database}</p>
             ) : (
-              <p className="mt-1 text-xs text-gray-500">
-                Use <code>:memory:</code> for an in-memory database, or specify an absolute path to a SQLite file.
+              <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
+                <span>Click <strong>Browse</strong> to select a <code>.db</code> file, or use</span>
+                <button
+                  type="button"
+                  onClick={() => onChange('database', ':memory:')}
+                  className="text-blue-400 hover:underline font-mono inline"
+                >
+                  :memory:
+                </button>
               </p>
             )}
           </div>

@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { showConfirmDialog } from './dialog';
+import { showConfirmDialog, pickSqliteDatabaseFile } from './dialog';
 import * as tauriDialog from '@tauri-apps/plugin-dialog';
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   confirm: vi.fn(),
+  open: vi.fn(),
 }));
 
 describe('showConfirmDialog', () => {
@@ -55,5 +56,55 @@ describe('showConfirmDialog', () => {
 
     expect(result).toBe(false);
     confirmSpy.mockRestore();
+  });
+});
+
+describe('pickSqliteDatabaseFile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns selected file path when a single file is chosen', async () => {
+    vi.mocked(tauriDialog.open).mockResolvedValue('/path/to/chinook.db');
+
+    const result = await pickSqliteDatabaseFile();
+
+    expect(result).toBe('/path/to/chinook.db');
+    expect(tauriDialog.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        multiple: false,
+        directory: false,
+        title: 'Select SQLite Database',
+        filters: expect.arrayContaining([
+          expect.objectContaining({
+            extensions: expect.arrayContaining(['db', 'sqlite', 'sqlite3']),
+          }),
+        ]),
+      })
+    );
+  });
+
+  it('returns first file path when open returns an array', async () => {
+    vi.mocked(tauriDialog.open).mockResolvedValue(['/path/to/first.db', '/path/to/second.db']);
+
+    const result = await pickSqliteDatabaseFile();
+
+    expect(result).toBe('/path/to/first.db');
+  });
+
+  it('returns null when user cancels file picker dialog', async () => {
+    vi.mocked(tauriDialog.open).mockResolvedValue(null);
+
+    const result = await pickSqliteDatabaseFile();
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null when tauri dialog throws an error', async () => {
+    vi.mocked(tauriDialog.open).mockRejectedValue(new Error('Dialog open failed'));
+
+    const result = await pickSqliteDatabaseFile();
+
+    expect(result).toBeNull();
   });
 });

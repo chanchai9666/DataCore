@@ -1,10 +1,39 @@
-import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
+import { confirm as tauriConfirm, open as tauriOpen } from '@tauri-apps/plugin-dialog';
 
 export interface ConfirmDialogOptions {
   title?: string;
   kind?: 'info' | 'warning' | 'error';
   okLabel?: string;
   cancelLabel?: string;
+}
+
+/**
+ * Shows a native file picker dialog to select a SQLite database file (.db, .sqlite, etc.).
+ * Returns the selected absolute file path, or null if cancelled.
+ */
+export async function pickSqliteDatabaseFile(): Promise<string | null> {
+  try {
+    const selected = await tauriOpen({
+      multiple: false,
+      directory: false,
+      title: 'Select SQLite Database',
+      filters: [
+        {
+          name: 'SQLite Database (*.db, *.sqlite, *.sqlite3)',
+          extensions: ['db', 'sqlite', 'sqlite3', 'db3', 's3db', 'sl3'],
+        },
+        {
+          name: 'All Files (*.*)',
+          extensions: ['*'],
+        },
+      ],
+    });
+    if (!selected) return null;
+    return Array.isArray(selected) ? selected[0] : selected;
+  } catch (err) {
+    console.error('Failed to open SQLite file picker', err);
+    return null;
+  }
 }
 
 /**

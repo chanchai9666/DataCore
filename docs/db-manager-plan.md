@@ -341,6 +341,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 ### Phase 18: Auto-Close Cell Detail Drawer on Save (✅ เสร็จสมบูรณ์ - Issue #42)
 - **Auto-Close on Save Changes:** ปรับปรุง `handleSave` ใน `CellDetailDrawer.tsx` ให้เรียก `onClose()` ทันทีหลังทำการบันทึกค่า (ทั้งเมื่อกดปุ่ม "Save Changes" และการกดคีย์ลัด `Cmd+Enter` / `Ctrl+Enter`) เพื่อให้ Drawer ปิดตัวเองโดยอัตโนมัติ ช่วยลดขั้นตอนการทำงานของผู้ใช้
 
+### Phase 19: Native File Picker for SQLite Database Connection (✅ เสร็จสมบูรณ์ - Issue #43)
+- **SQLite File Browser Button:** เพิ่มปุ่ม "Browse..." หรือ "Choose File..." ในฟอร์มการเชื่อมต่อ SQLite (`DriverForm.tsx`) เพื่อเปิดหน้าต่างเลือกไฟล์ฐานข้อมูลจากเครื่องได้โดยตรง
+- **Tauri Dialog Integration:** ใช้งานฟังก์ชัน `open` จาก `@tauri-apps/plugin-dialog` พร้อมกำหนด Filters สำหรับไฟล์ SQLite (`.db`, `.sqlite`, `.sqlite3`, `.db3`, `.s3db`, `.sl3`, `*.*`)
+- **Auto Populate & Smart Name Suggestion:** นำไฟล์ที่เลือกมากรอกลงในช่อง `Database Path` ทันที และแนะนำชื่อการเชื่อมต่ออัตโนมัติจากชื่อไฟล์หากผู้ใช้ยังไม่ได้กำหนดชื่อ พร้อมปุ่ม `:memory:` สำหรับการทดสอบ In-Memory Database
+
+
 
 
 

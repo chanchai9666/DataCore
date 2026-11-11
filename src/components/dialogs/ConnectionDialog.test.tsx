@@ -4,6 +4,15 @@ import { ConnectionDialog } from './ConnectionDialog';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig } from '../../types/db';
+import * as dialogUtils from '../../utils/dialog';
+
+vi.mock('../../utils/dialog', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../utils/dialog')>();
+  return {
+    ...actual,
+    pickSqliteDatabaseFile: vi.fn(),
+  };
+});
 
 vi.mock('../../api/db', () => ({
   dbApi: {
@@ -115,6 +124,33 @@ describe('ConnectionDialog', () => {
       fireEvent.click(screen.getByRole('tab', { name: /sqlite/i }));
       expect(screen.getByLabelText(/database path/i)).toBeInTheDocument();
       expect(screen.queryByLabelText(/host/i)).not.toBeInTheDocument();
+    });
+
+    it('provides a Browse button that opens file picker and auto-fills database path and name', async () => {
+      vi.mocked(dialogUtils.pickSqliteDatabaseFile).mockResolvedValue('/Users/alice/databases/chinook.db');
+
+      render(<ConnectionDialog isOpen={true} onClose={onClose} />);
+
+      const browseBtn = screen.getByRole('button', { name: /browse/i });
+      expect(browseBtn).toBeInTheDocument();
+
+      fireEvent.click(browseBtn);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/database path/i)).toHaveValue('/Users/alice/databases/chinook.db');
+      });
+
+      // Name should be auto-suggested since it was empty
+      expect(screen.getByLabelText(/connection name/i)).toHaveValue('chinook.db');
+    });
+
+    it('sets database path to :memory: when :memory: quick link is clicked', () => {
+      render(<ConnectionDialog isOpen={true} onClose={onClose} />);
+
+      const memoryBtn = screen.getByRole('button', { name: /:memory:/i });
+      fireEvent.click(memoryBtn);
+
+      expect(screen.getByLabelText(/database path/i)).toHaveValue(':memory:');
     });
   });
 
