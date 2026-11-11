@@ -10,6 +10,8 @@ export interface CellDetailDrawerProps {
     columnName: string;
     dataType: string;
     value: CellValue;
+    originalValue?: CellValue;
+    isStaged?: boolean;
     rowIndex?: number;
     colIndex?: number;
   } | null;
@@ -236,6 +238,22 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
           >
             {dataType}
           </span>
+          {cellInfo.isStaged && (
+            <span
+              data-testid="staged-badge"
+              style={{
+                fontSize: '11px',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                color: '#f59e0b',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                fontWeight: 600,
+              }}
+            >
+              Staged
+            </span>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -317,6 +335,57 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
         </div>
       </div>
 
+      {/* Staged diff banner when cell has uncommitted changes */}
+      {cellInfo.isStaged && cellInfo.originalValue !== undefined && !isEditing && (
+        <div
+          data-testid="staged-diff-banner"
+          style={{
+            padding: '8px 16px',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            borderBottom: '1px solid rgba(245, 158, 11, 0.25)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            fontSize: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontWeight: 600, color: '#f59e0b' }}>
+              Pending Staged Edit (Uncommitted)
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', flexWrap: 'wrap' }}>
+            <span>Original:</span>
+            <code
+              style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                padding: '2px 6px',
+                borderRadius: '3px',
+                color: '#cbd5e1',
+                fontFamily: 'monospace',
+                fontSize: '11px',
+              }}
+            >
+              {extractCellValue(cellInfo.originalValue).displayString}
+            </code>
+            <span>→</span>
+            <span style={{ color: '#60a5fa', fontWeight: 500 }}>Staged:</span>
+            <code
+              style={{
+                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                padding: '2px 6px',
+                borderRadius: '3px',
+                color: '#93c5fd',
+                fontFamily: 'monospace',
+                fontSize: '11px',
+              }}
+            >
+              {extracted.displayString}
+            </code>
+          </div>
+        </div>
+      )}
+
       {/* Content Area */}
       <div
         style={{
@@ -330,6 +399,15 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
       >
         {isEditing ? (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
+            {cellInfo.isStaged && cellInfo.originalValue !== undefined && (
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Original database value:{' '}
+                <span style={{ fontFamily: 'monospace', color: '#cbd5e1' }}>
+                  {extractCellValue(cellInfo.originalValue).displayString}
+                </span>
+              </div>
+            )}
+
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#cbd5e1' }}>
               <input
                 type="checkbox"

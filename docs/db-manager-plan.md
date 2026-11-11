@@ -301,6 +301,10 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Drawer Save Staging Consistency:** ปรับปรุงฟังก์ชัน `handleSaveDrawerValue` ใน `DataGrid.tsx` ให้ส่งผ่าน `handleCellEditedWithStaging` แทนการเรียก `onCellEdited` โดยตรง เพื่อให้การแก้ไขข้อมูลจาก Cell Detail Drawer เมื่ออยู่ในโหมด Staging ถูกบันทึกเป็น Staged Edit เข้าสู่ `pendingChangesStore` เสมอ และไม่ Auto-Commit ไปยังฐานข้อมูล
 - **DockLayout Defensive Staging Check:** เพิ่มการตรวจสอบ `isAutoCommitMode` ใน `handleCellEdited` ของ `DockLayout.tsx` เพื่อให้ทำงานสอดคล้องกับ `handleRowDelete` และ `handleSubmitInsertRow` โดยหาก Auto-Commit ปิดอยู่ จะทำการ Stage การแก้ไขลงใน Store และไม่ยิงคำสั่ง `UPDATE` SQL ทันที
 
+### Phase 11: Staged Values & Diff Visibility in Cell Detail Drawer (✅ เสร็จสมบูรณ์ - Issue #35)
+- **Staged Cell Value Resolution:** ใน `DataGrid.tsx` ปรับปรุง `activeCellInfo` ให้ตรวจสอบการเปลี่ยนแปลงใน `tableChanges` (ทั้ง `cellEdits` และ `addedRows`) เพื่อให้ `cellInfo.value` สะท้อนค่าล่าสุดที่ถูก Stage ไว้ทันที โดยไม่ต้องปิด Drawer หรือรอ Commit
+- **Staged Badge & Original Value Diff:** ใน `CellDetailDrawer.tsx` แสดง Badge ระบุสถานะ `Staged (Uncommitted)` และส่วนเปรียบเทียบค่าเดิม (Original Value) กับค่าใหม่ที่แก้ไข เพื่อให้ผู้ใช้เห็นชัดเจนว่าช่องนี้ถูกแก้ไขอะไรไปบ้างก่อนกด Commit Batch Transaction
+
 
 
 

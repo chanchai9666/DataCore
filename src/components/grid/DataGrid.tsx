@@ -324,16 +324,41 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
     const columnMeta = data.columns[colIdx];
     const rowData = data.rows[rowIdx];
-    const cellValue: CellValue = rowData ? rowData[colIdx] : null;
+
+    const cellKey = `${rowIdx}:${colIdx}`;
+    const stagedEdit = tableChanges?.cellEdits?.[cellKey];
+    const isAddedRow = rowIdx >= baseRowsCount;
+
+    let cellValue: CellValue;
+    let originalValue: CellValue | undefined = undefined;
+    let isStaged = false;
+
+    if (isAddedRow) {
+      const addedRow = tableChanges?.addedRows?.[rowIdx - baseRowsCount];
+      const colName = columnMeta?.name;
+      cellValue = (colName && addedRow ? (addedRow[colName] as CellValue) : null) ?? null;
+      isStaged = true;
+    } else {
+      const rawOriginal = rowData ? rowData[colIdx] : null;
+      if (stagedEdit) {
+        cellValue = stagedEdit.newValue as CellValue;
+        originalValue = rawOriginal;
+        isStaged = true;
+      } else {
+        cellValue = rawOriginal;
+      }
+    }
 
     return {
       columnName: columnMeta ? columnMeta.name : `Column ${colIdx + 1}`,
       dataType: columnMeta ? columnMeta.data_type : 'UNKNOWN',
       value: cellValue,
+      originalValue,
+      isStaged,
       rowIndex: rowIdx,
       colIndex: colIdx,
     };
-  }, [data, selectedCell]);
+  }, [data, selectedCell, tableChanges, baseRowsCount]);
 
   const handleCellActivated = useCallback((cell: Item) => {
     setSelectedCell(cell);

@@ -298,6 +298,29 @@ describe('CellDetailDrawer', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('renders staged badge and diff banner when cellInfo has isStaged and originalValue', () => {
+    render(
+      <CellDetailDrawer
+        isOpen={true}
+        onClose={() => {}}
+        cellInfo={{
+          columnName: 'title',
+          dataType: 'TEXT',
+          value: 'New Title',
+          originalValue: 'Old Title',
+          isStaged: true,
+          rowIndex: 2,
+        }}
+      />
+    );
+
+    expect(screen.getByTestId('staged-badge')).toHaveTextContent('Staged');
+    expect(screen.getByTestId('staged-diff-banner')).toBeInTheDocument();
+    expect(screen.getByText('Pending Staged Edit (Uncommitted)')).toBeInTheDocument();
+    expect(screen.getByText('Old Title')).toBeInTheDocument();
+    expect(screen.getAllByText('New Title').length).toBeGreaterThanOrEqual(2);
+  });
 });
 
 describe('DataGrid', () => {
@@ -696,6 +719,11 @@ describe('DataGrid', () => {
           newValue: 42,
         })
       );
+
+      // Verify that drawer immediately shows staged badge and diff without closing
+      expect(screen.getByTestId('staged-badge')).toBeInTheDocument();
+      expect(screen.getByTestId('staged-diff-banner')).toBeInTheDocument();
+      expect(screen.getByText('Pending Staged Edit (Uncommitted)')).toBeInTheDocument();
     });
 
     it('calls onCellEdited directly when saving from CellDetailDrawer in auto-commit mode', async () => {
