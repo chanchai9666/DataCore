@@ -928,7 +928,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         cellInfo={activeCellInfo}
-        onSaveValue={handleSaveDrawerValue}
+        onSaveValue={isEditable || Boolean(onCellEdited) ? handleSaveDrawerValue : undefined}
       />
 
       {/* Export Modal */}

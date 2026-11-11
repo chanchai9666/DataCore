@@ -321,6 +321,94 @@ describe('CellDetailDrawer', () => {
     expect(screen.getByText('Old Title')).toBeInTheDocument();
     expect(screen.getAllByText('New Title').length).toBeGreaterThanOrEqual(2);
   });
+
+  it('opens directly in editable mode when onSaveValue is provided without requiring clicking edit button', () => {
+    const onSaveValue = vi.fn();
+    render(
+      <CellDetailDrawer
+        isOpen={true}
+        onClose={() => {}}
+        cellInfo={{
+          columnName: 'description',
+          dataType: 'TEXT',
+          value: 'Direct edit text',
+          rowIndex: 0,
+        }}
+        onSaveValue={onSaveValue}
+      />
+    );
+
+    // Textarea is immediately present and editable without needing to click Edit
+    const textarea = screen.getByPlaceholderText('Enter value...') as HTMLTextAreaElement;
+    expect(textarea).toBeInTheDocument();
+    expect(textarea.value).toBe('Direct edit text');
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument();
+    expect(screen.getByText('Editing')).toBeInTheDocument();
+
+    // User can edit immediately
+    fireEvent.change(textarea, { target: { value: 'Updated direct text' } });
+    const saveBtn = screen.getByRole('button', { name: /save changes/i });
+    fireEvent.click(saveBtn);
+
+    expect(onSaveValue).toHaveBeenCalledWith('Updated direct text');
+  });
+
+  it('saves changes using Cmd+Enter / Ctrl+Enter shortcut in direct edit mode', () => {
+    const onSaveValue = vi.fn();
+    render(
+      <CellDetailDrawer
+        isOpen={true}
+        onClose={() => {}}
+        cellInfo={{
+          columnName: 'score',
+          dataType: 'INTEGER',
+          value: 100,
+          rowIndex: 1,
+        }}
+        onSaveValue={onSaveValue}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText('Enter value...');
+    fireEvent.change(textarea, { target: { value: '250' } });
+
+    // Press Cmd+Enter inside the textarea
+    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true });
+    expect(onSaveValue).toHaveBeenCalledWith(250);
+  });
+
+  it('allows toggling between View mode and Edit mode', () => {
+    const onSaveValue = vi.fn();
+    render(
+      <CellDetailDrawer
+        isOpen={true}
+        onClose={() => {}}
+        cellInfo={{
+          columnName: 'config',
+          dataType: 'TEXT',
+          value: 'Some configuration text',
+          rowIndex: 0,
+        }}
+        onSaveValue={onSaveValue}
+      />
+    );
+
+    // Initially in Edit mode
+    expect(screen.getByPlaceholderText('Enter value...')).toBeInTheDocument();
+
+    // Switch to View mode
+    const viewBtn = screen.getByRole('button', { name: /^view$/i });
+    fireEvent.click(viewBtn);
+
+    // Now in View mode: textarea should not be rendered, text displayed in pre
+    expect(screen.queryByPlaceholderText('Enter value...')).not.toBeInTheDocument();
+    expect(screen.getByText('Some configuration text')).toBeInTheDocument();
+
+    // Switch back to Edit mode
+    const editBtn = screen.getByRole('button', { name: /^edit$/i });
+    fireEvent.click(editBtn);
+    expect(screen.getByPlaceholderText('Enter value...')).toBeInTheDocument();
+  });
 });
 
 describe('DataGrid', () => {

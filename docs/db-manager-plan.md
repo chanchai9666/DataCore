@@ -333,6 +333,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Comprehensive Timing for Table Fetch & Queries:** เชื่อมโยงเวลาประมวลผล (`execution_time_ms`) เมื่อเปิดหรือรีเฟรชข้อมูลตาราง (`loadTableData`) บันทึกคำสั่ง SQL ที่ใช้ดึงข้อมูล จำนวนแถว และเวลาที่ใช้ลงในสถานะของแท็บนั้นๆ
 - **Tab Switching Synchronization:** ซิงก์การสลับแท็บใน `DockLayout` เข้ากับ `useStatusStore` เพื่อให้ Status Bar แสดงผลเฉพาะข้อมูลของแท็บที่กำลังทำงานอยู่อย่างอิสระ
 
+### Phase 17: Streamlined Cell Detail Direct Editing (✅ เสร็จสมบูรณ์ - Issue #41)
+- **Direct Editable Mode in Cell Detail Drawer:** ปรับปรุง `CellDetailDrawer.tsx` ให้เริ่มต้นในโหมดแก้ไขข้อมูลทันที (`isEditing = true`) เมื่อมี `onSaveValue` (ตารางรองรับการแก้ไข) เพื่อให้ผู้ใช้สามารถคลิกพิมพ์แก้ไขค่าข้อมูลใน Textarea ได้ทันทีโดยไม่ต้องกดปุ่ม "Edit" ซ้ำอีกครั้ง
+- **Quick Keyboard Shortcut (`Cmd+Enter` / `Ctrl+Enter`):** เพิ่มทางลัดคีย์บอร์ดสำหรับการบันทึกการแก้ไขค่าใน Cell Detail Drawer ได้ทันทีจาก Textarea
+- **Seamless Mode Switching & Backward Compatibility:** มีปุ่มสลับมุมมองระหว่าง "Edit" (โหมดแก้ไขเริ่มต้น) และ "View / Preview" (สำหรับดูข้อมูลแบบเต็ม / Formatted JSON) พร้อมปุ่ม Copy และ Format เพื่อความยืดหยุ่นในการใช้งาน
+
+
 
 
 
