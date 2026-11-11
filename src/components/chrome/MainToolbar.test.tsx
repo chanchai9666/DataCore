@@ -31,6 +31,7 @@ describe('MainToolbar Component', () => {
     expect(screen.getByRole('button', { name: /connect/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /new query/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /table/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /tools/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /backup/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /import/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export/i })).toBeInTheDocument();
@@ -128,5 +129,48 @@ describe('MainToolbar Component', () => {
     const exportSqlBtn = screen.getByTestId('toolbar-export-sql-btn');
     fireEvent.click(exportSqlBtn);
     expect(onExportSql).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens Tools dropdown and triggers diagnostics callbacks', () => {
+    useConnectionStore.setState({ activeConnectionId: 'c1' });
+    const onOpenMetrics = vi.fn();
+    const onOpenLocks = vi.fn();
+    const onOpenAuditLog = vi.fn();
+    const onOpenHistory = vi.fn();
+
+    render(
+      <MainToolbar
+        onOpenMetrics={onOpenMetrics}
+        onOpenLocks={onOpenLocks}
+        onOpenAuditLog={onOpenAuditLog}
+        onOpenHistory={onOpenHistory}
+      />
+    );
+
+    const toolsBtn = screen.getByTestId('toolbar-tools-btn');
+    expect(toolsBtn).not.toBeDisabled();
+    fireEvent.click(toolsBtn);
+
+    expect(screen.getByTestId('toolbar-tools-dropdown')).toBeInTheDocument();
+
+    // 1. Metrics
+    fireEvent.click(screen.getByTestId('toolbar-tools-metrics-btn'));
+    expect(onOpenMetrics).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('toolbar-tools-dropdown')).not.toBeInTheDocument();
+
+    // 2. Locks
+    fireEvent.click(toolsBtn);
+    fireEvent.click(screen.getByTestId('toolbar-tools-locks-btn'));
+    expect(onOpenLocks).toHaveBeenCalledTimes(1);
+
+    // 3. Audit Log
+    fireEvent.click(toolsBtn);
+    fireEvent.click(screen.getByTestId('toolbar-tools-audit-btn'));
+    expect(onOpenAuditLog).toHaveBeenCalledTimes(1);
+
+    // 4. History
+    fireEvent.click(toolsBtn);
+    fireEvent.click(screen.getByTestId('toolbar-tools-history-btn'));
+    expect(onOpenHistory).toHaveBeenCalledTimes(1);
   });
 });

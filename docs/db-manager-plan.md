@@ -394,6 +394,18 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **Audit Logging System (`useAuditLogStore`):** บันทึกประวัติกิจกรรมและการเข้าถึงข้อมูล (Who, What, When, Connection, Query, Rows Affected, Status)
   - **Audit Log Viewer Modal:** หน้าต่างค้นหา กรองตามกิจกรรม/ช่วงเวลา และส่งออกข้อมูล Audit Log เป็น CSV/JSON
 
+### Phase 26: Tools Menu in MainToolbar (✅ เสร็จสมบูรณ์ - Issue #51)
+- **MainToolbar Tools Menu:**
+  - เพิ่มปุ่มเมนู Dropdown `Tools` บนแถบเครื่องมือหลักของแอปพลิเคชัน (`MainToolbar`) ข้างปุ่ม Table และ Backup
+  - รวมเมนูเครื่องมือวิเคราะห์และวินิจฉัยฐานข้อมูลระดับแอปพลิเคชัน:
+    - **Performance & Metrics:** เข้าถึงสถิติ Buffer Cache Hit Ratio และขนาด Database ได้ทันที
+    - **Lock Inspector & Concurrency:** ตรวจสอบ Active Locks / Sessions และปลด Deadlock ได้จากทุกหน้าจอ
+    - **Security & Audit Log:** เข้าถึงประวัติความปลอดภัย Audit Trail ได้ตลอดเวลา
+    - **Query History & Snippets:** ดูประวัติการคิวรีและเรียกใช้คำสั่ง SQL Snippet ที่บันทึกไว้ได้โดยตรง พร้อมความสามารถในการเปิดหรือแทรกลงใน Query Tab
+- **Global Modals & Drawers Integration (`App.tsx`):**
+  - ยกระดับ State การเปิด/ปิด Metrics, Locks, Audit Log, และ History & Snippets มาไว้ที่ระดับ App Root
+  - ผู้ใช้สามารถเข้าถึงเครื่องมือสำคัญเหล่านี้ได้ทันทีที่มีการเลือกการเชื่อมต่อ (Active Connection) โดยไม่จำเป็นต้องเปิดแท็บ New Query ก่อน
+
 
 
 

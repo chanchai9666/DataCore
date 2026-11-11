@@ -12,6 +12,11 @@ import {
   FileCode,
   Sun,
   Moon,
+  Wrench,
+  Cpu,
+  Lock,
+  ShieldCheck,
+  History,
   type LucideIcon,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -43,6 +48,11 @@ export interface MainToolbarProps {
   onImportSql?: () => void;
   onExportData?: () => void;
   onExportSql?: () => void;
+  onOpenMetrics?: () => void;
+  onOpenLocks?: () => void;
+  onOpenAuditLog?: () => void;
+  onOpenHistory?: () => void;
+  onOpenSnippets?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   customItems?: ToolbarActionItem[];
@@ -61,13 +71,18 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onImportSql,
   onExportData,
   onExportSql,
+  onOpenMetrics,
+  onOpenLocks,
+  onOpenAuditLog,
+  onOpenHistory,
+  onOpenSnippets,
   theme = 'dark',
   onToggleTheme,
   customItems,
 }) => {
   const { connections, activeConnectionId } = useConnectionStore();
   const { tabs, activeTabId } = useTabStore();
-  const [activeDropdown, setActiveDropdown] = useState<'import' | 'export' | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<'import' | 'export' | 'tools' | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -122,6 +137,10 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
     }
   };
 
+  const handleToolsClick = () => {
+    setActiveDropdown((prev) => (prev === 'tools' ? null : 'tools'));
+  };
+
   const defaultItems: ToolbarActionItem[] = [
     {
       id: 'connect',
@@ -149,6 +168,15 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       disabled: !activeConnection,
       title: activeConnection ? 'Open table list view or designer' : 'Select a connection first',
       testId: 'toolbar-table-btn',
+    },
+    {
+      id: 'tools',
+      label: 'Tools',
+      icon: Wrench,
+      onClick: handleToolsClick,
+      disabled: !activeConnection,
+      title: activeConnection ? 'Database tools, performance metrics & audit logs' : 'Select a connection first',
+      testId: 'toolbar-tools-btn',
     },
     {
       id: 'backup',
@@ -294,6 +322,71 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   >
                     <FileCode className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                     <span>Export as SQL Dump / Backup (.sql)...</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Dropdown Menu for Tools */}
+            {id === 'tools' && activeDropdown === 'tools' && (
+              <div
+                data-testid="toolbar-tools-dropdown"
+                className="absolute top-full left-0 mt-1 min-w-[230px] bg-panel border border-line rounded shadow-lg z-50 py-1 text-xs animate-in fade-in zoom-in-95 duration-100"
+              >
+                {onOpenMetrics && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-metrics-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenMetrics();
+                    }}
+                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                  >
+                    <Cpu className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>Performance & Metrics...</span>
+                  </button>
+                )}
+                {onOpenLocks && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-locks-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenLocks();
+                    }}
+                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>Lock Inspector & Concurrency...</span>
+                  </button>
+                )}
+                {onOpenAuditLog && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-audit-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenAuditLog();
+                    }}
+                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Security & Audit Log...</span>
+                  </button>
+                )}
+                {(onOpenHistory || onOpenSnippets) && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-history-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      (onOpenHistory || onOpenSnippets)?.();
+                    }}
+                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                  >
+                    <History className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span>Query History & Snippets...</span>
                   </button>
                 )}
               </div>

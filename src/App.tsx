@@ -8,6 +8,10 @@ import { ExportSqlModal } from './components/transfer/ExportSqlModal';
 import { ImportSqlModal } from './components/transfer/ImportSqlModal';
 import { ExportModal } from './components/transfer/ExportModal';
 import { ImportModal } from './components/transfer/ImportModal';
+import { DatabaseMetricsModal } from './components/performance/DatabaseMetricsModal';
+import { LockInspectorModal } from './components/transactions/LockInspectorModal';
+import { AuditLogDrawer } from './components/security/AuditLogDrawer';
+import { HistorySnippetsDrawer } from './components/editor/HistorySnippetsDrawer';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
 import { openQueryTab, openTableListTab } from './components/sidebar/tabHelpers';
@@ -16,7 +20,7 @@ import { dbApi } from './api/db';
 import type { ConnectionConfig } from './types/db';
 
 export function App() {
-  const { loadConnections, setActiveConnection, activeConnectionId } = useConnectionStore();
+  const { loadConnections, setActiveConnection, activeConnectionId, connections } = useConnectionStore();
   const { tabs, activeTabId } = useTabStore();
   const [isConnectionDialogOpen, setIsConnectionDialogOpen] = useState(false);
   const [connectionToEdit, setConnectionToEdit] = useState<ConnectionConfig | null>(null);
@@ -32,7 +36,15 @@ export function App() {
     columns: { name: string; dataType: string }[];
   } | null>(null);
 
+  // Global Tools & Diagnostics Modals / Drawers
+  const [isMetricsModalOpen, setIsMetricsModalOpen] = useState(false);
+  const [isLocksModalOpen, setIsLocksModalOpen] = useState(false);
+  const [isAuditLogDrawerOpen, setIsAuditLogDrawerOpen] = useState(false);
+  const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
+
   const activeTab = tabs.find((t) => t.id === activeTabId);
+  const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
+  const activeConnection = connections.find((c) => c.id === resolvedConnectionId);
 
   // System theme detection: defaults to system preference
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -214,6 +226,14 @@ export function App() {
         onImportData={handleImportData}
         onExportSql={handleExportSql}
         onExportData={handleExportData}
+        onOpenMetrics={() => {
+          if (resolvedConnectionId) setIsMetricsModalOpen(true);
+        }}
+        onOpenLocks={() => {
+          if (resolvedConnectionId) setIsLocksModalOpen(true);
+        }}
+        onOpenAuditLog={() => setIsAuditLogDrawerOpen(true)}
+        onOpenHistory={() => setIsHistoryDrawerOpen(true)}
         onEditConnection={(conn) => {
           setConnectionToEdit(conn);
           setIsConnectionDialogOpen(true);
@@ -296,6 +316,53 @@ export function App() {
           onClose={() => setGlobalImportDataTarget(null)}
         />
       )}
+
+      {/* Global Database Metrics Modal */}
+      {isMetricsModalOpen && resolvedConnectionId && (
+        <DatabaseMetricsModal
+          isOpen={true}
+          connectionId={resolvedConnectionId}
+          driver={activeConnection?.driver}
+          databaseName={activeConnection?.database}
+          onClose={() => setIsMetricsModalOpen(false)}
+        />
+      )}
+
+      {/* Global Lock Inspector Modal */}
+      {isLocksModalOpen && resolvedConnectionId && (
+        <LockInspectorModal
+          isOpen={true}
+          connectionId={resolvedConnectionId}
+          driver={activeConnection?.driver}
+          connectionName={activeConnection?.name}
+          onClose={() => setIsLocksModalOpen(false)}
+        />
+      )}
+
+      {/* Global Audit Log Drawer */}
+      <AuditLogDrawer
+        isOpen={isAuditLogDrawerOpen}
+        onClose={() => setIsAuditLogDrawerOpen(false)}
+      />
+
+      {/* Global History & Snippets Drawer */}
+      <HistorySnippetsDrawer
+        isOpen={isHistoryDrawerOpen}
+        onClose={() => setIsHistoryDrawerOpen(false)}
+        currentConnectionId={resolvedConnectionId || undefined}
+        currentConnectionName={activeConnection?.name}
+        currentDatabase={activeConnection?.database}
+        onSelectSql={(sql) => {
+          setIsHistoryDrawerOpen(false);
+          if (resolvedConnectionId) {
+            openQueryTab({
+              connectionId: resolvedConnectionId,
+              connectionName: activeConnection?.name,
+              initialQuery: sql,
+            });
+          }
+        }}
+      />
 
       {/* Global Toast Notifications */}
       <Toaster richColors theme={theme} position="bottom-right" />
