@@ -374,9 +374,10 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - เพิ่มแถบ "Foreign Keys": ดูรายการ FK, สร้าง Foreign Key ใหม่ระบุ Column, Referenced Table/Column, Action Rules (CASCADE, RESTRICT, SET NULL, NO ACTION) และลบ FK
   - เพิ่มแถบ "Constraints": ดูรายการข้อกำหนด (CHECK / UNIQUE), สร้าง Constraint ใหม่ และลบ Constraint พร้อม Live SQL Preview และ Confirmation Dialog
 
-### Phase 24: Application Brand Icon & Visual Identity Upgrade (✅ เสร็จสมบูรณ์ - Issue #48, #49)
+### Phase 24: Application Brand Icon & Visual Identity Upgrade (✅ เสร็จสมบูรณ์ - Issue #48, #49, #53)
 - **Icon Design Concept:** ออกแบบไอคอนแอปพลิเคชัน DataCore สไตล์ Luxury & Minimalist สำหรับ macOS Dock และเดสก์ท็อป โดยใช้รูปทรงกระบอกฐานข้อมูล (Database Cylinder Core) วัสดุ Obsidian/Titanium พร้อมแกนกลางคริสตัลเรืองแสง Sapphire Blue และแสงสะท้อน Frosted Glass Champagne Gold
 - **Brightness & Radiance Enhancement (Issue #49):** ปรับจูนระดับความสว่าง (Brightness) และความสดของแกนคริสตัลเรืองแสง (Saturation & Contrast) เพื่อเพิ่มความคมชัด สว่างสดใส และโดดเด่นบนแถบ macOS Dock และพื้นหลังสีเข้ม
+- **Squircle Border Masking & Transparent Background (Issue #53):** ตัดพื้นหลังสี่เหลี่ยมทึบภายนอกขอบมน (Squircle Border) ออกให้เป็น Transparent Background ตามดีไซน์ พร้อม Anti-aliasing ขอบมนคมชัด และปรับขนาด Squircle ให้เข้ากับมาตรฐาน macOS Human Interface Guidelines (824x824 ใน canvas 1024x1024) ขจัดขอบสี่เหลี่ยมแข็ง ให้แสดงผลบน macOS Dock อย่างโค้งมน หรูหรา สวยงาม
 - **Cross-Platform Asset Regeneration:** แปลงและสร้างไอคอนความละเอียดสูงครอบคลุมทุกแพลตฟอร์มด้วย `pnpm tauri icon` ประกอบด้วย `.icns` (macOS), `.ico` (Windows), หลากหลายขนาด PNG สำหรับ Linux/Web/Mobile
 - **Web Favicon Update:** อัปเดต `index.html` และ asset ใน `public/` ให้เชื่อมโยงกับไอคอนใหม่ของแอปอย่างกลมกลืน
 
