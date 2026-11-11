@@ -411,4 +411,161 @@ describe('TableStructureEditor', () => {
     expect(screen.getByText(/CREATE TABLE "public"."categories"/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /copy sql/i })).toBeInTheDocument();
   });
+
+  it('switches to Foreign Keys tab, adds a foreign key, and drops it', async () => {
+    vi.mocked(dbApi.executeQuery).mockImplementation(async (_tabId, sql) => {
+      if (sql.includes('referential_constraints')) {
+        return {
+          columns: [],
+          rows: [
+            ['fk_categories_parent', 'sort_order', 'categories', 'id', 'NO ACTION', 'CASCADE'],
+          ],
+          execution_time_ms: 2,
+        };
+      }
+      return mockColumnsResult;
+    });
+
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const fkTabBtn = await screen.findByTestId('tab-foreign-keys-btn');
+    fireEvent.click(fkTabBtn);
+
+    // Verify existing FK is rendered
+    expect(await screen.findByText('fk_categories_parent')).toBeInTheDocument();
+    expect(screen.getByText(/CASCADE/)).toBeInTheDocument();
+
+    // Open Add Foreign Key modal
+    const addFkBtn = screen.getByTestId('add-foreign-key-btn');
+    fireEvent.click(addFkBtn);
+
+    expect(screen.getByText('Add Foreign Key to categories')).toBeInTheDocument();
+
+    // Fill in Add FK form
+    const fkNameInput = screen.getByTestId('new-fk-name-input');
+    fireEvent.change(fkNameInput, { target: { value: 'fk_categories_user' } });
+
+    const colSelect = screen.getByTestId('new-fk-col-select');
+    fireEvent.change(colSelect, { target: { value: 'id' } });
+
+    const targetTableInput = screen.getByTestId('new-fk-target-table-input');
+    fireEvent.change(targetTableInput, { target: { value: 'users' } });
+
+    const targetColInput = screen.getByTestId('new-fk-target-col-input');
+    fireEvent.change(targetColInput, { target: { value: 'id' } });
+
+    // Verify preview SQL
+    expect(screen.getByTestId('add-fk-preview-sql').textContent).toContain(
+      'ALTER TABLE "public"."categories" ADD CONSTRAINT "fk_categories_user" FOREIGN KEY ("id") REFERENCES "public"."users" ("id");'
+    );
+
+    // Confirm Add FK
+    const confirmAddFkBtn = screen.getByTestId('confirm-add-fk-btn');
+    fireEvent.click(confirmAddFkBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'ALTER TABLE "public"."categories" ADD CONSTRAINT "fk_categories_user" FOREIGN KEY ("id") REFERENCES "public"."users" ("id");'
+      );
+    });
+
+    // Test Drop FK
+    const dropFkBtn = screen.getByTestId('drop-fk-btn-fk_categories_parent');
+    fireEvent.click(dropFkBtn);
+
+    expect(screen.getByRole('heading', { name: /drop foreign key/i })).toBeInTheDocument();
+    const confirmDropBtn = screen.getByTestId('confirm-drop-fk-btn');
+    fireEvent.click(confirmDropBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'ALTER TABLE "public"."categories" DROP CONSTRAINT "fk_categories_parent";'
+      );
+    });
+  });
+
+  it('switches to Constraints tab, adds a CHECK constraint, and drops it', async () => {
+    vi.mocked(dbApi.executeQuery).mockImplementation(async (_tabId, sql) => {
+      if (sql.includes('check_constraints')) {
+        return {
+          columns: [],
+          rows: [
+            ['chk_sort_positive', 'CHECK', 'sort_order >= 0'],
+          ],
+          execution_time_ms: 2,
+        };
+      }
+      return mockColumnsResult;
+    });
+
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const constTabBtn = await screen.findByTestId('tab-constraints-btn');
+    fireEvent.click(constTabBtn);
+
+    // Verify existing constraint is rendered
+    expect(await screen.findByText('chk_sort_positive')).toBeInTheDocument();
+    expect(screen.getByText('sort_order >= 0')).toBeInTheDocument();
+
+    // Open Add Constraint modal
+    const addConstBtn = screen.getByTestId('add-constraint-btn');
+    fireEvent.click(addConstBtn);
+
+    expect(screen.getByText('Add Constraint to categories')).toBeInTheDocument();
+
+    const nameInput = screen.getByTestId('new-constraint-name-input');
+    fireEvent.change(nameInput, { target: { value: 'chk_name_length' } });
+
+    const exprInput = screen.getByTestId('new-constraint-expr-input');
+    fireEvent.change(exprInput, { target: { value: 'length(name) > 2' } });
+
+    // Verify preview SQL
+    expect(screen.getByTestId('add-constraint-preview-sql').textContent).toContain(
+      'ALTER TABLE "public"."categories" ADD CONSTRAINT "chk_name_length" CHECK (length(name) > 2);'
+    );
+
+    // Confirm Add Constraint
+    const confirmAddBtn = screen.getByTestId('confirm-add-constraint-btn');
+    fireEvent.click(confirmAddBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'ALTER TABLE "public"."categories" ADD CONSTRAINT "chk_name_length" CHECK (length(name) > 2);'
+      );
+    });
+
+    // Test Drop Constraint
+    const dropBtn = screen.getByTestId('drop-constraint-btn-chk_sort_positive');
+    fireEvent.click(dropBtn);
+
+    expect(screen.getByRole('heading', { name: /drop constraint/i })).toBeInTheDocument();
+    const confirmDropBtn = screen.getByTestId('confirm-drop-constraint-btn');
+    fireEvent.click(confirmDropBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'ALTER TABLE "public"."categories" DROP CONSTRAINT "chk_sort_positive";'
+      );
+    });
+  });
 });

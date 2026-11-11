@@ -367,6 +367,13 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Editor Toolbar Integration:** เพิ่มปุ่ม "Explain" และตัวเลือก "Explain Analyze" บนแถบเครื่องมือของ Query Editor
 - **Execution Plan Viewer:** แสดงผลแผนการทำงานของ Query ทั้งแบบ Plan Node Tree, Summary Metrics (Planning/Execution Time, Total Cost, Estimated Rows) และ Raw Engine Output ให้ตรวจสอบได้อย่างละเอียด
 
+### Phase 23: Foreign Keys & Constraints Manager in Table Designer (✅ เสร็จสมบูรณ์ - Issue #47)
+- **Foreign Key & Constraint SQL Helpers:** เพิ่ม SQL ดึงข้อมูล Metadata ของคีย์นอก (Foreign Keys) และข้อกำหนด (Check/Unique Constraints) สำหรับ PostgreSQL, MySQL, SQLite
+- **DDL Builders:** พัฒนาคำสั่ง `buildAddForeignKeySql`, `buildDropForeignKeySql`, `buildAddConstraintSql`, `buildDropConstraintSql` ปลอดภัยตามแต่ละ Dialect
+- **Table Structure Editor Sub-tabs:**
+  - เพิ่มแถบ "Foreign Keys": ดูรายการ FK, สร้าง Foreign Key ใหม่ระบุ Column, Referenced Table/Column, Action Rules (CASCADE, RESTRICT, SET NULL, NO ACTION) และลบ FK
+  - เพิ่มแถบ "Constraints": ดูรายการข้อกำหนด (CHECK / UNIQUE), สร้าง Constraint ใหม่ และลบ Constraint พร้อม Live SQL Preview และ Confirmation Dialog
+
 
 
 

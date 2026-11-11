@@ -6,6 +6,14 @@ import {
   buildDropIndexSql,
   getFetchIndexesSql,
   parseIndexesFromQueryResult,
+  buildAddForeignKeySql,
+  buildDropForeignKeySql,
+  buildAddConstraintSql,
+  buildDropConstraintSql,
+  getFetchForeignKeysSql,
+  parseForeignKeysFromQueryResult,
+  getFetchConstraintsSql,
+  parseConstraintsFromQueryResult,
   type NewTableColumnConfig,
   type CreateTableConfig,
   type TableIndexConfig,
@@ -322,6 +330,130 @@ describe('tableManagementHelpers', () => {
       expect(parsed[1].name).toBe('idx_products_cat');
       expect(parsed[1].columns).toEqual(['category_id', 'created_at']);
       expect(parsed[1].isUnique).toBe(false);
+    });
+  });
+
+  describe('Foreign Keys Management', () => {
+    it('generates ADD FOREIGN KEY SQL with actions', () => {
+      const sql = buildAddForeignKeySql({
+        tableName: 'orders',
+        schemaName: 'public',
+        driver: 'postgres',
+        constraintName: 'fk_orders_user',
+        columns: ['user_id'],
+        foreignTable: 'users',
+        foreignColumns: ['id'],
+        onDelete: 'CASCADE',
+        onUpdate: 'SET NULL',
+      });
+
+      expect(sql).toBe(
+        'ALTER TABLE "public"."orders" ADD CONSTRAINT "fk_orders_user" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE SET NULL;'
+      );
+    });
+
+    it('generates DROP FOREIGN KEY SQL for MySQL and Postgres', () => {
+      const pgSql = buildDropForeignKeySql({
+        tableName: 'orders',
+        driver: 'postgres',
+        constraintName: 'fk_orders_user',
+      });
+      expect(pgSql).toBe('ALTER TABLE "orders" DROP CONSTRAINT "fk_orders_user";');
+
+      const mySql = buildDropForeignKeySql({
+        tableName: 'orders',
+        driver: 'mysql',
+        constraintName: 'fk_orders_user',
+      });
+      expect(mySql).toBe('ALTER TABLE `orders` DROP FOREIGN KEY `fk_orders_user`;');
+    });
+
+    it('generates correct query to fetch foreign keys across drivers', () => {
+      expect(getFetchForeignKeysSql('sqlite', 'orders')).toContain('PRAGMA foreign_key_list');
+      expect(getFetchForeignKeysSql('mysql', 'orders')).toContain('REFERENTIAL_CONSTRAINTS');
+      expect(getFetchForeignKeysSql('postgres', 'orders', 'public')).toContain('information_schema.referential_constraints');
+    });
+
+    it('parses postgres foreign keys query result', () => {
+      const result = {
+        columns: [],
+        rows: [
+          ['fk_orders_user', 'user_id', 'users', 'id', 'NO ACTION', 'CASCADE'],
+        ],
+        execution_time_ms: 2,
+      };
+
+      const parsed = parseForeignKeysFromQueryResult(result, 'postgres');
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].name).toBe('fk_orders_user');
+      expect(parsed[0].columnNames).toEqual(['user_id']);
+      expect(parsed[0].foreignTableName).toBe('users');
+      expect(parsed[0].foreignColumnNames).toEqual(['id']);
+      expect(parsed[0].onDelete).toBe('CASCADE');
+      expect(parsed[0].onUpdate).toBe('NO ACTION');
+    });
+  });
+
+  describe('Constraints Management', () => {
+    it('generates ADD CHECK and UNIQUE constraint SQL', () => {
+      const checkSql = buildAddConstraintSql({
+        tableName: 'products',
+        driver: 'postgres',
+        name: 'chk_price_positive',
+        type: 'CHECK',
+        expression: 'price > 0',
+      });
+      expect(checkSql).toBe('ALTER TABLE "products" ADD CONSTRAINT "chk_price_positive" CHECK (price > 0);');
+
+      const uniqueSql = buildAddConstraintSql({
+        tableName: 'users',
+        driver: 'postgres',
+        name: 'uq_email',
+        type: 'UNIQUE',
+        columns: ['email'],
+      });
+      expect(uniqueSql).toBe('ALTER TABLE "users" ADD CONSTRAINT "uq_email" UNIQUE ("email");');
+    });
+
+    it('generates DROP CONSTRAINT SQL for MySQL and Postgres', () => {
+      const pgSql = buildDropConstraintSql({
+        tableName: 'products',
+        driver: 'postgres',
+        name: 'chk_price',
+      });
+      expect(pgSql).toBe('ALTER TABLE "products" DROP CONSTRAINT "chk_price";');
+
+      const mySqlCheck = buildDropConstraintSql({
+        tableName: 'products',
+        driver: 'mysql',
+        name: 'chk_price',
+        type: 'CHECK',
+      });
+      expect(mySqlCheck).toBe('ALTER TABLE `products` DROP CHECK `chk_price`;');
+    });
+
+    it('generates correct query to fetch constraints across drivers', () => {
+      expect(getFetchConstraintsSql('sqlite', 'products')).toContain('sqlite_master');
+      expect(getFetchConstraintsSql('mysql', 'products')).toContain('TABLE_CONSTRAINTS');
+      expect(getFetchConstraintsSql('postgres', 'products', 'public')).toContain('information_schema.check_constraints');
+    });
+
+    it('parses constraints query result', () => {
+      const result = {
+        columns: [],
+        rows: [
+          ['chk_price', 'CHECK', 'price > 0'],
+          ['uq_code', 'UNIQUE', null],
+        ],
+        execution_time_ms: 2,
+      };
+
+      const parsed = parseConstraintsFromQueryResult(result, 'postgres');
+      expect(parsed).toHaveLength(2);
+      expect(parsed[0].name).toBe('chk_price');
+      expect(parsed[0].type).toBe('CHECK');
+      expect(parsed[0].definition).toBe('price > 0');
+      expect(parsed[1].type).toBe('UNIQUE');
     });
   });
 });

@@ -581,3 +581,141 @@ export function buildExplainSql(options: ExplainOptions): string {
   }
   return `EXPLAIN ${cleanSql};`;
 }
+
+export interface TableForeignKeyStructure {
+  name: string;
+  columnNames: string[];
+  foreignTableName: string;
+  foreignColumnNames: string[];
+  onUpdate?: string;
+  onDelete?: string;
+}
+
+export interface AddForeignKeyParams {
+  tableName: string;
+  schemaName?: string;
+  driver?: string;
+  constraintName?: string;
+  columns: string[];
+  foreignTable: string;
+  foreignColumns: string[];
+  onDelete?: string;
+  onUpdate?: string;
+}
+
+export interface DropForeignKeyParams {
+  tableName: string;
+  schemaName?: string;
+  driver?: string;
+  constraintName: string;
+}
+
+export interface TableConstraintStructure {
+  name: string;
+  type: 'CHECK' | 'UNIQUE' | 'PRIMARY KEY';
+  definition?: string;
+  columns?: string[];
+}
+
+export interface AddConstraintParams {
+  tableName: string;
+  schemaName?: string;
+  driver?: string;
+  name: string;
+  type: 'CHECK' | 'UNIQUE';
+  expression?: string;
+  columns?: string[];
+}
+
+export interface DropConstraintParams {
+  tableName: string;
+  schemaName?: string;
+  driver?: string;
+  name: string;
+  type?: 'CHECK' | 'UNIQUE';
+}
+
+/**
+ * Builds an ALTER TABLE ADD CONSTRAINT FOREIGN KEY statement.
+ */
+export function buildAddForeignKeySql(params: AddForeignKeyParams): string {
+  const {
+    tableName,
+    schemaName,
+    driver,
+    constraintName,
+    columns,
+    foreignTable,
+    foreignColumns,
+    onDelete,
+    onUpdate,
+  } = params;
+
+  const fullTable = qualifyTable(tableName, schemaName, driver);
+  const fullForeignTable = qualifyTable(foreignTable, schemaName, driver);
+  const cols = columns.map((c) => quoteIdentifier(c, driver)).join(', ');
+  const foreignCols = foreignColumns.map((c) => quoteIdentifier(c, driver)).join(', ');
+
+  const fkName = constraintName || `fk_${tableName}_${columns.join('_')}`;
+  const quotedFkName = quoteIdentifier(fkName, driver);
+
+  let sql = `ALTER TABLE ${fullTable} ADD CONSTRAINT ${quotedFkName} FOREIGN KEY (${cols}) REFERENCES ${fullForeignTable} (${foreignCols})`;
+  if (onDelete && onDelete !== 'NO ACTION') {
+    sql += ` ON DELETE ${onDelete.toUpperCase()}`;
+  }
+  if (onUpdate && onUpdate !== 'NO ACTION') {
+    sql += ` ON UPDATE ${onUpdate.toUpperCase()}`;
+  }
+  return `${sql};`;
+}
+
+/**
+ * Builds a statement to drop a foreign key constraint.
+ */
+export function buildDropForeignKeySql(params: DropForeignKeyParams): string {
+  const { tableName, schemaName, driver, constraintName } = params;
+  const fullTable = qualifyTable(tableName, schemaName, driver);
+  const quotedFk = quoteIdentifier(constraintName, driver);
+  const d = (driver || '').toLowerCase();
+
+  if (d.includes('mysql')) {
+    return `ALTER TABLE ${fullTable} DROP FOREIGN KEY ${quotedFk};`;
+  }
+  return `ALTER TABLE ${fullTable} DROP CONSTRAINT ${quotedFk};`;
+}
+
+/**
+ * Builds an ALTER TABLE ADD CONSTRAINT (CHECK or UNIQUE) statement.
+ */
+export function buildAddConstraintSql(params: AddConstraintParams): string {
+  const { tableName, schemaName, driver, name, type, expression, columns } = params;
+  const fullTable = qualifyTable(tableName, schemaName, driver);
+  const quotedName = quoteIdentifier(name, driver);
+
+  if (type === 'CHECK') {
+    const expr = expression || '1=1';
+    return `ALTER TABLE ${fullTable} ADD CONSTRAINT ${quotedName} CHECK (${expr});`;
+  }
+
+  const cols = (columns || []).map((c) => quoteIdentifier(c, driver)).join(', ');
+  return `ALTER TABLE ${fullTable} ADD CONSTRAINT ${quotedName} UNIQUE (${cols});`;
+}
+
+/**
+ * Builds a statement to drop a constraint.
+ */
+export function buildDropConstraintSql(params: DropConstraintParams): string {
+  const { tableName, schemaName, driver, name, type } = params;
+  const fullTable = qualifyTable(tableName, schemaName, driver);
+  const quotedName = quoteIdentifier(name, driver);
+  const d = (driver || '').toLowerCase();
+
+  if (d.includes('mysql')) {
+    if (type === 'CHECK') {
+      return `ALTER TABLE ${fullTable} DROP CHECK ${quotedName};`;
+    }
+    return `ALTER TABLE ${fullTable} DROP INDEX ${quotedName};`;
+  }
+
+  return `ALTER TABLE ${fullTable} DROP CONSTRAINT ${quotedName};`;
+}
