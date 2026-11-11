@@ -304,6 +304,19 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       const oldRawVal = extractCellValue(oldVal).rawValue;
       if (oldRawVal === rawNewVal) return;
 
+      const tableKey = `${activeTab.connectionId}.${activeTab.tableName || activeTab.title}`;
+      const isAutoCommit = usePendingChangesStore.getState().isAutoCommitMode(tableKey);
+      if (!isAutoCommit) {
+        usePendingChangesStore.getState().stageCellEdit(tableKey, {
+          rowIndex,
+          colIndex,
+          colName: column.name,
+          oldValue: oldRawVal,
+          newValue: rawNewVal,
+        });
+        return;
+      }
+
       const conn = connections.find((c) => c.id === activeTab.connectionId);
       const driver = conn?.driver ?? 'postgres';
 

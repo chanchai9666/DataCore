@@ -648,6 +648,89 @@ describe('DataGrid', () => {
 
       confirmSpy.mockRestore();
     });
+
+    it('stages cell edit when saving from CellDetailDrawer in staging mode', async () => {
+      const tableKey = 'c1.users';
+      usePendingChangesStore.getState().clearAll();
+      usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
+
+      const onCellEdited = vi.fn();
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          connectionId="c1"
+          tableName="users"
+          isEditable={true}
+          onCellEdited={onCellEdited}
+        />
+      );
+
+      // Open drawer via Inspect Cell button (default selected cell is [0, 0] id=1)
+      const inspectBtn = screen.getByRole('button', { name: /inspect cell/i });
+      fireEvent.click(inspectBtn);
+      expect(screen.getByText('Cell Details')).toBeInTheDocument();
+
+      // Click Edit button in drawer
+      const editBtn = screen.getByRole('button', { name: /^edit$/i });
+      fireEvent.click(editBtn);
+
+      // Change value in textarea
+      const textarea = screen.getByRole('textbox');
+      fireEvent.change(textarea, { target: { value: '42' } });
+
+      // Click Save Changes button
+      const saveBtn = screen.getByRole('button', { name: /save changes/i });
+      fireEvent.click(saveBtn);
+
+      // onCellEdited should NOT be called (staged instead)
+      expect(onCellEdited).not.toHaveBeenCalled();
+
+      // Changes should be staged in pendingChangesStore
+      expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(true);
+      const changes = usePendingChangesStore.getState().getTableChanges(tableKey);
+      expect(changes.cellEdits['0:0']).toEqual(
+        expect.objectContaining({
+          rowIndex: 0,
+          colIndex: 0,
+          colName: 'id',
+          newValue: 42,
+        })
+      );
+    });
+
+    it('calls onCellEdited directly when saving from CellDetailDrawer in auto-commit mode', async () => {
+      const tableKey = 'c1.users';
+      usePendingChangesStore.getState().clearAll();
+      usePendingChangesStore.getState().setAutoCommitMode(tableKey, true);
+
+      const onCellEdited = vi.fn();
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          connectionId="c1"
+          tableName="users"
+          isEditable={true}
+          onCellEdited={onCellEdited}
+        />
+      );
+
+      const inspectBtn = screen.getByRole('button', { name: /inspect cell/i });
+      fireEvent.click(inspectBtn);
+
+      const editBtn = screen.getByRole('button', { name: /^edit$/i });
+      fireEvent.click(editBtn);
+
+      const textarea = screen.getByRole('textbox');
+      fireEvent.change(textarea, { target: { value: '99' } });
+
+      const saveBtn = screen.getByRole('button', { name: /save changes/i });
+      fireEvent.click(saveBtn);
+
+      // onCellEdited SHOULD be called
+      expect(onCellEdited).toHaveBeenCalled();
+      // Store should have NO pending changes
+      expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(false);
+    });
   });
 
   describe('Column Selection & Alt-Click Sort', () => {

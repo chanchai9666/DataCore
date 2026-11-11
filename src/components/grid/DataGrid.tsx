@@ -351,51 +351,6 @@ export const DataGrid: React.FC<DataGridProps> = ({
     setDrawerOpen(true);
   };
 
-  const handleSaveDrawerValue = useCallback(
-    (newVal: unknown) => {
-      if (selectedCell && onCellEdited) {
-        const col = selectedCell[0];
-        const row = selectedCell[1];
-        let cell: EditableGridCell;
-        if (newVal === null) {
-          cell = { kind: GridCellKind.Text, data: 'NULL', displayData: 'NULL', allowOverlay: true };
-        } else if (typeof newVal === 'number') {
-          cell = { kind: GridCellKind.Number, data: newVal, displayData: String(newVal), allowOverlay: true };
-        } else if (typeof newVal === 'boolean') {
-          cell = { kind: GridCellKind.Boolean, data: newVal, allowOverlay: false };
-        } else {
-          cell = { kind: GridCellKind.Text, data: String(newVal), displayData: String(newVal), allowOverlay: true };
-        }
-        onCellEdited([col, row], cell);
-      }
-    },
-    [selectedCell, onCellEdited]
-  );
-
-  const gridTheme = theme === 'dark' ? darkGridTheme : lightGridTheme;
-
-  const handleDeleteSelected = useCallback(async () => {
-    if (hasSelectedRows) {
-      if (selectedRowIndices.length > 1) {
-        if (onRowsDelete) {
-          onRowsDelete(selectedRowIndices);
-        } else if (onRowDelete) {
-          const confirmed = await showConfirmDialog(
-            `Are you sure you want to delete ${selectedRowIndices.length} rows?`,
-            { title: 'Delete Rows', kind: 'warning' }
-          );
-          if (confirmed) {
-            [...selectedRowIndices].sort((a, b) => b - a).forEach((idx) => onRowDelete(idx));
-          }
-        }
-      } else if (onRowDelete) {
-        onRowDelete(selectedRowIndices[0]);
-      }
-    } else if (selectedCell && onRowDelete) {
-      onRowDelete(selectedCell[1]);
-    }
-  }, [hasSelectedRows, selectedRowIndices, selectedCell, onRowsDelete, onRowDelete]);
-
   const handleCellEditedWithStaging = useCallback(
     (cell: readonly [number, number], newValue: EditableGridCell) => {
       const [colIndex, rowIndex] = cell;
@@ -426,6 +381,51 @@ export const DataGrid: React.FC<DataGridProps> = ({
     },
     [data, tableKey, activeIsAutoCommit, onCellEdited]
   );
+
+  const handleSaveDrawerValue = useCallback(
+    (newVal: unknown) => {
+      if (selectedCell) {
+        const col = selectedCell[0];
+        const row = selectedCell[1];
+        let cell: EditableGridCell;
+        if (newVal === null) {
+          cell = { kind: GridCellKind.Text, data: 'NULL', displayData: 'NULL', allowOverlay: true };
+        } else if (typeof newVal === 'number') {
+          cell = { kind: GridCellKind.Number, data: newVal, displayData: String(newVal), allowOverlay: true };
+        } else if (typeof newVal === 'boolean') {
+          cell = { kind: GridCellKind.Boolean, data: newVal, allowOverlay: false };
+        } else {
+          cell = { kind: GridCellKind.Text, data: String(newVal), displayData: String(newVal), allowOverlay: true };
+        }
+        handleCellEditedWithStaging([col, row], cell);
+      }
+    },
+    [selectedCell, handleCellEditedWithStaging]
+  );
+
+  const gridTheme = theme === 'dark' ? darkGridTheme : lightGridTheme;
+
+  const handleDeleteSelected = useCallback(async () => {
+    if (hasSelectedRows) {
+      if (selectedRowIndices.length > 1) {
+        if (onRowsDelete) {
+          onRowsDelete(selectedRowIndices);
+        } else if (onRowDelete) {
+          const confirmed = await showConfirmDialog(
+            `Are you sure you want to delete ${selectedRowIndices.length} rows?`,
+            { title: 'Delete Rows', kind: 'warning' }
+          );
+          if (confirmed) {
+            [...selectedRowIndices].sort((a, b) => b - a).forEach((idx) => onRowDelete(idx));
+          }
+        }
+      } else if (onRowDelete) {
+        onRowDelete(selectedRowIndices[0]);
+      }
+    } else if (selectedCell && onRowDelete) {
+      onRowDelete(selectedCell[1]);
+    }
+  }, [hasSelectedRows, selectedRowIndices, selectedCell, onRowsDelete, onRowDelete]);
 
   const handleToggleAutoCommit = useCallback(async () => {
     if (onToggleAutoCommitProp) {

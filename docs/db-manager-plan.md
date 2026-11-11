@@ -292,10 +292,14 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Numeric & Nullable Handling:** การเคลียร์ค่าเป็นช่องว่างในคอลัมน์ตัวเลข (`int`, `numeric`, `float`) หรือข้อความที่เป็น Nullable จะถูกแปลงเป็น `NULL` แทน Empty String ป้องกัน Type Mismatch Error ใน PostgreSQL/MySQL
 - **User Feedback & Status Badges:** ปรับปรุงข้อความแจ้งเตือนสถานะเมื่อทำการ Auto-Commit หรือเกิด Error ให้สื่อสารชัดเจนและเข้าใจง่าย
 
-### Phase 9: Native Confirmation Dialog & Safe Row Deletion (Issue #33 - กำลังดำเนินการ)
+### Phase 9: Native Confirmation Dialog & Safe Row Deletion (✅ เสร็จสมบูรณ์ - Issue #33)
 - **Async Dialog Handling:** แก้ไขบั๊กการกดยกเลิกการลบแถวแต่รายการยังถูกลบ โดยเปลี่ยนจากการใช้ `window.confirm()` แบบซิงโครนัส (ซึ่งในสภาพแวดล้อม Tauri/WebKit จะคืนค่าเป็น `Promise` เสมอ ทำให้ถูกประเมินเป็น `true` ก่อนที่ผู้ใช้จะคลิก) มาเป็น `confirmDialog()` helper ที่เรียกใช้ `@tauri-apps/plugin-dialog` อย่างเป็นทางการ พร้อม `await` การตัดสินใจของผู้ใช้อย่างแท้จริง
 - **Safe Row & Multi-Row Deletion:** การลบแถวเดี่ยวและหลายแถวทั้งใน `DockLayout.tsx` และ `DataGrid.tsx` ต้องรอผลตอบกลับจาก Dialog ก่อนส่งคำสั่ง DELETE ไปยังฐานข้อมูลเสมอ หากกดยกเลิก (Cancel) จะไม่ทำรายการใดๆ ทั้งสิ้น
 - **Connection Deletion & Mode Toggling:** ปรับปรุงจุดยืนยันทั้งหมดในระบบให้เป็นแบบ Async เช่น การลบ Connection ใน `ObjectBrowser` และการสลับโหมดจาก Staging Mode ไป Auto-Commit เมื่อมี Pending Changes
+
+### Phase 10: Staging Mode Consistency for Drawer & Direct Cell Edits (✅ เสร็จสมบูรณ์ - Issue #34)
+- **Drawer Save Staging Consistency:** ปรับปรุงฟังก์ชัน `handleSaveDrawerValue` ใน `DataGrid.tsx` ให้ส่งผ่าน `handleCellEditedWithStaging` แทนการเรียก `onCellEdited` โดยตรง เพื่อให้การแก้ไขข้อมูลจาก Cell Detail Drawer เมื่ออยู่ในโหมด Staging ถูกบันทึกเป็น Staged Edit เข้าสู่ `pendingChangesStore` เสมอ และไม่ Auto-Commit ไปยังฐานข้อมูล
+- **DockLayout Defensive Staging Check:** เพิ่มการตรวจสอบ `isAutoCommitMode` ใน `handleCellEdited` ของ `DockLayout.tsx` เพื่อให้ทำงานสอดคล้องกับ `handleRowDelete` และ `handleSubmitInsertRow` โดยหาก Auto-Commit ปิดอยู่ จะทำการ Stage การแก้ไขลงใน Store และไม่ยิงคำสั่ง `UPDATE` SQL ทันที
 
 
 

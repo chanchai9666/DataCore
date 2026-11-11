@@ -553,6 +553,74 @@ describe('DockLayout', () => {
     });
   });
 
+  it('stages cell edit in pendingChangesStore without executing SQL UPDATE when in Staging mode', async () => {
+    const tableKey = 'conn-1.users';
+    usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
+
+    (dbApi.fetchTableData as any).mockResolvedValueOnce({
+      columns: [
+        { name: 'id', data_type: 'INTEGER', nullable: false, is_primary_key: true },
+        { name: 'name', data_type: 'TEXT', nullable: false },
+      ],
+      rows: [[{ Integer: 1 }, { Text: 'Alice' }]],
+      execution_time_ms: 10,
+      rows_affected: 1,
+    });
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-cell-staging',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'users',
+          tableName: 'users',
+          schemaName: 'main',
+          autoCommit: false,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 'tab-cell-staging',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalledWith('tab-cell-staging', 'users', 'main', 100, 0);
+    });
+
+    // Inspect Cell and edit via drawer
+    const inspectBtn = await screen.findByRole('button', { name: /inspect cell/i });
+    fireEvent.click(inspectBtn);
+
+    const editBtn = await screen.findByRole('button', { name: /^edit$/i });
+    fireEvent.click(editBtn);
+
+    const textarea = screen.getByPlaceholderText('Enter value...');
+    fireEvent.change(textarea, { target: { value: '99' } });
+
+    const saveBtn = screen.getByRole('button', { name: /save changes/i });
+    fireEvent.click(saveBtn);
+
+    // executeQuery should NOT have been called for UPDATE
+    expect(dbApi.executeQuery).not.toHaveBeenCalledWith(
+      'tab-cell-staging',
+      expect.stringContaining('UPDATE')
+    );
+
+    // The edit must be staged in pendingChangesStore
+    expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(true);
+    const changes = usePendingChangesStore.getState().getTableChanges(tableKey);
+    expect(changes.cellEdits['0:0']).toEqual(
+      expect.objectContaining({
+        rowIndex: 0,
+        colIndex: 0,
+        colName: 'id',
+        newValue: 99,
+      })
+    );
+  });
+
   it('sanitizes date/time cell editing with "0" to NULL in Auto-Commit mode', async () => {
     (dbApi.fetchTableData as any).mockResolvedValueOnce({
       columns: [
