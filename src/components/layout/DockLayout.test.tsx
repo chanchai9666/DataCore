@@ -4,6 +4,7 @@ import { DockLayout } from './DockLayout';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
+import { useStatusStore } from '../../stores/statusStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, QueryResult } from '../../types/db';
 import * as tauriDialog from '@tauri-apps/plugin-dialog';
@@ -739,6 +740,41 @@ describe('DockLayout', () => {
         'tab-delete-ok',
         expect.stringContaining('DELETE FROM "users"')
       );
+    });
+  });
+
+  it('records table fetch query and execution time in status store', async () => {
+    (dbApi.fetchTableData as any).mockResolvedValueOnce({
+      columns: [{ name: 'id', data_type: 'INTEGER', nullable: false }],
+      rows: [[{ Integer: 1 }]],
+      execution_time_ms: 38,
+      rows_affected: 1,
+    });
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-fetch-timing',
+          title: 'products',
+          type: 'table',
+          connectionId: 'c1',
+          tableName: 'products',
+          schemaName: 'public',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 'tab-fetch-timing',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      const status = useStatusStore.getState();
+      expect(status.activeTabId).toBe('tab-fetch-timing');
+      expect(status.executionTimeMs).toBe(38);
+      expect(status.rowCount).toBe(1);
+      expect(status.lastQuery).toContain('SELECT * FROM public.products');
     });
   });
 });

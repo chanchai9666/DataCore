@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Tab } from '../types/db';
 import { dbApi } from '../api/db';
+import { useStatusStore } from './statusStore';
 
 export interface TabStoreState {
   tabs: Tab[];
@@ -23,11 +24,13 @@ export const useTabStore = create<TabStoreState>((set, get) => ({
     const existingIndex = tabs.findIndex((t) => t.id === tab.id);
     if (existingIndex >= 0) {
       set({ activeTabId: tab.id });
+      useStatusStore.getState().setActiveTabId(tab.id);
     } else {
       set({
         tabs: [...tabs, tab],
         activeTabId: tab.id,
       });
+      useStatusStore.getState().setActiveTabId(tab.id);
     }
   },
 
@@ -52,6 +55,9 @@ export const useTabStore = create<TabStoreState>((set, get) => ({
       }
     }
 
+    useStatusStore.getState().removeTabStatus(tabId);
+    useStatusStore.getState().setActiveTabId(nextActiveId);
+
     set({
       tabs: remainingTabs,
       activeTabId: nextActiveId,
@@ -72,6 +78,11 @@ export const useTabStore = create<TabStoreState>((set, get) => ({
       nextActiveId = remainingTabs.length > 0 ? remainingTabs[0].id : null;
     }
 
+    for (const tab of tabs.filter((t) => t.connectionId === connectionId)) {
+      useStatusStore.getState().removeTabStatus(tab.id);
+    }
+    useStatusStore.getState().setActiveTabId(nextActiveId);
+
     set({
       tabs: remainingTabs,
       activeTabId: nextActiveId,
@@ -80,6 +91,7 @@ export const useTabStore = create<TabStoreState>((set, get) => ({
 
   setActiveTab: (tabId: string | null) => {
     set({ activeTabId: tabId });
+    useStatusStore.getState().setActiveTabId(tabId);
   },
 
   setAutoCommit: (tabId: string, autoCommit: boolean) => {

@@ -16,6 +16,7 @@ import { FilterBar } from './FilterBar';
 import { GridBottomBar } from './GridBottomBar';
 import { lightGridTheme, darkGridTheme } from './gridTheme';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
+import { useStatusStore } from '../../stores/statusStore';
 import { createGridColumns, createCellContent } from './gridUtils';
 import { sanitizeEditedCellValue } from './tableEditHelpers';
 import { showConfirmDialog } from '../../utils/dialog';
@@ -375,6 +376,17 @@ export const DataGrid: React.FC<DataGridProps> = ({
     }
     setDrawerOpen(true);
   };
+
+  useEffect(() => {
+    if (selectedCell && columns[selectedCell[0]]) {
+      const colName = columns[selectedCell[0]].title || columns[selectedCell[0]].id;
+      useStatusStore.getState().setStatus({
+        selectedCellInfo: `${colName} : Row ${selectedCell[1] + 1}`,
+      });
+    } else {
+      useStatusStore.getState().setStatus({ selectedCellInfo: null });
+    }
+  }, [selectedCell, columns]);
 
   const handleCellEditedWithStaging = useCallback(
     (cell: readonly [number, number], newValue: EditableGridCell) => {

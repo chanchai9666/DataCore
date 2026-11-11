@@ -60,4 +60,32 @@ describe('StatusBar Component', () => {
     render(<StatusBar />);
     expect(screen.getByText('Connected')).toBeInTheDocument();
   });
+
+  it('updates metrics when switching active tab ID in status store', () => {
+    useStatusStore.getState().setTabStatus('tab-users', {
+      lastQuery: 'SELECT * FROM users;',
+      executionTimeMs: 14,
+      rowCount: 50,
+    });
+    useStatusStore.getState().setTabStatus('tab-orders', {
+      lastQuery: 'SELECT * FROM orders;',
+      executionTimeMs: 95,
+      rowCount: 1200,
+    });
+
+    useStatusStore.getState().setActiveTabId('tab-users');
+    const { rerender } = render(<StatusBar />);
+
+    expect(screen.getByText('SELECT * FROM users;')).toBeInTheDocument();
+    expect(screen.getByText('14 ms')).toBeInTheDocument();
+    expect(screen.getByText('50 rows')).toBeInTheDocument();
+
+    // Switch active tab to tab-orders
+    useStatusStore.getState().setActiveTabId('tab-orders');
+    rerender(<StatusBar />);
+
+    expect(screen.getByText('SELECT * FROM orders;')).toBeInTheDocument();
+    expect(screen.getByText('95 ms')).toBeInTheDocument();
+    expect(screen.getByText('1200 rows')).toBeInTheDocument();
+  });
 });

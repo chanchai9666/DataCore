@@ -13,6 +13,7 @@ import {
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
+import { useStatusStore } from '../../stores/statusStore';
 import { ObjectBrowser } from '../sidebar/ObjectBrowser';
 import { SqlEditor } from '../editor/SqlEditor';
 import { DataGrid } from '../grid/DataGrid';
@@ -118,6 +119,11 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
   const [tableTabModes, setTableTabModes] = useState<Record<string, 'data' | 'structure'>>({});
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
+
+  // Sync active tab ID with status store for per-tab metrics isolation
+  useEffect(() => {
+    useStatusStore.getState().setActiveTabId(activeTabId);
+  }, [activeTabId]);
 
   // Ensure active tab session is opened in backend
   useEffect(() => {
@@ -227,6 +233,16 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           }
         }
 
+        const fullTableName = tab.schemaName ? `${tab.schemaName}.${tableName}` : tableName;
+        const displaySql = `SELECT * FROM ${fullTableName}${sqlFilter ? ` WHERE ${sqlFilter}` : ''}${sortCol ? ` ORDER BY ${sortCol} ${sortDir || 'ASC'}` : ''} LIMIT ${pageSize} OFFSET ${offset};`;
+
+        useStatusStore.getState().setTabStatus(tabId, {
+          lastQuery: displaySql,
+          executionTimeMs: result.execution_time_ms,
+          rowCount: total,
+          statusMessage: null,
+        });
+
         setTableStates((prev) => ({
           ...prev,
           [tabId]: {
@@ -240,6 +256,12 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         }));
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+        const fullTableName = tab.schemaName ? `${tab.schemaName}.${tableName}` : tableName;
+        useStatusStore.getState().setTabStatus(tabId, {
+          lastQuery: `SELECT * FROM ${fullTableName};`,
+          statusMessage: `Error: ${msg}`,
+        });
+
         setTableStates((prev) => ({
           ...prev,
           [tabId]: {

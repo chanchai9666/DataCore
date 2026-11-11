@@ -328,6 +328,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **TableMaintenanceModal Component:** Dialog วิเคราะห์และซ่อมแซมตาราง รองรับการเลือก Operation, แสดง SQL Preview, แสดงผลลัพธ์การทำงานพร้อมเวลาประมวลผล (Execution Time in ms) และ Diagnostic Output
 - **UI Integration:** เมนูคลิกขวาใน ObjectBrowser ("Maintenance & Diagnostics..."), ใน TableListTab และปุ่ม Toolbar ใน TableStructureEditor
 
+### Phase 16: Per-Tab Execution Timing & Metrics Isolation (✅ เสร็จสมบูรณ์ - Issue #40)
+- **Per-Tab Status Store (`statusStore.ts`):** ปรับปรุง Store ให้เก็บสถานะและเวลาคิวรี่แยกตาม `tabId` (`tabStatusMap`) พร้อมฟังก์ชัน `setActiveTabId` เพื่อสลับข้อมูลสถิติบน Status Bar ตามแท็บที่โฟกัสอยู่ทันที
+- **Comprehensive Timing for Table Fetch & Queries:** เชื่อมโยงเวลาประมวลผล (`execution_time_ms`) เมื่อเปิดหรือรีเฟรชข้อมูลตาราง (`loadTableData`) บันทึกคำสั่ง SQL ที่ใช้ดึงข้อมูล จำนวนแถว และเวลาที่ใช้ลงในสถานะของแท็บนั้นๆ
+- **Tab Switching Synchronization:** ซิงก์การสลับแท็บใน `DockLayout` เข้ากับ `useStatusStore` เพื่อให้ Status Bar แสดงผลเฉพาะข้อมูลของแท็บที่กำลังทำงานอยู่อย่างอิสระ
+
+
 
 
 
