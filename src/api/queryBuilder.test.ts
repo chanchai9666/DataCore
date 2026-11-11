@@ -6,6 +6,7 @@ import {
   buildCreateTableSql,
   buildDropTableSql,
   buildRenameTableSql,
+  buildTableMaintenanceSql,
   buildCreateIndexSql,
   buildDropIndexSql,
   buildUpdateSql,
@@ -128,6 +129,50 @@ describe('queryBuilder', () => {
       // MySQL
       expect(buildRenameTableSql('old_table', 'new_table', 'mydb', 'mysql')).toBe(
         'ALTER TABLE `mydb`.`old_table` RENAME TO `new_table`;'
+      );
+    });
+
+    it('generates table maintenance SQL for various drivers and operations', () => {
+      // PostgreSQL
+      expect(buildTableMaintenanceSql('analyze', 'users', 'public', 'postgres')).toBe(
+        'ANALYZE "public"."users";'
+      );
+      expect(buildTableMaintenanceSql('check', 'users', 'public', 'postgres')).toBe(
+        'SELECT count(*) AS checked_rows FROM "public"."users";'
+      );
+      expect(buildTableMaintenanceSql('optimize', 'users', 'public', 'postgres')).toBe(
+        'VACUUM (ANALYZE) "public"."users";'
+      );
+      expect(buildTableMaintenanceSql('reindex', 'users', 'public', 'postgres')).toBe(
+        'REINDEX TABLE "public"."users";'
+      );
+
+      // MySQL
+      expect(buildTableMaintenanceSql('analyze', 'orders', 'mydb', 'mysql')).toBe(
+        'ANALYZE TABLE `mydb`.`orders`;'
+      );
+      expect(buildTableMaintenanceSql('check', 'orders', 'mydb', 'mysql')).toBe(
+        'CHECK TABLE `mydb`.`orders`;'
+      );
+      expect(buildTableMaintenanceSql('optimize', 'orders', 'mydb', 'mysql')).toBe(
+        'OPTIMIZE TABLE `mydb`.`orders`;'
+      );
+      expect(buildTableMaintenanceSql('reindex', 'orders', 'mydb', 'mysql')).toBe(
+        'REPAIR TABLE `mydb`.`orders`;'
+      );
+
+      // SQLite
+      expect(buildTableMaintenanceSql('analyze', 'items', undefined, 'sqlite')).toBe(
+        'ANALYZE "items";'
+      );
+      expect(buildTableMaintenanceSql('check', 'items', undefined, 'sqlite')).toBe(
+        'PRAGMA integrity_check;'
+      );
+      expect(buildTableMaintenanceSql('optimize', 'items', undefined, 'sqlite')).toBe(
+        'VACUUM;'
+      );
+      expect(buildTableMaintenanceSql('reindex', 'items', undefined, 'sqlite')).toBe(
+        'REINDEX "items";'
       );
     });
 

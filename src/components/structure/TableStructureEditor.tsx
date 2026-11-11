@@ -15,6 +15,7 @@ import {
   Layers,
   ShieldAlert,
   Pencil,
+  Wrench,
 } from 'lucide-react';
 import { dbApi } from '../../api/db';
 import {
@@ -39,6 +40,7 @@ import {
 } from './tableManagementHelpers';
 import { DropTableModal } from './DropTableModal';
 import { RenameTableModal } from './RenameTableModal';
+import { TableMaintenanceModal } from './TableMaintenanceModal';
 
 export interface TableStructureEditorProps {
   tabId: string;
@@ -115,6 +117,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   const [isDdlModalOpen, setIsDdlModalOpen] = useState(false);
   const [isDropTableModalOpen, setIsDropTableModalOpen] = useState(false);
   const [isRenameTableModalOpen, setIsRenameTableModalOpen] = useState(false);
+  const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
   const [ddlCopied, setDdlCopied] = useState(false);
 
   // Add Index form fields
@@ -702,6 +705,21 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           >
             <Pencil className="w-3.5 h-3.5 text-blue-400" />
             <span>Rename</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="maintenance-table-toolbar-btn"
+            onClick={() => setIsMaintenanceModalOpen(true)}
+            title="Table Maintenance & Diagnostics"
+            className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded text-xs transition-colors border ${
+              isDark
+                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-800 text-gray-300'
+                : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+          >
+            <Wrench className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Maintain</span>
           </button>
 
           <button
@@ -1829,6 +1847,19 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         connectionId={connectionId}
         driver={driver}
         onClose={() => setIsRenameTableModalOpen(false)}
+        onSuccess={() => {
+          onStructureChanged?.();
+        }}
+      />
+
+      {/* Modal: Table Maintenance */}
+      <TableMaintenanceModal
+        isOpen={isMaintenanceModalOpen}
+        tableName={tableName}
+        schemaName={schemaName}
+        connectionId={connectionId}
+        driver={driver}
+        onClose={() => setIsMaintenanceModalOpen(false)}
         onSuccess={() => {
           onStructureChanged?.();
         }}

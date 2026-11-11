@@ -28,6 +28,7 @@ import { ImportModal } from '../transfer/ImportModal';
 import { ImportSqlModal } from '../transfer/ImportSqlModal';
 import { DropTableModal } from '../structure/DropTableModal';
 import { RenameTableModal } from '../structure/RenameTableModal';
+import { TableMaintenanceModal } from '../structure/TableMaintenanceModal';
 
 export function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 B';
@@ -106,6 +107,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
     columns: { name: string; dataType: string }[];
   } | null>(null);
   const [activeRenameTable, setActiveRenameTable] = useState<string | null>(null);
+  const [activeMaintenanceTable, setActiveMaintenanceTable] = useState<string | null>(null);
   const [activeDropTable, setActiveDropTable] = useState<string | null>(null);
 
   useEffect(() => {
@@ -221,6 +223,11 @@ export const TableListTab: React.FC<TableListTabProps> = ({
 
   const handleTriggerRenameTable = (tableName: string) => {
     setActiveRenameTable(tableName);
+    setContextMenu(null);
+  };
+
+  const handleTriggerMaintenance = (tableName: string) => {
+    setActiveMaintenanceTable(tableName);
     setContextMenu(null);
   };
 
@@ -476,6 +483,16 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                       >
                         <Pencil className="w-3 h-3 text-blue-400" />
                       </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTriggerMaintenance(table.name);
+                        }}
+                        title="Table Maintenance & Diagnostics"
+                        className="p-1 rounded hover:bg-[#383838] text-gray-400 hover:text-white"
+                      >
+                        <Wrench className="w-3 h-3 text-emerald-400" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -609,6 +626,16 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             <span>Rename Table...</span>
           </button>
 
+          <button
+            type="button"
+            data-testid="ctx-maintenance-table"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            onClick={() => handleTriggerMaintenance(contextMenu.table.name)}
+          >
+            <Wrench className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Table Maintenance...</span>
+          </button>
+
           <div className="border-t border-[#2d2d2d] my-1" />
 
           <button
@@ -702,6 +729,20 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           connectionId={connectionId}
           driver={driver}
           onClose={() => setActiveRenameTable(null)}
+          onSuccess={() => {
+            fetchTables();
+          }}
+        />
+      )}
+
+      {activeMaintenanceTable && (
+        <TableMaintenanceModal
+          isOpen={true}
+          tableName={activeMaintenanceTable}
+          schemaName={schemaName}
+          connectionId={connectionId}
+          driver={driver}
+          onClose={() => setActiveMaintenanceTable(null)}
           onSuccess={() => {
             fetchTables();
           }}

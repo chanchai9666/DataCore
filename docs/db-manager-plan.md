@@ -319,6 +319,16 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **RenameTableModal Component:** สร้าง Dialog สำหรับเปลี่ยนชื่อตาราง พร้อมระบบตรวจสอบความถูกต้อง (Validation), การแสดง SQL Preview, Loading Indicator, แจ้งเตือน Toast เมื่อสำเร็จ/เกิดข้อผิดพลาด และซิงก์อัปเดต Tab ที่เปิดอยู่ (`useTabStore`) ให้อัตโนมัติ
 - **UI Integration:** เพิ่มเมนู "Rename Table..." ใน Context Menu ของ ObjectBrowser, เมนูจัดการใน TableListTab และปุ่ม "Rename" บน Toolbar ของ TableStructureEditor
 
+### Phase 15: Table Maintenance & Diagnostics Suite (✅ เสร็จสมบูรณ์ - Issue #39)
+- **Multi-Engine Maintenance Query Builder:** เพิ่ม `buildTableMaintenanceSql(operation, tableName, schemaName?, driver?)` รองรับการปรับแต่งและวินิจฉัยตาราง:
+  - `analyze`: อัปเดตสถิติ Index ให้ Query Planner (PostgreSQL: `ANALYZE`, MySQL: `ANALYZE TABLE`, SQLite: `ANALYZE`)
+  - `check`: ตรวจสอบความสมบูรณ์ของตาราง (PostgreSQL Catalog Check, MySQL: `CHECK TABLE`, SQLite: `PRAGMA integrity_check;`)
+  - `optimize`: คลีนพื้นที่และ Defragment ข้อมูล (PostgreSQL: `VACUUM (ANALYZE)`, MySQL: `OPTIMIZE TABLE`, SQLite: `VACUUM;`)
+  - `reindex`: ซ่อมแซมและสร้าง Index ใหม่ (PostgreSQL: `REINDEX TABLE`, MySQL: `REPAIR TABLE`, SQLite: `REINDEX`)
+- **TableMaintenanceModal Component:** Dialog วิเคราะห์และซ่อมแซมตาราง รองรับการเลือก Operation, แสดง SQL Preview, แสดงผลลัพธ์การทำงานพร้อมเวลาประมวลผล (Execution Time in ms) และ Diagnostic Output
+- **UI Integration:** เมนูคลิกขวาใน ObjectBrowser ("Maintenance & Diagnostics..."), ใน TableListTab และปุ่ม Toolbar ใน TableStructureEditor
+
+
 
 
 

@@ -26,6 +26,7 @@ import { openTableTab, openQueryTab, openTableListTab } from './tabHelpers';
 import { CreateTableModal } from '../structure/CreateTableModal';
 import { DropTableModal } from '../structure/DropTableModal';
 import { RenameTableModal } from '../structure/RenameTableModal';
+import { TableMaintenanceModal } from '../structure/TableMaintenanceModal';
 import { ImportModal } from '../transfer/ImportModal';
 import { ExportModal } from '../transfer/ExportModal';
 import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
@@ -337,6 +338,13 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     driver?: string;
   } | null>(null);
 
+  const [maintenanceTableTarget, setMaintenanceTableTarget] = useState<{
+    connectionId: string;
+    tableName: string;
+    schemaName?: string;
+    driver?: string;
+  } | null>(null);
+
   const [importModalTarget, setImportModalTarget] = useState<{
     connectionId: string;
     tableName: string;
@@ -566,6 +574,16 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
   const handleRenameTable = useCallback((node: BrowserTreeNode) => {
     setRenameTableTarget({
+      connectionId: node.connectionId,
+      tableName: node.tableName || node.name,
+      schemaName: node.schemaName,
+      driver: node.driver,
+    });
+    setContextMenu(null);
+  }, []);
+
+  const handleMaintenanceTable = useCallback((node: BrowserTreeNode) => {
+    setMaintenanceTableTarget({
       connectionId: node.connectionId,
       tableName: node.tableName || node.name,
       schemaName: node.schemaName,
@@ -1073,6 +1091,15 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                   </button>
                   <button
                     type="button"
+                    data-testid="maintenance-table-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    onClick={() => handleMaintenanceTable(contextMenu.node)}
+                  >
+                    <Wrench className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Maintenance & Diagnostics...</span>
+                  </button>
+                  <button
+                    type="button"
                     data-testid="drop-table-btn"
                     className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-900/40 text-red-400"
                     onClick={() => handleDropTable(contextMenu.node)}
@@ -1220,6 +1247,20 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           onClose={() => setRenameTableTarget(null)}
           onSuccess={() => {
             fetchSchema(renameTableTarget.connectionId);
+          }}
+        />
+      )}
+
+      {maintenanceTableTarget && (
+        <TableMaintenanceModal
+          isOpen={true}
+          tableName={maintenanceTableTarget.tableName}
+          schemaName={maintenanceTableTarget.schemaName}
+          connectionId={maintenanceTableTarget.connectionId}
+          driver={maintenanceTableTarget.driver}
+          onClose={() => setMaintenanceTableTarget(null)}
+          onSuccess={() => {
+            fetchSchema(maintenanceTableTarget.connectionId);
           }}
         />
       )}

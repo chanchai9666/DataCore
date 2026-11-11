@@ -222,6 +222,7 @@ describe('TableListTab component', () => {
     expect(screen.getByTestId('ctx-import-data')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-copy-name')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-rename-table')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-maintenance-table')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-drop-table')).toBeInTheDocument();
 
     // Click Open Table Data
@@ -312,5 +313,26 @@ describe('TableListTab component', () => {
     fireEvent.click(screen.getByTestId('ctx-rename-table'));
 
     expect(await screen.findByRole('heading', { name: /rename table/i })).toBeInTheDocument();
+  });
+
+  it('opens TableMaintenanceModal when Table Maintenance is clicked in context menu', async () => {
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+
+    const usersRow = screen.getByText('users').closest('tr');
+    fireEvent.contextMenu(usersRow!, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-maintenance-table'));
+
+    expect(
+      await screen.findByRole('heading', { name: /Table Maintenance & Diagnostics/i })
+    ).toBeInTheDocument();
   });
 });

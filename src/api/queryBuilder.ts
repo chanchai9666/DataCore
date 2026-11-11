@@ -283,6 +283,44 @@ export function buildRenameTableSql(
   return `ALTER TABLE ${fullOldTable} RENAME TO ${quotedNewTable};`;
 }
 
+export type TableMaintenanceOp = 'analyze' | 'check' | 'optimize' | 'reindex';
+
+/**
+ * Builds table maintenance SQL statement (Analyze, Check, Optimize, Reindex/Repair)
+ * adapted per database engine.
+ */
+export function buildTableMaintenanceSql(
+  operation: TableMaintenanceOp,
+  tableName: string,
+  schemaName?: string,
+  driver?: string
+): string {
+  const normDriver = driver?.toLowerCase() || 'postgres';
+  const isPostgres = normDriver.includes('postgres');
+  const isMysql = normDriver.includes('mysql');
+
+  const fullTable = qualifyTable(tableName.trim(), schemaName, driver);
+
+  switch (operation) {
+    case 'analyze':
+      if (isPostgres) return `ANALYZE ${fullTable};`;
+      if (isMysql) return `ANALYZE TABLE ${fullTable};`;
+      return `ANALYZE ${fullTable};`;
+    case 'check':
+      if (isPostgres) return `SELECT count(*) AS checked_rows FROM ${fullTable};`;
+      if (isMysql) return `CHECK TABLE ${fullTable};`;
+      return `PRAGMA integrity_check;`;
+    case 'optimize':
+      if (isPostgres) return `VACUUM (ANALYZE) ${fullTable};`;
+      if (isMysql) return `OPTIMIZE TABLE ${fullTable};`;
+      return `VACUUM;`;
+    case 'reindex':
+      if (isPostgres) return `REINDEX TABLE ${fullTable};`;
+      if (isMysql) return `REPAIR TABLE ${fullTable};`;
+      return `REINDEX ${fullTable};`;
+  }
+}
+
 /**
  * Builds a CREATE INDEX statement according to database driver.
  */

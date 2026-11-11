@@ -403,6 +403,22 @@ describe('ObjectBrowser', () => {
     expect(await screen.findByRole('heading', { name: /rename table/i })).toBeInTheDocument();
   });
 
+  it('opens TableMaintenanceModal when Maintenance & Diagnostics is clicked from table context menu', async () => {
+    render(<ObjectBrowser />);
+    await expandToTables();
+
+    const userTableNode = await screen.findByText('users');
+    fireEvent.contextMenu(userTableNode);
+
+    const maintenanceBtn = await screen.findByTestId('maintenance-table-btn');
+    expect(maintenanceBtn).toBeInTheDocument();
+    fireEvent.click(maintenanceBtn);
+
+    expect(
+      await screen.findByRole('heading', { name: /Table Maintenance & Diagnostics/i })
+    ).toBeInTheDocument();
+  });
+
   it('opens DropTableModal when Drop Table is clicked from table context menu', async () => {
     render(<ObjectBrowser />);
     await expandToTables();

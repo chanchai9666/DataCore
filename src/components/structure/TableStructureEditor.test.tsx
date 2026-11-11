@@ -290,6 +290,25 @@ describe('TableStructureEditor', () => {
     expect(screen.getByLabelText(/New Table Name/i)).toHaveValue('categories');
   });
 
+  it('opens TableMaintenanceModal when Maintain toolbar button is clicked', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const maintainBtn = await screen.findByTestId('maintenance-table-toolbar-btn');
+    fireEvent.click(maintainBtn);
+
+    expect(
+      await screen.findByRole('heading', { name: /Table Maintenance & Diagnostics/i })
+    ).toBeInTheDocument();
+  });
+
   it('switches to indexes tab, creates a new index, and drops an index', async () => {
     // Provide query results: columns result, then index result
     const mockIndexesResult: QueryResult = {
