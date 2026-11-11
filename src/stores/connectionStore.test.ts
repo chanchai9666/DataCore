@@ -128,4 +128,54 @@ describe('connectionStore', () => {
 
     expect(useConnectionStore.getState().connectedConnectionIds).toEqual([]);
   });
+
+  it('should move connection to a folder and save', async () => {
+    useConnectionStore.setState({
+      connections: [mockConfig],
+    });
+    vi.mocked(dbApi.saveConnection).mockResolvedValueOnce(undefined);
+
+    await useConnectionStore.getState().moveConnectionToFolder('conn-1', 'Production');
+
+    expect(dbApi.saveConnection).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'conn-1', folder: 'Production' })
+    );
+    expect(useConnectionStore.getState().connections[0].folder).toBe('Production');
+
+    // Move to root (undefined)
+    await useConnectionStore.getState().moveConnectionToFolder('conn-1', '');
+    expect(useConnectionStore.getState().connections[0].folder).toBeUndefined();
+  });
+
+  it('should rename folder across all affected connections', async () => {
+    const conn1 = { ...mockConfig, id: 'c1', folder: 'OldFolder' };
+    const conn2 = { ...mockConfig, id: 'c2', folder: 'OldFolder' };
+    const conn3 = { ...mockConfig, id: 'c3', folder: 'Other' };
+    useConnectionStore.setState({
+      connections: [conn1, conn2, conn3],
+    });
+    vi.mocked(dbApi.saveConnection).mockResolvedValue(undefined);
+
+    await useConnectionStore.getState().renameFolderInConnections('OldFolder', 'NewFolder');
+
+    const conns = useConnectionStore.getState().connections;
+    expect(conns.find((c) => c.id === 'c1')?.folder).toBe('NewFolder');
+    expect(conns.find((c) => c.id === 'c2')?.folder).toBe('NewFolder');
+    expect(conns.find((c) => c.id === 'c3')?.folder).toBe('Other');
+  });
+
+  it('should remove folder from all affected connections', async () => {
+    const conn1 = { ...mockConfig, id: 'c1', folder: 'ToDrop' };
+    const conn2 = { ...mockConfig, id: 'c2', folder: 'ToKeep' };
+    useConnectionStore.setState({
+      connections: [conn1, conn2],
+    });
+    vi.mocked(dbApi.saveConnection).mockResolvedValue(undefined);
+
+    await useConnectionStore.getState().removeFolderFromConnections('ToDrop');
+
+    const conns = useConnectionStore.getState().connections;
+    expect(conns.find((c) => c.id === 'c1')?.folder).toBeUndefined();
+    expect(conns.find((c) => c.id === 'c2')?.folder).toBe('ToKeep');
+  });
 });

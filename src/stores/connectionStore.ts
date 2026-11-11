@@ -15,6 +15,9 @@ export interface ConnectionStoreState {
   setConnections: (connections: ConnectionConfig[]) => void;
   markConnected: (connectionId: string) => void;
   markDisconnected: (connectionId: string) => void;
+  moveConnectionToFolder: (connectionId: string, folder?: string) => Promise<void>;
+  renameFolderInConnections: (oldName: string, newName: string) => Promise<void>;
+  removeFolderFromConnections: (folderName: string) => Promise<void>;
 }
 
 export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
@@ -82,5 +85,44 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
     set((state) => ({
       connectedConnectionIds: state.connectedConnectionIds.filter((id) => id !== connectionId),
     }));
+  },
+
+  moveConnectionToFolder: async (connectionId: string, folder?: string) => {
+    const existing = get().connections;
+    const target = existing.find((c) => c.id === connectionId);
+    if (!target) return;
+    const cleanFolder = folder?.trim() || undefined;
+    const updated: ConnectionConfig = { ...target, folder: cleanFolder };
+    await dbApi.saveConnection(updated);
+    set({
+      connections: existing.map((c) => (c.id === connectionId ? updated : c)),
+    });
+  },
+
+  renameFolderInConnections: async (oldName: string, newName: string) => {
+    const existing = get().connections;
+    const cleanNew = newName.trim() || undefined;
+    const affected = existing.filter((c) => c.folder === oldName);
+    const updatedConns = [...existing];
+    for (const conn of affected) {
+      const updated = { ...conn, folder: cleanNew };
+      await dbApi.saveConnection(updated);
+      const idx = updatedConns.findIndex((c) => c.id === conn.id);
+      if (idx >= 0) updatedConns[idx] = updated;
+    }
+    set({ connections: updatedConns });
+  },
+
+  removeFolderFromConnections: async (folderName: string) => {
+    const existing = get().connections;
+    const affected = existing.filter((c) => c.folder === folderName);
+    const updatedConns = [...existing];
+    for (const conn of affected) {
+      const updated = { ...conn, folder: undefined };
+      await dbApi.saveConnection(updated);
+      const idx = updatedConns.findIndex((c) => c.id === conn.id);
+      if (idx >= 0) updatedConns[idx] = updated;
+    }
+    set({ connections: updatedConns });
   },
 }));

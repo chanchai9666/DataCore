@@ -346,6 +346,15 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Tauri Dialog Integration:** ใช้งานฟังก์ชัน `open` จาก `@tauri-apps/plugin-dialog` พร้อมกำหนด Filters สำหรับไฟล์ SQLite (`.db`, `.sqlite`, `.sqlite3`, `.db3`, `.s3db`, `.sl3`, `*.*`)
 - **Auto Populate & Smart Name Suggestion:** นำไฟล์ที่เลือกมากรอกลงในช่อง `Database Path` ทันที และแนะนำชื่อการเชื่อมต่ออัตโนมัติจากชื่อไฟล์หากผู้ใช้ยังไม่ได้กำหนดชื่อ พร้อมปุ่ม `:memory:` สำหรับการทดสอบ In-Memory Database
 
+### Phase 20: Connection Folder Grouping with Custom Color & Rename Support (✅ เสร็จสมบูรณ์ - Issue #44)
+- **Connection Folder Grouping in ObjectBrowser:** จัดกลุ่ม Connection Nodes ใน Sidebar ให้อยู่ใต้ Connection Folders ตามค่า `conn.folder` โดยการเชื่อมต่อที่ไม่มีโฟลเดอร์จะแสดงอยู่ที่ Root เลเวล
+- **Folder Creation & Color Customization:** เพิ่มปุ่ม "New Folder" บนแถบเครื่องมือของ ObjectBrowser พร้อม Dialog สำหรับตั้งชื่อและเลือกสีไอคอนโฟลเดอร์ (Blue, Emerald, Amber, Red, Purple, Pink, Indigo, Gray) และบันทึกข้อมูลสีลง LocalStorage
+- **Folder Management & Context Menu:**
+  - เมนูคลิกขวาบนโฟลเดอร์: "Rename Folder...", "Change Color...", "Delete Folder" (พร้อมทางเลือกลบและย้ายการเชื่อมต่อไปไว้ที่ Root)
+  - เมนูคลิกขวาบนการเชื่อมต่อ: "Move to Folder..." สำหรับย้ายเข้า/ออกจากโฟลเดอร์ได้อย่างสะดวกรวดเร็ว
+  - ซิงก์การเปลี่ยนแปลงชื่อโฟลเดอร์ไปยังทุก Connection ผ่าน `useConnectionStore` และเซฟลง Backend
+
+
 
 
 

@@ -20,6 +20,7 @@ import { DbBadge } from './DbBadge';
 
 export type BrowserNodeType =
   | 'connection'
+  | 'connection-folder'
   | 'database'
   | 'schema'
   | 'folder'
@@ -44,6 +45,8 @@ export interface BrowserTreeNode {
   isLoading?: boolean;
   isConnected?: boolean;
   isDisconnected?: boolean;
+  folderColor?: string;
+  isConnectionFolder?: boolean;
 }
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -181,7 +184,17 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         return <Database className="w-4 h-4 text-amber-400 shrink-0" data-testid="icon-database" />;
       case 'schema':
         return <Folder className="w-4 h-4 text-yellow-500 shrink-0" data-testid="icon-folder" />;
+      case 'connection-folder':
       case 'folder': {
+        if (data.folderColor) {
+          return (
+            <Folder
+              className="w-4 h-4 shrink-0"
+              style={{ color: data.folderColor }}
+              data-testid="icon-folder"
+            />
+          );
+        }
         if (data.name.startsWith('Tables')) {
           return <TableIcon className="w-4 h-4 text-emerald-400 shrink-0" data-testid="icon-folder" />;
         }

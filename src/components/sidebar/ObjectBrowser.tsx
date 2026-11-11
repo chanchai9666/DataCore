@@ -17,12 +17,18 @@ import {
   Download,
   ArrowRightLeft,
   Pencil,
+  Folder,
+  FolderPlus,
+  Palette,
+  ChevronRight,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { useFolderStore } from '../../stores/folderStore';
 import { useTabStore } from '../../stores/tabStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, SchemaNode } from '../../types/db';
 import { openTableTab, openQueryTab, openTableListTab } from './tabHelpers';
+import { FolderModal } from './FolderModal';
 import { CreateTableModal } from '../structure/CreateTableModal';
 import { DropTableModal } from '../structure/DropTableModal';
 import { RenameTableModal } from '../structure/RenameTableModal';
@@ -310,7 +316,29 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     connectedConnectionIds,
     markConnected,
     markDisconnected,
+    moveConnectionToFolder,
+    renameFolderInConnections,
+    removeFolderFromConnections,
   } = useConnectionStore();
+
+  const {
+    folderMetadata,
+    customFolders,
+    addFolder,
+    renameFolder,
+    setFolderColor,
+    removeFolder,
+  } = useFolderStore();
+
+  const [folderModal, setFolderModal] = useState<{
+    isOpen: boolean;
+    mode: 'create' | 'rename' | 'color';
+    folderName?: string;
+  }>({
+    isOpen: false,
+    mode: 'create',
+  });
+  const [pendingMoveConnId, setPendingMoveConnId] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [schemas, setSchemas] = useState<Record<string, SchemaNode[]>>({});
@@ -471,8 +499,21 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     }
   }, [lastSavedConnectionId, connections, fetchSchema, connectedConnectionIds]);
 
+  const allFolderNames = useMemo(() => {
+    const set = new Set<string>();
+    customFolders.forEach((f) => set.add(f));
+    (connections || []).forEach((c) => {
+      if (c.folder && c.folder.trim()) {
+        set.add(c.folder.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [customFolders, connections]);
+
   const treeData = useMemo<BrowserTreeNode[]>(() => {
-    return (connections || []).map((conn) => {
+    const connMap = new Map<string, BrowserTreeNode>();
+
+    (connections || []).forEach((conn) => {
       const isConnected = connectedConnectionIds.includes(conn.id);
       const connSchema = schemas[conn.id] || [];
       const isLoading = Boolean(loadingMap[conn.id]);
@@ -520,7 +561,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         );
       }
 
-      return {
+      connMap.set(conn.id, {
         id: `conn-${conn.id}`,
         name: conn.name,
         nodeType: 'connection',
@@ -532,9 +573,49 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         isConnected,
         isDisconnected,
         children,
+      });
+    });
+
+    if (allFolderNames.length === 0) {
+      return Array.from(connMap.values());
+    }
+
+    const folderNodes: BrowserTreeNode[] = allFolderNames.map((folderName) => {
+      const connsInFolder = (connections || [])
+        .filter((c) => c.folder === folderName)
+        .map((c) => connMap.get(c.id)!)
+        .filter(Boolean);
+
+      const color = folderMetadata[folderName]?.color || '#eab308';
+
+      return {
+        id: `conn-folder-${folderName}`,
+        name: folderName,
+        nodeType: 'connection-folder',
+        connectionId: '',
+        folderColor: color,
+        isConnectionFolder: true,
+        children:
+          connsInFolder.length > 0
+            ? connsInFolder
+            : [
+                {
+                  id: `empty-folder-${folderName}`,
+                  name: '(Empty folder)',
+                  nodeType: 'empty',
+                  connectionId: '',
+                },
+              ],
       };
     });
-  }, [connections, schemas, loadingMap, errorMap, connectedConnectionIds]);
+
+    const rootConns = (connections || [])
+      .filter((c) => !c.folder || !c.folder.trim())
+      .map((c) => connMap.get(c.id)!)
+      .filter(Boolean);
+
+    return [...folderNodes, ...rootConns];
+  }, [connections, schemas, loadingMap, errorMap, connectedConnectionIds, allFolderNames, folderMetadata]);
 
   const handleOpenTable = useCallback((node: BrowserTreeNode) => {
     openTableTab({
@@ -733,6 +814,72 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     [connections, removeConnection]
   );
 
+  const handleOpenFolderModal = useCallback(
+    (mode: 'create' | 'rename' | 'color', folderName?: string) => {
+      setFolderModal({
+        isOpen: true,
+        mode,
+        folderName,
+      });
+      setContextMenu(null);
+    },
+    []
+  );
+
+  const handleFolderModalSubmit = useCallback(
+    async ({ name, color }: { name: string; color: string }) => {
+      if (folderModal.mode === 'create') {
+        addFolder(name, color);
+        if (pendingMoveConnId) {
+          await moveConnectionToFolder(pendingMoveConnId, name);
+          setPendingMoveConnId(null);
+        }
+        toast.success(`Created folder "${name}"`);
+      } else if (folderModal.mode === 'rename') {
+        if (folderModal.folderName) {
+          renameFolder(folderModal.folderName, name);
+          await renameFolderInConnections(folderModal.folderName, name);
+          toast.success(`Renamed folder to "${name}"`);
+        }
+      } else if (folderModal.mode === 'color') {
+        if (folderModal.folderName) {
+          setFolderColor(folderModal.folderName, color);
+          toast.success(`Updated color for "${folderModal.folderName}"`);
+        }
+      }
+    },
+    [folderModal, addFolder, renameFolder, setFolderColor, pendingMoveConnId, moveConnectionToFolder, renameFolderInConnections]
+  );
+
+  const handleDeleteFolder = useCallback(
+    async (folderName: string) => {
+      const confirmed = await showConfirmDialog(
+        `Are you sure you want to delete folder "${folderName}"? All connections inside will be moved to the root level.`,
+        { title: 'Delete Folder', kind: 'warning' }
+      );
+      if (confirmed) {
+        removeFolder(folderName);
+        await removeFolderFromConnections(folderName);
+        toast.success(`Deleted folder "${folderName}"`);
+      }
+      setContextMenu(null);
+    },
+    [removeFolder, removeFolderFromConnections]
+  );
+
+  const handleMoveConnection = useCallback(
+    async (connectionId: string, folderName?: string) => {
+      await moveConnectionToFolder(connectionId, folderName);
+      toast.success(
+        folderName
+          ? `Moved connection to "${folderName}"`
+          : 'Moved connection to root'
+      );
+      setContextMenu(null);
+    },
+    [moveConnectionToFolder]
+  );
+
   const handleDisconnect = useCallback(
     (connectionId: string) => {
       const conn = (connections || []).find((c) => c.id === connectionId);
@@ -804,6 +951,16 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           )}
           <button
             type="button"
+            title="New Folder"
+            aria-label="New Folder"
+            data-testid="sidebar-new-folder-btn"
+            className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            onClick={() => handleOpenFolderModal('create')}
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
             title="Refresh All"
             aria-label="Refresh All"
             className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
@@ -830,7 +987,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
       {/* Tree View Container */}
       <div ref={containerRef} className="flex-1 overflow-hidden p-1">
-        {!connections || connections.length === 0 ? (
+        {(!connections || connections.length === 0) && customFolders.length === 0 ? (
           <div className="p-4 text-center text-xs text-gray-500 flex flex-col items-center space-y-2">
             <span>No connections found.</span>
             {onNewConnection && (
@@ -969,6 +1126,52 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 <span>Refresh Schema</span>
               </button>
 
+              <div className="relative group/folder">
+                <button
+                  type="button"
+                  data-testid="connection-move-folder-btn"
+                  className="w-full text-left px-3 py-1.5 flex items-center justify-between hover:bg-gray-700 text-gray-200"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Folder className="w-3.5 h-3.5 text-yellow-500" />
+                    <span>Move to Folder</span>
+                  </div>
+                  <ChevronRight className="w-3 h-3 text-gray-400" />
+                </button>
+                <div className="hidden group-hover/folder:block absolute left-full top-0 ml-0.5 w-44 bg-gray-800 border border-gray-700 rounded shadow-xl py-1 z-50">
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 text-gray-300 flex items-center gap-1.5"
+                    onClick={() => handleMoveConnection(contextMenu.node.connectionId, undefined)}
+                  >
+                    <span>None (Root)</span>
+                  </button>
+                  {allFolderNames.map((folder) => (
+                    <button
+                      key={folder}
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 text-gray-200 flex items-center gap-1.5 truncate"
+                      onClick={() => handleMoveConnection(contextMenu.node.connectionId, folder)}
+                    >
+                      <Folder style={{ color: folderMetadata[folder]?.color || '#eab308' }} className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{folder}</span>
+                    </button>
+                  ))}
+                  <div className="border-t border-gray-700 my-1" />
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-600 text-blue-300 hover:text-white flex items-center gap-1.5"
+                    onClick={() => {
+                      setPendingMoveConnId(contextMenu.node.connectionId);
+                      handleOpenFolderModal('create');
+                    }}
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>New Folder...</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="border-t border-gray-700 my-1" />
 
               <button
@@ -978,6 +1181,60 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               >
                 <Trash2 className="w-3.5 h-3.5 text-red-400" />
                 <span>Delete Connection</span>
+              </button>
+            </>
+          )}
+
+          {/* Connection Folder Context Menu */}
+          {contextMenu.node.nodeType === 'connection-folder' && (
+            <>
+              <button
+                type="button"
+                data-testid="folder-new-conn-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => {
+                  if (onNewConnection) onNewConnection();
+                  setContextMenu(null);
+                }}
+              >
+                <Plus className="w-3.5 h-3.5 text-blue-400" />
+                <span>New Connection</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="folder-rename-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => {
+                  handleOpenFolderModal('rename', contextMenu.node.name);
+                }}
+              >
+                <Edit className="w-3.5 h-3.5 text-amber-400" />
+                <span>Rename Folder...</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="folder-change-color-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                onClick={() => {
+                  handleOpenFolderModal('color', contextMenu.node.name);
+                }}
+              >
+                <Palette className="w-3.5 h-3.5 text-purple-400" />
+                <span>Change Color...</span>
+              </button>
+
+              <div className="border-t border-gray-700 my-1" />
+
+              <button
+                type="button"
+                data-testid="folder-delete-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-900/40 text-red-400"
+                onClick={() => handleDeleteFolder(contextMenu.node.name)}
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                <span>Delete Folder</span>
               </button>
             </>
           )}
@@ -1334,6 +1591,19 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           }}
         />
       )}
+
+      <FolderModal
+        isOpen={folderModal.isOpen}
+        onClose={() => {
+          setFolderModal((prev) => ({ ...prev, isOpen: false }));
+          setPendingMoveConnId(null);
+        }}
+        mode={folderModal.mode}
+        initialFolderName={folderModal.folderName}
+        initialColor={folderModal.folderName ? folderMetadata[folderModal.folderName]?.color : '#3b82f6'}
+        existingFolders={allFolderNames}
+        onSubmit={handleFolderModalSubmit}
+      />
     </div>
   );
 };
