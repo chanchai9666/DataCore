@@ -380,6 +380,21 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Cross-Platform Asset Regeneration:** แปลงและสร้างไอคอนความละเอียดสูงครอบคลุมทุกแพลตฟอร์มด้วย `pnpm tauri icon` ประกอบด้วย `.icns` (macOS), `.ico` (Windows), หลากหลายขนาด PNG สำหรับ Linux/Web/Mobile
 - **Web Favicon Update:** อัปเดต `index.html` และ asset ใน `public/` ให้เชื่อมโยงกับไอคอนใหม่ของแอปอย่างกลมกลืน
 
+### Phase 25: Enterprise Capabilities — Transactions, Performance & Security Audit Manager (✅ เสร็จสมบูรณ์ - Issue #50)
+- **1. Data Integrity & Transactions (ACID):**
+  - **Transaction Isolation Level Selector:** ตัวเลือกตั้งค่าระดับ Isolation (Read Committed, Repeatable Read, Serializable, Read Uncommitted) บน Query Editor Toolbar
+  - **Savepoint Management:** คำสั่งสร้าง Savepoint, Rollback to Savepoint, และ Release Savepoint
+  - **Lock & Concurrency Inspector:** หน้าต่างตรวจสอบ Active Sessions, Table/Row Locks, ตรวจจับ Deadlock พร้อมปุ่ม Terminate / Kill Blocking Query
+- **2. Performance & Optimization:**
+  - **Extended Index Support:** รองรับการสร้าง Index หลายประเภท (B-Tree, Hash, GIN, GiST, Full-text, Composite, Unique) ใน Table Designer
+  - **Server Cache & Performance Dashboard:** มอนิเตอร์สถิติ Buffer Cache Hit Ratio, Deadlocks, Database Storage Stats
+  - **Table Partitioning Viewer:** แสดงข้อมูลแถบ Partitions ของตารางขนาดใหญ่ (Partition Key, Expression, Row Counts, Storage Size)
+  - **Views & Materialized Views Management:** ตรวจสอบคำสั่ง View DDL และปุ่ม Refresh Materialized View (สำหรับ PostgreSQL)
+- **3. Security & Auditing:**
+  - **Audit Logging System (`useAuditLogStore`):** บันทึกประวัติกิจกรรมและการเข้าถึงข้อมูล (Who, What, When, Connection, Query, Rows Affected, Status)
+  - **Audit Log Viewer Modal:** หน้าต่างค้นหา กรองตามกิจกรรม/ช่วงเวลา และส่งออกข้อมูล Audit Log เป็น CSV/JSON
+
+
 
 
 

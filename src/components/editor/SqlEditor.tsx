@@ -7,12 +7,18 @@ import { toast } from 'sonner';
 import { EditorToolbar } from './EditorToolbar';
 import { HistorySnippetsDrawer } from './HistorySnippetsDrawer';
 import { ExecutionPlanDrawer } from './ExecutionPlanDrawer';
+import { SavepointModal } from '../transactions/SavepointModal';
+import { LockInspectorModal } from '../transactions/LockInspectorModal';
+import { DatabaseMetricsModal } from '../performance/DatabaseMetricsModal';
+import { AuditLogDrawer } from '../security/AuditLogDrawer';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useStatusStore } from '../../stores/statusStore';
 import { useQueryHistoryStore } from '../../stores/queryHistoryStore';
+import { useAuditLogStore } from '../../stores/auditLogStore';
 import { dbApi } from '../../api/db';
 import { buildExplainSql } from '../../api/queryBuilder';
+import { buildSetIsolationLevelSql, type IsolationLevel } from '../../api/transactionHelpers';
 import type { QueryResult } from '../../types/db';
 
 export interface SqlEditorProps {
@@ -54,6 +60,13 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const [planResult, setPlanResult] = useState<QueryResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [explainTargetSql, setExplainTargetSql] = useState('');
+
+  // Enterprise features states
+  const [isolationLevel, setIsolationLevel] = useState<IsolationLevel>('READ COMMITTED');
+  const [isSavepointOpen, setIsSavepointOpen] = useState(false);
+  const [isLocksOpen, setIsLocksOpen] = useState(false);
+  const [isMetricsOpen, setIsMetricsOpen] = useState(false);
+  const [isAuditLogOpen, setIsAuditLogOpen] = useState(false);
 
   // System dark mode detection
   const [systemDark, setSystemDark] = useState(() => {
@@ -137,6 +150,19 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           database: conn?.database,
         });
 
+        // Record to security audit log
+        useAuditLogStore.getState().addLog({
+          action: /^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sqlToExecute) ? 'DDL' : 'QUERY',
+          user: conn?.user || 'default',
+          connectionId: currentTab?.connectionId,
+          connectionName: conn?.name,
+          database: conn?.database,
+          query: sqlToExecute,
+          executionTimeMs: result.execution_time_ms,
+          rowsAffected: result.rows_affected ?? (result.rows ? result.rows.length : 0),
+          status: 'SUCCESS',
+        });
+
         onQueryResult?.(result);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -156,6 +182,18 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           connectionId: currentTab?.connectionId,
           connectionName: conn?.name,
           database: conn?.database,
+        });
+
+        // Record failure to audit log
+        useAuditLogStore.getState().addLog({
+          action: /^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sqlToExecute) ? 'DDL' : 'QUERY',
+          user: conn?.user || 'default',
+          connectionId: currentTab?.connectionId,
+          connectionName: conn?.name,
+          database: conn?.database,
+          query: sqlToExecute,
+          status: 'FAILURE',
+          errorMessage: msg,
         });
 
         onError?.(err);
@@ -236,6 +274,29 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       onError?.(err);
     }
   }, [targetTabId, onError]);
+
+  // Change Isolation Level
+  const handleChangeIsolationLevel = useCallback(
+    async (level: IsolationLevel) => {
+      if (!targetTabId) return;
+      setIsolationLevel(level);
+      const sql = buildSetIsolationLevelSql(level, connection?.driver || 'postgres');
+      try {
+        await dbApi.executeQuery(targetTabId, sql);
+        toast.success(`Transaction isolation set to ${level}`);
+        useAuditLogStore.getState().addLog({
+          action: 'TRANSACTION',
+          connectionName: connection?.name,
+          query: sql,
+          status: 'SUCCESS',
+        });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Failed to set isolation level: ${msg}`);
+      }
+    },
+    [targetTabId, connection?.driver, connection?.name]
+  );
 
   // Explain query handler
   const handleExplain = useCallback(
@@ -360,6 +421,8 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       <EditorToolbar
         isRunning={isRunning}
         autoCommit={tab.autoCommit}
+        isolationLevel={isolationLevel}
+        onChangeIsolationLevel={handleChangeIsolationLevel}
         executionTimeMs={executionTimeMs}
         rowCount={rowCount}
         rowsAffected={rowsAffected}
@@ -369,6 +432,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         onToggleAutoCommit={handleToggleAutoCommit}
         onCommit={handleCommit}
         onRollback={handleRollback}
+        onOpenSavepoints={() => setIsSavepointOpen(true)}
+        onOpenLocks={() => setIsLocksOpen(true)}
+        onOpenMetrics={() => setIsMetricsOpen(true)}
+        onOpenAuditLog={() => setIsAuditLogOpen(true)}
         onOpenHistory={() => {
           setHistorySnippetsTab('history');
           setIsHistorySnippetsOpen(true);
@@ -426,6 +493,35 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         planResult={planResult}
         isAnalyzing={isAnalyzing}
         driver={connection?.driver}
+      />
+
+      <SavepointModal
+        isOpen={isSavepointOpen}
+        tabId={targetTabId || ''}
+        driver={connection?.driver}
+        connectionName={connection?.name}
+        onClose={() => setIsSavepointOpen(false)}
+      />
+
+      <LockInspectorModal
+        isOpen={isLocksOpen}
+        connectionId={tab.connectionId}
+        driver={connection?.driver}
+        connectionName={connection?.name}
+        onClose={() => setIsLocksOpen(false)}
+      />
+
+      <DatabaseMetricsModal
+        isOpen={isMetricsOpen}
+        connectionId={tab.connectionId}
+        driver={connection?.driver}
+        databaseName={connection?.database}
+        onClose={() => setIsMetricsOpen(false)}
+      />
+
+      <AuditLogDrawer
+        isOpen={isAuditLogOpen}
+        onClose={() => setIsAuditLogOpen(false)}
       />
     </div>
   );

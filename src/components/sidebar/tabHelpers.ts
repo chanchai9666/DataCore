@@ -44,6 +44,7 @@ export interface OpenQueryTabParams {
   schemaName?: string;
   tableName?: string;
   driver?: string;
+  initialQuery?: string;
 }
 
 export function openTableTab({
@@ -83,6 +84,7 @@ export function openQueryTab({
   schemaName,
   tableName,
   driver,
+  initialQuery: customQuery,
 }: OpenQueryTabParams): void {
   const isTableOrView = Boolean(tableName);
   const title = connectionName || tableName || 'Query';
@@ -97,9 +99,11 @@ export function openQueryTab({
   const quote = (identifier: string) =>
     resolvedDriver === 'mysql' ? `\`${identifier}\`` : `"${identifier}"`;
 
-  const initialQuery = isTableOrView
-    ? `SELECT * FROM ${schemaName ? `${quote(schemaName)}.` : ''}${quote(tableName!)} LIMIT 100;\n`
-    : '';
+  const initialQuery = customQuery !== undefined
+    ? customQuery
+    : (isTableOrView
+      ? `SELECT * FROM ${schemaName ? `${quote(schemaName)}.` : ''}${quote(tableName!)} LIMIT 100;\n`
+      : '');
 
   useTabStore.getState().openTab({
     id: queryTabId,

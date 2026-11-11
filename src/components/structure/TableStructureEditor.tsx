@@ -33,7 +33,6 @@ import {
   type TableColumnStructure,
 } from './tableStructureHelpers';
 import {
-  buildCreateIndexSql,
   buildDropIndexSql,
   getFetchIndexesSql,
   parseIndexesFromQueryResult,
@@ -52,6 +51,10 @@ import {
 import { DropTableModal } from './DropTableModal';
 import { RenameTableModal } from './RenameTableModal';
 import { TableMaintenanceModal } from './TableMaintenanceModal';
+import { TablePartitionsModal } from '../performance/TablePartitionsModal';
+import { buildAdvancedCreateIndexSql, type IndexType } from '../../api/performanceHelpers';
+import { useAuditLogStore } from '../../stores/auditLogStore';
+import { Split } from 'lucide-react';
 
 export interface TableStructureEditorProps {
   tabId: string;
@@ -135,6 +138,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   const [isDropTableModalOpen, setIsDropTableModalOpen] = useState(false);
   const [isRenameTableModalOpen, setIsRenameTableModalOpen] = useState(false);
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
+  const [isPartitionsModalOpen, setIsPartitionsModalOpen] = useState(false);
   const [ddlCopied, setDdlCopied] = useState(false);
 
   // Add FK form fields
@@ -154,6 +158,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   // Add Index form fields
   const [newIndexName, setNewIndexName] = useState('');
   const [newIndexCols, setNewIndexCols] = useState<string[]>([]);
+  const [newIndexType, setNewIndexType] = useState<IndexType>('BTREE');
   const [newIndexUnique, setNewIndexUnique] = useState(false);
 
   // Add form fields
@@ -517,18 +522,19 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   const addIndexPreviewSql = useMemo(() => {
     if (!newIndexName.trim() || newIndexCols.length === 0) return '';
     try {
-      return buildCreateIndexSql({
+      return buildAdvancedCreateIndexSql({
         driver,
         tableName,
         schemaName,
         indexName: newIndexName.trim(),
         columns: newIndexCols,
         isUnique: newIndexUnique,
+        indexType: newIndexType,
       });
     } catch {
       return '';
     }
-  }, [driver, tableName, schemaName, newIndexName, newIndexCols, newIndexUnique]);
+  }, [driver, tableName, schemaName, newIndexName, newIndexCols, newIndexUnique, newIndexType]);
 
   // Handle Add Index
   const handleAddIndexSubmit = async (e: React.FormEvent) => {
@@ -537,13 +543,14 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
 
     setSubmitting(true);
     try {
-      const sql = buildCreateIndexSql({
+      const sql = buildAdvancedCreateIndexSql({
         driver,
         tableName,
         schemaName,
         indexName: newIndexName.trim(),
         columns: newIndexCols,
         isUnique: newIndexUnique,
+        indexType: newIndexType,
       });
 
       await dbApi.executeQuery(tabId, sql);
@@ -551,7 +558,15 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
       setNewIndexName('');
       setNewIndexCols([]);
       setNewIndexUnique(false);
+      setNewIndexType('BTREE');
       showStatus('success', `Created index '${newIndexName.trim()}' successfully`);
+
+      useAuditLogStore.getState().addLog({
+        action: 'DDL',
+        query: sql,
+        status: 'SUCCESS',
+      });
+
       await loadStructure();
       onStructureChanged?.();
     } catch (err: unknown) {
@@ -976,6 +991,21 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           >
             <Pencil className="w-3.5 h-3.5 text-blue-400" />
             <span>Rename</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="partitions-table-toolbar-btn"
+            onClick={() => setIsPartitionsModalOpen(true)}
+            title="Table Partitions & Ranges"
+            className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded text-xs transition-colors border ${
+              isDark
+                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-800 text-gray-300'
+                : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+          >
+            <Split className="w-3.5 h-3.5 text-teal-400" />
+            <span>Partitions</span>
           </button>
 
           <button
@@ -1644,6 +1674,23 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 </div>
               </div>
 
+              <div>
+                <label className="block text-gray-400 mb-1 font-medium">Index Type / Structure</label>
+                <select
+                  value={newIndexType}
+                  onChange={(e) => setNewIndexType(e.target.value as IndexType)}
+                  data-testid="new-index-type-select"
+                  className={`w-full px-2.5 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs ${
+                    isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                >
+                  <option value="BTREE">B-Tree (Balanced Tree - General Purpose)</option>
+                  <option value="HASH">Hash (Hash Table - Equality lookups O(1))</option>
+                  <option value="GIN">GIN (Generalized Inverted Index for JSON/Arrays)</option>
+                  <option value="FULLTEXT">Full-Text (Search title, description, content)</option>
+                </select>
+              </div>
+
               <div className="flex items-center space-x-2 pt-1">
                 <input
                   type="checkbox"
@@ -1875,6 +1922,23 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                     ))}
                   </div>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1 font-medium">Index Type / Structure</label>
+                <select
+                  value={newIndexType}
+                  onChange={(e) => setNewIndexType(e.target.value as IndexType)}
+                  data-testid="new-index-type-select"
+                  className={`w-full px-2.5 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs ${
+                    isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                >
+                  <option value="BTREE">B-Tree (Balanced Tree - General Purpose)</option>
+                  <option value="HASH">Hash (Hash Table - Equality lookups O(1))</option>
+                  <option value="GIN">GIN (Generalized Inverted Index for JSON/Arrays)</option>
+                  <option value="FULLTEXT">Full-Text (Search title, description, content)</option>
+                </select>
               </div>
 
               <div className="flex items-center space-x-2 pt-1">
@@ -2183,6 +2247,23 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                     );
                   })}
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1 font-medium">Index Type / Structure</label>
+                <select
+                  value={newIndexType}
+                  onChange={(e) => setNewIndexType(e.target.value as IndexType)}
+                  data-testid="new-index-type-select"
+                  className={`w-full px-2.5 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs ${
+                    isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                >
+                  <option value="BTREE">B-Tree (Balanced Tree - General Purpose)</option>
+                  <option value="HASH">Hash (Hash Table - Equality lookups O(1))</option>
+                  <option value="GIN">GIN (Generalized Inverted Index for JSON/Arrays)</option>
+                  <option value="FULLTEXT">Full-Text (Search title, description, content)</option>
+                </select>
               </div>
 
               <div className="flex items-center space-x-2 pt-1">
@@ -2795,6 +2876,16 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         onSuccess={() => {
           onStructureChanged?.();
         }}
+      />
+
+      {/* Modal: Table Partitions */}
+      <TablePartitionsModal
+        isOpen={isPartitionsModalOpen}
+        tableName={tableName}
+        schemaName={schemaName}
+        connectionId={connectionId}
+        driver={driver}
+        onClose={() => setIsPartitionsModalOpen(false)}
       />
 
       {/* Modal: Drop Table */}

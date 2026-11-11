@@ -40,6 +40,11 @@ import { CrossDbCopyModal } from '../transfer/CrossDbCopyModal';
 import { ExportSqlModal } from '../transfer/ExportSqlModal';
 import { ImportSqlModal } from '../transfer/ImportSqlModal';
 import {
+  buildRefreshMaterializedViewSql,
+  buildGetViewDdlSql,
+} from '../../api/performanceHelpers';
+import { useAuditLogStore } from '../../stores/auditLogStore';
+import {
   ConnectionTreeNode,
   ObjectBrowserContext,
   type BrowserTreeNode,
@@ -769,6 +774,39 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     setContextMenu(null);
   }, []);
 
+  const handleRefreshMaterializedView = useCallback(async (node: BrowserTreeNode) => {
+    const viewName = node.tableName || node.name;
+    const sql = buildRefreshMaterializedViewSql(viewName, node.schemaName);
+    try {
+      await dbApi.executeDirectQuery(node.connectionId, sql);
+      toast.success(`Refreshed Materialized View "${viewName}"`);
+      useAuditLogStore.getState().addLog({
+        action: 'MAINTENANCE',
+        connectionName: node.connectionName,
+        query: sql,
+        status: 'SUCCESS',
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Refresh failed: ${msg}`);
+    }
+    setContextMenu(null);
+  }, []);
+
+  const handleShowViewDdl = useCallback((node: BrowserTreeNode) => {
+    const viewName = node.tableName || node.name;
+    const sql = buildGetViewDdlSql(viewName, node.schemaName || '', node.driver || 'postgres');
+    openQueryTab({
+      connectionId: node.connectionId,
+      connectionName: node.connectionName || node.name,
+      schemaName: node.schemaName,
+      tableName: viewName,
+      driver: node.driver,
+      initialQuery: sql,
+    });
+    setContextMenu(null);
+  }, []);
+
   const handleRefresh = useCallback(
     (connectionId: string) => {
       fetchSchema(connectionId);
@@ -1333,6 +1371,32 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 <Copy className="w-3.5 h-3.5 text-gray-400" />
                 <span>Copy Name</span>
               </button>
+
+              {contextMenu.node.nodeType === 'view' && (
+                <>
+                  <button
+                    type="button"
+                    data-testid="show-view-ddl-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    onClick={() => handleShowViewDdl(contextMenu.node)}
+                  >
+                    <FileCode className="w-3.5 h-3.5 text-blue-400" />
+                    <span>View Definition SQL</span>
+                  </button>
+
+                  {(!contextMenu.node.driver || contextMenu.node.driver.toLowerCase() === 'postgres') && (
+                    <button
+                      type="button"
+                      data-testid="refresh-matview-btn"
+                      className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                      onClick={() => handleRefreshMaterializedView(contextMenu.node)}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Refresh Materialized View</span>
+                    </button>
+                  )}
+                </>
+              )}
 
               {contextMenu.node.nodeType === 'table' && (
                 <>

@@ -1,9 +1,26 @@
 import React from 'react';
-import { Play, Square, Check, RotateCcw, Loader2, History, Bookmark, Activity, Zap } from 'lucide-react';
+import {
+  Play,
+  Square,
+  Check,
+  RotateCcw,
+  Loader2,
+  History,
+  Bookmark,
+  Activity,
+  Zap,
+  Lock,
+  Cpu,
+  ShieldCheck,
+  Flag,
+} from 'lucide-react';
+import type { IsolationLevel } from '../../api/transactionHelpers';
 
 export interface EditorToolbarProps {
   isRunning: boolean;
   autoCommit: boolean;
+  isolationLevel?: IsolationLevel;
+  onChangeIsolationLevel?: (level: IsolationLevel) => void;
   executionTimeMs?: number | null;
   rowCount?: number | null;
   rowsAffected?: number | null;
@@ -13,6 +30,10 @@ export interface EditorToolbarProps {
   onToggleAutoCommit: (enabled: boolean) => void;
   onCommit: () => void;
   onRollback: () => void;
+  onOpenSavepoints?: () => void;
+  onOpenLocks?: () => void;
+  onOpenMetrics?: () => void;
+  onOpenAuditLog?: () => void;
   onOpenHistory?: () => void;
   onOpenSnippets?: () => void;
   onExplain?: (analyze: boolean) => void;
@@ -21,6 +42,8 @@ export interface EditorToolbarProps {
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   isRunning,
   autoCommit,
+  isolationLevel = 'READ COMMITTED',
+  onChangeIsolationLevel,
   executionTimeMs,
   rowCount,
   rowsAffected,
@@ -30,6 +53,10 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onToggleAutoCommit,
   onCommit,
   onRollback,
+  onOpenSavepoints,
+  onOpenLocks,
+  onOpenMetrics,
+  onOpenAuditLog,
   onOpenHistory,
   onOpenSnippets,
   onExplain,
@@ -242,6 +269,131 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           <RotateCcw size={14} />
           <span>Rollback</span>
         </button>
+
+        {/* Isolation Level Selector */}
+        {onChangeIsolationLevel && (
+          <select
+            value={isolationLevel}
+            onChange={(e) => onChangeIsolationLevel(e.target.value as IsolationLevel)}
+            disabled={isRunning}
+            aria-label="Isolation Level"
+            title="Transaction Isolation Level"
+            style={{
+              padding: '4px 6px',
+              fontSize: '11px',
+              fontWeight: 500,
+              borderRadius: '4px',
+              border: '1px solid #d1d5db',
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              cursor: isRunning ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <option value="READ COMMITTED">Read Committed</option>
+            <option value="REPEATABLE READ">Repeatable Read</option>
+            <option value="SERIALIZABLE">Serializable</option>
+            <option value="READ UNCOMMITTED">Read Uncommitted</option>
+          </select>
+        )}
+
+        {/* Savepoint Button */}
+        {onOpenSavepoints && (
+          <button
+            type="button"
+            onClick={onOpenSavepoints}
+            aria-label="Savepoints"
+            title="Manage Transaction Savepoints"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '5px 8px',
+              cursor: 'pointer',
+            }}
+          >
+            <Flag size={13} className="text-blue-500" />
+            <span>Savepoint</span>
+          </button>
+        )}
+
+        {/* Locks Button */}
+        {onOpenLocks && (
+          <button
+            type="button"
+            onClick={onOpenLocks}
+            aria-label="Locks"
+            title="Inspect Active Locks & Concurrency"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '5px 8px',
+              cursor: 'pointer',
+            }}
+          >
+            <Lock size={13} className="text-amber-500" />
+            <span>Locks</span>
+          </button>
+        )}
+
+        {/* Separator */}
+        <div style={{ width: '1px', height: '18px', backgroundColor: '#d1d5db', margin: '0 4px' }} />
+
+        {/* Performance Metrics Button */}
+        {onOpenMetrics && (
+          <button
+            type="button"
+            onClick={onOpenMetrics}
+            aria-label="Metrics"
+            title="Database Buffer Cache & Performance Metrics"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '5px 8px',
+              cursor: 'pointer',
+            }}
+          >
+            <Cpu size={13} className="text-indigo-500" />
+            <span>Metrics</span>
+          </button>
+        )}
+
+        {/* Audit Log Button */}
+        {onOpenAuditLog && (
+          <button
+            type="button"
+            onClick={onOpenAuditLog}
+            aria-label="Audit Log"
+            title="Security & Query Audit Log"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '5px 8px',
+              cursor: 'pointer',
+            }}
+          >
+            <ShieldCheck size={13} className="text-emerald-500" />
+            <span>Audit Log</span>
+          </button>
+        )}
 
         {/* Separator */}
         {(onOpenHistory || onOpenSnippets) && (
