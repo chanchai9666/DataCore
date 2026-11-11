@@ -311,8 +311,14 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ### Phase 13: macOS Native Desktop Look & Feel Polish (✅ เสร็จสมบูรณ์ - Issue #37)
 - **Eliminate WebKit Artifacts:** ปิด Default Browser Context Menu (Inspect, Reload, Back) ทั่วทั้งแอป เพื่อไม่ให้แสดงหน้าต่างเว็บเบราว์เซอร์เมื่อคลิกขวาในพื้นที่ว่าง, บล็อก `Cmd+R` / `Cmd+Shift+R` (Reload) และ `Cmd+=` / `Cmd+-` / `Cmd+0` (Page Zoom) ป้องกันหน้าจอวูบหรือขนาดเพี้ยน
-- **Native Drag & Titlebar Mechanics:** ป้องกัน Default File Drop Navigation เมื่อมีการลากไฟล์เข้ามา, รองรับ `data-tauri-drag-region` บนพื้นที่ว่างของ Header และรองรับการดับเบิลคลิกบน Titlebar เพื่อ Toggle Maximize/Restore หน้าต่างตามมาตรฐาน macOS
+- **Native Drag & Titlebar Mechanics:** ป้องกัน Default File Drop Navigation เมื่อมีการลากไฟล์เข้ามา, รองรับ `data-tauri-drag-region` บนพื้นที่ว่างของ Header และรองรับการดับเบิลคลิกบน Titlebar เพื่อ Toggle Maximize/Restore ตามมาตรฐาน macOS
 - **Overscroll & Selection Polish:** กำหนด `overscroll-behavior: none` ป้องกันการเด้งย้วย (Rubber-band bounce) แบบเว็บ, บังคับ `user-select: none` บน UI Chrome และปรับ Focus Outline ให้เนียนตาเหมือน Native App
+
+### Phase 14: Table Rename Feature (✅ เสร็จสมบูรณ์ - Issue #38)
+- **Query Builder Support:** เพิ่มฟังก์ชัน `buildRenameTableSql(oldTableName, newTableName, schemaName?, driver?)` ที่รองรับคำสั่ง `ALTER TABLE <old> RENAME TO <new>;` พร้อม Quoting Identifier ตามประเภทของไดรเวอร์ (PostgreSQL, SQLite, MySQL)
+- **RenameTableModal Component:** สร้าง Dialog สำหรับเปลี่ยนชื่อตาราง พร้อมระบบตรวจสอบความถูกต้อง (Validation), การแสดง SQL Preview, Loading Indicator, แจ้งเตือน Toast เมื่อสำเร็จ/เกิดข้อผิดพลาด และซิงก์อัปเดต Tab ที่เปิดอยู่ (`useTabStore`) ให้อัตโนมัติ
+- **UI Integration:** เพิ่มเมนู "Rename Table..." ใน Context Menu ของ ObjectBrowser, เมนูจัดการใน TableListTab และปุ่ม "Rename" บน Toolbar ของ TableStructureEditor
+
 
 
 

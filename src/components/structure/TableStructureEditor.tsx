@@ -14,6 +14,7 @@ import {
   X,
   Layers,
   ShieldAlert,
+  Pencil,
 } from 'lucide-react';
 import { dbApi } from '../../api/db';
 import {
@@ -37,6 +38,7 @@ import {
   type TableIndexStructure,
 } from './tableManagementHelpers';
 import { DropTableModal } from './DropTableModal';
+import { RenameTableModal } from './RenameTableModal';
 
 export interface TableStructureEditorProps {
   tabId: string;
@@ -112,6 +114,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   const [dropIndexTarget, setDropIndexTarget] = useState<TableIndexStructure | null>(null);
   const [isDdlModalOpen, setIsDdlModalOpen] = useState(false);
   const [isDropTableModalOpen, setIsDropTableModalOpen] = useState(false);
+  const [isRenameTableModalOpen, setIsRenameTableModalOpen] = useState(false);
   const [ddlCopied, setDdlCopied] = useState(false);
 
   // Add Index form fields
@@ -684,6 +687,21 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           >
             <Code className="w-3.5 h-3.5 text-blue-400" />
             <span>DDL</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="rename-table-toolbar-btn"
+            onClick={() => setIsRenameTableModalOpen(true)}
+            title="Rename Table"
+            className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded text-xs transition-colors border ${
+              isDark
+                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-800 text-gray-300'
+                : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+          >
+            <Pencil className="w-3.5 h-3.5 text-blue-400" />
+            <span>Rename</span>
           </button>
 
           <button
@@ -1802,6 +1820,19 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal: Rename Table */}
+      <RenameTableModal
+        isOpen={isRenameTableModalOpen}
+        tableName={tableName}
+        schemaName={schemaName}
+        connectionId={connectionId}
+        driver={driver}
+        onClose={() => setIsRenameTableModalOpen(false)}
+        onSuccess={() => {
+          onStructureChanged?.();
+        }}
+      />
 
       {/* Modal: Drop Table */}
       <DropTableModal

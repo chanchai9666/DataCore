@@ -221,6 +221,7 @@ describe('TableListTab component', () => {
     expect(screen.getByTestId('ctx-import-sql')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-import-data')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-copy-name')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-rename-table')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-drop-table')).toBeInTheDocument();
 
     // Click Open Table Data
@@ -292,5 +293,24 @@ describe('TableListTab component', () => {
     fireEvent.click(screen.getByTestId('ctx-copy-to-db'));
 
     expect(await screen.findByText('Copy Table to Database (Cross-DB Transfer)')).toBeInTheDocument();
+  });
+
+  it('opens RenameTableModal when Rename Table is clicked in context menu', async () => {
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+
+    const usersRow = screen.getByText('users').closest('tr');
+    fireEvent.contextMenu(usersRow!, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-rename-table'));
+
+    expect(await screen.findByRole('heading', { name: /rename table/i })).toBeInTheDocument();
   });
 });

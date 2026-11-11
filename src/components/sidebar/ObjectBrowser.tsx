@@ -16,6 +16,7 @@ import {
   Upload,
   Download,
   ArrowRightLeft,
+  Pencil,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
@@ -24,6 +25,7 @@ import type { ConnectionConfig, SchemaNode } from '../../types/db';
 import { openTableTab, openQueryTab, openTableListTab } from './tabHelpers';
 import { CreateTableModal } from '../structure/CreateTableModal';
 import { DropTableModal } from '../structure/DropTableModal';
+import { RenameTableModal } from '../structure/RenameTableModal';
 import { ImportModal } from '../transfer/ImportModal';
 import { ExportModal } from '../transfer/ExportModal';
 import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
@@ -328,6 +330,13 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     driver?: string;
   } | null>(null);
 
+  const [renameTableTarget, setRenameTableTarget] = useState<{
+    connectionId: string;
+    tableName: string;
+    schemaName?: string;
+    driver?: string;
+  } | null>(null);
+
   const [importModalTarget, setImportModalTarget] = useState<{
     connectionId: string;
     tableName: string;
@@ -549,6 +558,16 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   const handleNewTable = useCallback((node: BrowserTreeNode) => {
     setCreateTableTarget({
       connectionId: node.connectionId,
+      schemaName: node.schemaName,
+      driver: node.driver,
+    });
+    setContextMenu(null);
+  }, []);
+
+  const handleRenameTable = useCallback((node: BrowserTreeNode) => {
+    setRenameTableTarget({
+      connectionId: node.connectionId,
+      tableName: node.tableName || node.name,
       schemaName: node.schemaName,
       driver: node.driver,
     });
@@ -1045,6 +1064,15 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                   <div className="border-t border-gray-700 my-1" />
                   <button
                     type="button"
+                    data-testid="rename-table-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    onClick={() => handleRenameTable(contextMenu.node)}
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Rename Table...</span>
+                  </button>
+                  <button
+                    type="button"
                     data-testid="drop-table-btn"
                     className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-900/40 text-red-400"
                     onClick={() => handleDropTable(contextMenu.node)}
@@ -1178,6 +1206,20 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           onClose={() => setDropTableTarget(null)}
           onSuccess={() => {
             fetchSchema(dropTableTarget.connectionId);
+          }}
+        />
+      )}
+
+      {renameTableTarget && (
+        <RenameTableModal
+          isOpen={true}
+          tableName={renameTableTarget.tableName}
+          schemaName={renameTableTarget.schemaName}
+          connectionId={renameTableTarget.connectionId}
+          driver={renameTableTarget.driver}
+          onClose={() => setRenameTableTarget(null)}
+          onSuccess={() => {
+            fetchSchema(renameTableTarget.connectionId);
           }}
         />
       )}

@@ -272,6 +272,24 @@ describe('TableStructureEditor', () => {
     expect(screen.getByTestId('drop-table-confirm-input')).toBeInTheDocument();
   });
 
+  it('opens RenameTableModal when Rename Table toolbar button is clicked', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const renameBtn = await screen.findByTestId('rename-table-toolbar-btn');
+    fireEvent.click(renameBtn);
+
+    expect(await screen.findByRole('heading', { name: /rename table/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/New Table Name/i)).toHaveValue('categories');
+  });
+
   it('switches to indexes tab, creates a new index, and drops an index', async () => {
     // Provide query results: columns result, then index result
     const mockIndexesResult: QueryResult = {

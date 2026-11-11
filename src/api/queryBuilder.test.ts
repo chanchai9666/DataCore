@@ -5,6 +5,7 @@ import {
   formatSqlLiteral,
   buildCreateTableSql,
   buildDropTableSql,
+  buildRenameTableSql,
   buildCreateIndexSql,
   buildDropIndexSql,
   buildUpdateSql,
@@ -113,6 +114,21 @@ describe('queryBuilder', () => {
     it('generates DROP TABLE with CASCADE for Postgres', () => {
       const sql = buildDropTableSql('orders', 'public', 'postgres', true);
       expect(sql).toBe('DROP TABLE "public"."orders" CASCADE;');
+    });
+
+    it('generates ALTER TABLE RENAME TO for various drivers', () => {
+      // Postgres with schema
+      expect(buildRenameTableSql('users', 'customers', 'public', 'postgres')).toBe(
+        'ALTER TABLE "public"."users" RENAME TO "customers";'
+      );
+      // SQLite
+      expect(buildRenameTableSql('old_table', 'new_table', undefined, 'sqlite')).toBe(
+        'ALTER TABLE "old_table" RENAME TO "new_table";'
+      );
+      // MySQL
+      expect(buildRenameTableSql('old_table', 'new_table', 'mydb', 'mysql')).toBe(
+        'ALTER TABLE `mydb`.`old_table` RENAME TO `new_table`;'
+      );
     });
 
     it('generates CREATE INDEX correctly', () => {

@@ -270,6 +270,20 @@ export function buildDropTableSql(
 }
 
 /**
+ * Builds an ALTER TABLE ... RENAME TO statement according to database driver.
+ */
+export function buildRenameTableSql(
+  oldTableName: string,
+  newTableName: string,
+  schemaName?: string,
+  driver?: string
+): string {
+  const fullOldTable = qualifyTable(oldTableName.trim(), schemaName, driver);
+  const quotedNewTable = quoteIdentifier(newTableName.trim(), driver);
+  return `ALTER TABLE ${fullOldTable} RENAME TO ${quotedNewTable};`;
+}
+
+/**
  * Builds a CREATE INDEX statement according to database driver.
  */
 export function buildCreateIndexSql(params: CreateIndexParams): string {

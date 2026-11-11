@@ -389,6 +389,20 @@ describe('ObjectBrowser', () => {
     expect(screen.getByText('System Schemas (2)')).toBeInTheDocument();
   });
 
+  it('opens RenameTableModal when Rename Table is clicked from table context menu', async () => {
+    render(<ObjectBrowser />);
+    await expandToTables();
+
+    const userTableNode = await screen.findByText('users');
+    fireEvent.contextMenu(userTableNode);
+
+    const renameTableBtn = await screen.findByTestId('rename-table-btn');
+    expect(renameTableBtn).toBeInTheDocument();
+    fireEvent.click(renameTableBtn);
+
+    expect(await screen.findByRole('heading', { name: /rename table/i })).toBeInTheDocument();
+  });
+
   it('opens DropTableModal when Drop Table is clicked from table context menu', async () => {
     render(<ObjectBrowser />);
     await expandToTables();

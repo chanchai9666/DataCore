@@ -14,6 +14,7 @@ import {
   Trash2,
   Share2,
   FileSpreadsheet,
+  Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
@@ -26,6 +27,7 @@ import { ExportModal } from '../transfer/ExportModal';
 import { ImportModal } from '../transfer/ImportModal';
 import { ImportSqlModal } from '../transfer/ImportSqlModal';
 import { DropTableModal } from '../structure/DropTableModal';
+import { RenameTableModal } from '../structure/RenameTableModal';
 
 export function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 B';
@@ -103,6 +105,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
     tableName: string;
     columns: { name: string; dataType: string }[];
   } | null>(null);
+  const [activeRenameTable, setActiveRenameTable] = useState<string | null>(null);
   const [activeDropTable, setActiveDropTable] = useState<string | null>(null);
 
   useEffect(() => {
@@ -214,6 +217,11 @@ export const TableListTab: React.FC<TableListTabProps> = ({
         columns: [],
       });
     }
+  };
+
+  const handleTriggerRenameTable = (tableName: string) => {
+    setActiveRenameTable(tableName);
+    setContextMenu(null);
   };
 
   const handleTriggerDropTable = (tableName: string) => {
@@ -458,6 +466,16 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                       >
                         <Copy className="w-3 h-3" />
                       </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTriggerRenameTable(table.name);
+                        }}
+                        title="Rename Table"
+                        className="p-1 rounded hover:bg-[#383838] text-gray-400 hover:text-white"
+                      >
+                        <Pencil className="w-3 h-3 text-blue-400" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -581,6 +599,16 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             <span>Copy Table Name</span>
           </button>
 
+          <button
+            type="button"
+            data-testid="ctx-rename-table"
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            onClick={() => handleTriggerRenameTable(contextMenu.table.name)}
+          >
+            <Pencil className="w-3.5 h-3.5 text-blue-400" />
+            <span>Rename Table...</span>
+          </button>
+
           <div className="border-t border-[#2d2d2d] my-1" />
 
           <button
@@ -661,6 +689,20 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           tableColumns={activeImportDataTarget.columns}
           onClose={() => setActiveImportDataTarget(null)}
           onImportSuccess={() => {
+            fetchTables();
+          }}
+        />
+      )}
+
+      {activeRenameTable && (
+        <RenameTableModal
+          isOpen={true}
+          tableName={activeRenameTable}
+          schemaName={schemaName}
+          connectionId={connectionId}
+          driver={driver}
+          onClose={() => setActiveRenameTable(null)}
+          onSuccess={() => {
             fetchTables();
           }}
         />
