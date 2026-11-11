@@ -338,6 +338,10 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Quick Keyboard Shortcut (`Cmd+Enter` / `Ctrl+Enter`):** เพิ่มทางลัดคีย์บอร์ดสำหรับการบันทึกการแก้ไขค่าใน Cell Detail Drawer ได้ทันทีจาก Textarea
 - **Seamless Mode Switching & Backward Compatibility:** มีปุ่มสลับมุมมองระหว่าง "Edit" (โหมดแก้ไขเริ่มต้น) และ "View / Preview" (สำหรับดูข้อมูลแบบเต็ม / Formatted JSON) พร้อมปุ่ม Copy และ Format เพื่อความยืดหยุ่นในการใช้งาน
 
+### Phase 18: Auto-Close Cell Detail Drawer on Save (✅ เสร็จสมบูรณ์ - Issue #42)
+- **Auto-Close on Save Changes:** ปรับปรุง `handleSave` ใน `CellDetailDrawer.tsx` ให้เรียก `onClose()` ทันทีหลังทำการบันทึกค่า (ทั้งเมื่อกดปุ่ม "Save Changes" และการกดคีย์ลัด `Cmd+Enter` / `Ctrl+Enter`) เพื่อให้ Drawer ปิดตัวเองโดยอัตโนมัติ ช่วยลดขั้นตอนการทำงานของผู้ใช้
+
+
 
 
 

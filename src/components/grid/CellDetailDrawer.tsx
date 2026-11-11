@@ -70,7 +70,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
     } else {
       onSaveValue(editValue);
     }
-  }, [onSaveValue, cellInfo, isNull, editValue]);
+    onClose();
+  }, [onSaveValue, cellInfo, isNull, editValue, onClose]);
 
   const handleCancel = () => {
     if (!cellInfo) return;
@@ -490,6 +491,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 onKeyDown={(e) => {
                   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                     e.preventDefault();
+                    e.stopPropagation();
                     handleSave();
                   }
                 }}

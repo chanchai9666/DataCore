@@ -322,12 +322,13 @@ describe('CellDetailDrawer', () => {
     expect(screen.getAllByText('New Title').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('opens directly in editable mode when onSaveValue is provided without requiring clicking edit button', () => {
+  it('opens directly in editable mode when onSaveValue is provided without requiring clicking edit button and closes on save', () => {
     const onSaveValue = vi.fn();
+    const onClose = vi.fn();
     render(
       <CellDetailDrawer
         isOpen={true}
-        onClose={() => {}}
+        onClose={onClose}
         cellInfo={{
           columnName: 'description',
           dataType: 'TEXT',
@@ -351,14 +352,16 @@ describe('CellDetailDrawer', () => {
     fireEvent.click(saveBtn);
 
     expect(onSaveValue).toHaveBeenCalledWith('Updated direct text');
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('saves changes using Cmd+Enter / Ctrl+Enter shortcut in direct edit mode', () => {
+  it('saves changes using Cmd+Enter / Ctrl+Enter shortcut in direct edit mode and closes drawer', () => {
     const onSaveValue = vi.fn();
+    const onClose = vi.fn();
     render(
       <CellDetailDrawer
         isOpen={true}
-        onClose={() => {}}
+        onClose={onClose}
         cellInfo={{
           columnName: 'score',
           dataType: 'INTEGER',
@@ -375,6 +378,7 @@ describe('CellDetailDrawer', () => {
     // Press Cmd+Enter inside the textarea
     fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true });
     expect(onSaveValue).toHaveBeenCalledWith(250);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('allows toggling between View mode and Edit mode', () => {
@@ -808,7 +812,11 @@ describe('DataGrid', () => {
         })
       );
 
-      // Verify that drawer immediately shows staged badge and diff without closing
+      // Verify that drawer closes automatically upon saving
+      expect(screen.queryByText('Cell Details')).not.toBeInTheDocument();
+
+      // Re-inspect cell to verify that staged badge and diff banner are visible
+      fireEvent.click(inspectBtn);
       expect(screen.getByTestId('staged-badge')).toBeInTheDocument();
       expect(screen.getByTestId('staged-diff-banner')).toBeInTheDocument();
       expect(screen.getByText('Pending Staged Edit (Uncommitted)')).toBeInTheDocument();
@@ -846,6 +854,8 @@ describe('DataGrid', () => {
       expect(onCellEdited).toHaveBeenCalled();
       // Store should have NO pending changes
       expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(false);
+      // Drawer should be automatically closed
+      expect(screen.queryByText('Cell Details')).not.toBeInTheDocument();
     });
   });
 
