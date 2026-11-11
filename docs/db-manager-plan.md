@@ -359,6 +359,14 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **SQL Snippets Management:** ระบบบันทึก Snippets ที่ใช้บ่อย พร้อมระบุชื่อ (Title), รายละเอียด (Description), หมวดหมู่/แท็ก (Category/Tags) และคำสั่ง SQL พร้อม Built-in Presets ที่มีประโยชน์
 - **Slide-over History & Snippets Drawer:** แผงควบคุมสไตล์ Drawer บนหน้าต่าง Query Editor ให้ค้นหาคำสั่งย้อนหลัง, กรองตาม Connection, พรีวิวโค้ด, คัดลอก, แทรกคำสั่งลงใน Editor หรือกดรันซ้ำได้ทันที
 
+### Phase 22: Query Explain & Execution Plan Viewer (✅ เสร็จสมบูรณ์ - Issue #46)
+- **Multi-Engine Explain Query Builder:** เพิ่ม `buildExplainSql(rawSql, driver, isAnalyze, format)` รองรับ:
+  - PostgreSQL: `EXPLAIN (ANALYZE, COSTS, VERBOSE, BUFFERS, FORMAT JSON)` หรือ `EXPLAIN`
+  - MySQL: `EXPLAIN FORMAT=JSON` หรือ `EXPLAIN ANALYZE` (MySQL 8.0.18+)
+  - SQLite: `EXPLAIN QUERY PLAN`
+- **Editor Toolbar Integration:** เพิ่มปุ่ม "Explain" และตัวเลือก "Explain Analyze" บนแถบเครื่องมือของ Query Editor
+- **Execution Plan Viewer:** แสดงผลแผนการทำงานของ Query ทั้งแบบ Plan Node Tree, Summary Metrics (Planning/Execution Time, Total Cost, Estimated Rows) และ Raw Engine Output ให้ตรวจสอบได้อย่างละเอียด
+
 
 
 

@@ -344,4 +344,53 @@ describe('SqlEditor', () => {
 
     expect(screen.getByPlaceholderText(/search snippets/i)).toBeInTheDocument();
   });
+
+  it('triggers Explain and opens ExecutionPlanDrawer', async () => {
+    vi.spyOn(dbApi, 'executeQuery').mockResolvedValue({
+      columns: [{ name: 'QUERY PLAN', data_type: 'TEXT', nullable: true }],
+      rows: [[{ Text: 'Seq Scan on users' }]],
+      execution_time_ms: 10,
+    });
+
+    render(<SqlEditor />);
+
+    const explainBtn = screen.getByRole('button', { name: /^explain$/i });
+    await act(async () => {
+      fireEvent.click(explainBtn);
+    });
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-test-1',
+        expect.stringContaining('EXPLAIN')
+      );
+    });
+
+    expect(screen.getByRole('dialog', { name: /query execution plan/i })).toBeInTheDocument();
+    expect(screen.getByText(/Seq Scan on users/)).toBeInTheDocument();
+  });
+
+  it('triggers Explain Analyze when Analyze button is clicked', async () => {
+    vi.spyOn(dbApi, 'executeQuery').mockResolvedValue({
+      columns: [{ name: 'QUERY PLAN', data_type: 'TEXT', nullable: true }],
+      rows: [[{ Text: 'Seq Scan on users' }]],
+      execution_time_ms: 15,
+    });
+
+    render(<SqlEditor />);
+
+    const analyzeBtn = screen.getByRole('button', { name: /explain analyze/i });
+    await act(async () => {
+      fireEvent.click(analyzeBtn);
+    });
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-test-1',
+        expect.stringMatching(/EXPLAIN.*ANALYZE/i)
+      );
+    });
+
+    expect(screen.getByRole('dialog', { name: /query execution plan/i })).toBeInTheDocument();
+  });
 });

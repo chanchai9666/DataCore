@@ -12,6 +12,7 @@ import {
   buildUpdateSql,
   buildDeleteSql,
   buildInsertSql,
+  buildExplainSql,
 } from './queryBuilder';
 
 describe('queryBuilder', () => {
@@ -264,5 +265,58 @@ describe('queryBuilder', () => {
       });
       expect(sql).toBe('INSERT INTO "public"."users" ("name") VALUES (\'David\');');
     });
+  describe('Explain Query Builder', () => {
+    it('builds SQLite EXPLAIN QUERY PLAN', () => {
+      const sql = buildExplainSql({
+        sql: 'SELECT * FROM users WHERE id = 1;',
+        driver: 'sqlite',
+      });
+      expect(sql).toBe('EXPLAIN QUERY PLAN SELECT * FROM users WHERE id = 1;');
+    });
+
+    it('builds PostgreSQL EXPLAIN and EXPLAIN ANALYZE', () => {
+      const plain = buildExplainSql({
+        sql: 'SELECT * FROM users;',
+        driver: 'postgres',
+      });
+      expect(plain).toBe('EXPLAIN SELECT * FROM users;');
+
+      const analyze = buildExplainSql({
+        sql: 'SELECT * FROM users;',
+        driver: 'postgres',
+        analyze: true,
+      });
+      expect(analyze).toBe('EXPLAIN (ANALYZE, COSTS, VERBOSE, BUFFERS) SELECT * FROM users;');
+
+      const jsonFormat = buildExplainSql({
+        sql: 'SELECT * FROM users;',
+        driver: 'postgres',
+        format: 'json',
+      });
+      expect(jsonFormat).toBe('EXPLAIN (COSTS, VERBOSE, FORMAT JSON) SELECT * FROM users;');
+    });
+
+    it('builds MySQL EXPLAIN and EXPLAIN ANALYZE', () => {
+      const plain = buildExplainSql({
+        sql: 'SELECT * FROM users;',
+        driver: 'mysql',
+      });
+      expect(plain).toBe('EXPLAIN SELECT * FROM users;');
+
+      const jsonFormat = buildExplainSql({
+        sql: 'SELECT * FROM users;',
+        driver: 'mysql',
+        format: 'json',
+      });
+      expect(jsonFormat).toBe('EXPLAIN FORMAT=JSON SELECT * FROM users;');
+
+      const analyze = buildExplainSql({
+        sql: 'SELECT * FROM users;',
+        driver: 'mysql',
+        analyze: true,
+      });
+      expect(analyze).toBe('EXPLAIN ANALYZE SELECT * FROM users;');
+    });
   });
+});
 });

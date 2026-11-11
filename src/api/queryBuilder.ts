@@ -538,3 +538,46 @@ export function buildInsertSql(options: BuildInsertOptions): string {
 
   return `INSERT INTO ${fullTable} (${colNames.join(', ')}) VALUES (${colVals.join(', ')});`;
 }
+
+export interface ExplainOptions {
+  sql: string;
+  driver?: DatabaseDriver | string;
+  analyze?: boolean;
+  format?: 'json' | 'text';
+}
+
+/**
+ * Builds an EXPLAIN statement according to database driver capabilities.
+ */
+export function buildExplainSql(options: ExplainOptions): string {
+  const { sql, driver, analyze = false, format = 'text' } = options;
+  const cleanSql = sql.trim().replace(/;+$/, '');
+  const d = (driver || '').toLowerCase();
+
+  if (d.includes('sqlite')) {
+    return `EXPLAIN QUERY PLAN ${cleanSql};`;
+  }
+
+  if (d.includes('mysql')) {
+    if (analyze) {
+      return `EXPLAIN ANALYZE ${cleanSql};`;
+    }
+    if (format === 'json') {
+      return `EXPLAIN FORMAT=JSON ${cleanSql};`;
+    }
+    return `EXPLAIN ${cleanSql};`;
+  }
+
+  // PostgreSQL default
+  if (analyze) {
+    if (format === 'json') {
+      return `EXPLAIN (ANALYZE, COSTS, VERBOSE, BUFFERS, FORMAT JSON) ${cleanSql};`;
+    }
+    return `EXPLAIN (ANALYZE, COSTS, VERBOSE, BUFFERS) ${cleanSql};`;
+  }
+
+  if (format === 'json') {
+    return `EXPLAIN (COSTS, VERBOSE, FORMAT JSON) ${cleanSql};`;
+  }
+  return `EXPLAIN ${cleanSql};`;
+}

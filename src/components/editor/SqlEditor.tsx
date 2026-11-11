@@ -6,11 +6,13 @@ import { sql, SQLite, PostgreSQL, MySQL, StandardSQL } from '@codemirror/lang-sq
 import { toast } from 'sonner';
 import { EditorToolbar } from './EditorToolbar';
 import { HistorySnippetsDrawer } from './HistorySnippetsDrawer';
+import { ExecutionPlanDrawer } from './ExecutionPlanDrawer';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useStatusStore } from '../../stores/statusStore';
 import { useQueryHistoryStore } from '../../stores/queryHistoryStore';
 import { dbApi } from '../../api/db';
+import { buildExplainSql } from '../../api/queryBuilder';
 import type { QueryResult } from '../../types/db';
 
 export interface SqlEditorProps {
@@ -48,6 +50,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isHistorySnippetsOpen, setIsHistorySnippetsOpen] = useState(false);
   const [historySnippetsTab, setHistorySnippetsTab] = useState<'history' | 'snippets'>('history');
+  const [isPlanOpen, setIsPlanOpen] = useState(false);
+  const [planResult, setPlanResult] = useState<QueryResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [explainTargetSql, setExplainTargetSql] = useState('');
 
   // System dark mode detection
   const [systemDark, setSystemDark] = useState(() => {
@@ -231,6 +237,60 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     }
   }, [targetTabId, onError]);
 
+  // Explain query handler
+  const handleExplain = useCallback(
+    async (analyze: boolean) => {
+      if (!targetTabId) return;
+
+      const view = editorViewRef.current ?? editorRef.current?.view;
+      const currentTab = useTabStore.getState().tabs.find((t) => t.id === targetTabId) ?? tab;
+      let sqlToExplain = '';
+
+      if (view) {
+        const { from, to } = view.state.selection.main;
+        const selectedText = view.state.sliceDoc(from, to).trim();
+        if (selectedText.length > 0) {
+          sqlToExplain = selectedText;
+        } else {
+          sqlToExplain =
+            (currentTab ? currentTab.queryContent.trim() : '') || view.state.doc.toString().trim();
+        }
+      } else if (currentTab) {
+        sqlToExplain = currentTab.queryContent.trim();
+      }
+
+      if (!sqlToExplain) {
+        toast.info('Please enter a query to explain');
+        return;
+      }
+
+      const explainSql = buildExplainSql({
+        sql: sqlToExplain,
+        driver: connection?.driver,
+        analyze,
+      });
+
+      setIsRunning(true);
+      setErrorMessage(null);
+
+      try {
+        const result = await dbApi.executeQuery(targetTabId, explainSql);
+        setPlanResult(result);
+        setIsAnalyzing(analyze);
+        setExplainTargetSql(sqlToExplain);
+        setIsPlanOpen(true);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setErrorMessage(msg);
+        toast.error(`Explain failed: ${msg}`);
+        onError?.(err);
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [targetTabId, tab, connection?.driver, onError]
+  );
+
   const handleEditorChange = useCallback(
     (value: string) => {
       if (targetTabId) {
@@ -317,6 +377,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           setHistorySnippetsTab('snippets');
           setIsHistorySnippetsOpen(true);
         }}
+        onExplain={handleExplain}
       />
 
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
@@ -356,6 +417,15 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
             setIsHistorySnippetsOpen(false);
           }
         }}
+      />
+
+      <ExecutionPlanDrawer
+        isOpen={isPlanOpen}
+        onClose={() => setIsPlanOpen(false)}
+        sql={explainTargetSql}
+        planResult={planResult}
+        isAnalyzing={isAnalyzing}
+        driver={connection?.driver}
       />
     </div>
   );

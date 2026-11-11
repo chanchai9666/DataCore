@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Square, Check, RotateCcw, Loader2, History, Bookmark } from 'lucide-react';
+import { Play, Square, Check, RotateCcw, Loader2, History, Bookmark, Activity, Zap } from 'lucide-react';
 
 export interface EditorToolbarProps {
   isRunning: boolean;
@@ -15,6 +15,7 @@ export interface EditorToolbarProps {
   onRollback: () => void;
   onOpenHistory?: () => void;
   onOpenSnippets?: () => void;
+  onExplain?: (analyze: boolean) => void;
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
@@ -31,6 +32,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onRollback,
   onOpenHistory,
   onOpenSnippets,
+  onExplain,
 }) => {
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   const shortcutHint = isMac ? '⌘Enter' : 'Ctrl+Enter';
@@ -100,6 +102,57 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           <Square size={13} fill={isRunning ? 'currentColor' : 'none'} />
           <span>Cancel</span>
         </button>
+
+        {/* Explain Buttons */}
+        {onExplain && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              type="button"
+              onClick={() => onExplain(false)}
+              disabled={isRunning}
+              aria-label="Explain"
+              title="Explain Query Execution Plan (Estimate Cost)"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
+                color: isRunning ? '#9ca3af' : '#374151',
+                border: '1px solid #d1d5db',
+                borderRadius: '4px',
+                padding: '5px 8px',
+                fontWeight: 500,
+                cursor: isRunning ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <Activity size={13} className="text-blue-500" />
+              <span>Explain</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onExplain(true)}
+              disabled={isRunning}
+              aria-label="Explain Analyze"
+              title="Explain Analyze (Run and measure actual execution)"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
+                color: isRunning ? '#9ca3af' : '#374151',
+                border: '1px solid #d1d5db',
+                borderRadius: '4px',
+                padding: '5px 8px',
+                fontWeight: 500,
+                cursor: isRunning ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <Zap size={13} className="text-amber-500" />
+              <span>Analyze</span>
+            </button>
+          </div>
+        )}
 
         {/* Separator */}
         <div style={{ width: '1px', height: '18px', backgroundColor: '#d1d5db', margin: '0 4px' }} />
