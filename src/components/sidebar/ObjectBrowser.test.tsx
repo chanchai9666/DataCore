@@ -53,7 +53,7 @@ describe('ObjectBrowser', () => {
 
   const expandToTables = async () => {
     const connNode = await screen.findByTestId('tree-node-Production SQLite');
-    fireEvent.click(connNode);
+    fireEvent.doubleClick(connNode);
     const dbNode = await screen.findByTestId('tree-node-main');
     fireEvent.click(dbNode);
     const tablesFolder = await screen.findByTestId('tree-node-Tables (2)');
@@ -86,9 +86,14 @@ describe('ObjectBrowser', () => {
     expect(screen.queryByText('main')).not.toBeInTheDocument();
     expect(screen.queryByText('users')).not.toBeInTheDocument();
 
-    // Clicking connection expands database
+    // Single-clicking connection node selects it without connecting
     const connNode = screen.getByTestId('tree-node-Production SQLite');
     fireEvent.click(connNode);
+    expect(screen.queryByText('main')).not.toBeInTheDocument();
+    expect(dbApi.getSchemaTree).not.toHaveBeenCalled();
+
+    // Double-clicking connection node triggers connection and expands database
+    fireEvent.doubleClick(connNode);
     expect(await screen.findByText('main')).toBeInTheDocument();
 
     // Clicking database expands tables/views folders
@@ -311,9 +316,9 @@ describe('ObjectBrowser', () => {
 
     render(<ObjectBrowser onEditConnection={handleEdit} />);
 
-    // Expand connection to view error node
+    // Expand connection to view error node via double click
     const connNode = await screen.findByTestId('tree-node-Production SQLite');
-    fireEvent.click(connNode);
+    fireEvent.doubleClick(connNode);
 
     // Error message should be rendered in the tree
     const errorNode = await screen.findByText(/password authentication failed/i);
@@ -338,7 +343,7 @@ describe('ObjectBrowser', () => {
     render(<ObjectBrowser />);
 
     // Expand connection and database
-    fireEvent.click(await screen.findByTestId('tree-node-Production SQLite'));
+    fireEvent.doubleClick(await screen.findByTestId('tree-node-Production SQLite'));
     fireEvent.click(await screen.findByTestId('tree-node-main'));
 
     // Folders with count badges should be displayed
@@ -375,7 +380,7 @@ describe('ObjectBrowser', () => {
     render(<ObjectBrowser />);
 
     // Expand connection and postgres db
-    fireEvent.click(await screen.findByTestId('tree-node-Production SQLite'));
+    fireEvent.doubleClick(await screen.findByTestId('tree-node-Production SQLite'));
     fireEvent.click(await screen.findByTestId('tree-node-postgres'));
 
     // public schema should be rendered
@@ -415,8 +420,8 @@ describe('ObjectBrowser', () => {
   it('opens CreateTableModal when New Table is clicked from database context menu', async () => {
     render(<ObjectBrowser />);
 
-    // Expand connection to show database
-    fireEvent.click(await screen.findByTestId('tree-node-Production SQLite'));
+    // Expand connection to show database via double-click
+    fireEvent.doubleClick(await screen.findByTestId('tree-node-Production SQLite'));
 
     const mainDbNode = await screen.findByText('main');
     fireEvent.contextMenu(mainDbNode);
@@ -455,7 +460,7 @@ describe('ObjectBrowser', () => {
       render(<ObjectBrowser />);
 
       const connNode = await screen.findByTestId('tree-node-Production SQLite');
-      fireEvent.click(connNode); // Trigger connect
+      fireEvent.doubleClick(connNode); // Trigger connect via double-click
 
       await waitFor(() => {
         const freshNode = screen.getByTestId('tree-node-Production SQLite');
@@ -484,7 +489,7 @@ describe('ObjectBrowser', () => {
       render(<ObjectBrowser />);
 
       const connNode = await screen.findByTestId('tree-node-Production SQLite');
-      fireEvent.click(connNode); // Connect
+      fireEvent.doubleClick(connNode); // Connect via double-click
 
       await waitFor(() => {
         const freshNode = screen.getByTestId('tree-node-Production SQLite');
@@ -504,7 +509,7 @@ describe('ObjectBrowser', () => {
       render(<ObjectBrowser />);
 
       const connNode = await screen.findByTestId('tree-node-Production SQLite');
-      fireEvent.click(connNode); // Trigger connect which fails
+      fireEvent.doubleClick(connNode); // Trigger connect which fails
 
       await waitFor(() => {
         const freshNode = screen.getByTestId('tree-node-Production SQLite');

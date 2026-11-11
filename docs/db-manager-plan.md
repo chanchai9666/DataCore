@@ -305,6 +305,10 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Staged Cell Value Resolution:** ใน `DataGrid.tsx` ปรับปรุง `activeCellInfo` ให้ตรวจสอบการเปลี่ยนแปลงใน `tableChanges` (ทั้ง `cellEdits` และ `addedRows`) เพื่อให้ `cellInfo.value` สะท้อนค่าล่าสุดที่ถูก Stage ไว้ทันที โดยไม่ต้องปิด Drawer หรือรอ Commit
 - **Staged Badge & Original Value Diff:** ใน `CellDetailDrawer.tsx` แสดง Badge ระบุสถานะ `Staged (Uncommitted)` และส่วนเปรียบเทียบค่าเดิม (Original Value) กับค่าใหม่ที่แก้ไข เพื่อให้ผู้ใช้เห็นชัดเจนว่าช่องนี้ถูกแก้ไขอะไรไปบ้างก่อนกด Commit Batch Transaction
 
+### Phase 12: Double-Click Connection Trigger in Object Browser (✅ เสร็จสมบูรณ์ - Issue #36)
+- **Double-Click Connection:** ปรับเปลี่ยนพฤติกรรมการคลิกที่ Connection Node ใน `ConnectionTreeNode.tsx` โดยการคลิกครั้งเดียว (Single-Click) จะทำหน้าที่เลือกโหนด (Select Node) และตั้งเป็น Active Connection เท่านั้น โดยไม่ทำการเชื่อมต่อฐานข้อมูล
+- **Connect on Double-Click:** ย้ายการเชื่อมต่อ (`onConnectConnection`) ไปทำงานเมื่อผู้ใช้ทำการดับเบิลคลิก (Double-Click) หรือเลือกเมนู Connect ผ่าน Context Menu เพื่อป้องกันการเผลอคลิกแล้วเชื่อมต่อโดยไม่ตั้งใจ
+
 
 
 

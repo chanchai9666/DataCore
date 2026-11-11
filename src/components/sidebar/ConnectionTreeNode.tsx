@@ -247,9 +247,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
     if (data.nodeType === 'connection') {
       useConnectionStore.getState().setActiveConnection(data.connectionId);
       const status = getConnectionStatus(data);
-      if (status !== 'connected' && context.onConnectConnection) {
-        context.onConnectConnection(data.connectionId);
-      } else if (status === 'connected') {
+      if (status === 'connected') {
         node.toggle();
       }
     } else if (!isLeaf) {

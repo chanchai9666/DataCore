@@ -162,8 +162,8 @@ describe('E2E Workflow Test', () => {
     const connNode = await screen.findByTestId('tree-node-My SQLite DB');
     expect(connNode).toBeInTheDocument();
 
-    // Connect to the database
-    fireEvent.click(connNode);
+    // Connect to the database via double-click
+    fireEvent.doubleClick(connNode);
 
     // 3. Open a Query tab via the + button in tab bar
     const addTabBtn = await screen.findByTestId('add-query-tab-btn');
