@@ -354,6 +354,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - เมนูคลิกขวาบนการเชื่อมต่อ: "Move to Folder..." สำหรับย้ายเข้า/ออกจากโฟลเดอร์ได้อย่างสะดวกรวดเร็ว
   - ซิงก์การเปลี่ยนแปลงชื่อโฟลเดอร์ไปยังทุก Connection ผ่าน `useConnectionStore` และเซฟลง Backend
 
+### Phase 21: Query History & Saved SQL Snippets Manager (✅ เสร็จสมบูรณ์ - Issue #45)
+- **Query History Tracking:** บันทึกประวัติคำสั่ง SQL ที่รันผ่าน Query Editor ทุกครั้ง (SQL, timestamp, execution time, row count, status, connection & database name) สูงสุด 200 รายการลงใน Local Storage
+- **SQL Snippets Management:** ระบบบันทึก Snippets ที่ใช้บ่อย พร้อมระบุชื่อ (Title), รายละเอียด (Description), หมวดหมู่/แท็ก (Category/Tags) และคำสั่ง SQL พร้อม Built-in Presets ที่มีประโยชน์
+- **Slide-over History & Snippets Drawer:** แผงควบคุมสไตล์ Drawer บนหน้าต่าง Query Editor ให้ค้นหาคำสั่งย้อนหลัง, กรองตาม Connection, พรีวิวโค้ด, คัดลอก, แทรกคำสั่งลงใน Editor หรือกดรันซ้ำได้ทันที
+
 
 
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Square, Check, RotateCcw, Loader2 } from 'lucide-react';
+import { Play, Square, Check, RotateCcw, Loader2, History, Bookmark } from 'lucide-react';
 
 export interface EditorToolbarProps {
   isRunning: boolean;
@@ -13,6 +13,8 @@ export interface EditorToolbarProps {
   onToggleAutoCommit: (enabled: boolean) => void;
   onCommit: () => void;
   onRollback: () => void;
+  onOpenHistory?: () => void;
+  onOpenSnippets?: () => void;
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
@@ -27,6 +29,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onToggleAutoCommit,
   onCommit,
   onRollback,
+  onOpenHistory,
+  onOpenSnippets,
 }) => {
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   const shortcutHint = isMac ? '⌘Enter' : 'Ctrl+Enter';
@@ -185,6 +189,59 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           <RotateCcw size={14} />
           <span>Rollback</span>
         </button>
+
+        {/* Separator */}
+        {(onOpenHistory || onOpenSnippets) && (
+          <div style={{ width: '1px', height: '18px', backgroundColor: '#d1d5db', margin: '0 4px' }} />
+        )}
+
+        {/* History Button */}
+        {onOpenHistory && (
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            aria-label="History"
+            title="Query History"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '5px 8px',
+              cursor: 'pointer',
+            }}
+          >
+            <History size={13} />
+            <span>History</span>
+          </button>
+        )}
+
+        {/* Snippets Button */}
+        {onOpenSnippets && (
+          <button
+            type="button"
+            onClick={onOpenSnippets}
+            aria-label="Snippets"
+            title="Saved SQL Snippets"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '5px 8px',
+              cursor: 'pointer',
+            }}
+          >
+            <Bookmark size={13} />
+            <span>Snippets</span>
+          </button>
+        )}
       </div>
 
       {/* Right status indicators */}

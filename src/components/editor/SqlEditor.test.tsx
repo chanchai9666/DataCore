@@ -307,4 +307,41 @@ describe('SqlEditor', () => {
     render(<SqlEditor />);
     expect(screen.getByText('No query tab selected')).toBeInTheDocument();
   });
+
+  it('records executed query into useQueryHistoryStore', async () => {
+    vi.spyOn(dbApi, 'executeQuery').mockResolvedValue(mockQueryResult);
+
+    render(<SqlEditor />);
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalled();
+    });
+
+    // Check history store
+    const { useQueryHistoryStore } = await import('../../stores/queryHistoryStore');
+    const history = useQueryHistoryStore.getState().history;
+    expect(history.length).toBeGreaterThan(0);
+    expect(history[0].sql).toBe('SELECT * FROM users;');
+    expect(history[0].status).toBe('success');
+  });
+
+  it('opens history and snippets drawer when toolbar buttons are clicked', async () => {
+    render(<SqlEditor />);
+
+    const historyBtn = screen.getByRole('button', { name: /^history/i });
+    fireEvent.click(historyBtn);
+
+    expect(screen.getByRole('dialog', { name: /query history & snippets/i })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/search history/i)).toBeInTheDocument();
+
+    const snippetsBtn = screen.getByTitle('Saved SQL Snippets');
+    fireEvent.click(snippetsBtn);
+
+    expect(screen.getByPlaceholderText(/search snippets/i)).toBeInTheDocument();
+  });
 });

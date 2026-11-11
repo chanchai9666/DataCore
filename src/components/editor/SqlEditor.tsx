@@ -5,9 +5,11 @@ import { Prec } from '@codemirror/state';
 import { sql, SQLite, PostgreSQL, MySQL, StandardSQL } from '@codemirror/lang-sql';
 import { toast } from 'sonner';
 import { EditorToolbar } from './EditorToolbar';
+import { HistorySnippetsDrawer } from './HistorySnippetsDrawer';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useStatusStore } from '../../stores/statusStore';
+import { useQueryHistoryStore } from '../../stores/queryHistoryStore';
 import { dbApi } from '../../api/db';
 import type { QueryResult } from '../../types/db';
 
@@ -44,6 +46,8 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const [rowCount, setRowCount] = useState<number | null>(null);
   const [rowsAffected, setRowsAffected] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isHistorySnippetsOpen, setIsHistorySnippetsOpen] = useState(false);
+  const [historySnippetsTab, setHistorySnippetsTab] = useState<'history' | 'snippets'>('history');
 
   // System dark mode detection
   const [systemDark, setSystemDark] = useState(() => {
@@ -113,6 +117,20 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           rowCount: result.rows ? result.rows.length : (result.rows_affected ?? 0),
           statusMessage: null,
         });
+
+        // Record successful query to query history
+        const conn = useConnectionStore.getState().connections.find((c) => c.id === currentTab?.connectionId);
+        useQueryHistoryStore.getState().addHistoryItem({
+          sql: sqlToExecute,
+          executionTimeMs: result.execution_time_ms,
+          rowCount: result.rows ? result.rows.length : undefined,
+          rowsAffected: result.rows_affected ?? null,
+          status: 'success',
+          connectionId: currentTab?.connectionId,
+          connectionName: conn?.name,
+          database: conn?.database,
+        });
+
         onQueryResult?.(result);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -121,6 +139,19 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           lastQuery: sqlToExecute,
           statusMessage: `Error: ${msg}`,
         });
+
+        // Record failed query to query history
+        const conn = useConnectionStore.getState().connections.find((c) => c.id === currentTab?.connectionId);
+        useQueryHistoryStore.getState().addHistoryItem({
+          sql: sqlToExecute,
+          executionTimeMs: 0,
+          status: 'error',
+          errorMessage: msg,
+          connectionId: currentTab?.connectionId,
+          connectionName: conn?.name,
+          database: conn?.database,
+        });
+
         onError?.(err);
       } finally {
         setIsRunning(false);
@@ -209,6 +240,29 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     [targetTabId, setQueryContent]
   );
 
+  const handleSelectSql = useCallback(
+    (sql: string, mode: 'insert' | 'replace' | 'run') => {
+      if (!targetTabId) return;
+
+      if (mode === 'insert') {
+        const view = editorViewRef.current ?? editorRef.current?.view;
+        const currentTab = useTabStore.getState().tabs.find((t) => t.id === targetTabId) ?? tab;
+        const currentDoc = (currentTab ? currentTab.queryContent : '') || (view ? view.state.doc.toString() : '');
+        const newContent = currentDoc.trim() ? `${currentDoc.trim()}\n\n${sql}` : sql;
+        setQueryContent(targetTabId, newContent);
+      } else {
+        // replace or run
+        setQueryContent(targetTabId, sql);
+        if (mode === 'run') {
+          setTimeout(() => {
+            handleRunQuery();
+          }, 50);
+        }
+      }
+    },
+    [targetTabId, tab, setQueryContent, handleRunQuery]
+  );
+
   if (!tab) {
     return (
       <div
@@ -255,6 +309,14 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         onToggleAutoCommit={handleToggleAutoCommit}
         onCommit={handleCommit}
         onRollback={handleRollback}
+        onOpenHistory={() => {
+          setHistorySnippetsTab('history');
+          setIsHistorySnippetsOpen(true);
+        }}
+        onOpenSnippets={() => {
+          setHistorySnippetsTab('snippets');
+          setIsHistorySnippetsOpen(true);
+        }}
       />
 
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
@@ -280,6 +342,21 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           }}
         />
       </div>
+
+      <HistorySnippetsDrawer
+        isOpen={isHistorySnippetsOpen}
+        onClose={() => setIsHistorySnippetsOpen(false)}
+        initialTab={historySnippetsTab}
+        currentConnectionId={tab.connectionId}
+        currentConnectionName={connection?.name}
+        currentDatabase={connection?.database}
+        onSelectSql={(sql, mode) => {
+          handleSelectSql(sql, mode);
+          if (mode === 'replace' || mode === 'run') {
+            setIsHistorySnippetsOpen(false);
+          }
+        }}
+      />
     </div>
   );
 };
