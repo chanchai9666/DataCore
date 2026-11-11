@@ -309,6 +309,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Double-Click Connection:** ปรับเปลี่ยนพฤติกรรมการคลิกที่ Connection Node ใน `ConnectionTreeNode.tsx` โดยการคลิกครั้งเดียว (Single-Click) จะทำหน้าที่เลือกโหนด (Select Node) และตั้งเป็น Active Connection เท่านั้น โดยไม่ทำการเชื่อมต่อฐานข้อมูล
 - **Connect on Double-Click:** ย้ายการเชื่อมต่อ (`onConnectConnection`) ไปทำงานเมื่อผู้ใช้ทำการดับเบิลคลิก (Double-Click) หรือเลือกเมนู Connect ผ่าน Context Menu เพื่อป้องกันการเผลอคลิกแล้วเชื่อมต่อโดยไม่ตั้งใจ
 
+### Phase 13: macOS Native Desktop Look & Feel Polish (✅ เสร็จสมบูรณ์ - Issue #37)
+- **Eliminate WebKit Artifacts:** ปิด Default Browser Context Menu (Inspect, Reload, Back) ทั่วทั้งแอป เพื่อไม่ให้แสดงหน้าต่างเว็บเบราว์เซอร์เมื่อคลิกขวาในพื้นที่ว่าง, บล็อก `Cmd+R` / `Cmd+Shift+R` (Reload) และ `Cmd+=` / `Cmd+-` / `Cmd+0` (Page Zoom) ป้องกันหน้าจอวูบหรือขนาดเพี้ยน
+- **Native Drag & Titlebar Mechanics:** ป้องกัน Default File Drop Navigation เมื่อมีการลากไฟล์เข้ามา, รองรับ `data-tauri-drag-region` บนพื้นที่ว่างของ Header และรองรับการดับเบิลคลิกบน Titlebar เพื่อ Toggle Maximize/Restore หน้าต่างตามมาตรฐาน macOS
+- **Overscroll & Selection Polish:** กำหนด `overscroll-behavior: none` ป้องกันการเด้งย้วย (Rubber-band bounce) แบบเว็บ, บังคับ `user-select: none` บน UI Chrome และปรับ Focus Outline ให้เนียนตาเหมือน Native App
+
 
 
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   Database,
   Plug,
@@ -180,9 +181,22 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
 
   const items = customItems ?? defaultItems;
 
+  const handleTitleBarDoubleClick = useCallback(async (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('[role="menu"]') || target.closest('select') || target.closest('input')) {
+      return;
+    }
+    try {
+      await getCurrentWindow().toggleMaximize();
+    } catch {
+      // In web or tests, ignore
+    }
+  }, []);
+
   return (
     <header
       data-tauri-drag-region
+      onDoubleClick={handleTitleBarDoubleClick}
       className="h-toolbar bg-toolbar border-b border-line flex items-center justify-between pl-[78px] pr-3 select-none flex-shrink-0 transition-colors relative"
     >
       {/* Left: Branding & Primary Desktop Action Icons */}

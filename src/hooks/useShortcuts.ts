@@ -15,8 +15,26 @@ export function useShortcuts({ onNewConnection, onToggleTheme }: ShortcutHandler
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent F5 reload
+      if (e.key === 'F5') {
+        e.preventDefault();
+        return;
+      }
+
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
       if (!isCmdOrCtrl) return;
+
+      // Prevent native browser reload (Cmd+R, Cmd+Shift+R)
+      if (e.key.toLowerCase() === 'r' && !e.altKey) {
+        e.preventDefault();
+        return;
+      }
+
+      // Prevent native browser zooming (Cmd+=, Cmd+-, Cmd+0)
+      if (e.key === '=' || e.key === '+' || e.key === '-' || e.key === '0') {
+        e.preventDefault();
+        return;
+      }
 
       // Cmd+N: New Connection
       if (e.key.toLowerCase() === 'n' && !e.shiftKey && !e.altKey) {

@@ -75,6 +75,33 @@ export function App() {
     }
   }, [theme]);
 
+  // Native desktop app polish: prevent default browser context menu and file drop navigation
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      // Allow standard context menu only inside actual input or textarea for copy/paste
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+      e.preventDefault();
+    };
+
+    const handleDragOver = (e: DragEvent) => e.preventDefault();
+    const handleDrop = (e: DragEvent) => e.preventDefault();
+
+    window.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('drop', handleDrop);
+
+    return () => {
+      window.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, []);
+
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };

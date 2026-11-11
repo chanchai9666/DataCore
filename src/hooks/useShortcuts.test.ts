@@ -39,4 +39,28 @@ describe('useShortcuts Hook', () => {
     expect(closeTabMock).toHaveBeenCalledWith('tab-1');
     expect(event.defaultPrevented).toBe(true);
   });
+
+  it('prevents default browser reload when Cmd+R or F5 is pressed', () => {
+    renderHook(() => useShortcuts());
+
+    const cmdREvent = new KeyboardEvent('keydown', { key: 'r', metaKey: true, cancelable: true });
+    window.dispatchEvent(cmdREvent);
+    expect(cmdREvent.defaultPrevented).toBe(true);
+
+    const f5Event = new KeyboardEvent('keydown', { key: 'F5', cancelable: true });
+    window.dispatchEvent(f5Event);
+    expect(f5Event.defaultPrevented).toBe(true);
+  });
+
+  it('prevents default browser zoom when Cmd+= or Cmd+- is pressed', () => {
+    renderHook(() => useShortcuts());
+
+    const zoomInEvent = new KeyboardEvent('keydown', { key: '+', metaKey: true, cancelable: true });
+    window.dispatchEvent(zoomInEvent);
+    expect(zoomInEvent.defaultPrevented).toBe(true);
+
+    const zoomOutEvent = new KeyboardEvent('keydown', { key: '-', metaKey: true, cancelable: true });
+    window.dispatchEvent(zoomOutEvent);
+    expect(zoomOutEvent.defaultPrevented).toBe(true);
+  });
 });
