@@ -11,6 +11,7 @@ import { ImportModal } from './components/transfer/ImportModal';
 import { DatabaseMetricsModal } from './components/performance/DatabaseMetricsModal';
 import { LockInspectorModal } from './components/transactions/LockInspectorModal';
 import { AuditLogDrawer } from './components/security/AuditLogDrawer';
+import { ConnectionSecurityModal } from './components/security/ConnectionSecurityModal';
 import { HistorySnippetsDrawer } from './components/editor/HistorySnippetsDrawer';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
@@ -40,6 +41,7 @@ export function App() {
   const [isMetricsModalOpen, setIsMetricsModalOpen] = useState(false);
   const [isLocksModalOpen, setIsLocksModalOpen] = useState(false);
   const [isAuditLogDrawerOpen, setIsAuditLogDrawerOpen] = useState(false);
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -233,6 +235,9 @@ export function App() {
           if (resolvedConnectionId) setIsLocksModalOpen(true);
         }}
         onOpenAuditLog={() => setIsAuditLogDrawerOpen(true)}
+        onOpenSecurity={() => {
+          if (resolvedConnectionId) setIsSecurityModalOpen(true);
+        }}
         onOpenHistory={() => setIsHistoryDrawerOpen(true)}
         onEditConnection={(conn) => {
           setConnectionToEdit(conn);
@@ -344,6 +349,18 @@ export function App() {
         isOpen={isAuditLogDrawerOpen}
         onClose={() => setIsAuditLogDrawerOpen(false)}
       />
+
+      {/* Global Connection Security (TLS / At-Rest) Modal */}
+      {isSecurityModalOpen && resolvedConnectionId && (
+        <ConnectionSecurityModal
+          isOpen={true}
+          connectionId={resolvedConnectionId}
+          driver={activeConnection?.driver}
+          connectionName={activeConnection?.name}
+          sslMode={activeConnection?.ssl_mode}
+          onClose={() => setIsSecurityModalOpen(false)}
+        />
+      )}
 
       {/* Global History & Snippets Drawer */}
       <HistorySnippetsDrawer

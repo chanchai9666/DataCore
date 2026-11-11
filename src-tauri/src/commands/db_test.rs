@@ -21,6 +21,7 @@ async fn test_session_lifecycle() {
         database: ":memory:".to_string(),
         user: None,
         folder: None,
+        ssl_mode: None,
     };
     save_connection_impl(&store, &config, None).expect("save connection config");
 
@@ -212,6 +213,7 @@ async fn test_command_error_handling_and_cancellation() {
         database: ":memory:".to_string(),
         user: None,
         folder: None,
+        ssl_mode: None,
     };
     let latency_res = test_connection_impl(&store, &config, None).await;
     assert!(latency_res.is_ok());
@@ -226,6 +228,7 @@ async fn test_command_error_handling_and_cancellation() {
         database: ":memory:".to_string(),
         user: None,
         folder: None,
+        ssl_mode: None,
     }, None).unwrap();
     open_session_impl(&store, &session_mgr, "mem-test", "tab-cancel").await.unwrap();
     let cancel_ok = cancel_query_impl(&session_mgr, "tab-cancel").await;
@@ -249,6 +252,7 @@ async fn test_close_session_performs_explicit_rollback() {
         database: db_path.to_str().unwrap().to_string(),
         user: None,
         folder: None,
+        ssl_mode: None,
     };
     store.save_connection(&config, None).unwrap();
 
@@ -318,6 +322,7 @@ async fn test_schema_tree_uses_dedicated_connection_independent_of_tab_transacti
         database: db_path.to_str().unwrap().to_string(),
         user: None,
         folder: None,
+        ssl_mode: None,
     };
     store.save_connection(&config, None).unwrap();
 
@@ -366,6 +371,7 @@ async fn test_connection_impl_uses_stored_keychain_password_when_none_provided()
         database: ":memory:".to_string(),
         user: None,
         folder: None,
+        ssl_mode: None,
     };
 
     // Store connection with password in keychain
@@ -412,6 +418,7 @@ async fn test_disconnect_connection_teardown_all_sessions() {
         database: ":memory:".to_string(),
         user: None,
         folder: None,
+        ssl_mode: None,
     };
     let config2 = ConnectionConfig {
         id: "conn-2".to_string(),
@@ -422,6 +429,7 @@ async fn test_disconnect_connection_teardown_all_sessions() {
         database: ":memory:".to_string(),
         user: None,
         folder: None,
+        ssl_mode: None,
     };
 
     store.save_connection(&config1, None).expect("save conn 1");

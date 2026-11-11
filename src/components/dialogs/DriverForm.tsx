@@ -277,9 +277,11 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                   disabled={disabled}
                   className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 focus:outline-none transition-colors text-xs"
                 >
-                  <option value="disable">disable</option>
-                  <option value="prefer">prefer</option>
-                  <option value="require">require</option>
+                  <option value="disable">disable (Plaintext - No encryption)</option>
+                  <option value="prefer">prefer (Attempt TLS, fallback to unencrypted)</option>
+                  <option value="require">require (Enforce TLS encryption)</option>
+                  <option value="verify-ca">verify-ca (Verify Certificate Authority)</option>
+                  <option value="verify-full">verify-full (Verify CA & Server Hostname)</option>
                 </select>
               </div>
             </div>

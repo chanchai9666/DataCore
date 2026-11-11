@@ -9,6 +9,8 @@ export interface ConnectionConfig {
   database: string;
   user?: string;
   folder?: string;
+  ssl_mode?: string;
+  sslMode?: string;
 }
 
 export type SchemaNodeType = 'database' | 'schema' | 'table' | 'view';

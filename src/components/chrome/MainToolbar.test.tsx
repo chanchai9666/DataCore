@@ -136,6 +136,7 @@ describe('MainToolbar Component', () => {
     const onOpenMetrics = vi.fn();
     const onOpenLocks = vi.fn();
     const onOpenAuditLog = vi.fn();
+    const onOpenSecurity = vi.fn();
     const onOpenHistory = vi.fn();
 
     render(
@@ -143,6 +144,7 @@ describe('MainToolbar Component', () => {
         onOpenMetrics={onOpenMetrics}
         onOpenLocks={onOpenLocks}
         onOpenAuditLog={onOpenAuditLog}
+        onOpenSecurity={onOpenSecurity}
         onOpenHistory={onOpenHistory}
       />
     );
@@ -168,7 +170,12 @@ describe('MainToolbar Component', () => {
     fireEvent.click(screen.getByTestId('toolbar-tools-audit-btn'));
     expect(onOpenAuditLog).toHaveBeenCalledTimes(1);
 
-    // 4. History
+    // 4. Connection Security
+    fireEvent.click(toolsBtn);
+    fireEvent.click(screen.getByTestId('toolbar-tools-security-btn'));
+    expect(onOpenSecurity).toHaveBeenCalledTimes(1);
+
+    // 5. History
     fireEvent.click(toolsBtn);
     fireEvent.click(screen.getByTestId('toolbar-tools-history-btn'));
     expect(onOpenHistory).toHaveBeenCalledTimes(1);

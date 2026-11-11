@@ -17,6 +17,7 @@ import {
   Lock,
   ShieldCheck,
   History,
+  Key,
   type LucideIcon,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -51,6 +52,7 @@ export interface MainToolbarProps {
   onOpenMetrics?: () => void;
   onOpenLocks?: () => void;
   onOpenAuditLog?: () => void;
+  onOpenSecurity?: () => void;
   onOpenHistory?: () => void;
   onOpenSnippets?: () => void;
   theme?: 'dark' | 'light';
@@ -74,6 +76,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenMetrics,
   onOpenLocks,
   onOpenAuditLog,
+  onOpenSecurity,
   onOpenHistory,
   onOpenSnippets,
   theme = 'dark',
@@ -373,6 +376,20 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   >
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span>Security & Audit Log...</span>
+                  </button>
+                )}
+                {onOpenSecurity && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-security-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenSecurity();
+                    }}
+                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                  >
+                    <Key className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <span>Connection Security (TLS / At-Rest)...</span>
                   </button>
                 )}
                 {(onOpenHistory || onOpenSnippets) && (

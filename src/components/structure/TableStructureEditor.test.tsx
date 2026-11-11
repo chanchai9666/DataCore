@@ -568,4 +568,91 @@ describe('TableStructureEditor', () => {
       );
     });
   });
+
+  it('switches to Security / RLS tab, toggles RLS, creates policy, and drops policy', async () => {
+    vi.mocked(dbApi.executeQuery).mockImplementation(async (_tabId, sql) => {
+      if (sql.includes('SELECT rowsecurity FROM pg_tables')) {
+        return {
+          columns: [],
+          rows: [[true]],
+          execution_time_ms: 1,
+        };
+      }
+      if (sql.includes('pg_policies')) {
+        return {
+          columns: [],
+          rows: [
+            ['policy_user_isolation', true, 'PUBLIC', 'ALL', 'user_id = current_user', ''],
+          ],
+          execution_time_ms: 1,
+        };
+      }
+      return mockColumnsResult;
+    });
+
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const rlsTabBtn = await screen.findByTestId('tab-security-btn');
+    fireEvent.click(rlsTabBtn);
+
+    // Verify existing policy is rendered
+    expect(await screen.findByText('policy_user_isolation')).toBeInTheDocument();
+    expect(screen.getByText('user_id = current_user')).toBeInTheDocument();
+    expect(screen.getByTestId('rls-status-state')).toHaveTextContent('ENABLED');
+
+    // Toggle RLS
+    const toggleBtn = screen.getByTestId('toggle-rls-btn');
+    fireEvent.click(toggleBtn);
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'ALTER TABLE "public"."categories" DISABLE ROW LEVEL SECURITY;'
+      );
+    });
+
+    // Open Add Policy Modal
+    const addPolicyBtn = screen.getByTestId('add-policy-btn');
+    fireEvent.click(addPolicyBtn);
+
+    expect(screen.getByRole('heading', { name: /add rls policy/i })).toBeInTheDocument();
+    const nameInput = screen.getByTestId('new-policy-name-input');
+    fireEvent.change(nameInput, { target: { value: 'policy_tenant' } });
+
+    const usingInput = screen.getByTestId('new-policy-using-input');
+    fireEvent.change(usingInput, { target: { value: 'tenant_id = 123' } });
+
+    expect(screen.getByTestId('add-policy-preview-sql').textContent).toContain(
+      'CREATE POLICY "policy_tenant" ON "public"."categories" AS PERMISSIVE FOR ALL TO PUBLIC USING (tenant_id = 123);'
+    );
+
+    fireEvent.click(screen.getByTestId('confirm-add-policy-btn'));
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'CREATE POLICY "policy_tenant" ON "public"."categories" AS PERMISSIVE FOR ALL TO PUBLIC USING (tenant_id = 123);'
+      );
+    });
+
+    // Test Drop Policy
+    const dropBtn = screen.getByTestId('drop-policy-btn-policy_user_isolation');
+    fireEvent.click(dropBtn);
+
+    expect(screen.getByRole('heading', { name: /drop rls policy/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('confirm-drop-policy-btn'));
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'DROP POLICY "policy_user_isolation" ON "public"."categories";'
+      );
+    });
+  });
 });

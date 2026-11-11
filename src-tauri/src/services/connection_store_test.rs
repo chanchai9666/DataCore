@@ -19,6 +19,7 @@ fn test_connection_storage_and_keychain_isolation() {
         database: "mydb".to_string(),
         user: Some("postgres".to_string()),
         folder: Some("Production".to_string()),
+        ssl_mode: None,
     };
 
     let secret_password = "super_secret_pw_123";
@@ -64,6 +65,7 @@ fn test_connection_storage_and_keychain_isolation() {
         database: "/tmp/test.db".to_string(),
         user: None,
         folder: None,
+        ssl_mode: None,
     };
     store
         .save_connection(&conn2, None)
@@ -105,6 +107,7 @@ fn test_connection_storage_update_existing() {
         database: "store_db".to_string(),
         user: Some("root".to_string()),
         folder: None,
+        ssl_mode: None,
     };
 
     store
@@ -149,6 +152,7 @@ fn test_atomic_persistence_cleans_up_tmp_file() {
         database: ":memory:".to_string(),
         user: None,
         folder: None,
+        ssl_mode: None,
     };
 
     store.save_connection(&conn, None).expect("save connection");

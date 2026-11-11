@@ -14,10 +14,20 @@ import {
   X,
   Layers,
   ShieldAlert,
+  Shield,
   Pencil,
   Wrench,
   Link2,
 } from 'lucide-react';
+import {
+  buildToggleRlsSql,
+  buildCreatePolicySql,
+  buildDropPolicySql,
+  buildGetRlsStatusSql,
+  buildGetRlsPoliciesSql,
+  type RlsPolicy,
+  type PolicyCommand,
+} from '../../api/securityHelpers';
 import { dbApi } from '../../api/db';
 import {
   getFetchColumnsSql,
@@ -115,7 +125,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   const [indexes, setIndexes] = useState<TableIndexStructure[]>([]);
   const [foreignKeys, setForeignKeys] = useState<TableForeignKeyStructure[]>([]);
   const [constraints, setConstraints] = useState<TableConstraintStructure[]>([]);
-  const [activeTab, setActiveTab] = useState<'columns' | 'indexes' | 'foreign-keys' | 'constraints' | 'ddl'>('columns');
+  const [activeTab, setActiveTab] = useState<'columns' | 'indexes' | 'foreign-keys' | 'constraints' | 'security' | 'ddl'>('columns');
   const [copiedDdl, setCopiedDdl] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +133,18 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+
+  // RLS states
+  const [rlsEnabled, setRlsEnabled] = useState(false);
+  const [rlsPolicies, setRlsPolicies] = useState<RlsPolicy[]>([]);
+  const [isAddPolicyModalOpen, setIsAddPolicyModalOpen] = useState(false);
+  const [dropPolicyTarget, setDropPolicyTarget] = useState<RlsPolicy | null>(null);
+  const [newPolicyName, setNewPolicyName] = useState('');
+  const [newPolicyCmd, setNewPolicyCmd] = useState<PolicyCommand>('ALL');
+  const [newPolicyRoles, setNewPolicyRoles] = useState('PUBLIC');
+  const [newPolicyPermissive, setNewPolicyPermissive] = useState(true);
+  const [newPolicyUsingExpr, setNewPolicyUsingExpr] = useState('');
+  const [newPolicyCheckExpr, setNewPolicyCheckExpr] = useState('');
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -307,6 +329,33 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         setConstraints(parsedConstraints);
       } catch (constErr) {
         console.warn('Constraint load fallback error:', constErr);
+      }
+
+      // Fetch Row-Level Security (RLS) status & policies
+      try {
+        const rlsStatusSql = buildGetRlsStatusSql(tableName, schemaName, driver);
+        if (rlsStatusSql && !rlsStatusSql.startsWith('--')) {
+          const rlsRes = await dbApi.executeQuery(tabId, rlsStatusSql);
+          if (rlsRes.rows && rlsRes.rows.length > 0) {
+            const val = rlsRes.rows[0][0];
+            setRlsEnabled(val === true || val === 't' || val === 'true' || val === 1);
+          }
+        }
+        const rlsPoliciesSql = buildGetRlsPoliciesSql(tableName, schemaName, driver);
+        if (rlsPoliciesSql && !rlsPoliciesSql.startsWith('--')) {
+          const policiesRes = await dbApi.executeQuery(tabId, rlsPoliciesSql);
+          const parsedPolicies: RlsPolicy[] = (policiesRes.rows || []).map((r) => ({
+            name: String(r[0] ?? ''),
+            permissive: r[1] === true || r[1] === 't' || r[1] === 'PERMISSIVE' || r[1] === 'true',
+            roles: String(r[2] ?? 'PUBLIC').split(',').map((x) => x.trim()).filter(Boolean),
+            command: String(r[3] ?? 'ALL').toUpperCase() as PolicyCommand,
+            usingExpr: r[4] ? String(r[4]) : undefined,
+            checkExpr: r[5] ? String(r[5]) : undefined,
+          }));
+          setRlsPolicies(parsedPolicies);
+        }
+      } catch (rlsErr) {
+        console.warn('RLS load fallback/unsupported:', rlsErr);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -759,6 +808,112 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
     }
   };
 
+  // Preview SQL for Add RLS Policy
+  const addPolicyPreviewSql = useMemo(() => {
+    if (!newPolicyName.trim()) return '';
+    try {
+      const rolesArray = newPolicyRoles.split(',').map((r) => r.trim()).filter(Boolean);
+      return buildCreatePolicySql({
+        policyName: newPolicyName.trim(),
+        tableName,
+        schemaName,
+        driver,
+        command: newPolicyCmd,
+        roles: rolesArray.length > 0 ? rolesArray : ['PUBLIC'],
+        permissive: newPolicyPermissive,
+        usingExpr: newPolicyUsingExpr.trim() || undefined,
+        checkExpr: newPolicyCheckExpr.trim() || undefined,
+      });
+    } catch {
+      return '';
+    }
+  }, [newPolicyName, tableName, schemaName, driver, newPolicyCmd, newPolicyRoles, newPolicyPermissive, newPolicyUsingExpr, newPolicyCheckExpr]);
+
+  // Handle Toggle RLS
+  const handleToggleRls = async () => {
+    setSubmitting(true);
+    try {
+      const nextState = !rlsEnabled;
+      const sql = buildToggleRlsSql(tableName, schemaName, nextState, driver);
+      await dbApi.executeQuery(tabId, sql);
+      setRlsEnabled(nextState);
+      useAuditLogStore.getState().addLog({
+        connectionId,
+        action: 'SECURITY',
+        query: sql,
+        status: 'SUCCESS',
+      });
+      showStatus('success', `Row-Level Security ${nextState ? 'enabled' : 'disabled'} successfully.`);
+      await loadStructure();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showStatus('error', `Failed to toggle RLS: ${msg}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle Create Policy Submit
+  const handleAddPolicySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPolicyName.trim()) return;
+    setSubmitting(true);
+    try {
+      const rolesArray = newPolicyRoles.split(',').map((r) => r.trim()).filter(Boolean);
+      const sql = buildCreatePolicySql({
+        policyName: newPolicyName.trim(),
+        tableName,
+        schemaName,
+        driver,
+        command: newPolicyCmd,
+        roles: rolesArray.length > 0 ? rolesArray : ['PUBLIC'],
+        permissive: newPolicyPermissive,
+        usingExpr: newPolicyUsingExpr.trim() || undefined,
+        checkExpr: newPolicyCheckExpr.trim() || undefined,
+      });
+      await dbApi.executeQuery(tabId, sql);
+      useAuditLogStore.getState().addLog({
+        connectionId,
+        action: 'SECURITY',
+        query: sql,
+        status: 'SUCCESS',
+      });
+      setIsAddPolicyModalOpen(false);
+      showStatus('success', `Policy "${newPolicyName.trim()}" created successfully.`);
+      await loadStructure();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showStatus('error', `Failed to create policy: ${msg}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle Drop Policy
+  const handleDropPolicyConfirm = async () => {
+    if (!dropPolicyTarget) return;
+    setSubmitting(true);
+    try {
+      const sql = buildDropPolicySql(dropPolicyTarget.name, tableName, schemaName, driver);
+      await dbApi.executeQuery(tabId, sql);
+      useAuditLogStore.getState().addLog({
+        connectionId,
+        action: 'SECURITY',
+        query: sql,
+        status: 'SUCCESS',
+      });
+      const droppedName = dropPolicyTarget.name;
+      setDropPolicyTarget(null);
+      showStatus('success', `Policy "${droppedName}" dropped successfully.`);
+      await loadStructure();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showStatus('error', `Failed to drop policy: ${msg}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // DDL String
   const ddlString = useMemo(() => {
     return generateTableDdl({
@@ -848,6 +1003,19 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             >
               <ShieldAlert className="w-3 h-3" />
               <span>Constraints ({constraints.length})</span>
+            </button>
+            <button
+              type="button"
+              data-testid="tab-security-btn"
+              onClick={() => setActiveTab('security')}
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1 ${
+                activeTab === 'security'
+                  ? isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900 shadow-sm'
+                  : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Shield className="w-3 h-3 text-rose-400" />
+              <span>Security / RLS ({rlsPolicies.length})</span>
             </button>
             <button
               type="button"
@@ -946,6 +1114,40 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               <Plus className="w-3.5 h-3.5" />
               <span>Add Constraint</span>
             </button>
+          ) : activeTab === 'security' ? (
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                data-testid="toggle-rls-btn"
+                onClick={handleToggleRls}
+                disabled={submitting}
+                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded text-white shadow-sm transition-colors ${
+                  rlsEnabled ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'
+                }`}
+              >
+                <Shield className="w-3.5 h-3.5" />
+                <span>{rlsEnabled ? 'Disable RLS' : 'Enable RLS'}</span>
+              </button>
+              {rlsEnabled && (
+                <button
+                  type="button"
+                  data-testid="add-policy-btn"
+                  onClick={() => {
+                    setNewPolicyName(`policy_${tableName}_user`);
+                    setNewPolicyCmd('ALL');
+                    setNewPolicyRoles('PUBLIC');
+                    setNewPolicyPermissive(true);
+                    setNewPolicyUsingExpr('');
+                    setNewPolicyCheckExpr('');
+                    setIsAddPolicyModalOpen(true);
+                  }}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-rose-600 hover:bg-rose-500 text-white shadow-sm transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Policy</span>
+                </button>
+              )}
+            </div>
           ) : null}
 
           <button
@@ -1498,6 +1700,170 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               </table>
             </div>
           )
+        ) : activeTab === 'security' ? (
+          <div className="space-y-4">
+            {/* RLS Status Card */}
+            <div
+              data-testid="rls-status-banner"
+              className={`p-3.5 rounded-lg border flex items-center justify-between ${
+                rlsEnabled
+                  ? isDark ? 'bg-emerald-950/20 border-emerald-900/40 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  : isDark ? 'bg-amber-950/20 border-amber-900/40 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-800'
+              }`}
+            >
+              <div className="flex items-center space-x-3">
+                <Shield className={`w-5 h-5 flex-shrink-0 ${rlsEnabled ? 'text-emerald-400' : 'text-amber-400'}`} />
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-semibold text-xs">Row-Level Security (RLS)</span>
+                    <span
+                      data-testid="rls-status-state"
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        rlsEnabled
+                          ? 'bg-emerald-900/80 text-emerald-200 border border-emerald-700'
+                          : 'bg-amber-900/80 text-amber-200 border border-amber-700'
+                      }`}
+                    >
+                      {rlsEnabled ? 'ENABLED' : 'DISABLED'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] opacity-80 mt-0.5">
+                    {rlsEnabled
+                      ? 'Row-level access policies are strictly enforced for queries on this table.'
+                      : 'RLS is currently disabled. All rows are visible according to normal role permissions.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                data-testid="rls-toggle-status-btn"
+                onClick={handleToggleRls}
+                disabled={submitting}
+                className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                  rlsEnabled
+                    ? 'bg-amber-700/80 hover:bg-amber-600 text-white'
+                    : 'bg-emerald-700/80 hover:bg-emerald-600 text-white'
+                }`}
+              >
+                {rlsEnabled ? 'Disable RLS' : 'Enable RLS'}
+              </button>
+            </div>
+
+            {/* Policies Section */}
+            {rlsPolicies.length === 0 ? (
+              <div
+                data-testid="no-policies-view"
+                className={`p-8 text-center border rounded-lg ${
+                  isDark ? 'border-gray-800 bg-gray-900/40 text-gray-400' : 'border-gray-200 bg-white text-gray-500'
+                }`}
+              >
+                <Shield className="w-8 h-8 mx-auto mb-2 text-rose-400/60" />
+                <p className="text-sm font-medium">No Row-Level Security Policies</p>
+                <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
+                  {rlsEnabled
+                    ? 'RLS is active, but no policies exist. By default in PostgreSQL, table owners and superusers have full access while other roles cannot access any rows.'
+                    : 'Enable RLS and create security policies to restrict rows based on user role or session parameters.'}
+                </p>
+                {rlsEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewPolicyName(`policy_${tableName}_user`);
+                      setNewPolicyCmd('ALL');
+                      setNewPolicyRoles('PUBLIC');
+                      setNewPolicyPermissive(true);
+                      setNewPolicyUsingExpr('');
+                      setNewPolicyCheckExpr('');
+                      setIsAddPolicyModalOpen(true);
+                    }}
+                    className="mt-3 inline-flex items-center space-x-1 px-3 py-1.5 text-xs rounded bg-rose-600 hover:bg-rose-500 text-white font-medium shadow-sm transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Create First Policy</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div
+                className={`border rounded-lg overflow-hidden shadow-sm ${
+                  isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
+                }`}
+              >
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr
+                      className={`border-b font-medium ${
+                        isDark
+                          ? 'bg-gray-900/90 border-gray-800 text-gray-400'
+                          : 'bg-gray-100/90 border-gray-200 text-gray-600'
+                      }`}
+                    >
+                      <th className="py-2.5 px-3 w-12 text-center">#</th>
+                      <th className="py-2.5 px-3">Policy Name</th>
+                      <th className="py-2.5 px-3 w-24 text-center">Command</th>
+                      <th className="py-2.5 px-3 w-28">Roles</th>
+                      <th className="py-2.5 px-3 w-28 text-center">Type</th>
+                      <th className="py-2.5 px-3">USING Expression</th>
+                      <th className="py-2.5 px-3">WITH CHECK Expression</th>
+                      <th className="py-2.5 px-3 w-20 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {rlsPolicies.map((p, i) => (
+                      <tr
+                        key={p.name}
+                        data-testid={`policy-row-${p.name}`}
+                        className={`transition-colors ${
+                          isDark
+                            ? 'hover:bg-gray-800/40 text-gray-200'
+                            : 'hover:bg-gray-50 text-gray-800 divide-gray-100'
+                        }`}
+                      >
+                        <td className="py-2 px-3 text-center text-gray-500 font-mono text-[11px]">
+                          {i + 1}
+                        </td>
+                        <td className="py-2 px-3 font-medium flex items-center space-x-1.5">
+                          <Shield className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
+                          <span className="font-mono text-xs">{p.name}</span>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-950/80 text-rose-300 border border-rose-800">
+                            {p.command}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 font-mono text-xs text-gray-300">
+                          {p.roles.join(', ') || 'PUBLIC'}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <span className="text-[11px] text-gray-400">
+                            {p.permissive ? 'PERMISSIVE' : 'RESTRICTIVE'}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 font-mono text-xs text-emerald-300/90 truncate max-w-[200px]" title={p.usingExpr}>
+                          {p.usingExpr || '-'}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-xs text-blue-300/90 truncate max-w-[200px]" title={p.checkExpr}>
+                          {p.checkExpr || '-'}
+                        </td>
+                        <td className="py-2 px-3 text-right">
+                          <button
+                            type="button"
+                            data-testid={`drop-policy-btn-${p.name}`}
+                            onClick={() => setDropPolicyTarget(p)}
+                            title="Drop Policy"
+                            className="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         ) : activeTab === 'ddl' ? (
           <div
             className={`border rounded-lg overflow-hidden shadow-sm flex flex-col ${
@@ -2845,6 +3211,241 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                   className="px-3.5 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white font-medium shadow-sm transition-colors disabled:opacity-50"
                 >
                   {submitting ? 'Dropping...' : 'Drop Constraint'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* Modal: Add RLS Policy                                                     */}
+      {/* ========================================================================= */}
+      {isAddPolicyModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+        >
+          <div
+            className={`w-full max-w-md rounded-lg shadow-xl border overflow-hidden ${
+              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
+            }`}
+          >
+            <div
+              className={`flex items-center justify-between px-4 py-3 border-b ${
+                isDark ? 'border-gray-800 bg-gray-850' : 'border-gray-200 bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Shield className="w-4 h-4 text-rose-400" />
+                <h3 className="text-sm font-semibold">Add RLS Policy to {tableName}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddPolicyModalOpen(false)}
+                className="p-1 rounded text-gray-400 hover:text-gray-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddPolicySubmit} className="p-4 space-y-3 text-xs">
+              <div>
+                <label className="block font-medium mb-1">
+                  Policy Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  data-testid="new-policy-name-input"
+                  placeholder="e.g. users_select_own, tenant_isolation"
+                  value={newPolicyName}
+                  onChange={(e) => setNewPolicyName(e.target.value)}
+                  className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-rose-500 ${
+                    isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium mb-1">Command</label>
+                  <select
+                    data-testid="new-policy-cmd-select"
+                    value={newPolicyCmd}
+                    onChange={(e) => setNewPolicyCmd(e.target.value as PolicyCommand)}
+                    className={`w-full px-2 py-1.5 rounded border text-xs outline-none focus:border-rose-500 ${
+                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                  >
+                    <option value="ALL">ALL (Select, Insert, Update, Delete)</option>
+                    <option value="SELECT">SELECT</option>
+                    <option value="INSERT">INSERT</option>
+                    <option value="UPDATE">UPDATE</option>
+                    <option value="DELETE">DELETE</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-medium mb-1">Target Roles</label>
+                  <input
+                    type="text"
+                    data-testid="new-policy-roles-input"
+                    placeholder="PUBLIC or role1, role2"
+                    value={newPolicyRoles}
+                    onChange={(e) => setNewPolicyRoles(e.target.value)}
+                    className={`w-full px-2 py-1.5 rounded border text-xs font-mono outline-none focus:border-rose-500 ${
+                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-medium mb-1">Policy Mode</label>
+                <div className="flex items-center space-x-4">
+                  <label className="inline-flex items-center space-x-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="policyPermissive"
+                      checked={newPolicyPermissive}
+                      onChange={() => setNewPolicyPermissive(true)}
+                      className="text-rose-600 focus:ring-0"
+                    />
+                    <span>PERMISSIVE (OR with other policies)</span>
+                  </label>
+                  <label className="inline-flex items-center space-x-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="policyPermissive"
+                      checked={!newPolicyPermissive}
+                      onChange={() => setNewPolicyPermissive(false)}
+                      className="text-rose-600 focus:ring-0"
+                    />
+                    <span>RESTRICTIVE (AND combined)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-medium mb-1">
+                  USING Expression (Row Visibility / Filter)
+                </label>
+                <textarea
+                  rows={2}
+                  data-testid="new-policy-using-input"
+                  placeholder="e.g. user_id = current_user_id() or role = 'admin'"
+                  value={newPolicyUsingExpr}
+                  onChange={(e) => setNewPolicyUsingExpr(e.target.value)}
+                  className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-rose-500 ${
+                    isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium mb-1">
+                  WITH CHECK Expression (Allowed Inserts & Updates)
+                </label>
+                <textarea
+                  rows={2}
+                  data-testid="new-policy-check-input"
+                  placeholder="Optional check expression for INSERT/UPDATE rows"
+                  value={newPolicyCheckExpr}
+                  onChange={(e) => setNewPolicyCheckExpr(e.target.value)}
+                  className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-rose-500 ${
+                    isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                />
+              </div>
+
+              {addPolicyPreviewSql && (
+                <div>
+                  <label className="block font-medium mb-1 text-gray-400">SQL Preview</label>
+                  <div
+                    data-testid="add-policy-preview-sql"
+                    className="p-2 rounded bg-gray-950 border border-gray-800 font-mono text-[11px] text-rose-300 select-text break-all"
+                  >
+                    {addPolicyPreviewSql}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddPolicyModalOpen(false)}
+                  className={`px-3 py-1.5 rounded transition-colors ${
+                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  data-testid="confirm-add-policy-btn"
+                  disabled={submitting || !newPolicyName.trim()}
+                  className="px-3.5 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white font-medium shadow-sm transition-colors disabled:opacity-50"
+                >
+                  {submitting ? 'Creating...' : 'Create Policy'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* Modal: Drop RLS Policy Confirmation                                       */}
+      {/* ========================================================================= */}
+      {dropPolicyTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+        >
+          <div
+            className={`w-full max-w-sm rounded-lg shadow-xl border overflow-hidden ${
+              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
+            }`}
+          >
+            <div className="p-4 space-y-3 text-xs">
+              <div className="flex items-center space-x-2 text-red-400 font-semibold text-sm">
+                <ShieldAlert className="w-5 h-5 flex-shrink-0" />
+                <h3 className="text-sm font-semibold">Drop RLS Policy</h3>
+              </div>
+
+              <p className="text-gray-300">
+                Are you sure you want to drop policy{' '}
+                <strong className="text-white font-mono bg-red-950/60 px-1 py-0.5 rounded border border-red-900/60">
+                  {dropPolicyTarget.name}
+                </strong>{' '}
+                from table <strong className="font-mono text-white">{tableName}</strong>?
+              </p>
+
+              <div className="p-2 rounded bg-gray-950 border border-gray-800 font-mono text-[11px] text-red-300">
+                {buildDropPolicySql(dropPolicyTarget.name, tableName, schemaName, driver)}
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDropPolicyTarget(null)}
+                  className={`px-3 py-1.5 rounded transition-colors ${
+                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="confirm-drop-policy-btn"
+                  onClick={handleDropPolicyConfirm}
+                  disabled={submitting}
+                  className="px-3.5 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white font-medium shadow-sm transition-colors disabled:opacity-50"
+                >
+                  {submitting ? 'Dropping...' : 'Drop Policy'}
                 </button>
               </div>
             </div>

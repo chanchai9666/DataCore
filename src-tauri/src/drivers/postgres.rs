@@ -33,6 +33,19 @@ impl PostgresConnection {
             options = options.password(pwd);
         }
 
+        if let Some(mode) = &config.ssl_mode {
+            let ssl_mode = match mode.to_lowercase().as_str() {
+                "disable" => sqlx::postgres::PgSslMode::Disable,
+                "allow" => sqlx::postgres::PgSslMode::Allow,
+                "prefer" => sqlx::postgres::PgSslMode::Prefer,
+                "require" => sqlx::postgres::PgSslMode::Require,
+                "verify-ca" => sqlx::postgres::PgSslMode::VerifyCa,
+                "verify-full" => sqlx::postgres::PgSslMode::VerifyFull,
+                _ => sqlx::postgres::PgSslMode::Prefer,
+            };
+            options = options.ssl_mode(ssl_mode);
+        }
+
         let mut conn = sqlx::PgConnection::connect_with(&options).await?;
         let backend_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid();")
             .fetch_one(&mut conn)

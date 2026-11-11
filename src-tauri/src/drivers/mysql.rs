@@ -31,6 +31,18 @@ impl MySqlConnection {
             options = options.password(pwd);
         }
 
+        if let Some(mode) = &config.ssl_mode {
+            let ssl_mode = match mode.to_lowercase().as_str() {
+                "disable" | "disabled" => sqlx::mysql::MySqlSslMode::Disabled,
+                "preferred" | "prefer" => sqlx::mysql::MySqlSslMode::Preferred,
+                "require" | "required" => sqlx::mysql::MySqlSslMode::Required,
+                "verify-ca" => sqlx::mysql::MySqlSslMode::VerifyCa,
+                "verify-full" | "verify-identity" => sqlx::mysql::MySqlSslMode::VerifyIdentity,
+                _ => sqlx::mysql::MySqlSslMode::Preferred,
+            };
+            options = options.ssl_mode(ssl_mode);
+        }
+
         let mut conn = sqlx::MySqlConnection::connect_with(&options).await?;
         let connection_id: u64 = sqlx::query_scalar("SELECT CONNECTION_ID();")
             .fetch_one(&mut conn)

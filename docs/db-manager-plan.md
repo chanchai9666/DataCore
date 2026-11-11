@@ -406,6 +406,19 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - ยกระดับ State การเปิด/ปิด Metrics, Locks, Audit Log, และ History & Snippets มาไว้ที่ระดับ App Root
   - ผู้ใช้สามารถเข้าถึงเครื่องมือสำคัญเหล่านี้ได้ทันทีที่มีการเลือกการเชื่อมต่อ (Active Connection) โดยไม่จำเป็นต้องเปิดแท็บ New Query ก่อน
 
+### Phase 27: Row-Level Security (RLS) Manager & In-Transit (TLS) and At-Rest Encryption (✅ เสร็จสมบูรณ์ - Issue #52)
+- **1. Row-Level Security (RLS) Management:**
+  - **RLS Enable/Disable Toggle:** ควบคุมสิทธิ์ความปลอดภัยระดับแถว (`ALTER TABLE ... ENABLE/DISABLE ROW LEVEL SECURITY`) ในแท็บ Security ของ TableStructureEditor
+  - **RLS Policy Manager:** ตรวจสอบรายการ Policy (Name, Command, Roles, USING Expression, WITH CHECK Expression), สร้าง Policy ใหม่ และลบ Policy (`CREATE POLICY` / `DROP POLICY`)
+- **2. In-Transit Encryption (TLS/SSL):**
+  - **Rust Backend SSL Driver Support:** รองรับ `ssl_mode` (`disable`, `prefer`, `require`, `verify-ca`, `verify-full`) บน PostgreSQL และ MySQL (`sqlx::postgres::PgSslMode`, `sqlx::mysql::MySqlSslMode`)
+  - **Connection TLS Form:** เพิ่มตัวเลือก SSL Mode พร้อมคำอธิบายความปลอดภัย
+  - **Live Connection Encryption Inspector:** หน้าจอตรวจสอบสถานะการเชื่อมต่อ TLS แบบ Real-time (Cipher Suite, TLS Protocol Version, Key Exchange Bit Strength) ผ่านคำสั่ง `pg_stat_ssl` / MySQL `Ssl_cipher`
+- **3. At-Rest Encryption (การเข้ารหัสขณะจัดเก็บ):**
+  - **Local Encrypted Vault Dashboard:** แสดงสถานะการเข้ารหัสรหัสผ่านในเครื่องด้วย AES-256-GCM (`~/.datacore/vault.enc`, file permission 0600)
+  - **Database At-Rest Encryption Status:** ตรวจสอบคุณสมบัติ Transparent Data Encryption (TDE) หรือการเข้ารหัสไฟล์ฐานข้อมูลของเซิร์ฟเวอร์
+
+
 
 
 
