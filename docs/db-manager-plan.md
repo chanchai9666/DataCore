@@ -224,7 +224,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **Cross-Database Table Copy (Navicat Data Transfer)**: คัดลอกตารางจากฐานข้อมูล A ไป B ข้ามการเชื่อมต่อและข้ามเอนจิน (SQLite, MySQL, PostgreSQL) พร้อมระบบ Auto Type Mapping และสตรีมข้อมูลผ่าน Batch INSERT ใน Rust
   - **SQL Import / Export (Navicat Standard - เสร็จสมบูรณ์)**:
     - *Export SQL:* สร้างไฟล์ Dump `.sql` เลือกได้ทั้ง Structure Only, Data Only, หรือ Structure & Data พร้อม Multi-row Batch INSERT (500–1,000 แถว)
-    - *Import SQL:* ตัวอ่านและรันคำสั่งสตรีมมิ่ง `BufReader` ใน Rust รองรับไฟล์ขนาดใหญ่ระดับหลาย GB (เพดาน RAM < 32MB) กรองและตัดทิ้งคำสั่ง `DELIMITER` ของ MySQL อัตโนมัติ ป้องกัน Syntax Error และรองรับการสั่งยกเลิก (Cancellation) เพื่อ Rollback ทันที
+    - *Import SQL:* ตัวอ่านและรันคำสั่งสตรีมมิ่ง `BufReader` ใน Rust รองรับไฟล์ขนาดใหญ่ระดับหลาย GB (เพดาน RAM < 32MB) กรองและตัดทิ้งคำสั่ง `DELIMITER` ของ MySQL อัตโนมัติ ป้องกัน Syntax Error, ป้องกันการ panic จาก byte/char slice เมื่อพบอักขระ Unicode / ภาษาไทยก่อนคอมเมนต์ (Issue #68) และรองรับการสั่งยกเลิก (Cancellation) เพื่อ Rollback ทันที
 - **การคัดลอกข้อมูลในตารางและการค้นหา In-Grid (Issue #30)**:
   - รองรับการคัดลอกข้อมูลทุกรูปแบบ: เซลล์เดี่ยว, ช่วงเซลล์ (Range), ทั้งแถว (Multi-row selection), และทั้งคอลัมน์แนวดิ่ง (Column selection)
   - เลือกว่าจะมี Headers ติดไปด้วยหรือไม่ผ่านปุ่มลัด `Cmd+Shift+C` หรือคลิกขวา Context Menu

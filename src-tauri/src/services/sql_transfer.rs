@@ -5,6 +5,63 @@ use crate::error::AppError;
 use crate::models::transfer::{SqlExportOptions, SqlExportResult, SqlImportOptions, SqlImportResult, TransferProgress};
 use crate::models::{CellValue, DatabaseDriver};
 
+/// Checks whether a statement string contains any executable SQL (i.e. not solely whitespace and comments).
+fn is_executable_sql(stmt: &str) -> bool {
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut in_backtick = false;
+    let mut in_block_comment = false;
+
+    for line in stmt.lines() {
+        let chars: Vec<char> = line.chars().collect();
+        let len = chars.len();
+        let mut i = 0;
+        while i < len {
+            let c = chars[i];
+            let next_c = if i + 1 < len { Some(chars[i + 1]) } else { None };
+
+            if in_block_comment {
+                if c == '*' && next_c == Some('/') {
+                    in_block_comment = false;
+                    i += 2;
+                    continue;
+                }
+                i += 1;
+                continue;
+            }
+
+            if !in_single_quote && !in_double_quote && !in_backtick && c == '/' && next_c == Some('*') {
+                in_block_comment = true;
+                i += 2;
+                continue;
+            }
+
+            if !in_single_quote
+                && !in_double_quote
+                && !in_backtick
+                && ((c == '-' && next_c == Some('-')) || c == '#')
+            {
+                // Remainder of line is a comment
+                break;
+            }
+
+            if c == '\'' && !in_double_quote && !in_backtick {
+                in_single_quote = !in_single_quote;
+            } else if c == '"' && !in_single_quote && !in_backtick {
+                in_double_quote = !in_double_quote;
+            } else if c == '`' && !in_single_quote && !in_double_quote {
+                in_backtick = !in_backtick;
+            }
+
+            if !c.is_whitespace() {
+                return true;
+            }
+            i += 1;
+        }
+    }
+    false
+}
+
 /// Splits SQL script text into individual executable SQL statements.
 /// Detects, tracks, and strips DELIMITER directives (e.g. `DELIMITER $$`).
 pub fn split_sql_script(content: &str) -> Vec<String> {
@@ -75,7 +132,9 @@ pub fn split_sql_script(content: &str) -> Vec<String> {
                 && ((c == '-' && next_c == Some('-')) || c == '#')
             {
                 // Line comment extends to the end of the line
-                current_stmt.push_str(&line[i..]);
+                for &ch in &chars[i..] {
+                    current_stmt.push(ch);
+                }
                 current_stmt.push('\n');
                 break;
             }
@@ -98,18 +157,16 @@ pub fn split_sql_script(content: &str) -> Vec<String> {
 
             // Check if delimiter matches at current position
             if !in_single_quote && !in_double_quote && !in_backtick && !in_block_comment {
-                let delim_len = current_delimiter.len();
-                if i + delim_len <= len {
-                    let sub: String = chars[i..i + delim_len].iter().collect();
-                    if sub == current_delimiter {
-                        let final_stmt = current_stmt.trim().to_string();
-                        if !final_stmt.is_empty() {
-                            statements.push(final_stmt);
-                        }
-                        current_stmt.clear();
-                        i += delim_len;
-                        continue;
+                let delim_chars: Vec<char> = current_delimiter.chars().collect();
+                let delim_len = delim_chars.len();
+                if i + delim_len <= len && chars[i..i + delim_len] == delim_chars[..] {
+                    let final_stmt = current_stmt.trim().to_string();
+                    if !final_stmt.is_empty() && is_executable_sql(&final_stmt) {
+                        statements.push(final_stmt);
                     }
+                    current_stmt.clear();
+                    i += delim_len;
+                    continue;
                 }
             }
 
@@ -121,7 +178,7 @@ pub fn split_sql_script(content: &str) -> Vec<String> {
     }
 
     let final_stmt = current_stmt.trim().to_string();
-    if !final_stmt.is_empty() {
+    if !final_stmt.is_empty() && is_executable_sql(&final_stmt) {
         statements.push(final_stmt);
     }
 

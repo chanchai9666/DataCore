@@ -31,6 +31,22 @@ SELECT * FROM users;
         assert_eq!(stmts[3], "SELECT * FROM users");
     }
 
+    #[test]
+    fn test_split_sql_script_with_non_ascii_and_comments() {
+        let script = r#"
+-- คอมเมนต์เริ่มต้นสคริปต์
+INSERT INTO users VALUES (1, 'สวัสดีครับ ประเทศไทย 🇹🇭'); -- คอมเมนต์ท้ายบรรทัดภาษาไทย
+INSERT INTO users VALUES (2, 'คำอธิบาย # ไม่ใช่คอมเมนต์'); # คอมเมนต์แบบแฮช
+SELECT * FROM users WHERE name = 'ทดสอบ'; -- ปิดท้าย
+"#;
+
+        let stmts = split_sql_script(script);
+        assert_eq!(stmts.len(), 3);
+        assert!(stmts[0].contains("สวัสดีครับ ประเทศไทย 🇹🇭"));
+        assert!(stmts[1].contains("คำอธิบาย # ไม่ใช่คอมเมนต์"));
+        assert!(stmts[2].contains("ทดสอบ"));
+    }
+
     #[tokio::test]
     async fn test_export_and_import_sql_sqlite() {
         let conn = SqliteConnection::open_in_memory().expect("open sqlite");
