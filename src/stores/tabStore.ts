@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Tab } from '../types/db';
 import { dbApi } from '../api/db';
 import { useStatusStore } from './statusStore';
@@ -15,98 +16,110 @@ export interface TabStoreState {
   updateTab: (tabId: string, updates: Partial<Tab>) => void;
 }
 
-export const useTabStore = create<TabStoreState>((set, get) => ({
-  tabs: [],
-  activeTabId: null,
+export const useTabStore = create<TabStoreState>()(
+  persist(
+    (set, get) => ({
+      tabs: [],
+      activeTabId: null,
 
-  openTab: (tab: Tab) => {
-    const { tabs } = get();
-    const existingIndex = tabs.findIndex((t) => t.id === tab.id);
-    if (existingIndex >= 0) {
-      set({ activeTabId: tab.id });
-      useStatusStore.getState().setActiveTabId(tab.id);
-    } else {
-      set({
-        tabs: [...tabs, tab],
-        activeTabId: tab.id,
-      });
-      useStatusStore.getState().setActiveTabId(tab.id);
+      openTab: (tab: Tab) => {
+        const { tabs } = get();
+        const existingIndex = tabs.findIndex((t) => t.id === tab.id);
+        if (existingIndex >= 0) {
+          set({ activeTabId: tab.id });
+          useStatusStore.getState().setActiveTabId(tab.id);
+        } else {
+          set({
+            tabs: [...tabs, tab],
+            activeTabId: tab.id,
+          });
+          useStatusStore.getState().setActiveTabId(tab.id);
+        }
+      },
+
+      closeTab: async (tabId: string) => {
+        try {
+          await dbApi.closeSession(tabId);
+        } catch (err) {
+          console.error(`Failed to close session for tab ${tabId}:`, err);
+        }
+
+        const { tabs, activeTabId } = get();
+        const remainingTabs = tabs.filter((t) => t.id !== tabId);
+
+        let nextActiveId = activeTabId;
+        if (activeTabId === tabId) {
+          if (remainingTabs.length > 0) {
+            const closedIndex = tabs.findIndex((t) => t.id === tabId);
+            const newIndex = Math.min(closedIndex, remainingTabs.length - 1);
+            nextActiveId = remainingTabs[newIndex].id;
+          } else {
+            nextActiveId = null;
+          }
+        }
+
+        useStatusStore.getState().removeTabStatus(tabId);
+        useStatusStore.getState().setActiveTabId(nextActiveId);
+
+        set({
+          tabs: remainingTabs,
+          activeTabId: nextActiveId,
+        });
+      },
+
+      closeTabsForConnection: async (connectionId: string) => {
+        try {
+          await dbApi.disconnectConnection(connectionId);
+        } catch (err) {
+          console.error(`Failed to disconnect sessions for connection ${connectionId}:`, err);
+        }
+
+        const { tabs, activeTabId } = get();
+        const remainingTabs = tabs.filter((t) => t.connectionId !== connectionId);
+        let nextActiveId = activeTabId;
+        if (activeTabId && !remainingTabs.some((t) => t.id === activeTabId)) {
+          nextActiveId = remainingTabs.length > 0 ? remainingTabs[0].id : null;
+        }
+
+        for (const tab of tabs.filter((t) => t.connectionId === connectionId)) {
+          useStatusStore.getState().removeTabStatus(tab.id);
+        }
+        useStatusStore.getState().setActiveTabId(nextActiveId);
+
+        set({
+          tabs: remainingTabs,
+          activeTabId: nextActiveId,
+        });
+      },
+
+      setActiveTab: (tabId: string | null) => {
+        set({ activeTabId: tabId });
+        useStatusStore.getState().setActiveTabId(tabId);
+      },
+
+      setAutoCommit: (tabId: string, autoCommit: boolean) => {
+        get().updateTab(tabId, { autoCommit });
+      },
+
+      setQueryContent: (tabId: string, queryContent: string) => {
+        get().updateTab(tabId, { queryContent });
+      },
+
+      updateTab: (tabId: string, updates: Partial<Tab>) => {
+        set((state) => ({
+          tabs: state.tabs.map((tab) =>
+            tab.id === tabId ? { ...tab, ...updates } : tab
+          ),
+        }));
+      },
+    }),
+    {
+      name: 'datacore_tabs',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        tabs: state.tabs,
+        activeTabId: state.activeTabId,
+      }),
     }
-  },
-
-  closeTab: async (tabId: string) => {
-    try {
-      await dbApi.closeSession(tabId);
-    } catch (err) {
-      console.error(`Failed to close session for tab ${tabId}:`, err);
-    }
-
-    const { tabs, activeTabId } = get();
-    const remainingTabs = tabs.filter((t) => t.id !== tabId);
-
-    let nextActiveId = activeTabId;
-    if (activeTabId === tabId) {
-      if (remainingTabs.length > 0) {
-        const closedIndex = tabs.findIndex((t) => t.id === tabId);
-        const newIndex = Math.min(closedIndex, remainingTabs.length - 1);
-        nextActiveId = remainingTabs[newIndex].id;
-      } else {
-        nextActiveId = null;
-      }
-    }
-
-    useStatusStore.getState().removeTabStatus(tabId);
-    useStatusStore.getState().setActiveTabId(nextActiveId);
-
-    set({
-      tabs: remainingTabs,
-      activeTabId: nextActiveId,
-    });
-  },
-
-  closeTabsForConnection: async (connectionId: string) => {
-    try {
-      await dbApi.disconnectConnection(connectionId);
-    } catch (err) {
-      console.error(`Failed to disconnect sessions for connection ${connectionId}:`, err);
-    }
-
-    const { tabs, activeTabId } = get();
-    const remainingTabs = tabs.filter((t) => t.connectionId !== connectionId);
-    let nextActiveId = activeTabId;
-    if (activeTabId && !remainingTabs.some((t) => t.id === activeTabId)) {
-      nextActiveId = remainingTabs.length > 0 ? remainingTabs[0].id : null;
-    }
-
-    for (const tab of tabs.filter((t) => t.connectionId === connectionId)) {
-      useStatusStore.getState().removeTabStatus(tab.id);
-    }
-    useStatusStore.getState().setActiveTabId(nextActiveId);
-
-    set({
-      tabs: remainingTabs,
-      activeTabId: nextActiveId,
-    });
-  },
-
-  setActiveTab: (tabId: string | null) => {
-    set({ activeTabId: tabId });
-    useStatusStore.getState().setActiveTabId(tabId);
-  },
-
-  setAutoCommit: (tabId: string, autoCommit: boolean) => {
-    get().updateTab(tabId, { autoCommit });
-  },
-
-  setQueryContent: (tabId: string, queryContent: string) => {
-    get().updateTab(tabId, { queryContent });
-  },
-
-  updateTab: (tabId: string, updates: Partial<Tab>) => {
-    set((state) => ({
-      tabs: state.tabs.map((tab) =>
-        tab.id === tabId ? { ...tab, ...updates } : tab
-      ),
-    }));
-  },
-}));
+  )
+);

@@ -153,4 +153,25 @@ describe('tabStore', () => {
     expect(state.tabs[0].id).toBe('tab-3');
     expect(state.activeTabId).toBe('tab-3');
   });
+
+  it('should persist tabs and activeTabId to localStorage', () => {
+    const tab: Tab = {
+      id: 'tab-persist-1',
+      connectionId: 'conn-1',
+      type: 'query',
+      title: 'Persistent Query',
+      autoCommit: true,
+      queryContent: 'SELECT * FROM persistent_table;',
+    };
+
+    useTabStore.getState().openTab(tab);
+
+    const storedRaw = localStorage.getItem('datacore_tabs');
+    expect(storedRaw).not.toBeNull();
+    const parsed = JSON.parse(storedRaw!);
+    expect(parsed.state.tabs).toHaveLength(1);
+    expect(parsed.state.tabs[0].id).toBe('tab-persist-1');
+    expect(parsed.state.tabs[0].queryContent).toBe('SELECT * FROM persistent_table;');
+    expect(parsed.state.activeTabId).toBe('tab-persist-1');
+  });
 });
