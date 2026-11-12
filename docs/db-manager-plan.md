@@ -30,8 +30,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - รองรับการกรอกรหัสผ่านโดยตรงและตัวเลือก Remember password:
   - **เมื่อเลือก Remember password:** จัดเก็บรหัสผ่านอย่างปลอดภัยใน Local Encrypted Vault เข้ารหัสด้วย AES-256-GCM ที่ `~/.datacore/vault.enc` (file permission 0600) พร้อมไฟล์กุญแจ `~/.datacore/.vault.key` **คงอยู่ข้ามการปิด-เปิดโปรแกรมและการ restart เครื่อง** โดยไม่ต้องกรอกรหัสผ่านซ้ำ ไม่มีการบันทึก Plaintext ลงไฟล์คอนฟิก และปิดการเรียกใช้งาน OS Keychain โดยสมบูรณ์เพื่อป้องกันหน้าต่างขอสิทธิ์ของระบบปฏิบัติการ
   - **เมื่อไม่เลือก Remember password:** จัดเก็บรหัสผ่านเฉพาะในหน่วยความจำ RAM (In-Memory SessionManager) ชั่วคราวระหว่างการใช้งานในระดับ Session ช่วยให้เปิดแท็บหรือคิวรีต่อเนื่องได้โดยไม่ต้องกรอกรหัสผ่านซ้ำ และจะถูกล้างทิ้งทันทีเมื่อตัดการเชื่อมต่อ (Disconnect) ปิดโปรแกรม หรือ restart เครื่อง (Issue #73) โดยไม่ล้างรหัสใน RAM ทิ้งหากผู้ใช้ไม่ได้ตั้งใจลบ
-- เลือกโหมด SSL และมีแท็บ SSH Tunnel สำหรับ remote
-- ปุ่ม Test Connection แสดงผลและเวลาตอบสนอง
+- เลือกโหมด SSL (`disable`, `prefer`, `require`, `verify-ca`, `verify-full`) พร้อมแท็บจัดการความปลอดภัยและการเชื่อมต่อขั้นสูง (Issue #78):
+  - **SSL / TLS Certificates:** กำหนดไฟล์ CA Certificate (`ca_cert_path`), Client Certificate (`client_cert_path`), และ Client Key (`client_key_path`) สำหรับการเชื่อมต่อ mutual TLS (mTLS) ไปยัง PostgreSQL และ MySQL
+  - **SSH Tunnel (Jump Host / Bastion):** รองรับการทำ SSH Tunneling ผ่าน Bastion Host ด้วยการพิสูจน์ตัวตนผ่าน Private Key (พร้อม Passphrase) หรือ Password
+  - **Advanced Configuration:** ตั้งค่า Connection Timeout (วินาที) และเปิด/ปิดระบบ Auto-reconnect เพื่อฟื้นฟูการเชื่อมต่ออัตโนมัติเมื่อเครือข่ายขัดข้อง
+- ปุ่ม Test Connection แสดงผลและเวลาตอบสนอง (latency) แบบ real-time
 
 ### 2.3 Table Designer
 
@@ -166,13 +169,13 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ---
 
-### ระดับ 2: สำหรับ Remote
+### ระดับ 2: สำหรับ Remote (เสร็จสมบูรณ์ - Issue #78)
 
-- SSL/TLS พร้อมเลือก CA / client certificate
-- SSH Tunnel (password / private key)
-- Connection timeout และ auto-reconnect
+- **SSL/TLS พร้อมเลือก CA / client certificate:** รองรับโหมด SSL หลากหลาย (`disable`, `prefer`, `require`, `verify-ca`, `verify-full`) พร้อมการกำหนด path สำหรับ CA certificate, client certificate, และ client key รองรับ mTLS บน PostgreSQL และ MySQL
+- **SSH Tunnel (password / private key):** รองรับการเชื่อมต่อผ่าน Bastion / Jump Host ด้วยการพิสูจน์ตัวตนผ่าน SSH Private Key (พร้อม Passphrase) หรือ Password
+- **Connection Timeout และ Auto-reconnect:** กำหนดเวลา timeout เป็นวินาที และเปิด/ปิดระบบ auto-reconnect อัตโนมัติเมื่อหลุดการเชื่อมต่อ
 - รองรับ connection string (เช่น `postgres://...`)
-- แสดงสถานะการเชื่อมต่อ (Ping / Active state)
+- แสดงสถานะการเชื่อมต่อ (Ping / Active state / Latency badge)
 
 ### ระดับ 3: จัดการโครงสร้าง
 

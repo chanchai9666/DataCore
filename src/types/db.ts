@@ -1,5 +1,26 @@
 export type DatabaseDriver = 'sqlite' | 'postgres' | 'mysql';
 
+export interface SshTunnelConfig {
+  enabled: boolean;
+  host?: string;
+  port?: number;
+  user?: string;
+  auth_type?: 'password' | 'key';
+  authType?: 'password' | 'key';
+  private_key_path?: string;
+  privateKeyPath?: string;
+  passphrase?: string;
+}
+
+export interface SslCertConfig {
+  ca_cert_path?: string;
+  caCertPath?: string;
+  client_cert_path?: string;
+  clientCertPath?: string;
+  client_key_path?: string;
+  clientKeyPath?: string;
+}
+
 export interface ConnectionConfig {
   id: string;
   name: string;
@@ -11,6 +32,14 @@ export interface ConnectionConfig {
   folder?: string;
   ssl_mode?: string;
   sslMode?: string;
+  ssl_certs?: SslCertConfig;
+  sslCerts?: SslCertConfig;
+  ssh_tunnel?: SshTunnelConfig;
+  sshTunnel?: SshTunnelConfig;
+  timeout_seconds?: number;
+  timeoutSeconds?: number;
+  auto_reconnect?: boolean;
+  autoReconnect?: boolean;
 }
 
 export type SchemaNodeType = 'database' | 'schema' | 'table' | 'view';

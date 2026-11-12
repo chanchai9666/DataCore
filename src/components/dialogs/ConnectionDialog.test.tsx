@@ -537,6 +537,82 @@ describe('ConnectionDialog', () => {
         );
       });
     });
+
+    it('saves connection with SSH tunnel, SSL certificates, timeout, and auto-reconnect', async () => {
+      render(<ConnectionDialog isOpen={true} onClose={onClose} />);
+
+      // Switch to PostgreSQL
+      fireEvent.click(screen.getByRole('tab', { name: /postgresql/i }));
+
+      // Fill basic info
+      fireEvent.change(screen.getByLabelText(/connection name/i), {
+        target: { value: 'Secure Prod PG' },
+      });
+      fireEvent.change(screen.getByLabelText(/database \*/i), {
+        target: { value: 'secure_prod' },
+      });
+
+      // Switch to SSL / TLS Certificates subtab
+      fireEvent.click(screen.getByRole('button', { name: /ssl \/ tls certificates/i }));
+      fireEvent.change(screen.getByLabelText(/ca certificate path/i), {
+        target: { value: '/etc/ssl/ca.pem' },
+      });
+      fireEvent.change(screen.getByLabelText(/client certificate path/i), {
+        target: { value: '/etc/ssl/client.crt' },
+      });
+      fireEvent.change(screen.getByLabelText(/client key path/i), {
+        target: { value: '/etc/ssl/client.key' },
+      });
+
+      // Switch to SSH Tunnel subtab
+      fireEvent.click(screen.getByRole('button', { name: /ssh tunnel/i }));
+      const sshToggle = screen.getByLabelText(/use ssh tunnel/i);
+      fireEvent.click(sshToggle);
+      expect(sshToggle).toBeChecked();
+
+      fireEvent.change(screen.getByLabelText(/ssh host/i), {
+        target: { value: 'jump.example.com' },
+      });
+      fireEvent.change(screen.getByLabelText(/ssh user/i), {
+        target: { value: 'bastion-user' },
+      });
+      fireEvent.change(screen.getByLabelText(/private key path/i), {
+        target: { value: '~/.ssh/id_rsa' },
+      });
+
+      // Switch to Advanced subtab
+      fireEvent.click(screen.getByRole('button', { name: /advanced/i }));
+      fireEvent.change(screen.getByLabelText(/connection timeout/i), {
+        target: { value: '30' },
+      });
+
+      // Save
+      fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(dbApi.saveConnection).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'Secure Prod PG',
+            driver: 'postgres',
+            database: 'secure_prod',
+            sslCerts: expect.objectContaining({
+              caCertPath: '/etc/ssl/ca.pem',
+              clientCertPath: '/etc/ssl/client.crt',
+              clientKeyPath: '/etc/ssl/client.key',
+            }),
+            sshTunnel: expect.objectContaining({
+              enabled: true,
+              host: 'jump.example.com',
+              user: 'bastion-user',
+              privateKeyPath: '~/.ssh/id_rsa',
+            }),
+            timeoutSeconds: 30,
+            autoReconnect: true,
+          }),
+          expect.anything()
+        );
+      });
+    });
   });
 
   describe('Close and Cancel Actions', () => {

@@ -22,9 +22,25 @@ type TestStatus =
   | { type: 'error'; message: string };
 
 function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
+  const base = {
+    caCertPath: '',
+    clientCertPath: '',
+    clientKeyPath: '',
+    sshEnabled: false,
+    sshHost: '',
+    sshPort: 22,
+    sshUser: '',
+    sshAuthType: 'key' as const,
+    sshPrivateKeyPath: '',
+    sshPassphrase: '',
+    timeoutSeconds: '',
+    autoReconnect: true,
+  };
+
   switch (driver) {
     case 'postgres':
       return {
+        ...base,
         name: '',
         driver: 'postgres',
         host: '127.0.0.1',
@@ -37,6 +53,7 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
       };
     case 'mysql':
       return {
+        ...base,
         name: '',
         driver: 'mysql',
         host: '127.0.0.1',
@@ -50,6 +67,7 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
     case 'sqlite':
     default:
       return {
+        ...base,
         name: '',
         driver: 'sqlite',
         host: '',
@@ -68,6 +86,9 @@ function initializeFormData(initial?: ConnectionConfig | null): ConnectionFormDa
     return getDefaultFormData('sqlite');
   }
 
+  const sslCerts = initial.ssl_certs || initial.sslCerts;
+  const ssh = initial.ssh_tunnel || initial.sshTunnel;
+
   return {
     name: initial.name || '',
     driver: initial.driver,
@@ -78,6 +99,18 @@ function initializeFormData(initial?: ConnectionConfig | null): ConnectionFormDa
     password: '',
     folder: initial.folder || '',
     sslMode: initial.ssl_mode || initial.sslMode || 'prefer',
+    caCertPath: sslCerts?.ca_cert_path || sslCerts?.caCertPath || '',
+    clientCertPath: sslCerts?.client_cert_path || sslCerts?.clientCertPath || '',
+    clientKeyPath: sslCerts?.client_key_path || sslCerts?.clientKeyPath || '',
+    sshEnabled: ssh?.enabled ?? false,
+    sshHost: ssh?.host || '',
+    sshPort: ssh?.port || 22,
+    sshUser: ssh?.user || '',
+    sshAuthType: (ssh?.auth_type || ssh?.authType || 'key') as 'password' | 'key',
+    sshPrivateKeyPath: ssh?.private_key_path || ssh?.privateKeyPath || '',
+    sshPassphrase: ssh?.passphrase || '',
+    timeoutSeconds: initial.timeout_seconds ?? initial.timeoutSeconds ?? '',
+    autoReconnect: initial.auto_reconnect ?? initial.autoReconnect ?? true,
   };
 }
 
@@ -182,6 +215,42 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
         ? crypto.randomUUID()
         : `conn-${Date.now()}`);
 
+    const hasSslCerts = Boolean(
+      formData.caCertPath?.trim() ||
+      formData.clientCertPath?.trim() ||
+      formData.clientKeyPath?.trim()
+    );
+
+    const sslCerts = hasSslCerts
+      ? {
+          ca_cert_path: formData.caCertPath?.trim() || undefined,
+          caCertPath: formData.caCertPath?.trim() || undefined,
+          client_cert_path: formData.clientCertPath?.trim() || undefined,
+          clientCertPath: formData.clientCertPath?.trim() || undefined,
+          client_key_path: formData.clientKeyPath?.trim() || undefined,
+          clientKeyPath: formData.clientKeyPath?.trim() || undefined,
+        }
+      : undefined;
+
+    const sshTunnel = formData.sshEnabled
+      ? {
+          enabled: true,
+          host: formData.sshHost?.trim() || undefined,
+          port: formData.sshPort ? Number(formData.sshPort) : undefined,
+          user: formData.sshUser?.trim() || undefined,
+          auth_type: formData.sshAuthType || 'key',
+          authType: formData.sshAuthType || 'key',
+          private_key_path: formData.sshPrivateKeyPath?.trim() || undefined,
+          privateKeyPath: formData.sshPrivateKeyPath?.trim() || undefined,
+          passphrase: formData.sshPassphrase || undefined,
+        }
+      : undefined;
+
+    const timeoutSeconds =
+      formData.timeoutSeconds !== undefined && formData.timeoutSeconds !== ''
+        ? Number(formData.timeoutSeconds)
+        : undefined;
+
     return {
       id,
       name: formData.name.trim() || 'Test Connection',
@@ -193,6 +262,14 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       folder: formData.folder?.trim() || undefined,
       ssl_mode: formData.driver !== 'sqlite' ? (formData.sslMode || 'prefer') : undefined,
       sslMode: formData.driver !== 'sqlite' ? (formData.sslMode || 'prefer') : undefined,
+      ssl_certs: sslCerts,
+      sslCerts,
+      ssh_tunnel: sshTunnel,
+      sshTunnel,
+      timeout_seconds: timeoutSeconds,
+      timeoutSeconds,
+      auto_reconnect: formData.autoReconnect,
+      autoReconnect: formData.autoReconnect,
     };
   };
 

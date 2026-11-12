@@ -46,7 +46,29 @@ impl PostgresConnection {
             options = options.ssl_mode(ssl_mode);
         }
 
-        let mut conn = sqlx::PgConnection::connect_with(&options).await?;
+        if let Some(ref certs) = config.ssl_certs {
+            if let Some(ref ca) = certs.ca_cert_path {
+                if !ca.trim().is_empty() {
+                    options = options.ssl_root_cert(ca);
+                }
+            }
+            if let Some(ref cert) = certs.client_cert_path {
+                if !cert.trim().is_empty() {
+                    options = options.ssl_client_cert(cert);
+                }
+            }
+            if let Some(ref key) = certs.client_key_path {
+                if !key.trim().is_empty() {
+                    options = options.ssl_client_key(key);
+                }
+            }
+        }
+
+        let timeout_secs = config.timeout_seconds.unwrap_or(15).max(1) as u64;
+        let connect_fut = sqlx::PgConnection::connect_with(&options);
+        let mut conn = tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), connect_fut)
+            .await
+            .map_err(|_| AppError::Other(format!("Connection timed out after {} seconds", timeout_secs)))??;
         let backend_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid();")
             .fetch_one(&mut conn)
             .await
