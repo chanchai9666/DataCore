@@ -71,7 +71,7 @@ export const UserPrivilegeManagerModal: React.FC<UserPrivilegeManagerModalProps>
   useEffect(() => {
     if (connections.length > 0) {
       const activeId = propConnectionId || connections[0].id;
-      setSelectedConnectionId(activeId);
+      setSelectedConnectionId((prev) => (prev !== activeId ? activeId : prev));
     }
   }, [connections, propConnectionId]);
 
@@ -84,20 +84,18 @@ export const UserPrivilegeManagerModal: React.FC<UserPrivilegeManagerModalProps>
     try {
       const data = await fetchDatabaseUsers(selectedConnectionId, currentConnection.driver);
       setUsers(data);
-      if (data.length > 0 && !selectedUser) {
-        setSelectedUser(data[0]);
-      } else if (selectedUser) {
-        // Refresh selected user
-        const updated = data.find((u) => u.name === selectedUser.name);
-        if (updated) setSelectedUser(updated);
-      }
+      setSelectedUser((prev) => {
+        if (!prev) return data[0] || null;
+        const updated = data.find((u) => u.name === prev.name);
+        return updated || data[0] || null;
+      });
     } catch (err: any) {
       console.error('Failed to load database users:', err);
       toast.error(err?.message || 'Failed to inspect database users.');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedConnectionId, currentConnection, selectedUser]);
+  }, [selectedConnectionId, currentConnection]);
 
   useEffect(() => {
     if (isOpen && selectedConnectionId) {

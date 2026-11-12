@@ -494,14 +494,15 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **4. Integrated Desktop Management Interface:**
   - เมนูเรียกใช้งานจาก Tools dropdown บน MainToolbar (`toolbar-tools-user-manager-btn`)
   - ค้นหาและกรองรายชื่อผู้ใช้งานแบบ Instant Search พร้อมแท็บแยกสัดส่วนชัดเจน: Account Attributes, Privileges & Roles, และ Security & Password
+  - ปรับปรุงเสถียรภาพ Lifecycle State Updates (Issue #62) ป้องกัน Infinite Re-render / Infinite Reload Loop ใน React Effect เมื่อโหลดข้อมูลผู้ใช้
 
 ---
 
 ## 4. สถานะภาพรวมการพัฒนา (Development Status Summary)
 - **สถานะ Phase:** ครบถ้วนสมบูรณ์ทั้ง 32 Phase (Phase 1 ถึง Phase 32)
-- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 598+ tests ผ่าน 100%
+- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 599+ tests ผ่าน 100%
   - Rust Backend Unit & Integration Tests: 35/35 passed
-  - Frontend Vitest Component & Unit Tests: 563/563 passed
+  - Frontend Vitest Component & Unit Tests: 564/564 passed
 - **ระบบความปลอดภัย (Security):**
   - Zero Plaintext Disk Storage สำหรับรหัสผ่าน (AES-256-GCM Vault)
   - TLS In-Transit Encryption รองรับระดับสูงสุด (`verify-full`)

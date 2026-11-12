@@ -87,4 +87,21 @@ describe('UserPrivilegeManagerModal', () => {
     expect(screen.queryByTestId('user-list-item-postgres')).not.toBeInTheDocument();
     expect(screen.getByTestId('user-list-item-read_only_user')).toBeInTheDocument();
   });
+
+  it('loads database users without infinite re-render loops', async () => {
+    render(
+      <UserPrivilegeManagerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        connectionId="conn_1"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('user-list-item-postgres')).toBeInTheDocument();
+    });
+
+    // In an infinite loop, fetchDatabaseUsers is called multiple times continuously
+    expect(userManagerApi.fetchDatabaseUsers).toHaveBeenCalledTimes(1);
+  });
 });
