@@ -12,7 +12,7 @@
 
 ## 📸 ภาพตัวอย่างหน้าจอ (UI Mockups)
 
-| หน้าต่างหลัก (Object Browser + Editor + Data Grid) | หน้าต่างสร้าง Connection (In-Memory Security & SSH) |
+| หน้าต่างหลัก (Object Browser + Editor + Data Grid) | หน้าต่างสร้าง Connection (Local Encrypted Vault & TLS Security) |
 |---|---|
 | ![Main Window](docs/01-main-window.png) | ![Connection Dialog](docs/02-connection-dialog.png) |
 
@@ -23,7 +23,9 @@
 ### 1. ความเร็วและสถาปัตยกรรมระดับ Native (High Performance Architecture)
 * **พัฒนาด้วย Tauri 2 + Rust + React 18:** แอปพลิเคชัน Desktop ขนาดกะทัดรัด คอมไพล์แบบ Native ARM64 เปิดโปรแกรมได้ทันใจและประหยัด RAM
 * **รองรับ 3 ฐานข้อมูลหลัก:** เชื่อมต่อและบริหารจัดการ **SQLite** (ทั้งไฟล์ดิสก์และ `:memory:`), **PostgreSQL** และ **MySQL** ได้อย่างสมบูรณ์แบบ
-* **ระบบจัดเก็บรหัสผ่านแบบ Local Encrypted Vault:** เข้ารหัสรหัสผ่านอย่างปลอดภัยด้วย **AES-256-GCM** จัดเก็บไว้ที่ `~/.datacore/vault.enc` (file permission 0600) ปลอดภัยข้ามเซสชันการเปิด-ปิดโปรแกรม ไม่บันทึก Plaintext ลงไฟล์คอนฟิก และไม่เรียกใช้ OS Keychain เพื่อหลีกเลี่ยง Authorization Popups รบกวนผู้ใช้
+* **ระบบจัดเก็บรหัสผ่านความปลอดภัยสูง (Local Encrypted Vault & Session Security):**
+  - **เมื่อเลือก Remember password:** เข้ารหัสรหัสผ่านอย่างปลอดภัยด้วย **AES-256-GCM** จัดเก็บลงดิสก์ที่ `~/.datacore/vault.enc` (file permission 0600) พร้อมกุญแจ 256-bit ที่ `~/.datacore/.vault.key` **คงอยู่ปลอดภัยข้ามการปิด-เปิดโปรแกรมและการ restart เครื่อง** โดยไม่ต้องกรอกรหัสผ่านซ้ำ ไม่มีการบันทึก Plaintext ลงไฟล์คอนฟิก และไม่เรียกใช้ OS Keychain เพื่อหลีกเลี่ยง Authorization Popups รบกวน
+  - **เมื่อไม่เลือก Remember password:** จัดเก็บรหัสผ่านเฉพาะใน RAM ชั่วคราว (In-Memory Session) และจะถูกล้างทิ้งทันทีเมื่อปิดโปรแกรมหรือ restart เครื่อง เพื่อความเป็นส่วนตัวสูงสุด
 
 ### 2. ความถูกต้องของข้อมูลและธุรกรรมระดับองค์กร (Enterprise Transactions & ACID)
 * **Dedicated Transaction Sessions ต่อแท็บ:** แต่ละแท็บ Query Editor ทำงานบน Connection Session อิสระ รองรับคำสั่ง Transaction (`BEGIN`, `COMMIT`, `ROLLBACK`), Temporary Tables และ Session Variables ได้อย่างอิสระ ไม่ปนเปื้อนข้ามแท็บ

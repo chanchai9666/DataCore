@@ -27,7 +27,9 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 ![สร้าง Connection](images/02-connection-dialog.png)
 
 - เลือกชนิดฐานข้อมูล, ใส่ host/port/user/password
-- รองรับการกรอกรหัสผ่านโดยตรงและตัวเลือก Remember password (จำรหัสผ่านข้ามเซสชันการเปิด-ปิดโปรแกรม โดยจัดเก็บใน Local Encrypted Vault ที่เข้ารหัสด้วย AES-256-GCM ที่ `~/.datacore/vault.enc` พร้อมสิทธิ์ไฟล์ 0600 โดยปิดการเรียกใช้งาน OS Keychain โดยสมบูรณ์เพื่อป้องกันหน้าต่างขอสิทธิ์ของระบบปฏิบัติการ)
+- รองรับการกรอกรหัสผ่านโดยตรงและตัวเลือก Remember password:
+  - **เมื่อเลือก Remember password:** จัดเก็บรหัสผ่านอย่างปลอดภัยใน Local Encrypted Vault เข้ารหัสด้วย AES-256-GCM ที่ `~/.datacore/vault.enc` (file permission 0600) พร้อมไฟล์กุญแจ `~/.datacore/.vault.key` **คงอยู่ข้ามการปิด-เปิดโปรแกรมและการ restart เครื่อง** โดยไม่ต้องกรอกรหัสผ่านซ้ำ ไม่มีการบันทึก Plaintext ลงไฟล์คอนฟิก และปิดการเรียกใช้งาน OS Keychain โดยสมบูรณ์เพื่อป้องกันหน้าต่างขอสิทธิ์ของระบบปฏิบัติการ
+  - **เมื่อไม่เลือก Remember password:** จัดเก็บรหัสผ่านเฉพาะในหน่วยความจำ RAM (In-Memory Session) ชั่วคราวระหว่างการใช้งาน และจะถูกล้างทิ้งทันทีเมื่อปิดโปรแกรมหรือ restart เครื่อง
 - เลือกโหมด SSL และมีแท็บ SSH Tunnel สำหรับ remote
 - ปุ่ม Test Connection แสดงผลและเวลาตอบสนอง
 
