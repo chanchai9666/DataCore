@@ -68,7 +68,9 @@ pub async fn disconnect_connection_impl(
     session_mgr: &SessionManager,
     connection_id: &str,
 ) -> Result<usize, AppError> {
-    session_mgr.close_sessions_for_connection(connection_id).await
+    let closed = session_mgr.close_sessions_for_connection(connection_id).await?;
+    crate::services::keychain::clear_mock_store();
+    Ok(closed)
 }
 
 pub async fn execute_query_impl(

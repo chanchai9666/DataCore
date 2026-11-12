@@ -420,7 +420,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **Connection TLS Form & Contract Sync (Issue #63):** เพิ่มตัวเลือก SSL Mode พร้อมคำอธิบายความปลอดภัย และ sync data contract ทั้ง `ssl_mode` และ `sslMode` (serde alias) ระหว่าง Frontend กับ Rust Backend โดยส่งค่าที่ผู้ใช้เลือกไปยัง `testConnection` และ `saveConnection` อย่างครบถ้วน
   - **Live Connection Encryption Inspector:** หน้าจอตรวจสอบสถานะการเชื่อมต่อ TLS แบบ Real-time (Cipher Suite, TLS Protocol Version, Key Exchange Bit Strength) ผ่านคำสั่ง `pg_stat_ssl` / MySQL `Ssl_cipher`
 - **3. At-Rest Encryption (การเข้ารหัสขณะจัดเก็บ):**
-  - **Local Encrypted Vault Dashboard:** แสดงสถานะการเข้ารหัสรหัสผ่านในเครื่องด้วย AES-256-GCM (`~/.datacore/vault.enc`, file permission 0600)
+  - **Local Encrypted Vault Dashboard & Machine-Bound Key (Issue #65):** แสดงสถานะการเข้ารหัสรหัสผ่านในเครื่องด้วย AES-256-GCM (`~/.datacore/vault.enc`, file permission 0600) โดยกุญแจเข้ารหัสถูก obfuscate ด้วย Machine-Derived Key (IOPlatformUUID/SHA-256) ไม่บันทึก plaintext key บนดิสก์, ตรวจสอบผลลัพธ์ของ chmod 0600 อย่างเข้มงวด และล้าง in-memory cache ใน RAM เมื่อตัดการเชื่อมต่อ
   - **Database At-Rest Encryption Status:** ตรวจสอบคุณสมบัติ Transparent Data Encryption (TDE) หรือการเข้ารหัสไฟล์ฐานข้อมูลของเซิร์ฟเวอร์
 
 ### Phase 28: Visual ER Diagram Viewer & Designer (✅ เสร็จสมบูรณ์ - Issue #57)

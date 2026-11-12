@@ -76,3 +76,28 @@ fn test_vault_persistence_across_sessions() {
     let after_clear = third_vault.get_password(conn_id).expect("retrieve after delete");
     assert_eq!(after_clear, None);
 }
+
+#[test]
+fn test_vault_key_is_machine_bound_and_not_raw_aes_key() {
+    let dir = tempdir().expect("create temp dir");
+    let vault_alpha = Vault::with_machine_id(dir.path(), "machine-alpha-1234".to_string());
+
+    vault_alpha.save_password("c1", "SecretP@ss").expect("save");
+    assert_eq!(vault_alpha.get_password("c1").unwrap().as_deref(), Some("SecretP@ss"));
+
+    // Verify .vault.key file exists and has 0o600 permissions on unix
+    let key_file = dir.path().join(".vault.key");
+    assert!(key_file.exists());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = fs::metadata(&key_file).unwrap().permissions();
+        assert_eq!(perms.mode() & 0o777, 0o600);
+    }
+
+    // Now switch to another machine ID: attempting to decrypt using vault from machine-beta must fail
+    let vault_beta = Vault::with_machine_id(dir.path(), "machine-beta-9999".to_string());
+    let result = vault_beta.get_password("c1");
+    // Due to machine key mismatch, decryption must fail
+    assert!(result.is_err(), "Vault must fail decryption when machine-derived key differs");
+}

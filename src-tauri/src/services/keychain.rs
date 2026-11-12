@@ -14,21 +14,58 @@ const NONCE_LEN: usize = 12;
 const KEY_LEN: usize = 32;
 
 #[cfg(unix)]
-fn set_secure_permissions(path: &Path) {
+fn set_secure_permissions(path: &Path) -> Result<(), AppError> {
     use std::os::unix::fs::PermissionsExt;
-    if let Ok(metadata) = fs::metadata(path) {
-        let mut perms = metadata.permissions();
-        perms.set_mode(0o600);
-        let _ = fs::set_permissions(path, perms);
-    }
+    let metadata = fs::metadata(path)?;
+    let mut perms = metadata.permissions();
+    perms.set_mode(0o600);
+    fs::set_permissions(path, perms)?;
+    Ok(())
 }
 
 #[cfg(not(unix))]
-fn set_secure_permissions(_path: &Path) {}
+fn set_secure_permissions(_path: &Path) -> Result<(), AppError> {
+    Ok(())
+}
+
+fn get_machine_identifier() -> String {
+    if let Ok(id) = std::env::var("DATACORE_MACHINE_ID") {
+        if !id.is_empty() {
+            return id;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(output) = std::process::Command::new("ioreg")
+            .args(["-rd1", "-c", "IOPlatformExpertDevice"])
+            .output()
+        {
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                for line in text.lines() {
+                    if line.contains("IOPlatformUUID") {
+                        if let Some(uuid) = line.split('=').nth(1) {
+                            let clean = uuid.trim().trim_matches('"').trim();
+                            if !clean.is_empty() {
+                                return clean.to_string();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let user = std::env::var("USER").unwrap_or_else(|_| "datacore_user".to_string());
+    let host = std::env::var("HOSTNAME").unwrap_or_else(|_| "localhost".to_string());
+    format!("{}:{}:datacore-vault-salt", user, host)
+}
 
 #[derive(Debug, Clone)]
 pub struct Vault {
     vault_dir: PathBuf,
+    machine_id: Option<String>,
     cache: Arc<RwLock<Option<HashMap<String, String>>>>,
 }
 
@@ -47,6 +84,15 @@ impl Vault {
     pub fn new<P: AsRef<Path>>(dir: P) -> Self {
         Self {
             vault_dir: dir.as_ref().to_path_buf(),
+            machine_id: None,
+            cache: Arc::new(RwLock::new(None)),
+        }
+    }
+
+    pub fn with_machine_id<P: AsRef<Path>>(dir: P, machine_id: String) -> Self {
+        Self {
+            vault_dir: dir.as_ref().to_path_buf(),
+            machine_id: Some(machine_id),
             cache: Arc::new(RwLock::new(None)),
         }
     }
@@ -61,18 +107,33 @@ impl Vault {
         }
     }
 
+    fn derive_machine_key(&self) -> [u8; KEY_LEN] {
+        use sha2::{Digest, Sha256};
+        let machine_id = self.machine_id.clone().unwrap_or_else(get_machine_identifier);
+        let mut hasher = Sha256::new();
+        hasher.update(b"datacore-machine-secret-v1:");
+        hasher.update(machine_id.as_bytes());
+        let result = hasher.finalize();
+        let mut key = [0u8; KEY_LEN];
+        key.copy_from_slice(&result);
+        key
+    }
+
     fn get_or_create_key(&self) -> Result<[u8; KEY_LEN], AppError> {
         if !self.vault_dir.exists() {
             fs::create_dir_all(&self.vault_dir)?;
-            set_secure_permissions(&self.vault_dir);
+            set_secure_permissions(&self.vault_dir)?;
         }
 
+        let mdk = self.derive_machine_key();
         let key_file = self.vault_dir.join(".vault.key");
         if key_file.exists() {
             let key_bytes = fs::read(&key_file)?;
             if key_bytes.len() == KEY_LEN {
                 let mut key = [0u8; KEY_LEN];
-                key.copy_from_slice(&key_bytes);
+                for i in 0..KEY_LEN {
+                    key[i] = key_bytes[i] ^ mdk[i];
+                }
                 return Ok(key);
             }
         }
@@ -81,11 +142,17 @@ impl Vault {
         let mut key_bytes = [0u8; KEY_LEN];
         rand::rng().fill(&mut key_bytes);
 
+        // Obfuscate with machine-derived secret before writing to disk
+        let mut obfuscated = [0u8; KEY_LEN];
+        for i in 0..KEY_LEN {
+            obfuscated[i] = key_bytes[i] ^ mdk[i];
+        }
+
         let tmp_key_file = self.vault_dir.join(".vault.key.tmp");
-        fs::write(&tmp_key_file, key_bytes)?;
-        set_secure_permissions(&tmp_key_file);
+        fs::write(&tmp_key_file, obfuscated)?;
+        set_secure_permissions(&tmp_key_file)?;
         fs::rename(&tmp_key_file, &key_file)?;
-        set_secure_permissions(&key_file);
+        set_secure_permissions(&key_file)?;
 
         Ok(key_bytes)
     }
@@ -124,7 +191,7 @@ impl Vault {
     fn save_vault_to_disk(&self, map: &HashMap<String, String>) -> Result<(), AppError> {
         if !self.vault_dir.exists() {
             fs::create_dir_all(&self.vault_dir)?;
-            set_secure_permissions(&self.vault_dir);
+            set_secure_permissions(&self.vault_dir)?;
         }
 
         let key = self.get_or_create_key()?;
@@ -150,9 +217,9 @@ impl Vault {
         let tmp_file = self.vault_dir.join("vault.enc.tmp");
 
         fs::write(&tmp_file, output)?;
-        set_secure_permissions(&tmp_file);
+        set_secure_permissions(&tmp_file)?;
         fs::rename(&tmp_file, &vault_file)?;
-        set_secure_permissions(&vault_file);
+        set_secure_permissions(&vault_file)?;
 
         Ok(())
     }
