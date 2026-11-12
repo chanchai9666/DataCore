@@ -466,8 +466,19 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - ปุ่มสั่ง Terminate Session เพื่อตัดการเชื่อมต่อและ Rollback ทรานแซกชันที่ค้างอยู่ (`pg_terminate_backend` / `KILL`) พร้อมกล่องข้อความยืนยันความปลอดภัย Native Confirmation Dialog
   - ลิ้นชัก Query Detail ด้านล่างสำหรับตรวจสอบคำสั่ง SQL ขนาดยาวแบบเต็มพร้อมปุ่ม Copy
 
-### Phase 31: Comprehensive Data Import/Export Wizard (CSV, JSON, Excel - Issue #60)
-- Wizard นำเข้าและส่งออกข้อมูลแบบทีละขั้นตอน รองรับ CSV, TSV, JSON และ Excel (.xlsx) พร้อมระบบ Auto-detect Delimiter และ Column Mapping
+### Phase 31: Comprehensive Data Import/Export Wizard (CSV, TSV, JSON - ✅ เสร็จสมบูรณ์ - Issue #60)
+- **1. Multi-Step Data Import Wizard (`DataImportWizardModal`):**
+  - **Step 1: Source File & Format:** เลือกระบบไฟล์และตรวจจับรูปแบบอัตโนมัติ (CSV, TSV, JSON Array, NDJSON) พร้อมกำหนด Delimiter และ Header Row Toggle
+  - **Step 2: Destination Table Selection:** ค้นหาและเลือกตารางเป้าหมายจาก Database/Schema หรือเลือกตารางปัจจุบัน
+  - **Step 3: Visual Column Mapping:** จับคู่ Header คอลัมน์จากไฟล์เข้ากับคอลัมน์ของฐานข้อมูล พร้อมตัวเลือกระบุ `-- Ignore Column --` และระบบ Auto-match ชื่อตรงกัน
+  - **Step 4: Preview & Error Policy:** พรีวิวข้อมูลตัวอย่าง 10 แถวแรกก่อนเริ่มนำเข้า และกำหนดนโยบายจัดการข้อผิดพลาด: Abort on Error (Rollback อัตโนมัติ) หรือ Skip Bad Rows
+  - **Step 5: Execution & Summary Progress:** แสดงหลอดความคืบหน้าแบบ Real-time รายงานจำนวนแถวที่นำเข้าสำเร็จ จำนวนแถวที่ข้าม และระยะเวลาที่ใช้
+- **2. Multi-Step Data Export Wizard (`DataExportWizardModal`):**
+  - **Step 1: Scope & Format:** เลือกขอบเขตข้อมูล (Entire Table หรือ Filtered Query Rows) และฟอร์แมตไฟล์ (CSV, TSV, JSON Array, NDJSON)
+  - **Step 2: Format Options:** ปรับแต่ง Delimiter, Header Row และโครงสร้าง JSON
+  - **Step 3: Streaming Destination & Export:** บันทึกไฟล์ผ่าน Native File Picker พร้อมสตรีมข้อมูลขนาดใหญ่และแสดงสรุปผลสำเร็จ
+- **3. Toolbar Integration:**
+  - เชื่อมต่อเมนู Import Data และ Export Data บน MainToolbar เข้าสู่ระบบ Multi-step Wizard โดยตรง สามารถเลือกตารางเป้าหมายได้แม้ยังไม่ได้เปิดแท็บตารางค้างไว้
 
 ### Phase 32: Database User & Privilege Manager (Issue #61)
 - บริหารจัดการ Database Users, Roles, รหัสผ่าน และการมอบ/เพิกถอนสิทธิ์ (GRANT / REVOKE Permissions)
@@ -475,10 +486,10 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 ---
 
 ## 4. สถานะภาพรวมการพัฒนา (Development Status Summary)
-- **สถานะ Phase:** Phase 1 ถึง Phase 30 เสร็จสมบูรณ์ และกำลังพัฒนาต่อยอด Phase 31 ถึง Phase 32 (Issue #60 - #61)
-- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 584 tests ผ่าน 100%
+- **สถานะ Phase:** Phase 1 ถึง Phase 31 เสร็จสมบูรณ์ และกำลังพัฒนาต่อยอด Phase 32 (Issue #61)
+- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 587 tests ผ่าน 100%
   - Rust Backend Unit & Integration Tests: 35/35 passed
-  - Frontend Vitest Component & Unit Tests: 549/549 passed
+  - Frontend Vitest Component & Unit Tests: 552/552 passed
 - **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 558 tests ผ่าน 100%
   - Rust Backend Unit & Integration Tests: 35/35 passed
   - Frontend Vitest Component & Unit Tests: 523/523 passed

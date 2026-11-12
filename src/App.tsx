@@ -6,8 +6,6 @@ import { DockLayout } from './components/layout/DockLayout';
 import { ConnectionDialog } from './components/dialogs/ConnectionDialog';
 import { ExportSqlModal } from './components/transfer/ExportSqlModal';
 import { ImportSqlModal } from './components/transfer/ImportSqlModal';
-import { ExportModal } from './components/transfer/ExportModal';
-import { ImportModal } from './components/transfer/ImportModal';
 import { DatabaseMetricsModal } from './components/performance/DatabaseMetricsModal';
 import { LockInspectorModal } from './components/transactions/LockInspectorModal';
 import { AuditLogDrawer } from './components/security/AuditLogDrawer';
@@ -15,11 +13,12 @@ import { ConnectionSecurityModal } from './components/security/ConnectionSecurit
 import { HistorySnippetsDrawer } from './components/editor/HistorySnippetsDrawer';
 import { SchemaDiffModal } from './components/diff/SchemaDiffModal';
 import { ActivityMonitorModal } from './components/monitor/ActivityMonitorModal';
+import { DataImportWizardModal } from './components/transfer/DataImportWizardModal';
+import { DataExportWizardModal } from './components/transfer/DataExportWizardModal';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
 import { openQueryTab, openTableListTab, openERDiagramTab } from './components/sidebar/tabHelpers';
 import { useShortcuts } from './hooks/useShortcuts';
-import { dbApi } from './api/db';
 import type { ConnectionConfig } from './types/db';
 
 export function App() {
@@ -33,11 +32,8 @@ export function App() {
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isImportSqlModalOpen, setIsImportSqlModalOpen] = useState(false);
   const [isExportSqlModalOpen, setIsExportSqlModalOpen] = useState(false);
-  const [isExportDataModalOpen, setIsExportDataModalOpen] = useState(false);
-  const [globalImportDataTarget, setGlobalImportDataTarget] = useState<{
-    tableName: string;
-    columns: { name: string; dataType: string }[];
-  } | null>(null);
+  const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
+  const [isExportWizardOpen, setIsExportWizardOpen] = useState(false);
 
   // Global Tools & Diagnostics Modals / Drawers
   const [isMetricsModalOpen, setIsMetricsModalOpen] = useState(false);
@@ -163,31 +159,11 @@ export function App() {
     }
   };
 
-  const handleImportData = async () => {
-    if (!activeConnectionId) return;
-    if (activeTab?.type === 'table' && activeTab.tableName) {
-      try {
-        const res = await dbApi.executeDirectQuery(
-          activeConnectionId,
-          `SELECT * FROM ${activeTab.tableName} LIMIT 0`
-        );
-        const cols = (res.columns || []).map((c) => ({
-          name: c.name,
-          dataType: c.data_type,
-        }));
-        setGlobalImportDataTarget({
-          tableName: activeTab.tableName,
-          columns: cols,
-        });
-      } catch {
-        setGlobalImportDataTarget({
-          tableName: activeTab.tableName,
-          columns: [],
-        });
-      }
+  const handleImportData = () => {
+    if (resolvedConnectionId) {
+      setIsImportWizardOpen(true);
     } else {
-      openTableListTab({ connectionId: activeConnectionId });
-      toast.info('Please open or right-click a table to import data into it.');
+      toast.info('Please select or connect to a database first.');
     }
   };
 
@@ -198,12 +174,10 @@ export function App() {
   };
 
   const handleExportData = () => {
-    if (!activeConnectionId) return;
-    if (activeTab?.type === 'table' && activeTab.tableName) {
-      setIsExportDataModalOpen(true);
+    if (resolvedConnectionId) {
+      setIsExportWizardOpen(true);
     } else {
-      toast.info('Please open a table tab to export its data, or export as SQL dump.');
-      setIsExportSqlModalOpen(true);
+      toast.info('Please select or connect to a database first.');
     }
   };
 
@@ -317,24 +291,26 @@ export function App() {
         />
       )}
 
-      {/* Global Export Table Data Modal */}
-      {isExportDataModalOpen && activeConnectionId && activeTab?.tableName && (
-        <ExportModal
+      {/* Global Data Import Wizard Modal */}
+      {isImportWizardOpen && resolvedConnectionId && (
+        <DataImportWizardModal
           isOpen={true}
-          connectionId={activeConnectionId}
-          tableName={activeTab.tableName}
-          onClose={() => setIsExportDataModalOpen(false)}
+          onClose={() => setIsImportWizardOpen(false)}
+          connectionId={resolvedConnectionId}
+          driver={activeConnection?.driver}
+          initialTableName={activeTab?.type === 'table' ? activeTab.tableName : undefined}
+          initialSchemaName={activeTab?.schemaName}
         />
       )}
 
-      {/* Global Import Table Data Modal */}
-      {globalImportDataTarget && activeConnectionId && (
-        <ImportModal
+      {/* Global Data Export Wizard Modal */}
+      {isExportWizardOpen && resolvedConnectionId && (
+        <DataExportWizardModal
           isOpen={true}
-          connectionId={activeConnectionId}
-          tableName={globalImportDataTarget.tableName}
-          tableColumns={globalImportDataTarget.columns}
-          onClose={() => setGlobalImportDataTarget(null)}
+          onClose={() => setIsExportWizardOpen(false)}
+          connectionId={resolvedConnectionId}
+          tableName={activeTab?.tableName || 'export_data'}
+          initialQuery={activeTab?.type === 'query' ? activeTab.queryContent : undefined}
         />
       )}
 
