@@ -187,6 +187,26 @@ export const deleteStoredPassword = async (
   });
 };
 
+export const setSessionPassword = async (
+  connectionId: string,
+  password: string
+): Promise<void> => {
+  return invoke<void>('set_session_password', {
+    connectionId,
+    connection_id: connectionId,
+    password,
+  });
+};
+
+export const clearSessionPassword = async (
+  connectionId: string
+): Promise<void> => {
+  return invoke<void>('clear_session_password', {
+    connectionId,
+    connection_id: connectionId,
+  });
+};
+
 export const getTableListMetadata = async (
   connectionId: string,
   schema?: string
@@ -237,6 +257,8 @@ export const dbApi = {
   deleteConnection,
   getStoredPassword,
   deleteStoredPassword,
+  setSessionPassword,
+  clearSessionPassword,
   openSession,
   closeSession,
   disconnectConnection,

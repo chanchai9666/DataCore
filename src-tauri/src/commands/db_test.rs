@@ -463,3 +463,57 @@ async fn test_disconnect_connection_teardown_all_sessions() {
     assert!(session_mgr.has_session("tab-2a").await);
     assert_eq!(session_mgr.active_session_count().await, 1);
 }
+
+#[tokio::test]
+async fn test_session_password_in_memory_lifecycle_without_vault() {
+    let dir = tempdir().expect("create temp dir");
+    let store_file = dir.path().join("connections.json");
+    let store = ConnectionStore::new(&store_file);
+    let session_mgr = SessionManager::new();
+
+    let config = ConnectionConfig {
+        id: "conn-no-vault".to_string(),
+        name: "No Vault Conn".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: ":memory:".to_string(),
+        user: None,
+        folder: None,
+        ssl_mode: None,
+    };
+
+    // 1. User saves connection WITHOUT remember password (stored password is None)
+    store.save_connection(&config, None).expect("save connection without vault password");
+    assert_eq!(store.get_password("conn-no-vault").unwrap(), None);
+
+    // 2. User provides password for the in-memory session (RAM only)
+    session_mgr
+        .set_session_password("conn-no-vault", "temporary_session_secret")
+        .await;
+
+    assert_eq!(
+        session_mgr.get_session_password("conn-no-vault").await,
+        Some("temporary_session_secret".to_string())
+    );
+    // Vault on disk remains completely empty
+    assert_eq!(store.get_password("conn-no-vault").unwrap(), None);
+
+    // 3. Opening session uses the in-memory RAM password
+    open_session_impl(&store, &session_mgr, "conn-no-vault", "tab-ram-1")
+        .await
+        .expect("open session with RAM password");
+
+    assert!(session_mgr.has_session("tab-ram-1").await);
+
+    // 4. Disconnecting clears the in-memory RAM password
+    disconnect_connection_impl(&session_mgr, "conn-no-vault")
+        .await
+        .expect("disconnect");
+
+    assert_eq!(
+        session_mgr.get_session_password("conn-no-vault").await,
+        None,
+        "RAM session password must be cleared on disconnect"
+    );
+}

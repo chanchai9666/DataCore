@@ -19,13 +19,33 @@ pub struct SessionEntry {
 #[derive(Clone, Default)]
 pub struct SessionManager {
     sessions: Arc<RwLock<HashMap<String, SessionEntry>>>,
+    session_passwords: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl SessionManager {
     pub fn new() -> Self {
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
+            session_passwords: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    /// Stores password temporarily in RAM for the lifetime of this session/connection
+    pub async fn set_session_password(&self, connection_id: impl Into<String>, password: impl Into<String>) {
+        let mut map = self.session_passwords.write().await;
+        map.insert(connection_id.into(), password.into());
+    }
+
+    /// Retrieves in-memory RAM password for a connection
+    pub async fn get_session_password(&self, connection_id: &str) -> Option<String> {
+        let map = self.session_passwords.read().await;
+        map.get(connection_id).cloned()
+    }
+
+    /// Clears in-memory RAM password for a connection
+    pub async fn clear_session_password(&self, connection_id: &str) {
+        let mut map = self.session_passwords.write().await;
+        map.remove(connection_id);
     }
 
     /// Factory method to create a database connection based on config and optional password
@@ -133,6 +153,7 @@ impl SessionManager {
             removed
         };
 
+        self.clear_session_password(connection_id).await;
         let count = entries_to_close.len();
         for entry in entries_to_close {
             let _ = entry.connection.rollback().await;

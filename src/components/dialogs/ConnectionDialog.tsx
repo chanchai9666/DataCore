@@ -212,6 +212,9 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
     try {
       const password = resolvePassword();
       const latency = await dbApi.testConnection(config, password);
+      if (password) {
+        await dbApi.setSessionPassword(config.id, password).catch(() => {});
+      }
       setTestStatus({ type: 'success', latency });
       toast.success(`Connection successful (${latency} ms)`);
     } catch (err: unknown) {
@@ -231,12 +234,20 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
     const config = buildConnectionConfig();
 
     try {
+      const password = resolvePassword();
       if (formData.rememberPassword === false) {
+        // User chose not to remember password on disk (Local Encrypted Vault).
+        // Remove from persistent vault storage, but keep in RAM session memory.
         await dbApi.deleteStoredPassword(config.id).catch(() => {});
         await addConnection(config, undefined);
+        if (password) {
+          await dbApi.setSessionPassword(config.id, password).catch(() => {});
+        }
       } else {
-        const password = resolvePassword();
         await addConnection(config, password);
+        if (password) {
+          await dbApi.setSessionPassword(config.id, password).catch(() => {});
+        }
       }
       toast.success(`Connection "${config.name}" saved successfully`);
       if (onSaved) {

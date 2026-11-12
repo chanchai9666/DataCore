@@ -22,6 +22,8 @@ vi.mock('../../api/db', () => ({
     deleteConnection: vi.fn(),
     getStoredPassword: vi.fn().mockResolvedValue(null),
     deleteStoredPassword: vi.fn().mockResolvedValue(undefined),
+    setSessionPassword: vi.fn().mockResolvedValue(undefined),
+    clearSessionPassword: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -499,6 +501,38 @@ describe('ConnectionDialog', () => {
           expect.objectContaining({
             id: 'conn-pg-2',
           }),
+          undefined
+        );
+      });
+    });
+
+    it('stores password in session RAM memory when remember password is unchecked', async () => {
+      const initial: ConnectionConfig = {
+        id: 'conn-pg-ram',
+        name: 'Postgres RAM Session Only',
+        driver: 'postgres',
+        host: '127.0.0.1',
+        port: 5432,
+        database: 'testdb',
+        user: 'postgres',
+      };
+
+      render(<ConnectionDialog isOpen={true} onClose={onClose} initialConnection={initial} />);
+
+      const passwordInput = screen.getByLabelText(/^password/i);
+      fireEvent.change(passwordInput, { target: { value: 'ram-secret-pass' } });
+
+      const rememberCheckbox = screen.getByLabelText(/remember password/i);
+      fireEvent.click(rememberCheckbox); // uncheck
+      expect(rememberCheckbox).not.toBeChecked();
+
+      fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(dbApi.deleteStoredPassword).toHaveBeenCalledWith('conn-pg-ram');
+        expect(dbApi.setSessionPassword).toHaveBeenCalledWith('conn-pg-ram', 'ram-secret-pass');
+        expect(dbApi.saveConnection).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'conn-pg-ram' }),
           undefined
         );
       });

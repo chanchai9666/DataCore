@@ -43,6 +43,8 @@ pub fn run() {
             commit_transaction,
             rollback_transaction,
             get_schema_tree,
+            set_session_password,
+            clear_session_password,
             preview_import_file,
             export_data,
             import_data,

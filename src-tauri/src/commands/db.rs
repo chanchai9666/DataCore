@@ -50,10 +50,30 @@ pub async fn open_session_impl(
     let config = store
         .get(connection_id)?
         .ok_or_else(|| AppError::NotFound(format!("Connection '{}' not found", connection_id)))?;
-    let password = store.get_password(connection_id)?;
+    let password = match session_mgr.get_session_password(connection_id).await {
+        Some(p) => Some(p),
+        None => store.get_password(connection_id).ok().flatten(),
+    };
     session_mgr
         .open_session(tab_id, connection_id, &config, password.as_deref())
         .await?;
+    Ok(())
+}
+
+pub async fn set_session_password_impl(
+    session_mgr: &SessionManager,
+    connection_id: &str,
+    password: &str,
+) -> Result<(), AppError> {
+    session_mgr.set_session_password(connection_id, password).await;
+    Ok(())
+}
+
+pub async fn clear_session_password_impl(
+    session_mgr: &SessionManager,
+    connection_id: &str,
+) -> Result<(), AppError> {
+    session_mgr.clear_session_password(connection_id).await;
     Ok(())
 }
 
@@ -316,6 +336,27 @@ pub async fn get_schema_tree(
     connection_id: String,
 ) -> Result<Vec<SchemaNode>, String> {
     get_schema_tree_impl(&store, &connection_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_session_password(
+    session_mgr: State<'_, SessionManager>,
+    connection_id: String,
+    password: String,
+) -> Result<(), String> {
+    set_session_password_impl(&session_mgr, &connection_id, &password)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn clear_session_password(
+    session_mgr: State<'_, SessionManager>,
+    connection_id: String,
+) -> Result<(), String> {
+    clear_session_password_impl(&session_mgr, &connection_id)
         .await
         .map_err(|e| e.to_string())
 }
