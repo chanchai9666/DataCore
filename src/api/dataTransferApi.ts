@@ -149,3 +149,10 @@ export const onTransferProgress = async (
     callback(event.payload);
   });
 };
+
+export const cancelTransfer = async (jobId: string): Promise<boolean> => {
+  return invoke<boolean>('cancel_transfer', {
+    jobId,
+    job_id: jobId,
+  });
+};

@@ -250,6 +250,15 @@ export const copyTableCrossDb = async (
   });
 };
 
+export const cancelTransfer = async (
+  jobId: string
+): Promise<boolean> => {
+  return invoke<boolean>('cancel_transfer', {
+    jobId,
+    job_id: jobId,
+  });
+};
+
 export const dbApi = {
   testConnection,
   getConnections,
@@ -275,4 +284,5 @@ export const dbApi = {
   exportSql,
   importSql,
   copyTableCrossDb,
+  cancelTransfer,
 };

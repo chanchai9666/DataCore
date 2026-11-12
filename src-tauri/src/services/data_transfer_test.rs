@@ -7,7 +7,8 @@ use crate::models::{
 };
 use crate::services::data_transfer::{
     detect_csv_delimiter, export_query_result_to_writer, generate_batch_insert_sql,
-    import_data_impl, parse_csv_preview, parse_json_preview,
+    import_data_impl, parse_csv_preview, parse_json_preview, register_cancellation_token,
+    trigger_cancellation,
 };
 
 #[test]
@@ -175,6 +176,7 @@ async fn test_import_csv_sqlite() {
         error_policy: ImportErrorPolicy::Abort,
         batch_size: Some(10),
         treat_empty_as_null: None,
+        job_id: None,
     };
 
     let result = import_data_impl(&conn, "employees", &options, "sqlite", None::<fn(TransferProgress)>)
@@ -223,6 +225,7 @@ async fn test_import_csv_skip_invalid_rows() {
         error_policy: ImportErrorPolicy::Skip,
         batch_size: Some(2),
         treat_empty_as_null: None,
+        job_id: None,
     };
 
     let result = import_data_impl(&conn, "products", &options, "sqlite", None::<fn(TransferProgress)>)
@@ -274,6 +277,7 @@ async fn test_import_json_sqlite() {
         error_policy: ImportErrorPolicy::Abort,
         batch_size: Some(10),
         treat_empty_as_null: None,
+        job_id: None,
     };
 
     let result = import_data_impl(&conn, "books", &options, "sqlite", None::<fn(TransferProgress)>)
@@ -321,6 +325,7 @@ async fn test_import_preserves_empty_string_and_leading_zeros() {
         error_policy: ImportErrorPolicy::Abort,
         batch_size: Some(10),
         treat_empty_as_null: Some(false),
+        job_id: None,
     };
 
     let result = import_data_impl(&conn, "items", &options, "sqlite", None::<fn(TransferProgress)>)
@@ -377,6 +382,7 @@ async fn test_import_abort_policy_rolls_back_and_returns_error() {
         error_policy: ImportErrorPolicy::Abort,
         batch_size: Some(10),
         treat_empty_as_null: None,
+        job_id: None,
     };
 
     let err = import_data_impl(&conn, "unique_items", &options, "sqlite", None::<fn(TransferProgress)>)
@@ -393,4 +399,56 @@ async fn test_import_abort_policy_rolls_back_and_returns_error() {
         .await
         .expect("count");
     assert_eq!(count_res.rows[0][0], CellValue::Integer(1));
+}
+
+#[tokio::test]
+async fn test_import_cancellation() {
+    let conn = SqliteConnection::open_in_memory().expect("open in-memory sqlite");
+    conn.execute_query("CREATE TABLE cancel_test (id INTEGER, name TEXT);")
+        .await
+        .expect("create table");
+
+    let mut temp_csv = NamedTempFile::new().expect("create temp file");
+    writeln!(temp_csv, "id,name").unwrap();
+    for i in 1..=50 {
+        writeln!(temp_csv, "{},Name{}", i, i).unwrap();
+    }
+    temp_csv.flush().unwrap();
+
+    let job_id = "test_cancel_job_123".to_string();
+    register_cancellation_token(&job_id);
+    // Trigger cancellation immediately before/at start of import
+    trigger_cancellation(&job_id);
+
+    let options = ImportOptions {
+        file_path: temp_csv.path().to_str().unwrap().to_string(),
+        format: TransferFormat::Csv,
+        delimiter: Some(','),
+        has_headers: true,
+        column_mappings: vec![
+            ColumnMapping {
+                source_column: "id".to_string(),
+                target_column: "id".to_string(),
+                target_type: Some("INTEGER".to_string()),
+            },
+            ColumnMapping {
+                source_column: "name".to_string(),
+                target_column: "name".to_string(),
+                target_type: Some("TEXT".to_string()),
+            },
+        ],
+        error_policy: ImportErrorPolicy::Abort,
+        batch_size: Some(5),
+        treat_empty_as_null: None,
+        job_id: Some(job_id),
+    };
+
+    let err = import_data_impl(&conn, "cancel_test", &options, "sqlite", None::<fn(TransferProgress)>)
+        .await
+        .expect_err("should cancel");
+
+    assert!(err.to_string().contains("Import cancelled by user"));
+
+    let count_res = conn.execute_query("SELECT COUNT(*) FROM cancel_test;").await.expect("count");
+    assert_eq!(count_res.rows[0][0], CellValue::Integer(0));
 }

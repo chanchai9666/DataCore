@@ -78,6 +78,8 @@ pub struct ImportOptions {
     pub batch_size: Option<usize>,
     #[serde(default)]
     pub treat_empty_as_null: Option<bool>,
+    #[serde(default)]
+    pub job_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -157,6 +159,8 @@ pub struct SqlImportOptions {
     pub file_path: String,
     #[serde(alias = "error_policy")]
     pub error_policy: String, // "abort" | "continue"
+    #[serde(default, alias = "job_id")]
+    pub job_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

@@ -4,6 +4,8 @@ use crate::drivers::DatabaseConnection;
 use crate::error::AppError;
 use crate::models::transfer::{SqlExportOptions, SqlExportResult, SqlImportOptions, SqlImportResult, TransferProgress};
 use crate::models::{CellValue, DatabaseDriver};
+use crate::services::data_transfer::is_transfer_cancelled;
+use crate::services::table_list::get_table_list_metadata_impl;
 
 /// Checks whether a statement string contains any executable SQL (i.e. not solely whitespace and comments).
 fn is_executable_sql(stmt: &str) -> bool {
@@ -245,9 +247,16 @@ pub async fn export_sql_impl(
 
     let batch_size = options.batch_size.unwrap_or(500).max(1);
     let mut total_rows = 0;
-    let total_tables = options.tables.len();
 
-    for table in &options.tables {
+    let target_tables = if options.tables.is_empty() {
+        let tables_meta = get_table_list_metadata_impl(conn, driver, options.schema.as_deref()).await?;
+        tables_meta.into_iter().map(|t| t.name).collect::<Vec<_>>()
+    } else {
+        options.tables.clone()
+    };
+    let total_tables = target_tables.len();
+
+    for table in &target_tables {
         writeln!(writer, "--")?;
         writeln!(writer, "-- Table structure and data for `{}`", table)?;
         writeln!(writer, "--\n")?;
@@ -421,7 +430,7 @@ pub async fn export_sql_impl(
     })
 }
 
-/// Reads and executes SQL script line-by-line via streaming BufReader.
+/// Reads and executes SQL script statement-by-statement via streaming BufReader.
 pub async fn import_sql_impl<F>(
     conn: &dyn DatabaseConnection,
     options: &SqlImportOptions,
@@ -438,43 +447,174 @@ where
     })?;
 
     let reader = BufReader::new(file);
-    let mut script_content = String::new();
-
-    // Stream lines into script buffer (keeping memory small for typical migration scripts)
-    for line in reader.lines() {
-        let l = line.map_err(|e| AppError::Other(format!("Failed to read SQL script line: {}", e)))?;
-        script_content.push_str(&l);
-        script_content.push('\n');
-    }
-
-    let statements = split_sql_script(&script_content);
-    let total_statements = statements.len();
+    let continue_on_error = options.error_policy.to_lowercase() == "continue";
     let mut successful_statements = 0;
     let mut failed_statements = 0;
+    let mut executed_count = 0;
 
-    let continue_on_error = options.error_policy.to_lowercase() == "continue";
+    let mut current_stmt = String::new();
+    let mut current_delimiter = ";".to_string();
 
-    for (idx, stmt) in statements.iter().enumerate() {
-        if let Some(ref cb) = on_progress {
-            cb(TransferProgress {
-                current_row: idx + 1,
-                total_rows: Some(total_statements),
-                status: format!("Executing statement {}/{}", idx + 1, total_statements),
-            });
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut in_backtick = false;
+    let mut in_block_comment = false;
+
+    let job_id = options.job_id.as_deref();
+
+    for line_res in reader.lines() {
+        let line = line_res.map_err(|e| AppError::Other(format!("Failed to read SQL script line: {}", e)))?;
+        let trimmed_line = line.trim();
+
+        // Check cancellation
+        if let Some(jid) = job_id {
+            if is_transfer_cancelled(jid) {
+                return Err(AppError::Other("SQL import cancelled by user".to_string()));
+            }
         }
 
-        match conn.execute_query(stmt).await {
-            Ok(_) => {
-                successful_statements += 1;
+        // Check for DELIMITER directive outside quotes
+        if !in_single_quote
+            && !in_double_quote
+            && !in_backtick
+            && !in_block_comment
+            && trimmed_line.to_uppercase().starts_with("DELIMITER ")
+        {
+            let parts: Vec<&str> = trimmed_line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                current_delimiter = parts[1].to_string();
             }
+            continue;
+        }
+
+        let chars: Vec<char> = line.chars().collect();
+        let len = chars.len();
+        let mut i = 0;
+
+        while i < len {
+            let c = chars[i];
+            let next_c = if i + 1 < len { Some(chars[i + 1]) } else { None };
+
+            // Handle block comment
+            if in_block_comment {
+                if c == '*' && next_c == Some('/') {
+                    in_block_comment = false;
+                    current_stmt.push(c);
+                    current_stmt.push('/');
+                    i += 2;
+                    continue;
+                }
+                current_stmt.push(c);
+                i += 1;
+                continue;
+            }
+
+            // Start block comment
+            if !in_single_quote && !in_double_quote && !in_backtick && c == '/' && next_c == Some('*') {
+                in_block_comment = true;
+                current_stmt.push(c);
+                current_stmt.push('*');
+                i += 2;
+                continue;
+            }
+
+            // Line comment (-- or #)
+            if !in_single_quote && !in_double_quote && !in_backtick {
+                if (c == '-' && next_c == Some('-')) || c == '#' {
+                    current_stmt.push_str(&line[i..]);
+                    break;
+                }
+            }
+
+            // Quotes handling
+            if c == '\'' && !in_double_quote && !in_backtick {
+                if in_single_quote && next_c == Some('\'') {
+                    current_stmt.push('\'');
+                    current_stmt.push('\'');
+                    i += 2;
+                    continue;
+                }
+                in_single_quote = !in_single_quote;
+                current_stmt.push(c);
+                i += 1;
+                continue;
+            }
+            if c == '"' && !in_single_quote && !in_backtick {
+                in_double_quote = !in_double_quote;
+                current_stmt.push(c);
+                i += 1;
+                continue;
+            }
+            if c == '`' && !in_single_quote && !in_double_quote {
+                in_backtick = !in_backtick;
+                current_stmt.push(c);
+                i += 1;
+                continue;
+            }
+
+            // Check delimiter
+            if !in_single_quote && !in_double_quote && !in_backtick && !in_block_comment {
+                let delim_len = current_delimiter.chars().count();
+                if i + delim_len <= len {
+                    let sub: String = chars[i..i + delim_len].iter().collect();
+                    if sub == current_delimiter {
+                        let stmt_to_exec = current_stmt.trim().to_string();
+                        current_stmt.clear();
+                        i += delim_len;
+
+                        if is_executable_sql(&stmt_to_exec) {
+                            executed_count += 1;
+                            if let Some(ref cb) = on_progress {
+                                cb(TransferProgress {
+                                    current_row: executed_count,
+                                    total_rows: None,
+                                    status: format!("Executing statement {}", executed_count),
+                                });
+                            }
+
+                            match conn.execute_query(&stmt_to_exec).await {
+                                Ok(_) => successful_statements += 1,
+                                Err(e) => {
+                                    failed_statements += 1;
+                                    if !continue_on_error {
+                                        return Err(AppError::Other(format!(
+                                            "SQL Import failed at statement {}: {}\nStatement: {}",
+                                            executed_count, e, stmt_to_exec
+                                        )));
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            current_stmt.push(c);
+            i += 1;
+        }
+        current_stmt.push('\n');
+    }
+
+    // Trailing statement
+    let trailing = current_stmt.trim().to_string();
+    if is_executable_sql(&trailing) {
+        executed_count += 1;
+        if let Some(ref cb) = on_progress {
+            cb(TransferProgress {
+                current_row: executed_count,
+                total_rows: None,
+                status: format!("Executing statement {}", executed_count),
+            });
+        }
+        match conn.execute_query(&trailing).await {
+            Ok(_) => successful_statements += 1,
             Err(e) => {
                 failed_statements += 1;
                 if !continue_on_error {
                     return Err(AppError::Other(format!(
                         "SQL Import failed at statement {}: {}\nStatement: {}",
-                        idx + 1,
-                        e,
-                        stmt
+                        executed_count, e, trailing
                     )));
                 }
             }
@@ -482,7 +622,7 @@ where
     }
 
     Ok(SqlImportResult {
-        total_statements,
+        total_statements: executed_count,
         successful_statements,
         failed_statements,
     })

@@ -43,7 +43,15 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
 
       setLoading(true);
 
-      const tables = tableName ? [tableName] : [];
+      let tables = tableName ? [tableName] : [];
+      if (tables.length === 0) {
+        try {
+          const allMeta = await dbApi.getTableListMetadata(connectionId, schemaName);
+          tables = allMeta.map((t) => t.name);
+        } catch {
+          // Fallback handled automatically by backend if tables array is empty
+        }
+      }
 
       const result = await dbApi.exportSql({
         connectionId,

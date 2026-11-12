@@ -10,6 +10,7 @@ use crate::models::transfer::{
 use crate::services::connection_store::ConnectionStore;
 use crate::services::data_transfer::{
     export_data_impl, import_data_impl, preview_import_file_impl,
+    register_cancellation_token, trigger_cancellation,
 };
 use crate::services::table_list::get_table_list_metadata_impl;
 use crate::services::duplicate_table::duplicate_table_impl;
@@ -94,6 +95,10 @@ pub async fn import_data(
         let _ = app.emit("transfer://progress", progress);
     };
 
+    if let Some(ref jid) = options.job_id {
+        register_cancellation_token(jid);
+    }
+
     import_data_impl(
         conn.as_ref(),
         &table,
@@ -162,9 +167,18 @@ pub async fn import_sql(
         let _ = app.emit("transfer://progress", progress);
     };
 
+    if let Some(ref jid) = options.job_id {
+        register_cancellation_token(jid);
+    }
+
     import_sql_impl(conn.as_ref(), &options, Some(on_progress))
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn cancel_transfer(job_id: String) -> Result<bool, String> {
+    Ok(trigger_cancellation(&job_id))
 }
 
 #[tauri::command]

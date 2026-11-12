@@ -2,6 +2,8 @@ use std::collections::{BTreeSet, HashMap};
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use crate::drivers::DatabaseConnection;
@@ -10,6 +12,43 @@ use crate::models::{
     CellValue, ExportOptions, ExportResult, ImportErrorPolicy, ImportOptions, ImportPreview,
     ImportResult, JsonStructure, QueryResult, TransferFormat, TransferProgress,
 };
+
+static CANCELLATION_REGISTRY: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new();
+
+fn get_cancellation_registry() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
+    CANCELLATION_REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+pub fn register_cancellation_token(job_id: &str) -> Arc<AtomicBool> {
+    let mut map = get_cancellation_registry().lock().unwrap();
+    let token = Arc::new(AtomicBool::new(false));
+    map.insert(job_id.to_string(), token.clone());
+    token
+}
+
+pub fn trigger_cancellation(job_id: &str) -> bool {
+    let map = get_cancellation_registry().lock().unwrap();
+    if let Some(token) = map.get(job_id) {
+        token.store(true, Ordering::SeqCst);
+        true
+    } else {
+        false
+    }
+}
+
+pub fn is_transfer_cancelled(job_id: &str) -> bool {
+    let map = get_cancellation_registry().lock().unwrap();
+    if let Some(token) = map.get(job_id) {
+        token.load(Ordering::SeqCst)
+    } else {
+        false
+    }
+}
+
+pub fn remove_cancellation_token(job_id: &str) {
+    let mut map = get_cancellation_registry().lock().unwrap();
+    map.remove(job_id);
+}
 
 /// Detects the most likely CSV delimiter (',', ';', '\t') from a sample text.
 pub fn detect_csv_delimiter(sample: &str) -> char {
@@ -600,6 +639,63 @@ pub async fn export_data_impl(
     })
 }
 
+async fn execute_import_chunk(
+    conn: &dyn DatabaseConnection,
+    table: &str,
+    target_columns: &[String],
+    target_types: &[Option<String>],
+    chunk: &[Vec<String>],
+    treat_empty_as_null: bool,
+    dialect: &str,
+    error_policy: ImportErrorPolicy,
+) -> Result<(usize, usize), AppError> {
+    let batch_sql = generate_batch_insert_sql_with_options(
+        table,
+        target_columns,
+        target_types,
+        chunk,
+        treat_empty_as_null,
+        dialect,
+    );
+    let exec_result = conn.execute_query(&batch_sql).await;
+
+    match exec_result {
+        Ok(_) => Ok((chunk.len(), 0)),
+        Err(e) => {
+            if error_policy == ImportErrorPolicy::Abort {
+                let rollback_res = conn.execute_query("ROLLBACK").await;
+                let rollback_msg = match rollback_res {
+                    Ok(_) => "Transaction rolled back successfully.".to_string(),
+                    Err(rb_err) => format!("Rollback also failed: {}.", rb_err),
+                };
+                Err(AppError::Other(format!(
+                    "Import failed during batch: {}. {}",
+                    e, rollback_msg
+                )))
+            } else {
+                let mut imported = 0;
+                let mut skipped = 0;
+                for row in chunk {
+                    let single_sql = generate_batch_insert_sql_with_options(
+                        table,
+                        target_columns,
+                        target_types,
+                        std::slice::from_ref(row),
+                        treat_empty_as_null,
+                        dialect,
+                    );
+                    if conn.execute_query(&single_sql).await.is_ok() {
+                        imported += 1;
+                    } else {
+                        skipped += 1;
+                    }
+                }
+                Ok((imported, skipped))
+            }
+        }
+    }
+}
+
 /// Streams and imports data from a CSV or JSON file into the database.
 pub async fn import_data_impl<F>(
     conn: &dyn DatabaseConnection,
@@ -617,18 +713,6 @@ where
         return Err(AppError::NotFound(format!("Import file '{}' not found", options.file_path)));
     }
 
-    let file = File::open(path)
-        .map_err(|e| AppError::Other(format!("Failed to open file: {}", e)))?;
-
-    let batch_size = options.batch_size.unwrap_or(500).clamp(1, 2000);
-
-    // Extract raw rows mapped to target columns
-    let mapped_rows = match options.format {
-        TransferFormat::Csv => read_mapped_csv_rows(file, options)?,
-        TransferFormat::Json => read_mapped_json_rows(file, options)?,
-    };
-
-    let total_rows = mapped_rows.len();
     let target_columns: Vec<String> = options
         .column_mappings
         .iter()
@@ -645,14 +729,20 @@ where
         return Err(AppError::Other("No column mappings provided".to_string()));
     }
 
-    if mapped_rows.is_empty() {
-        return Ok(ImportResult {
-            total_rows: 0,
-            imported_rows: 0,
-            skipped_rows: 0,
-            elapsed_ms: start_time.elapsed().as_millis() as u64,
-        });
-    }
+    let file = File::open(path)
+        .map_err(|e| AppError::Other(format!("Failed to open file: {}", e)))?;
+
+    let batch_size = options.batch_size.unwrap_or(500).clamp(1, 2000);
+    let job_id = options.job_id.as_deref();
+
+    let check_cancelled = |jid: Option<&str>| -> Result<(), AppError> {
+        if let Some(id) = jid {
+            if is_transfer_cancelled(id) {
+                return Err(AppError::Other("Import cancelled by user".to_string()));
+            }
+        }
+        Ok(())
+    };
 
     // Handle atomic transaction if policy is Abort
     if options.error_policy == ImportErrorPolicy::Abort {
@@ -664,62 +754,234 @@ where
     let mut imported_rows = 0;
     let mut skipped_rows = 0;
 
-    for chunk in mapped_rows.chunks(batch_size) {
-        let batch_sql = generate_batch_insert_sql_with_options(
-            table,
-            &target_columns,
-            &target_types,
-            chunk,
-            treat_empty_as_null,
-            dialect,
-        );
-        let exec_result = conn.execute_query(&batch_sql).await;
+    if options.format == TransferFormat::Csv {
+        let delim = options.delimiter.unwrap_or(',');
+        let mut csv_reader = csv::ReaderBuilder::new()
+            .delimiter(delim as u8)
+            .has_headers(options.has_headers)
+            .flexible(true)
+            .from_reader(file);
 
-        match exec_result {
-            Ok(_) => {
-                imported_rows += chunk.len();
+        let mut col_index_map: HashMap<String, usize> = HashMap::new();
+        if options.has_headers {
+            let headers = csv_reader
+                .headers()
+                .map_err(|e| AppError::Other(format!("Failed to read CSV headers: {}", e)))?;
+            for (idx, name) in headers.iter().enumerate() {
+                col_index_map.insert(name.trim().to_string(), idx);
             }
-            Err(e) => {
+        }
+
+        let mut current_chunk: Vec<Vec<String>> = Vec::with_capacity(batch_size);
+
+        for result in csv_reader.records() {
+            if let Err(err) = check_cancelled(job_id) {
                 if options.error_policy == ImportErrorPolicy::Abort {
-                    let rollback_res = conn.execute_query("ROLLBACK").await;
-                    let rollback_msg = match rollback_res {
-                        Ok(_) => "Transaction rolled back successfully.".to_string(),
-                        Err(rb_err) => format!("Rollback also failed: {}.", rb_err),
-                    };
-                    return Err(AppError::Other(format!(
-                        "Import failed during batch: {}. {}",
-                        e, rollback_msg
-                    )));
+                    let _ = conn.execute_query("ROLLBACK").await;
+                }
+                return Err(err);
+            }
+
+            let record = result.map_err(|e| AppError::Other(format!("CSV read error: {}", e)))?;
+            let mut row = Vec::with_capacity(options.column_mappings.len());
+            for mapping in &options.column_mappings {
+                let val = if options.has_headers {
+                    col_index_map
+                        .get(&mapping.source_column)
+                        .and_then(|&idx| record.get(idx))
+                        .unwrap_or("")
                 } else {
-                    // Skip invalid rows policy: fallback to row-by-row insert for this chunk
-                    for row in chunk {
-                        let single_sql = generate_batch_insert_sql_with_options(
-                            table,
-                            &target_columns,
-                            &target_types,
-                            std::slice::from_ref(row),
-                            treat_empty_as_null,
-                            dialect,
-                        );
-                        if conn.execute_query(&single_sql).await.is_ok() {
-                            imported_rows += 1;
-                        } else {
-                            skipped_rows += 1;
-                        }
-                    }
+                    mapping
+                        .source_column
+                        .parse::<usize>()
+                        .ok()
+                        .and_then(|idx| record.get(idx))
+                        .unwrap_or("")
+                };
+                row.push(val.trim().to_string());
+            }
+            current_chunk.push(row);
+
+            if current_chunk.len() >= batch_size {
+                let (imp, skp) = execute_import_chunk(
+                    conn,
+                    table,
+                    &target_columns,
+                    &target_types,
+                    &current_chunk,
+                    treat_empty_as_null,
+                    dialect,
+                    options.error_policy,
+                ).await?;
+                imported_rows += imp;
+                skipped_rows += skp;
+                current_chunk.clear();
+
+                if let Some(ref progress_cb) = on_progress {
+                    progress_cb(TransferProgress {
+                        current_row: imported_rows + skipped_rows,
+                        total_rows: None,
+                        status: "importing".to_string(),
+                    });
                 }
             }
         }
 
-        if let Some(ref progress_cb) = on_progress {
-            progress_cb(TransferProgress {
-                current_row: imported_rows + skipped_rows,
-                total_rows: Some(total_rows),
-                status: "importing".to_string(),
-            });
+        if !current_chunk.is_empty() {
+            let (imp, skp) = execute_import_chunk(
+                conn,
+                table,
+                &target_columns,
+                &target_types,
+                &current_chunk,
+                treat_empty_as_null,
+                dialect,
+                options.error_policy,
+            ).await?;
+            imported_rows += imp;
+            skipped_rows += skp;
+            current_chunk.clear();
+        }
+    } else {
+        let mut buf_reader = BufReader::new(file);
+        let mut prefix_bytes = Vec::new();
+        let mut first_non_ws = None;
+        let mut byte_buf = [0u8; 1];
+
+        while buf_reader.read_exact(&mut byte_buf).is_ok() {
+            prefix_bytes.push(byte_buf[0]);
+            if !byte_buf[0].is_ascii_whitespace() {
+                first_non_ws = Some(byte_buf[0]);
+                break;
+            }
+        }
+
+        if let Some(first_char) = first_non_ws {
+            let is_array = first_char == b'[';
+            let full_reader = std::io::Cursor::new(prefix_bytes).chain(buf_reader);
+            let mut current_chunk: Vec<Vec<String>> = Vec::with_capacity(batch_size);
+
+            if is_array {
+                let val: serde_json::Value = serde_json::from_reader(full_reader)
+                    .map_err(|e| AppError::Other(format!("Invalid JSON array: {}", e)))?;
+                if let serde_json::Value::Array(items) = val {
+                    for item in items {
+                        if let Err(err) = check_cancelled(job_id) {
+                            if options.error_policy == ImportErrorPolicy::Abort {
+                                let _ = conn.execute_query("ROLLBACK").await;
+                            }
+                            return Err(err);
+                        }
+                        if let serde_json::Value::Object(map) = item {
+                            let mut row = Vec::with_capacity(options.column_mappings.len());
+                            for mapping in &options.column_mappings {
+                                let val_str = match map.get(&mapping.source_column) {
+                                    Some(serde_json::Value::Null) | None => String::new(),
+                                    Some(serde_json::Value::String(s)) => s.clone(),
+                                    Some(other) => other.to_string(),
+                                };
+                                row.push(val_str);
+                            }
+                            current_chunk.push(row);
+
+                            if current_chunk.len() >= batch_size {
+                                let (imp, skp) = execute_import_chunk(
+                                    conn,
+                                    table,
+                                    &target_columns,
+                                    &target_types,
+                                    &current_chunk,
+                                    treat_empty_as_null,
+                                    dialect,
+                                    options.error_policy,
+                                ).await?;
+                                imported_rows += imp;
+                                skipped_rows += skp;
+                                current_chunk.clear();
+
+                                if let Some(ref progress_cb) = on_progress {
+                                    progress_cb(TransferProgress {
+                                        current_row: imported_rows + skipped_rows,
+                                        total_rows: None,
+                                        status: "importing".to_string(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                let lines_reader = BufReader::new(full_reader);
+                for line_res in lines_reader.lines() {
+                    if let Err(err) = check_cancelled(job_id) {
+                        if options.error_policy == ImportErrorPolicy::Abort {
+                            let _ = conn.execute_query("ROLLBACK").await;
+                        }
+                        return Err(err);
+                    }
+                    let line = line_res.map_err(|e| AppError::Other(e.to_string()))?;
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    if let Ok(serde_json::Value::Object(map)) = serde_json::from_str(trimmed) {
+                        let mut row = Vec::with_capacity(options.column_mappings.len());
+                        for mapping in &options.column_mappings {
+                            let val_str = match map.get(&mapping.source_column) {
+                                Some(serde_json::Value::Null) | None => String::new(),
+                                Some(serde_json::Value::String(s)) => s.clone(),
+                                Some(other) => other.to_string(),
+                            };
+                            row.push(val_str);
+                        }
+                        current_chunk.push(row);
+
+                        if current_chunk.len() >= batch_size {
+                            let (imp, skp) = execute_import_chunk(
+                                conn,
+                                table,
+                                &target_columns,
+                                &target_types,
+                                &current_chunk,
+                                treat_empty_as_null,
+                                dialect,
+                                options.error_policy,
+                            ).await?;
+                            imported_rows += imp;
+                            skipped_rows += skp;
+                            current_chunk.clear();
+
+                            if let Some(ref progress_cb) = on_progress {
+                                progress_cb(TransferProgress {
+                                    current_row: imported_rows + skipped_rows,
+                                    total_rows: None,
+                                    status: "importing".to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !current_chunk.is_empty() {
+                let (imp, skp) = execute_import_chunk(
+                    conn,
+                    table,
+                    &target_columns,
+                    &target_types,
+                    &current_chunk,
+                    treat_empty_as_null,
+                    dialect,
+                    options.error_policy,
+                ).await?;
+                imported_rows += imp;
+                skipped_rows += skp;
+                current_chunk.clear();
+            }
         }
     }
 
+    let total_rows = imported_rows + skipped_rows;
     if options.error_policy == ImportErrorPolicy::Abort {
         conn.execute_query("COMMIT")
             .await
@@ -734,6 +996,10 @@ where
         });
     }
 
+    if let Some(ref jid) = options.job_id {
+        remove_cancellation_token(jid);
+    }
+
     Ok(ImportResult {
         total_rows,
         imported_rows,
@@ -742,6 +1008,7 @@ where
     })
 }
 
+#[allow(dead_code)]
 fn read_mapped_csv_rows<R: Read>(
     reader: R,
     options: &ImportOptions,
@@ -793,6 +1060,7 @@ fn read_mapped_csv_rows<R: Read>(
     Ok(rows)
 }
 
+#[allow(dead_code)]
 fn read_mapped_json_rows<R: Read>(
     reader: R,
     options: &ImportOptions,

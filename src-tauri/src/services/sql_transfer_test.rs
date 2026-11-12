@@ -95,6 +95,7 @@ SELECT * FROM users WHERE name = 'ทดสอบ'; -- ปิดท้าย
             schema: None,
             file_path: dump_file_str.clone(),
             error_policy: "abort".to_string(),
+            job_id: None,
         };
 
         let import_res = import_sql_impl(&conn2, &import_opts, None::<fn(_)>)
@@ -112,6 +113,44 @@ SELECT * FROM users WHERE name = 'ทดสอบ'; -- ปิดท้าย
         assert_eq!(res.rows[0][0], CellValue::Integer(2));
 
         // Clean up temp file
+        let _ = std::fs::remove_file(dump_path);
+    }
+
+    #[tokio::test]
+    async fn test_export_sql_empty_tables_exports_all_tables() {
+        let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+
+        conn.execute_query("CREATE TABLE t1 (id INT);").await.expect("create t1");
+        conn.execute_query("CREATE TABLE t2 (id INT);").await.expect("create t2");
+        conn.execute_query("INSERT INTO t1 VALUES (1), (2);").await.expect("insert t1");
+        conn.execute_query("INSERT INTO t2 VALUES (10);").await.expect("insert t2");
+
+        let temp_dir = std::env::temp_dir();
+        let dump_path = temp_dir.join(format!("datacore_dump_all_{}.sql", uuid::Uuid::new_v4()));
+        let dump_file_str = dump_path.to_str().unwrap().to_string();
+
+        let export_opts = SqlExportOptions {
+            connection_id: "test".to_string(),
+            schema: None,
+            tables: vec![], // Empty tables should fallback to all tables
+            file_path: dump_file_str.clone(),
+            include_drop_table: true,
+            include_structure: true,
+            include_data: true,
+            batch_size: Some(500),
+        };
+
+        let export_res = export_sql_impl(&conn, DatabaseDriver::Sqlite, &export_opts)
+            .await
+            .expect("export sql");
+
+        assert_eq!(export_res.total_tables, 2);
+        assert_eq!(export_res.total_rows, 3);
+
+        let content = std::fs::read_to_string(&dump_path).expect("read dump");
+        assert!(content.contains("Table structure and data for `t1`"));
+        assert!(content.contains("Table structure and data for `t2`"));
+
         let _ = std::fs::remove_file(dump_path);
     }
 }

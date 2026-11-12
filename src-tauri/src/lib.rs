@@ -53,6 +53,7 @@ pub fn run() {
             export_sql,
             import_sql,
             copy_table_cross_db,
+            cancel_transfer,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

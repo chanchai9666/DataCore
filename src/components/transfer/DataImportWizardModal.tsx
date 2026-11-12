@@ -17,6 +17,7 @@ import {
   importData,
   pickImportFile,
   onTransferProgress,
+  cancelTransfer,
 } from '../../api/dataTransferApi';
 import { dbApi } from '../../api/db';
 import { formatCellValue } from '../../types/db';
@@ -74,6 +75,8 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
 
   // Step 5: Execution & Progress
   const [isImporting, setIsImporting] = useState<boolean>(false);
+  const [isCancelling, setIsCancelling] = useState<boolean>(false);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [progress, setProgress] = useState<TransferProgress | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
 
@@ -248,9 +251,26 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
     }
   };
 
+  const handleCancelOrClose = async () => {
+    if (isImporting && currentJobId && !isCancelling) {
+      setIsCancelling(true);
+      toast.info('Cancelling import...');
+      try {
+        await cancelTransfer(currentJobId);
+      } catch (e) {
+        console.error('Failed to cancel import:', e);
+      }
+      return;
+    }
+    onClose();
+  };
+
   const handleStartImport = async () => {
     if (!filePath || !targetTable) return;
 
+    const jobId = `import_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    setCurrentJobId(jobId);
+    setIsCancelling(false);
     setCurrentStep(5);
     setIsImporting(true);
     setProgress(null);
@@ -271,6 +291,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
       column_mappings,
       error_policy: errorPolicy,
       batch_size: batchSize,
+      job_id: jobId,
     };
 
     let unlisten: (() => void) | undefined;
@@ -285,15 +306,22 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
       onImportSuccess?.();
     } catch (err: any) {
       console.error('Import failed:', err);
-      toast.error(`Import failed: ${err?.message || 'Unknown error'}`);
+      const msg = err?.message || String(err);
+      if (msg.includes('cancelled')) {
+        toast.info('Import cancelled by user.');
+      } else {
+        toast.error(`Import failed: ${msg}`);
+      }
     } finally {
       setIsImporting(false);
+      setIsCancelling(false);
+      setCurrentJobId(null);
       if (unlisten) unlisten();
     }
   };
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleCancelOrClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-in fade-in duration-100" />
         <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-3xl h-[78vh] bg-panel border border-line rounded-xl shadow-2xl flex flex-col overflow-hidden z-50 text-text">
@@ -313,6 +341,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
             <Dialog.Close asChild>
               <button
                 type="button"
+                onClick={handleCancelOrClose}
                 className="p-1 rounded text-muted hover:text-text hover:bg-white/10 transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -676,9 +705,15 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                   <>
                     <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto" />
                     <div>
-                      <h4 className="text-sm font-semibold text-text">Importing Data...</h4>
+                      <h4 className="text-sm font-semibold text-text">
+                        {isCancelling ? 'Cancelling Import...' : 'Importing Data...'}
+                      </h4>
                       <p className="text-xs text-muted mt-1">
-                        {progress ? `${progress.status} (Row ${progress.current_row})` : 'Streaming rows into database...'}
+                        {isCancelling
+                          ? 'Aborting batches and rolling back transaction...'
+                          : progress
+                          ? `${progress.status} (Row ${progress.current_row})`
+                          : 'Streaming rows into database...'}
                       </p>
                     </div>
                   </>
@@ -730,10 +765,11 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-3.5 py-1.5 rounded border border-line hover:bg-white/10 text-muted hover:text-text font-medium transition-colors"
+                onClick={handleCancelOrClose}
+                disabled={isCancelling}
+                className="px-3.5 py-1.5 rounded border border-line hover:bg-white/10 text-muted hover:text-text font-medium transition-colors disabled:opacity-50"
               >
-                {currentStep === 5 ? 'Close' : 'Cancel'}
+                {isCancelling ? 'Cancelling...' : isImporting ? 'Cancel Import' : currentStep === 5 ? 'Close' : 'Cancel'}
               </button>
 
               {currentStep < 4 && (

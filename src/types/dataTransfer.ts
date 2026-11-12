@@ -39,6 +39,7 @@ export interface ImportOptions {
   error_policy: ImportErrorPolicy;
   batch_size?: number;
   treat_empty_as_null?: boolean;
+  job_id?: string;
 }
 
 export interface ImportResult {
@@ -90,6 +91,7 @@ export interface SqlImportOptions {
   schema?: string;
   filePath: string;
   errorPolicy: 'abort' | 'continue';
+  job_id?: string;
 }
 
 export interface SqlExportResult {
