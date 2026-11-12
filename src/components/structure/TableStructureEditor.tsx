@@ -669,11 +669,17 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         foreignColumns: [newFkForeignCol.trim()],
         onDelete: newFkOnDelete,
         onUpdate: newFkOnUpdate,
+        existingColumns: columns.map((c) => ({
+          name: c.name,
+          type: c.dataType,
+          nullable: c.isNullable,
+          isPrimaryKey: c.isPrimaryKey,
+        })),
       });
     } catch {
       return '';
     }
-  }, [driver, tableName, schemaName, newFkName, newFkCol, newFkForeignTable, newFkForeignCol, newFkOnDelete, newFkOnUpdate]);
+  }, [driver, tableName, schemaName, newFkName, newFkCol, newFkForeignTable, newFkForeignCol, newFkOnDelete, newFkOnUpdate, columns]);
 
   // Handle Add Foreign Key
   const handleAddFkSubmit = async (e: React.FormEvent) => {
@@ -692,6 +698,12 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         foreignColumns: [newFkForeignCol.trim()],
         onDelete: newFkOnDelete,
         onUpdate: newFkOnUpdate,
+        existingColumns: columns.map((c) => ({
+          name: c.name,
+          type: c.dataType,
+          nullable: c.isNullable,
+          isPrimaryKey: c.isPrimaryKey,
+        })),
       });
 
       await dbApi.executeQuery(tabId, sql);
@@ -723,6 +735,13 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         tableName,
         schemaName,
         constraintName: dropFkTarget.name,
+        existingColumns: columns.map((c) => ({
+          name: c.name,
+          type: c.dataType,
+          nullable: c.isNullable,
+          isPrimaryKey: c.isPrimaryKey,
+        })),
+        remainingForeignKeys: foreignKeys.filter((fk) => fk.name !== dropFkTarget.name),
       });
       await dbApi.executeQuery(tabId, sql);
       setDropFkTarget(null);
@@ -2806,6 +2825,11 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             </div>
 
             <form onSubmit={handleAddFkSubmit} className="p-4 space-y-3.5 text-xs">
+              {driver?.toLowerCase().includes('sqlite') && (
+                <div data-testid="sqlite-fk-rebuild-notice" className="p-2.5 rounded bg-blue-950/40 border border-blue-800 text-[11px] text-blue-200">
+                  ℹ️ <strong>SQLite Table Rebuild:</strong> SQLite does not support <code className="font-mono">ALTER TABLE ADD CONSTRAINT</code>. A safe table rebuild migration will be executed to recreate the table with the new foreign key.
+                </div>
+              )}
               <div>
                 <label className="block font-medium mb-1">Constraint Name</label>
                 <input

@@ -611,6 +611,25 @@ export interface TableForeignKeyStructure {
   onDelete?: string;
 }
 
+export interface ExistingColumnDef {
+  name: string;
+  type?: string;
+  nullable?: boolean;
+  isPrimaryKey?: boolean;
+}
+
+export interface ExistingForeignKeyDef {
+  name: string;
+  columnNames?: string[];
+  columns?: string[];
+  foreignTableName?: string;
+  foreignTable?: string;
+  foreignColumnNames?: string[];
+  foreignColumns?: string[];
+  onDelete?: string;
+  onUpdate?: string;
+}
+
 export interface AddForeignKeyParams {
   tableName: string;
   schemaName?: string;
@@ -621,6 +640,7 @@ export interface AddForeignKeyParams {
   foreignColumns: string[];
   onDelete?: string;
   onUpdate?: string;
+  existingColumns?: ExistingColumnDef[];
 }
 
 export interface DropForeignKeyParams {
@@ -628,6 +648,8 @@ export interface DropForeignKeyParams {
   schemaName?: string;
   driver?: string;
   constraintName: string;
+  existingColumns?: ExistingColumnDef[];
+  remainingForeignKeys?: ExistingForeignKeyDef[];
 }
 
 export interface TableConstraintStructure {
@@ -656,7 +678,7 @@ export interface DropConstraintParams {
 }
 
 /**
- * Builds an ALTER TABLE ADD CONSTRAINT FOREIGN KEY statement.
+ * Builds an ALTER TABLE ADD CONSTRAINT FOREIGN KEY statement (or table-rebuild migration for SQLite).
  */
 export function buildAddForeignKeySql(params: AddForeignKeyParams): string {
   const {
@@ -669,7 +691,60 @@ export function buildAddForeignKeySql(params: AddForeignKeyParams): string {
     foreignColumns,
     onDelete,
     onUpdate,
+    existingColumns,
   } = params;
+
+  const d = (driver || '').toLowerCase();
+  const isSqlite = d.includes('sqlite');
+
+  if (isSqlite) {
+    if (!existingColumns || existingColumns.length === 0) {
+      throw new Error(
+        'SQLite does not support ALTER TABLE ADD CONSTRAINT FOREIGN KEY. Table rebuild requires existing column definitions.'
+      );
+    }
+
+    const tempTable = `${tableName}_datacore_rebuild`;
+    const quotedTemp = quoteIdentifier(tempTable, driver);
+    const quotedOrig = quoteIdentifier(tableName, driver);
+    const quotedForeign = quoteIdentifier(foreignTable, driver);
+
+    const fkName = constraintName || `fk_${tableName}_${columns.join('_')}`;
+    const quotedFkName = quoteIdentifier(fkName, driver);
+    const cols = columns.map((c) => quoteIdentifier(c, driver)).join(', ');
+    const foreignCols = foreignColumns.map((c) => quoteIdentifier(c, driver)).join(', ');
+
+    let fkClause = `CONSTRAINT ${quotedFkName} FOREIGN KEY (${cols}) REFERENCES ${quotedForeign} (${foreignCols})`;
+    if (onDelete && onDelete !== 'NO ACTION') {
+      fkClause += ` ON DELETE ${onDelete.toUpperCase()}`;
+    }
+    if (onUpdate && onUpdate !== 'NO ACTION') {
+      fkClause += ` ON UPDATE ${onUpdate.toUpperCase()}`;
+    }
+
+    const colDefs = existingColumns.map((col) => {
+      let def = `${quoteIdentifier(col.name, driver)} ${col.type || 'TEXT'}`;
+      if (col.isPrimaryKey) {
+        def += ' PRIMARY KEY';
+      }
+      if (col.nullable === false && !col.isPrimaryKey) {
+        def += ' NOT NULL';
+      }
+      return def;
+    });
+
+    const allDefs = [...colDefs, fkClause].join(',\n  ');
+    const colNames = existingColumns.map((c) => quoteIdentifier(c.name, driver)).join(', ');
+
+    return [
+      'PRAGMA foreign_keys = OFF;',
+      `CREATE TABLE ${quotedTemp} (\n  ${allDefs}\n);`,
+      `INSERT INTO ${quotedTemp} (${colNames}) SELECT ${colNames} FROM ${quotedOrig};`,
+      `DROP TABLE ${quotedOrig};`,
+      `ALTER TABLE ${quotedTemp} RENAME TO ${quotedOrig};`,
+      'PRAGMA foreign_keys = ON;',
+    ].join('\n');
+  }
 
   const fullTable = qualifyTable(tableName, schemaName, driver);
   const fullForeignTable = qualifyTable(foreignTable, schemaName, driver);
@@ -690,13 +765,65 @@ export function buildAddForeignKeySql(params: AddForeignKeyParams): string {
 }
 
 /**
- * Builds a statement to drop a foreign key constraint.
+ * Builds a statement to drop a foreign key constraint (or table-rebuild migration for SQLite).
  */
 export function buildDropForeignKeySql(params: DropForeignKeyParams): string {
-  const { tableName, schemaName, driver, constraintName } = params;
+  const { tableName, schemaName, driver, constraintName, existingColumns, remainingForeignKeys } = params;
+  const d = (driver || '').toLowerCase();
+
+  if (d.includes('sqlite')) {
+    if (!existingColumns || existingColumns.length === 0) {
+      throw new Error(
+        'SQLite does not support ALTER TABLE DROP CONSTRAINT. Table rebuild requires existing column definitions.'
+      );
+    }
+
+    const tempTable = `${tableName}_datacore_rebuild`;
+    const quotedTemp = quoteIdentifier(tempTable, driver);
+    const quotedOrig = quoteIdentifier(tableName, driver);
+
+    const colDefs = existingColumns.map((col) => {
+      let def = `${quoteIdentifier(col.name, driver)} ${col.type || 'TEXT'}`;
+      if (col.isPrimaryKey) {
+        def += ' PRIMARY KEY';
+      }
+      if (col.nullable === false && !col.isPrimaryKey) {
+        def += ' NOT NULL';
+      }
+      return def;
+    });
+
+    const fkClauses = (remainingForeignKeys || [])
+      .filter((fk) => fk.name !== constraintName)
+      .map((fk) => {
+        const quotedFkName = quoteIdentifier(fk.name, driver);
+        const colList = fk.columnNames || fk.columns || [];
+        const foreignColList = fk.foreignColumnNames || fk.foreignColumns || [];
+        const fTable = fk.foreignTableName || fk.foreignTable || '';
+        const cols = colList.map((c) => quoteIdentifier(c, driver)).join(', ');
+        const foreignCols = foreignColList.map((c) => quoteIdentifier(c, driver)).join(', ');
+        const quotedForeign = quoteIdentifier(fTable, driver);
+        let clause = `CONSTRAINT ${quotedFkName} FOREIGN KEY (${cols}) REFERENCES ${quotedForeign} (${foreignCols})`;
+        if (fk.onDelete && fk.onDelete !== 'NO ACTION') clause += ` ON DELETE ${fk.onDelete.toUpperCase()}`;
+        if (fk.onUpdate && fk.onUpdate !== 'NO ACTION') clause += ` ON UPDATE ${fk.onUpdate.toUpperCase()}`;
+        return clause;
+      });
+
+    const allDefs = [...colDefs, ...fkClauses].join(',\n  ');
+    const colNames = existingColumns.map((c) => quoteIdentifier(c.name, driver)).join(', ');
+
+    return [
+      'PRAGMA foreign_keys = OFF;',
+      `CREATE TABLE ${quotedTemp} (\n  ${allDefs}\n);`,
+      `INSERT INTO ${quotedTemp} (${colNames}) SELECT ${colNames} FROM ${quotedOrig};`,
+      `DROP TABLE ${quotedOrig};`,
+      `ALTER TABLE ${quotedTemp} RENAME TO ${quotedOrig};`,
+      'PRAGMA foreign_keys = ON;',
+    ].join('\n');
+  }
+
   const fullTable = qualifyTable(tableName, schemaName, driver);
   const quotedFk = quoteIdentifier(constraintName, driver);
-  const d = (driver || '').toLowerCase();
 
   if (d.includes('mysql')) {
     return `ALTER TABLE ${fullTable} DROP FOREIGN KEY ${quotedFk};`;

@@ -65,6 +65,21 @@ impl DatabaseConnection for SqliteConnection {
         let start = std::time::Instant::now();
         let conn = self.conn.lock().await;
 
+        let trimmed_sql = sql.trim();
+        // If SQL contains multiple statements (semicolons separating non-SELECT commands), execute via execute_batch
+        if trimmed_sql.contains(';') && !trimmed_sql.to_uppercase().starts_with("SELECT") {
+            let statements: Vec<&str> = trimmed_sql
+                .split(';')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
+            if statements.len() > 1 {
+                conn.execute_batch(sql)?;
+                let elapsed = start.elapsed().as_millis() as u64;
+                return Ok(QueryResult::new(Vec::new(), Vec::new(), elapsed, Some(0)));
+            }
+        }
+
         let mut stmt = conn.prepare(sql)?;
         let col_count = stmt.column_count();
 

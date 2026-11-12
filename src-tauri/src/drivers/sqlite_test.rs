@@ -158,3 +158,25 @@ async fn test_sqlite_query_cancellation() {
         err_str
     );
 }
+
+#[tokio::test]
+async fn test_sqlite_multi_statement_script_execution() {
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+
+    // Execute multi-statement migration (e.g. table rebuild)
+    let multi_sql = r#"
+        CREATE TABLE original (id INTEGER PRIMARY KEY, title TEXT);
+        INSERT INTO original VALUES (1, 'First'), (2, 'Second');
+        CREATE TABLE rebuilt (id INTEGER PRIMARY KEY, title TEXT, is_done INT DEFAULT 0);
+        INSERT INTO rebuilt (id, title) SELECT id, title FROM original;
+        DROP TABLE original;
+        ALTER TABLE rebuilt RENAME TO original;
+    "#;
+
+    conn.execute_query(multi_sql).await.expect("execute multi statement script");
+
+    let result = conn.execute_query("SELECT id, title, is_done FROM original ORDER BY id;").await.expect("select after rebuild");
+    assert_eq!(result.rows.len(), 2);
+    assert_eq!(result.rows[0][1], CellValue::Text("First".to_string()));
+    assert_eq!(result.rows[1][1], CellValue::Text("Second".to_string()));
+}

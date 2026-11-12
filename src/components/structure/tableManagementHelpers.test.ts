@@ -352,6 +352,74 @@ describe('tableManagementHelpers', () => {
       );
     });
 
+    it('generates table-rebuild migration for SQLite when adding foreign key', () => {
+      const sql = buildAddForeignKeySql({
+        tableName: 'orders',
+        driver: 'sqlite',
+        constraintName: 'fk_orders_user',
+        columns: ['user_id'],
+        foreignTable: 'users',
+        foreignColumns: ['id'],
+        onDelete: 'CASCADE',
+        onUpdate: 'SET NULL',
+        existingColumns: [
+          { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+          { name: 'user_id', type: 'INTEGER', nullable: false },
+          { name: 'amount', type: 'REAL' },
+        ],
+      });
+
+      expect(sql).toContain('PRAGMA foreign_keys = OFF;');
+      expect(sql).toContain('CREATE TABLE "orders_datacore_rebuild" (');
+      expect(sql).toContain('"id" INTEGER PRIMARY KEY');
+      expect(sql).toContain('"user_id" INTEGER NOT NULL');
+      expect(sql).toContain('CONSTRAINT "fk_orders_user" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE SET NULL');
+      expect(sql).toContain('INSERT INTO "orders_datacore_rebuild" ("id", "user_id", "amount") SELECT "id", "user_id", "amount" FROM "orders";');
+      expect(sql).toContain('DROP TABLE "orders";');
+      expect(sql).toContain('ALTER TABLE "orders_datacore_rebuild" RENAME TO "orders";');
+      expect(sql).toContain('PRAGMA foreign_keys = ON;');
+    });
+
+    it('throws descriptive error for SQLite if existingColumns is missing', () => {
+      expect(() =>
+        buildAddForeignKeySql({
+          tableName: 'orders',
+          driver: 'sqlite',
+          columns: ['user_id'],
+          foreignTable: 'users',
+          foreignColumns: ['id'],
+        })
+      ).toThrow('SQLite does not support ALTER TABLE ADD CONSTRAINT FOREIGN KEY');
+    });
+
+    it('generates table-rebuild migration for SQLite when dropping foreign key', () => {
+      const sql = buildDropForeignKeySql({
+        tableName: 'orders',
+        driver: 'sqlite',
+        constraintName: 'fk_orders_user',
+        existingColumns: [
+          { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+          { name: 'user_id', type: 'INTEGER' },
+        ],
+        remainingForeignKeys: [
+          {
+            name: 'fk_orders_store',
+            columns: ['store_id'],
+            foreignTable: 'stores',
+            foreignColumns: ['id'],
+          },
+        ],
+      });
+
+      expect(sql).toContain('PRAGMA foreign_keys = OFF;');
+      expect(sql).toContain('CREATE TABLE "orders_datacore_rebuild"');
+      expect(sql).toContain('CONSTRAINT "fk_orders_store" FOREIGN KEY ("store_id") REFERENCES "stores" ("id")');
+      expect(sql).not.toContain('fk_orders_user');
+      expect(sql).toContain('DROP TABLE "orders";');
+      expect(sql).toContain('ALTER TABLE "orders_datacore_rebuild" RENAME TO "orders";');
+      expect(sql).toContain('PRAGMA foreign_keys = ON;');
+    });
+
     it('generates DROP FOREIGN KEY SQL for MySQL and Postgres', () => {
       const pgSql = buildDropForeignKeySql({
         tableName: 'orders',

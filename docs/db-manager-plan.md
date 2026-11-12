@@ -217,6 +217,10 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Data Grid Toolbar:** ปุ่ม *"Export"* บนแถบเครื่องมือ โดยเลือกได้ระหว่าง *"Current View (Filtered/Sorted)"* หรือ *"All Table Rows"*
     - **Main Toolbar (Desktop Chrome):** ปุ่ม *"Import"* และ *"Export"* แสดง Dropdown Menu สไตล์เดสก์ท็อปให้เลือกการถ่ายโอนข้อมูล (CSV/JSON) หรือคำสั่งสคริปต์ SQL Dump (.sql) และปุ่ม *"Backup"* ทำการเปิด Database SQL Dump ทันที
   - **Auto-refresh & Feedback:** เมื่อ Import สำเร็จจะทำการรีเฟรชข้อมูลในแท็บของตารางที่เปิดอยู่โดยอัตโนมัติ พร้อมแสดงข้อความสรุปผ่าน Toast notification (`sonner`)
+- **Table Structure Editor & Constraint Management (Phase 23 - เสร็จสมบูรณ์)**:
+  - จัดการ Columns, Indexes, Foreign Keys, และ Constraints อย่างเต็มรูปแบบ
+  - รองรับ Foreign Key สำหรับ PostgreSQL และ MySQL ผ่าน `ALTER TABLE ... ADD/DROP CONSTRAINT`
+  - สำหรับ SQLite ซึ่งไม่รองรับ `ALTER TABLE ADD/DROP CONSTRAINT` ระบบสร้าง Table-rebuild migration script อัตโนมัติ (`PRAGMA foreign_keys = OFF` -> `CREATE TABLE ..._datacore_rebuild` พร้อม Foreign Key ใหม่ -> Copy ข้อมูล -> Drop เดิม -> Rename -> `PRAGMA foreign_keys = ON`) ภายใต้ atomic batch execution และแสดงคำแนะนำแก่ผู้ใช้ (Issue #79)
 - **การจัดการตารางและการถ่ายโอนข้อมูลขั้นสูง (ดู [Technical Design Doc](designs/table_management_and_data_transfer.md))**:
   - **Table List View (เสร็จสมบูรณ์)**: หน้าจอภาพรวมตารางระดับ Database/Schema ในรูปแบบ Detailed Metadata Grid (Glide Data Grid แสดง Estimated Rows ปราศจาก Table Lock, Data Size, Index Size, Storage Engine, Collation พร้อม Search Filter ค้นหาชื่อตาราง)
   - **Table List Context Menu**: เมนูคลิกขวาบนแถวตารางใน Table List View (Open Data, Design Structure, Duplicate Table, Copy Table to DB, Export as SQL Dump, Export Table Data, Import as SQL Dump, Import Table Data, Copy Table Name, Drop Table)
