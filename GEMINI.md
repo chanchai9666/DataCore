@@ -23,7 +23,7 @@
 - **สอง runtime ที่ต้องสอดคล้องกัน:** Frontend คือ React 18 + TypeScript (`src/`) ติดต่อกับ Backend ผ่าน Tauri IPC เท่านั้น — wrapper อยู่ที่ `src/api/db.ts` Backend คือ Rust (`src-tauri/`) แบ่งเป็น `commands/` (IPC handlers) → `drivers/` (SQLite/Postgres/MySQL) → `services/`, `session/`
 - **Data contract:** โครงสร้างข้อมูลที่ส่งข้าม IPC (เช่น `QueryResult`, `CellValue`) ต้องแก้ทั้งสองฝั่งให้ตรงกัน — Rust ที่ `src-tauri/src/models/` และ TypeScript ที่ `src/types/db.ts`
 - **State:** ใช้ Zustand เท่านั้น (`src/stores/tabStore.ts`, `connectionStore.ts`)
-- ออกแบบสำหรับ macOS Apple Silicon; รหัสผ่านจัดเก็บในหน่วยความจำ In-Memory Session ชั่วคราว ป้องกันการบันทึก Plaintext ลงดิสก์และไม่เรียกใช้ OS Keychain เพื่อหลีกเลี่ยง Authorization Popups (รายละเอียดเพิ่มเติมดู `README.md` และ `docs/db-manager-plan.md`)
+- ออกแบบสำหรับ macOS Apple Silicon; รหัสผ่านจัดเก็บใน **Local Encrypted Vault (AES-256-GCM)** ในระดับเครื่อง (`~/.datacore/vault.enc` สิทธิ์ 0600) เมื่อเลือก "Remember password" ป้องกันการบันทึก Plaintext ลงดิสก์ และไม่เรียกใช้ OS Keychain เพื่อหลีกเลี่ยง Authorization Popups รบกวน โดยจำรหัสผ่านข้ามการปิด-เปิดแอปและการ restart เครื่องได้อย่างปลอดภัย (หากไม่เลือก Remember password จะเก็บเฉพาะใน RAM ชั่วคราวระดับ Session เท่านั้น) (รายละเอียดเพิ่มเติมดู `README.md` และ `docs/db-manager-plan.md`)
 
 ## Commands
 - ใช้ **pnpm** เสมอ (ไม่ใช่ npm/yarn) และ `make` เป็นจุดเริ่มต้นสำหรับงานทั่วไป:
