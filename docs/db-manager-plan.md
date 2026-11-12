@@ -529,3 +529,52 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Visual & Platform Polish:**
   - ไอคอนแอปพลิเคชันสไตล์ Luxury Minimalist Squircle ตัดขอบโปร่งใสตามมาตรฐาน Apple macOS HIG
   - รองรับ Apple Silicon ARM64 Native พร้อมทั้ง Dark Mode และ Light Mode อย่างสมบูรณ์แบบ
+
+---
+
+## 5. แผนการปรับปรุงและยกระดับ UX/UI (UX/UI Enhancement Roadmap)
+
+จากการประเมินและตรวจสอบคุณภาพ UX/UI ในระดับ Code-level Review เทียบเคียงมาตรฐานโปรแกรมจัดการฐานข้อมูลชั้นนำ (TablePlus, DBeaver, DataGrip) DataCore ได้คะแนนรวม **92 / 120 คะแนน (76.7% — เกรด B)** โดยได้จัดทำแผนงานและเปิด GitHub Issues ครอบคลุมการปรับปรุงทั้งหมด 4 ระยะ ดังนี้:
+
+### 5.1 สรุปตารางคะแนนการประเมิน 12 มิติ
+| # | มิติการประเมิน | คะแนน (เต็ม 10) | สถานะ | GitHub Issue ที่เกี่ยวข้อง |
+|---|---------------|:--------------:|:-----:|--------------------------|
+| 1 | ความสามารถในการใช้งาน (Usability) | **7.5** | 🟡 ดี | Issue #85, #88 |
+| 2 | การจัดการการเชื่อมต่อ (Connection Management) | **8.5** | 🟢 ดีมาก | Issue #84, #88 |
+| 3 | การสำรวจโครงสร้างข้อมูล (Schema Navigation) | **8.0** | 🟢 ดีมาก | Issue #90, #93 |
+| 4 | ตัวแก้ไข SQL (Query Editor) | **8.5** | 🟢 ดีมาก | Issue #87, #89, #91, #92 |
+| 5 | การแสดงและแก้ไขข้อมูล (Data Grid) | **8.0** | 🟢 ดีมาก | Issue #89 |
+| 6 | ความปลอดภัยและการป้องกันความผิดพลาด (Safety) | **7.0** | 🟡 ดี | Issue #83, #84, #98 |
+| 7 | ประสิทธิภาพและการตอบสนอง (Performance & Feedback) | **8.5** | 🟢 ดีมาก | Issue #89 |
+| 8 | การจัดการข้อผิดพลาด (Error Handling) | **7.5** | 🟡 ดี | Issue #87 |
+| 9 | ความสวยงามและการออกแบบภาพ (Visual Design) | **8.5** | 🟢 ดีมาก | Issue #86 |
+| 10 | ความยืดหยุ่นและการปรับแต่ง (Customization) | **6.0** | 🟠 พอใช้ | Issue #86, #90, #94, #97 |
+| 11 | การเข้าถึงได้และภาษา (Accessibility & Localization) | **6.5** | 🟠 พอใช้ | Issue #93, #94, #95 |
+| 12 | ความเหมาะสมกับกลุ่มผู้ใช้ (User Fit) | **7.5** | 🟡 ดี | Issue #90, #94, #96 |
+
+### 5.2 แผนงานการพัฒนาตามลำดับความสำคัญ (Implementation Phases)
+
+#### 🔴 Phase 0: Critical Safety & State Guardrails (เร่งด่วนที่สุด)
+- **Issue #83:** `feat(safety): SQL Guardrail & Dangerous Query Interceptor` — ตรวจจับคำสั่ง `DROP`, `TRUNCATE`, `DELETE/UPDATE` ที่ไม่มี `WHERE` พร้อม Modal ยืนยันความปลอดภัย
+- **Issue #84:** `feat(connection): Read-Only Mode & Environment Color Badges (Production/Staging/Development)` — ป้ายสีแยกแวดล้อมและล็อกสิทธิ์อ่านอย่างเดียวบน Production
+- **Issue #85:** `feat(workspace): Tab State & Query Content Persistence ข้าม Session` — ป้องกันการสูญเสียแท็บและโค้ด SQL ที่เขียนค้างไว้เมื่อปิดโปรแกรม
+
+#### 🟠 Phase 1: Core UX Polish & Feedback
+- **Issue #86:** `fix(theme): บันทึกการตั้งค่า Theme, ขนาด Panel และแก้ไข Hardcoded Dark Mode ในโมดอล` — รองรับ Light Mode 100% และจำขนาดเลย์เอาต์
+- **Issue #87:** `feat(editor): SQL Error Positioning ใน CodeMirror และแสดงรายละเอียด Error Callout Panel` — ชี้ตำแหน่งบรรทัดที่ผิดพร้อม Error Callout เต็มรูปแบบ
+- **Issue #88:** `feat(connection): Auto-connect และเปิด Query Tab อัตโนมัติหลังบันทึก Connection ใหม่สำเร็จ` — ลดจำนวนคลิกในการเริ่มต้นใช้งานครั้งแรก
+- **Issue #89:** `feat(query): Safe Default LIMIT Guard สำหรับ Custom Query Execution ใน Query Editor` — ป้องกัน RAM เต็มเมื่อรัน custom `SELECT *` ตารางขนาดใหญ่
+
+#### 🟡 Phase 2: Power User Features & Customization
+- **Issue #90:** `feat(ux): Command Palette (⌘K) ค้นหาคำสั่ง สลับฐานข้อมูล และเปิดตารางอย่างรวดเร็ว` — ศูนย์กลางสั่งการด้วยคีย์บอร์ดระดับสากล
+- **Issue #91:** `feat(editor): Schema-Aware Autocomplete สำหรับ Table, View และ Column ใน SQL Editor` — แนะนำตารางและคอลัมน์จาก schema จริง
+- **Issue #92:** `feat(editor): SQL Formatter (⌘⇧F) และ Multi-Result Tabs สำหรับ Batch Script Execution` — จัดรูปแบบ SQL และแสดงผลลัพธ์แยกแท็บย่อย
+- **Issue #93:** `feat(navigation): ขยาย Object Browser Tree ให้แสดง Columns ใน Sidebar และเพิ่ม Keyboard Splitter Navigation` — คลี่ดูโครงสร้างคอลัมน์ในแถบด้านข้าง
+- **Issue #94:** `feat(shortcuts): Keyboard Shortcuts Expansion และ Keybinding Cheat Sheet Modal (⌘/)` — เพิ่มคีย์ลัดครอบคลุมและหน้าต่างสรุปคีย์ลัด
+
+#### 🟢 Phase 3: Accessibility, Localization & Advanced Capabilities
+- **Issue #95:** `feat(i18n): เพิ่มระบบ Internationalization (i18n) รองรับ UI ภาษาไทยและภาษาอังกฤษ` — สลับภาษาของอินเตอร์เฟซได้สมบูรณ์
+- **Issue #96:** `feat(query): Visual Query Builder (No-Code UI) สำหรับสร้าง SELECT Query` — เครื่องมือช่วยสร้างคำสั่งสำหรับผู้เริ่มต้น
+- **Issue #97:** `feat(layout): Horizontal Split Layout (Editor ซ้าย / Data Grid ขวา) สำหรับ Ultrawide Monitors` — เพิ่มความยืดหยุ่นในการจัดวางหน้าจอ
+- **Issue #98:** `feat(safety): Impact Preview (Affected Rows Simulation) ก่อนรัน DELETE/UPDATE` — พรีวิวจำนวนแถวที่กระทบก่อนดำเนินการจริง
+
