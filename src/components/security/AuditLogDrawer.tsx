@@ -19,6 +19,7 @@ import {
   type AuditActionType,
   type AuditStatus,
 } from '../../stores/auditLogStore';
+import { showConfirmDialog } from '../../utils/dialog';
 
 export interface AuditLogDrawerProps {
   isOpen: boolean;
@@ -76,8 +77,12 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
     }
   };
 
-  const handleClearLogs = () => {
-    if (window.confirm('Are you sure you want to clear all audit logs?')) {
+  const handleClearLogs = async () => {
+    const confirmed = await showConfirmDialog('Are you sure you want to clear all audit logs?', {
+      title: 'Clear Audit Logs',
+      kind: 'warning',
+    });
+    if (confirmed) {
       clearLogs();
       toast.info('Audit logs cleared');
     }

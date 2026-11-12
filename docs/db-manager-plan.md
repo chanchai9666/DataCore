@@ -298,6 +298,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Async Dialog Handling:** แก้ไขบั๊กการกดยกเลิกการลบแถวแต่รายการยังถูกลบ โดยเปลี่ยนจากการใช้ `window.confirm()` แบบซิงโครนัส (ซึ่งในสภาพแวดล้อม Tauri/WebKit จะคืนค่าเป็น `Promise` เสมอ ทำให้ถูกประเมินเป็น `true` ก่อนที่ผู้ใช้จะคลิก) มาเป็น `confirmDialog()` helper ที่เรียกใช้ `@tauri-apps/plugin-dialog` อย่างเป็นทางการ พร้อม `await` การตัดสินใจของผู้ใช้อย่างแท้จริง
 - **Safe Row & Multi-Row Deletion:** การลบแถวเดี่ยวและหลายแถวทั้งใน `DockLayout.tsx` และ `DataGrid.tsx` ต้องรอผลตอบกลับจาก Dialog ก่อนส่งคำสั่ง DELETE ไปยังฐานข้อมูลเสมอ หากกดยกเลิก (Cancel) จะไม่ทำรายการใดๆ ทั้งสิ้น
 - **Connection Deletion & Mode Toggling:** ปรับปรุงจุดยืนยันทั้งหมดในระบบให้เป็นแบบ Async เช่น การลบ Connection ใน `ObjectBrowser` และการสลับโหมดจาก Staging Mode ไป Auto-Commit เมื่อมี Pending Changes
+- **Universal Destructive Action Guards (Issue #76):** ปรับปรุง `LockInspectorModal`, `SavepointModal`, `AuditLogDrawer`, และ `HistorySnippetsDrawer` ให้เรียกใช้ `showConfirmDialog` ของ Tauri เสมอ เพื่อป้องกันการ auto-confirm หรือไม่แสดงกล่องยืนยันใน WebKit/Tauri desktop runtime
 
 ### Phase 10: Staging Mode Consistency for Drawer & Direct Cell Edits (✅ เสร็จสมบูรณ์ - Issue #34)
 - **Drawer Save Staging Consistency:** ปรับปรุงฟังก์ชัน `handleSaveDrawerValue` ใน `DataGrid.tsx` ให้ส่งผ่าน `handleCellEditedWithStaging` แทนการเรียก `onCellEdited` โดยตรง เพื่อให้การแก้ไขข้อมูลจาก Cell Detail Drawer เมื่ออยู่ในโหมด Staging ถูกบันทึกเป็น Staged Edit เข้าสู่ `pendingChangesStore` เสมอ และไม่ Auto-Commit ไปยังฐานข้อมูล

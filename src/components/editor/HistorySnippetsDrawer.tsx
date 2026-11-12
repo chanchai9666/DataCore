@@ -20,6 +20,7 @@ import {
 import { useQueryHistoryStore } from '../../stores/queryHistoryStore';
 import { useSnippetStore } from '../../stores/snippetStore';
 import type { SqlSnippet } from '../../types/queryHistory';
+import { showConfirmDialog } from '../../utils/dialog';
 
 export interface HistorySnippetsDrawerProps {
   isOpen: boolean;
@@ -277,8 +278,12 @@ export const HistorySnippetsDrawer: React.FC<HistorySnippetsDrawerProps> = ({
                 {history.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm('Clear all query history?')) {
+                    onClick={async () => {
+                      const confirmed = await showConfirmDialog('Clear all query history?', {
+                        title: 'Clear Query History',
+                        kind: 'warning',
+                      });
+                      if (confirmed) {
                         clearAllHistory();
                       }
                     }}

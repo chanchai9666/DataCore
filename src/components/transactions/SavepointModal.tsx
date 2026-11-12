@@ -8,6 +8,7 @@ import {
   buildReleaseSavepointSql,
 } from '../../api/transactionHelpers';
 import { useAuditLogStore } from '../../stores/auditLogStore';
+import { showConfirmDialog } from '../../utils/dialog';
 
 export interface SavepointModalProps {
   isOpen: boolean;
@@ -72,7 +73,11 @@ export const SavepointModal: React.FC<SavepointModalProps> = ({
   };
 
   const handleRollback = async (name: string) => {
-    if (!window.confirm(`Rollback transaction state to "${name}"? Changes made after this point will be reverted.`)) {
+    const confirmed = await showConfirmDialog(
+      `Rollback transaction state to "${name}"? Changes made after this point will be reverted.`,
+      { title: 'Rollback to Savepoint', kind: 'warning' }
+    );
+    if (!confirmed) {
       return;
     }
 

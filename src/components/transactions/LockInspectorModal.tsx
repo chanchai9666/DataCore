@@ -16,6 +16,7 @@ import {
 } from '../../api/transactionHelpers';
 import { formatCellValue } from '../../types/db';
 import { useAuditLogStore } from '../../stores/auditLogStore';
+import { showConfirmDialog } from '../../utils/dialog';
 
 export interface LockInspectorModalProps {
   isOpen: boolean;
@@ -125,7 +126,11 @@ export const LockInspectorModal: React.FC<LockInspectorModalProps> = ({
   if (!isOpen) return null;
 
   const handleKill = async (pid: string) => {
-    if (!window.confirm(`Terminate session / process ${pid}? This will abort its active transaction.`)) {
+    const confirmed = await showConfirmDialog(
+      `Terminate session / process ${pid}? This will abort its active transaction.`,
+      { title: 'Terminate Session', kind: 'warning' }
+    );
+    if (!confirmed) {
       return;
     }
 
