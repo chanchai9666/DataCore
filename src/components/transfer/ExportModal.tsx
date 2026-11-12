@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Download, X, Loader2, FileSpreadsheet, FileCode, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { exportData, pickExportFile } from '../../api/dataTransferApi';
+import { exportData, pickExportFile, cancelTransfer } from '../../api/dataTransferApi';
 import type { ExportOptions, TransferFormat, JsonStructure } from '../../types/dataTransfer';
 
 export interface ExportModalProps {
@@ -28,6 +28,19 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [jsonStructure, setJsonStructure] = useState<JsonStructure>('array');
   const [scope, setScope] = useState<'entire' | 'filtered'>(initialQuery ? 'filtered' : 'entire');
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const activeJobIdRef = useRef<string | null>(null);
+
+  const handleCancelOrClose = async () => {
+    if (isExporting && activeJobIdRef.current) {
+      try {
+        await cancelTransfer(activeJobIdRef.current);
+        toast.info('Export cancelled');
+      } catch (err) {
+        console.error('Failed to cancel export:', err);
+      }
+    }
+    onClose();
+  };
 
   const handleExport = async () => {
     try {
@@ -36,6 +49,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         return; // User cancelled the save dialog
       }
 
+      const jobId = `export_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      activeJobIdRef.current = jobId;
       setIsExporting(true);
 
       const sqlToRun =
@@ -48,6 +63,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         delimiter: format === 'csv' ? delimiter : undefined,
         include_headers: includeHeaders,
         json_structure: format === 'json' ? jsonStructure : undefined,
+        job_id: jobId,
       };
 
       const result = await exportData(connectionId, sqlToRun, filePath, options);
@@ -59,9 +75,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       );
       onClose();
     } catch (err: any) {
-      toast.error(`Export failed: ${err.message || String(err)}`);
+      const msg = err?.message || String(err);
+      if (msg.toLowerCase().includes('cancelled')) {
+        toast.info('Export cancelled by user');
+      } else {
+        toast.error(`Export failed: ${msg}`);
+      }
     } finally {
       setIsExporting(false);
+      activeJobIdRef.current = null;
     }
   };
 
@@ -69,7 +91,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     <Dialog.Root
       open={isOpen}
       onOpenChange={(open) => {
-        if (!open && !isExporting) onClose();
+        if (!open) handleCancelOrClose();
       }}
     >
       <Dialog.Portal>
@@ -91,10 +113,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <Dialog.Close asChild>
               <button
                 type="button"
-                onClick={onClose}
-                disabled={isExporting}
+                onClick={handleCancelOrClose}
                 aria-label="Close dialog"
-                className="text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+                className="text-gray-400 hover:text-white transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -227,9 +248,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           <div className="flex items-center justify-end space-x-2 px-5 py-3 border-t border-gray-800 bg-gray-950/40">
             <button
               type="button"
-              onClick={onClose}
-              disabled={isExporting}
-              className="px-3 py-1.5 rounded text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-colors disabled:opacity-50"
+              onClick={handleCancelOrClose}
+              className="px-3 py-1.5 rounded text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
             >
               Cancel
             </button>

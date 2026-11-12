@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   Download,
@@ -13,7 +13,7 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { exportData, pickExportFile } from '../../api/dataTransferApi';
+import { exportData, pickExportFile, cancelTransfer } from '../../api/dataTransferApi';
 import type {
   ExportOptions,
   TransferFormat,
@@ -52,7 +52,9 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
   // Step 3: Destination & Progress
   const [destinationPath, setDestinationPath] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [isCancelling, setIsCancelling] = useState<boolean>(false);
   const [result, setResult] = useState<ExportResult | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -64,17 +66,36 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
       setJsonStructure('array');
       setDestinationPath(null);
       setIsExporting(false);
+      setIsCancelling(false);
       setResult(null);
+      activeJobIdRef.current = null;
     }
   }, [isOpen, initialQuery]);
+
+  const handleCancelOrClose = async () => {
+    if (isExporting && activeJobIdRef.current && !isCancelling) {
+      setIsCancelling(true);
+      toast.info('Cancelling export...');
+      try {
+        await cancelTransfer(activeJobIdRef.current);
+      } catch (err) {
+        console.error('Failed to cancel export:', err);
+      }
+      return;
+    }
+    onClose();
+  };
 
   const handleStartExport = async () => {
     try {
       const selectedPath = await pickExportFile(tableName, format);
       if (!selectedPath) return;
 
+      const jobId = `export_wizard_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      activeJobIdRef.current = jobId;
       setDestinationPath(selectedPath);
       setIsExporting(true);
+      setIsCancelling(false);
       setResult(null);
 
       const sqlToRun =
@@ -87,6 +108,7 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
         delimiter: format === 'csv' ? delimiter : undefined,
         include_headers: includeHeaders,
         json_structure: format === 'json' ? jsonStructure : undefined,
+        job_id: jobId,
       };
 
       const res = await exportData(connectionId, sqlToRun, selectedPath, options);
@@ -94,14 +116,21 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
       toast.success(`Export completed: ${res.total_rows} rows saved.`);
     } catch (err: any) {
       console.error('Export failed:', err);
-      toast.error(`Export failed: ${err?.message || 'Unknown error'}`);
+      const msg = err?.message || String(err);
+      if (msg.toLowerCase().includes('cancelled')) {
+        toast.info('Export cancelled by user.');
+      } else {
+        toast.error(`Export failed: ${msg}`);
+      }
     } finally {
       setIsExporting(false);
+      setIsCancelling(false);
+      activeJobIdRef.current = null;
     }
   };
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleCancelOrClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-in fade-in duration-100" />
         <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-2xl h-[72vh] bg-panel border border-line rounded-xl shadow-2xl flex flex-col overflow-hidden z-50 text-text">
@@ -121,6 +150,7 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
             <Dialog.Close asChild>
               <button
                 type="button"
+                onClick={handleCancelOrClose}
                 className="p-1 rounded text-muted hover:text-text hover:bg-white/10 transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -346,8 +376,12 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
                   <div className="space-y-3 py-6">
                     <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto" />
                     <div>
-                      <h4 className="text-sm font-semibold text-text">Exporting Data...</h4>
-                      <p className="text-xs text-muted mt-1">Streaming table rows to file...</p>
+                      <h4 className="text-sm font-semibold text-text">
+                        {isCancelling ? 'Cancelling Export...' : 'Exporting Data...'}
+                      </h4>
+                      <p className="text-xs text-muted mt-1">
+                        {isCancelling ? 'Stopping export stream...' : 'Streaming table rows to file...'}
+                      </p>
                     </div>
                   </div>
                 ) : result ? (
@@ -387,7 +421,7 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
           {/* Footer Controls */}
           <div className="px-5 py-3 border-t border-line bg-black/10 dark:bg-white/5 flex items-center justify-between text-xs">
             <div>
-              {currentStep > 1 && !result && (
+              {currentStep > 1 && !result && !isExporting && (
                 <button
                   type="button"
                   onClick={() => setCurrentStep((s) => Math.max(1, s - 1))}
@@ -402,10 +436,11 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-3.5 py-1.5 rounded border border-line hover:bg-white/10 text-muted hover:text-text font-medium transition-colors"
+                onClick={handleCancelOrClose}
+                disabled={isCancelling}
+                className="px-3.5 py-1.5 rounded border border-line hover:bg-white/10 text-muted hover:text-text font-medium transition-colors disabled:opacity-50"
               >
-                {result ? 'Done' : 'Cancel'}
+                {isCancelling ? 'Cancelling...' : isExporting ? 'Cancel Export' : result ? 'Done' : 'Cancel'}
               </button>
 
               {currentStep < 3 && (

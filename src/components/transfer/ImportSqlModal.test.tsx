@@ -13,12 +13,14 @@ vi.mock('../../api/db', () => ({
 vi.mock('../../api/dataTransferApi', () => ({
   pickSqlImportFile: vi.fn(),
   onTransferProgress: vi.fn().mockResolvedValue(vi.fn()),
+  cancelTransfer: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
   },
 }));
 
@@ -75,14 +77,57 @@ describe('ImportSqlModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /Execute SQL Script/i }));
 
     await waitFor(() => {
-      expect(dbApi.importSql).toHaveBeenCalledWith({
-        connectionId: 'conn-1',
-        schema: 'public',
-        filePath: '/dump/data.sql',
-        errorPolicy: 'abort',
-      });
+      expect(dbApi.importSql).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionId: 'conn-1',
+          schema: 'public',
+          filePath: '/dump/data.sql',
+          errorPolicy: 'abort',
+          jobId: expect.any(String),
+        })
+      );
       expect(handleSuccess).toHaveBeenCalled();
       expect(handleClose).toHaveBeenCalled();
     });
+  });
+
+  it('triggers cancelTransfer when Cancel is clicked during import', async () => {
+    vi.mocked(dataTransferApi.pickSqlImportFile).mockResolvedValueOnce('/dump/slow.sql');
+    let resolveImport!: (val: any) => void;
+    vi.mocked(dbApi.importSql).mockReturnValueOnce(
+      new Promise((res) => {
+        resolveImport = res;
+      })
+    );
+
+    render(
+      <ImportSqlModal
+        isOpen={true}
+        connectionId="conn-1"
+        schemaName="public"
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Browse.../i }));
+    await waitFor(() => {
+      expect(
+        (screen.getByPlaceholderText('Select or enter path to .sql file') as HTMLInputElement).value
+      ).toBe('/dump/slow.sql');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Execute SQL Script/i }));
+
+    await waitFor(() => {
+      expect(dbApi.importSql).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
+
+    await waitFor(() => {
+      expect(dataTransferApi.cancelTransfer).toHaveBeenCalledWith(expect.any(String));
+    });
+
+    resolveImport({ totalStatements: 0, successfulStatements: 0, failedStatements: 0 });
   });
 });

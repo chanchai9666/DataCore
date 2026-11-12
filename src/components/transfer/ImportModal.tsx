@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Upload, X, Loader2, FileUp, CheckCircle, ArrowRight, Table } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,6 +7,7 @@ import {
   importData,
   pickImportFile,
   onTransferProgress,
+  cancelTransfer,
 } from '../../api/dataTransferApi';
 import type {
   ColumnMapping,
@@ -45,6 +46,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   const [isLoadingPreview, setIsLoadingPreview] = useState<boolean>(false);
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [progress, setProgress] = useState<TransferProgress | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
 
   // Reset state when opened or closed
   useEffect(() => {
@@ -54,8 +56,22 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       setMappings({});
       setIsImporting(false);
       setProgress(null);
+      activeJobIdRef.current = null;
     }
   }, [isOpen]);
+
+  const handleCancelOrClose = async () => {
+    if (isImporting && activeJobIdRef.current) {
+      try {
+        await cancelTransfer(activeJobIdRef.current);
+        toast.info('Import cancelled');
+      } catch (err) {
+        console.error('Failed to cancel import:', err);
+      }
+      return;
+    }
+    onClose();
+  };
 
   // Load preview whenever filePath or delimiter changes
   const loadPreview = async (path: string, delim?: string) => {
@@ -133,7 +149,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       return;
     }
 
+    let unlisten: (() => void) | undefined;
     try {
+      const jobId = `import_modal_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      activeJobIdRef.current = jobId;
       setIsImporting(true);
       setProgress({
         current_row: 0,
@@ -141,8 +160,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         status: 'importing',
       });
 
-      // Subscribe to progress event
-      const unlisten = await onTransferProgress((p) => {
+      unlisten = await onTransferProgress((p) => {
         setProgress(p);
       });
 
@@ -153,10 +171,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         has_headers: hasHeaders,
         column_mappings: columnMappings,
         error_policy: errorPolicy,
+        job_id: jobId,
       };
 
       const result = await importData(connectionId, tableName, options);
-      unlisten();
 
       if (result.skipped_rows > 0) {
         toast.warning(
@@ -171,9 +189,16 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       onImportSuccess?.();
       onClose();
     } catch (err: any) {
-      toast.error(`Import failed: ${err.message || String(err)}`);
+      const msg = err?.message || String(err);
+      if (msg.toLowerCase().includes('cancelled')) {
+        toast.info('Import cancelled by user');
+      } else {
+        toast.error(`Import failed: ${msg}`);
+      }
     } finally {
       setIsImporting(false);
+      activeJobIdRef.current = null;
+      if (unlisten) unlisten();
     }
   };
 
@@ -181,7 +206,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
     <Dialog.Root
       open={isOpen}
       onOpenChange={(open) => {
-        if (!open && !isImporting) onClose();
+        if (!open) handleCancelOrClose();
       }}
     >
       <Dialog.Portal>
@@ -203,10 +228,9 @@ export const ImportModal: React.FC<ImportModalProps> = ({
             <Dialog.Close asChild>
               <button
                 type="button"
-                onClick={onClose}
-                disabled={isImporting}
+                onClick={handleCancelOrClose}
                 aria-label="Close dialog"
-                className="text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+                className="text-gray-400 hover:text-white transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -457,9 +481,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({
           <div className="flex items-center justify-end space-x-2 px-5 py-3 border-t border-gray-800 bg-gray-950/40">
             <button
               type="button"
-              onClick={onClose}
-              disabled={isImporting}
-              className="px-3 py-1.5 rounded text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-colors disabled:opacity-50"
+              onClick={handleCancelOrClose}
+              className="px-3 py-1.5 rounded text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
             >
               Cancel
             </button>

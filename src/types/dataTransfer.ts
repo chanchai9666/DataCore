@@ -16,6 +16,8 @@ export interface ExportOptions {
   delimiter?: string;
   include_headers: boolean;
   json_structure?: JsonStructure;
+  job_id?: string;
+  jobId?: string;
 }
 
 export interface ExportResult {
@@ -40,6 +42,7 @@ export interface ImportOptions {
   batch_size?: number;
   treat_empty_as_null?: boolean;
   job_id?: string;
+  jobId?: string;
 }
 
 export interface ImportResult {
@@ -94,6 +97,7 @@ export interface SqlImportOptions {
   filePath: string;
   errorPolicy: 'abort' | 'continue';
   job_id?: string;
+  jobId?: string;
 }
 
 export interface SqlExportResult {
@@ -119,6 +123,8 @@ export interface CrossDbCopyTableOptions {
   dropTargetIfExists: boolean;
   copyData: boolean;
   batchSize?: number;
+  job_id?: string;
+  jobId?: string;
 }
 
 export interface CrossDbCopyResult {

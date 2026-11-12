@@ -6,9 +6,9 @@ use crate::models::{
     JsonStructure, QueryResult, TransferFormat, TransferProgress,
 };
 use crate::services::data_transfer::{
-    detect_csv_delimiter, export_query_result_to_writer, generate_batch_insert_sql,
-    import_data_impl, parse_csv_preview, parse_json_preview, register_cancellation_token,
-    trigger_cancellation,
+    detect_csv_delimiter, export_data_impl, export_query_result_to_writer,
+    generate_batch_insert_sql, import_data_impl, parse_csv_preview, parse_json_preview,
+    register_cancellation_token, trigger_cancellation,
 };
 
 #[test]
@@ -123,6 +123,44 @@ fn test_export_query_result_to_json_array() {
     let parsed: serde_json::Value = serde_json::from_str(&output).expect("valid json array");
     assert!(parsed.is_array());
     assert_eq!(parsed[0]["name"], "Alice");
+}
+
+#[tokio::test]
+async fn test_streaming_export_data_impl_across_multiple_batches() {
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+    conn.execute_query("CREATE TABLE big_export (id INTEGER PRIMARY KEY, label TEXT);")
+        .await
+        .expect("create table");
+
+    // Insert 2,500 rows (spans 3 batches of 1,000 rows in export_data_impl)
+    let mut values = Vec::new();
+    for i in 1..=2500 {
+        values.push(format!("({}, 'Row_{}')", i, i));
+    }
+    let insert_sql = format!("INSERT INTO big_export (id, label) VALUES {};", values.join(","));
+    conn.execute_query(&insert_sql).await.expect("insert 2500 rows");
+
+    let temp_csv = NamedTempFile::new().expect("temp csv");
+    let csv_path = temp_csv.path().to_str().unwrap().to_string();
+
+    let csv_opts = ExportOptions {
+        format: TransferFormat::Csv,
+        delimiter: Some(','),
+        include_headers: true,
+        json_structure: None,
+        job_id: None,
+    };
+
+    let res = export_data_impl(&conn, "SELECT * FROM big_export", &csv_path, &csv_opts)
+        .await
+        .expect("streaming csv export");
+
+    assert_eq!(res.total_rows, 2500);
+    assert!(res.file_size_bytes > 10000);
+
+    let content = std::fs::read_to_string(&csv_path).expect("read exported csv");
+    let line_count = content.lines().count();
+    assert_eq!(line_count, 2501); // 1 header + 2500 rows
 }
 
 #[test]

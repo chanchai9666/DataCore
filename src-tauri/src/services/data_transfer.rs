@@ -632,35 +632,190 @@ pub fn generate_batch_insert_sql(
     generate_batch_insert_sql_with_options(table, target_columns, &[], rows, true, dialect)
 }
 
-/// Streams and executes export to a local file.
+/// Checks whether a SQL query already contains a top-level LIMIT clause or cannot be wrapped.
+fn is_paginatable_select(sql: &str) -> bool {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let upper = trimmed.to_uppercase();
+    if !upper.starts_with("SELECT ") {
+        return false;
+    }
+    if upper.contains(" LIMIT ") {
+        return false;
+    }
+    true
+}
+
+/// Streams and executes export to a local file in paginated chunks without loading the entire dataset into RAM.
 pub async fn export_data_impl(
     conn: &dyn DatabaseConnection,
     sql: &str,
     file_path: &str,
     options: &ExportOptions,
 ) -> Result<ExportResult, AppError> {
-    if let Some(ref jid) = options.job_id {
-        if is_transfer_cancelled(jid) {
-            return Err(AppError::Cancelled("Export cancelled by user".to_string()));
+    let check_cancel = || -> Result<(), AppError> {
+        if let Some(ref jid) = options.job_id {
+            if is_transfer_cancelled(jid) {
+                return Err(AppError::Cancelled("Export cancelled by user".to_string()));
+            }
         }
-    }
+        Ok(())
+    };
 
+    check_cancel()?;
     let start_time = Instant::now();
-    let query_result = conn.execute_query(sql).await?;
-
-    if let Some(ref jid) = options.job_id {
-        if is_transfer_cancelled(jid) {
-            return Err(AppError::Cancelled("Export cancelled by user".to_string()));
-        }
-    }
 
     let file = File::create(file_path)
         .map_err(|e| AppError::Other(format!("Failed to create export file '{}': {}", file_path, e)))?;
-    let mut buf_writer = BufWriter::new(file);
+    let buf_writer = BufWriter::new(file);
+    let mut counting_writer = CountingWriter::new(buf_writer);
 
-    let (total_rows, file_size_bytes) =
-        export_query_result_to_writer(&query_result, &mut buf_writer, options)?;
+    let clean_sql = sql.trim().trim_end_matches(';').trim();
+    let can_paginate = is_paginatable_select(clean_sql);
+    let chunk_size: usize = 1000;
+    let mut offset: usize = 0;
+    let mut total_rows: usize = 0;
 
+    match options.format {
+        TransferFormat::Csv => {
+            let delim = options.delimiter.unwrap_or(',');
+            let mut csv_writer = csv::WriterBuilder::new()
+                .delimiter(delim as u8)
+                .from_writer(&mut counting_writer);
+            let mut headers_written = false;
+
+            loop {
+                check_cancel()?;
+                let page_sql = if can_paginate {
+                    format!("{} LIMIT {} OFFSET {};", clean_sql, chunk_size, offset)
+                } else {
+                    format!("{};", clean_sql)
+                };
+
+                let query_res = conn.execute_query(&page_sql).await?;
+                check_cancel()?;
+
+                if !headers_written && options.include_headers && !query_res.columns.is_empty() {
+                    let headers: Vec<&str> = query_res.columns.iter().map(|c| c.name.as_str()).collect();
+                    csv_writer
+                        .write_record(&headers)
+                        .map_err(|e| AppError::Other(format!("CSV write header error: {}", e)))?;
+                    headers_written = true;
+                }
+
+                let fetched_count = query_res.rows.len();
+                for (idx, row) in query_res.rows.iter().enumerate() {
+                    if idx % 100 == 0 {
+                        check_cancel()?;
+                    }
+                    let record: Vec<String> = row
+                        .iter()
+                        .map(|cell| match cell {
+                            CellValue::Null => String::new(),
+                            CellValue::Text(s) => s.clone(),
+                            CellValue::Integer(i) => i.to_string(),
+                            CellValue::Float(f) => f.to_string(),
+                            CellValue::Boolean(b) => b.to_string(),
+                            CellValue::Json(v) => v.to_string(),
+                            CellValue::Bytes(b) => b.clone(),
+                        })
+                        .collect();
+                    csv_writer
+                        .write_record(&record)
+                        .map_err(|e| AppError::Other(format!("CSV write row error: {}", e)))?;
+                }
+
+                total_rows += fetched_count;
+                if !can_paginate || fetched_count < chunk_size {
+                    break;
+                }
+                offset += fetched_count;
+            }
+
+            csv_writer
+                .flush()
+                .map_err(|e| AppError::Other(format!("CSV flush error: {}", e)))?;
+        }
+        TransferFormat::Json => {
+            let is_ndjson = matches!(options.json_structure, Some(JsonStructure::Ndjson));
+            if !is_ndjson {
+                writeln!(counting_writer, "[")
+                    .map_err(|e| AppError::Other(format!("JSON write error: {}", e)))?;
+            }
+
+            let mut first_item = true;
+            let mut cached_col_names: Vec<String> = Vec::new();
+
+            loop {
+                check_cancel()?;
+                let page_sql = if can_paginate {
+                    format!("{} LIMIT {} OFFSET {};", clean_sql, chunk_size, offset)
+                } else {
+                    format!("{};", clean_sql)
+                };
+
+                let query_res = conn.execute_query(&page_sql).await?;
+                check_cancel()?;
+
+                if cached_col_names.is_empty() && !query_res.columns.is_empty() {
+                    cached_col_names = query_res.columns.iter().map(|c| c.name.clone()).collect();
+                }
+                let col_refs: Vec<&str> = cached_col_names.iter().map(|s| s.as_str()).collect();
+
+                let fetched_count = query_res.rows.len();
+                for (idx, row) in query_res.rows.iter().enumerate() {
+                    if idx % 100 == 0 {
+                        check_cancel()?;
+                    }
+                    let map = row_to_json_map(&col_refs, row);
+                    if is_ndjson {
+                        let line = serde_json::to_string(&map)
+                            .map_err(|e| AppError::Other(format!("JSON serialization error: {}", e)))?;
+                        writeln!(counting_writer, "{}", line)
+                            .map_err(|e| AppError::Other(format!("JSON write error: {}", e)))?;
+                    } else {
+                        if !first_item {
+                            writeln!(counting_writer, ",")
+                                .map_err(|e| AppError::Other(format!("JSON write error: {}", e)))?;
+                        }
+                        first_item = false;
+                        let json_str = serde_json::to_string_pretty(&map)
+                            .map_err(|e| AppError::Other(format!("JSON serialization error: {}", e)))?;
+                        let indented = json_str
+                            .lines()
+                            .map(|l| format!("  {}", l))
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        write!(counting_writer, "{}", indented)
+                            .map_err(|e| AppError::Other(format!("JSON write error: {}", e)))?;
+                    }
+                }
+
+                total_rows += fetched_count;
+                if !can_paginate || fetched_count < chunk_size {
+                    break;
+                }
+                offset += fetched_count;
+            }
+
+            if !is_ndjson {
+                if !first_item {
+                    writeln!(counting_writer)
+                        .map_err(|e| AppError::Other(format!("JSON write error: {}", e)))?;
+                }
+                writeln!(counting_writer, "]")
+                    .map_err(|e| AppError::Other(format!("JSON write error: {}", e)))?;
+            }
+            counting_writer
+                .flush()
+                .map_err(|e| AppError::Other(format!("Flush error: {}", e)))?;
+        }
+    }
+
+    if let Some(ref jid) = options.job_id {
+        remove_cancellation_token(jid);
+    }
+
+    let file_size_bytes = counting_writer.bytes_written;
     let elapsed_ms = start_time.elapsed().as_millis() as u64;
 
     Ok(ExportResult {
@@ -1098,114 +1253,4 @@ where
         skipped_rows,
         elapsed_ms: start_time.elapsed().as_millis() as u64,
     })
-}
-
-#[allow(dead_code)]
-fn read_mapped_csv_rows<R: Read>(
-    reader: R,
-    options: &ImportOptions,
-) -> Result<Vec<Vec<String>>, AppError> {
-    let delim = options.delimiter.unwrap_or(',');
-    let mut csv_reader = csv::ReaderBuilder::new()
-        .delimiter(delim as u8)
-        .has_headers(options.has_headers)
-        .flexible(true)
-        .from_reader(reader);
-
-    // Map source column to header index
-    let mut col_index_map: HashMap<String, usize> = HashMap::new();
-    if options.has_headers {
-        let headers = csv_reader
-            .headers()
-            .map_err(|e| AppError::Other(format!("Failed to read CSV headers: {}", e)))?;
-        for (idx, name) in headers.iter().enumerate() {
-            col_index_map.insert(name.trim().to_string(), idx);
-        }
-    }
-
-    let mut rows = Vec::new();
-
-    for result in csv_reader.records() {
-        let record = result.map_err(|e| AppError::Other(format!("CSV read error: {}", e)))?;
-        let mut row = Vec::with_capacity(options.column_mappings.len());
-
-        for mapping in &options.column_mappings {
-            let val = if options.has_headers {
-                col_index_map
-                    .get(&mapping.source_column)
-                    .and_then(|&idx| record.get(idx))
-                    .unwrap_or("")
-            } else {
-                // If no headers, source_column might be an index string "0", "1", ...
-                mapping
-                    .source_column
-                    .parse::<usize>()
-                    .ok()
-                    .and_then(|idx| record.get(idx))
-                    .unwrap_or("")
-            };
-            row.push(val.trim().to_string());
-        }
-        rows.push(row);
-    }
-
-    Ok(rows)
-}
-
-#[allow(dead_code)]
-fn read_mapped_json_rows<R: Read>(
-    reader: R,
-    options: &ImportOptions,
-) -> Result<Vec<Vec<String>>, AppError> {
-    let mut buf_reader = BufReader::new(reader);
-    let mut first_bytes = [0u8; 1];
-    let n = buf_reader.read(&mut first_bytes).map_err(|e| AppError::Other(e.to_string()))?;
-    if n == 0 {
-        return Ok(Vec::new());
-    }
-
-    let is_array = first_bytes[0] == b'[';
-    let full_reader = std::io::Cursor::new(first_bytes).chain(buf_reader);
-
-    let mut objects: Vec<serde_json::Map<String, serde_json::Value>> = Vec::new();
-
-    if is_array {
-        let val: serde_json::Value = serde_json::from_reader(full_reader)
-            .map_err(|e| AppError::Other(format!("Invalid JSON array: {}", e)))?;
-        if let serde_json::Value::Array(items) = val {
-            for item in items {
-                if let serde_json::Value::Object(map) = item {
-                    objects.push(map);
-                }
-            }
-        }
-    } else {
-        let reader = BufReader::new(full_reader);
-        for line in reader.lines() {
-            let l = line.map_err(|e| AppError::Other(e.to_string()))?;
-            let trimmed = l.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            if let Ok(serde_json::Value::Object(map)) = serde_json::from_str(trimmed) {
-                objects.push(map);
-            }
-        }
-    }
-
-    let mut rows = Vec::new();
-    for obj in objects {
-        let mut row = Vec::with_capacity(options.column_mappings.len());
-        for mapping in &options.column_mappings {
-            let val = match obj.get(&mapping.source_column) {
-                Some(serde_json::Value::Null) | None => String::new(),
-                Some(serde_json::Value::String(s)) => s.clone(),
-                Some(v) => v.to_string(),
-            };
-            row.push(val);
-        }
-        rows.push(row);
-    }
-
-    Ok(rows)
 }

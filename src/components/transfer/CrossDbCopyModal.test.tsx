@@ -13,12 +13,14 @@ vi.mock('../../api/db', () => ({
 
 vi.mock('../../api/dataTransferApi', () => ({
   onTransferProgress: vi.fn().mockResolvedValue(vi.fn()),
+  cancelTransfer: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
   },
 }));
 
@@ -165,17 +167,20 @@ describe('CrossDbCopyModal', () => {
     fireEvent.click(screen.getByTestId('start-transfer-btn'));
 
     await waitFor(() => {
-      expect(dbApi.copyTableCrossDb).toHaveBeenCalledWith({
-        sourceConnectionId: 'conn-sqlite',
-        sourceSchema: 'main',
-        sourceTable: 'customers',
-        targetConnectionId: 'conn-pg',
-        targetSchema: 'public',
-        targetTable: 'customers_migrated',
-        copyStructure: true,
-        dropTargetIfExists: true,
-        copyData: true,
-      });
+      expect(dbApi.copyTableCrossDb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceConnectionId: 'conn-sqlite',
+          sourceSchema: 'main',
+          sourceTable: 'customers',
+          targetConnectionId: 'conn-pg',
+          targetSchema: 'public',
+          targetTable: 'customers_migrated',
+          copyStructure: true,
+          dropTargetIfExists: true,
+          copyData: true,
+          jobId: expect.any(String),
+        })
+      );
     });
 
     await waitFor(() => {

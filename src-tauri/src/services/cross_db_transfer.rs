@@ -1,10 +1,12 @@
 use std::time::Instant;
 use crate::drivers::DatabaseConnection;
 use crate::error::AppError;
-use crate::models::query::ColumnMeta;
+use crate::models::query::{CellValue, ColumnMeta};
 use crate::models::transfer::{CrossDbCopyResult, CrossDbCopyTableOptions, TransferProgress};
 use crate::models::DatabaseDriver;
-use crate::services::data_transfer::generate_batch_insert_cells_sql;
+use crate::services::data_transfer::{
+    generate_batch_insert_cells_sql, is_transfer_cancelled, remove_cancellation_token,
+};
 
 /// Maps a column data type from source dialect to target dialect.
 pub fn map_data_type(src_type: &str, _src_dialect: &str, target_dialect: &str) -> String {
@@ -129,7 +131,6 @@ pub fn generate_create_table_ddl(
         col_defs.push(def);
     }
 
-    // Add composite PK constraint if multiple PKs or if not inline
     if !pk_cols.is_empty() && target_dialect != "sqlite" && !col_defs.iter().any(|d| d.contains("PRIMARY KEY")) {
         col_defs.push(format!("PRIMARY KEY ({})", pk_cols.join(", ")));
     }
@@ -141,7 +142,7 @@ pub fn generate_create_table_ddl(
     )
 }
 
-/// Copies table structure and data across databases (same or different engines).
+/// Copies table structure and data across databases in streaming chunks.
 pub async fn copy_table_cross_db_impl<F>(
     src_conn: &dyn DatabaseConnection,
     src_driver: DatabaseDriver,
@@ -154,6 +155,19 @@ where
     F: Fn(TransferProgress) + Send + 'static,
 {
     let start_time = Instant::now();
+    let job_id = options.job_id.as_deref();
+
+    let check_cancel = || -> Result<(), AppError> {
+        if let Some(jid) = job_id {
+            if is_transfer_cancelled(jid) {
+                remove_cancellation_token(jid);
+                return Err(AppError::Cancelled("Cross-DB transfer cancelled by user".to_string()));
+            }
+        }
+        Ok(())
+    };
+
+    check_cancel()?;
 
     let src_dialect = match src_driver {
         DatabaseDriver::Sqlite => "sqlite",
@@ -167,7 +181,6 @@ where
         DatabaseDriver::Postgres => "postgres",
     };
 
-    // 1. Fetch source table data and column metadata
     let src_qualified_table = match options.source_schema.as_deref() {
         Some(s) if !s.is_empty() => match src_driver {
             DatabaseDriver::Mysql => format!("`{}`.`{}`", s.replace('`', "``"), options.source_table.replace('`', "``")),
@@ -179,10 +192,20 @@ where
         },
     };
 
-    let query_sql = format!("SELECT * FROM {};", src_qualified_table);
-    let src_result = src_conn.execute_query(&query_sql).await?;
-    let columns = src_result.columns;
-    let rows = src_result.rows;
+    // 1. Inspect column metadata via fetch_table_data (limit 0) or a lightweight query
+    let meta_res = src_conn
+        .fetch_table_data(
+            options.source_schema.as_deref(),
+            &options.source_table,
+            1,
+            0,
+            None,
+            None,
+            None,
+        )
+        .await?;
+    let mut columns = meta_res.columns;
+    let total_rows_opt = meta_res.rows_affected.map(|n| n as usize);
 
     let tgt_qualified_table = match options.target_schema.as_deref() {
         Some(s) if !s.is_empty() => match tgt_driver {
@@ -205,7 +228,7 @@ where
     }
 
     // 3. Create target table structure
-    if options.copy_structure {
+    if options.copy_structure && !columns.is_empty() {
         let create_ddl = generate_create_table_ddl(
             tgt_dialect,
             options.target_schema.as_deref(),
@@ -216,39 +239,77 @@ where
         tgt_conn.execute_query(&create_ddl).await?;
     }
 
-    // 4. Stream data in batches
+    // 4. Stream data in batches via LIMIT / OFFSET
     let mut rows_transferred = 0;
-    let total_rows = rows.len();
-
-    if options.copy_data && !rows.is_empty() {
-        let col_names: Vec<String> = columns.iter().map(|c| c.name.clone()).collect();
+    if options.copy_data {
         let batch_size = options.batch_size.unwrap_or(500).max(1);
+        let mut offset = 0;
 
-        for chunk in rows.chunks(batch_size) {
-            let target_table_unquoted = match options.target_schema.as_deref() {
-                Some(s) if !s.is_empty() => format!("{}.{}", s, options.target_table),
-                _ => options.target_table.clone(),
-            };
+        let target_table_unquoted = match options.target_schema.as_deref() {
+            Some(s) if !s.is_empty() => format!("{}.{}", s, options.target_table),
+            _ => options.target_table.clone(),
+        };
 
-            // We generate the batch insert sql directly using raw CellValues (no lossy string heuristic)
+        loop {
+            check_cancel()?;
+            let page_sql = format!(
+                "SELECT * FROM {} LIMIT {} OFFSET {};",
+                src_qualified_table, batch_size, offset
+            );
+            let page_res = src_conn.execute_query(&page_sql).await?;
+            check_cancel()?;
+
+            if columns.is_empty() && !page_res.columns.is_empty() {
+                columns = page_res.columns;
+                if options.copy_structure {
+                    let create_ddl = generate_create_table_ddl(
+                        tgt_dialect,
+                        options.target_schema.as_deref(),
+                        &options.target_table,
+                        &columns,
+                        src_dialect,
+                    );
+                    tgt_conn.execute_query(&create_ddl).await?;
+                }
+            }
+
+            if page_res.rows.is_empty() {
+                break;
+            }
+
+            let col_names: Vec<String> = columns.iter().map(|c| c.name.clone()).collect();
+            let fetched_count = page_res.rows.len();
+
             let insert_sql = generate_batch_insert_cells_sql(
                 &target_table_unquoted,
                 &col_names,
-                chunk,
+                &page_res.rows,
                 tgt_dialect,
             );
 
             tgt_conn.execute_query(&insert_sql).await?;
-            rows_transferred += chunk.len();
+            rows_transferred += fetched_count;
 
             if let Some(ref cb) = on_progress {
                 cb(TransferProgress {
                     current_row: rows_transferred,
-                    total_rows: Some(total_rows),
-                    status: format!("Transferring rows: {} / {}", rows_transferred, total_rows),
+                    total_rows: total_rows_opt,
+                    status: match total_rows_opt {
+                        Some(tot) => format!("Transferring rows: {} / {}", rows_transferred, tot),
+                        None => format!("Transferring rows: {}", rows_transferred),
+                    },
                 });
             }
+
+            if fetched_count < batch_size {
+                break;
+            }
+            offset += fetched_count;
         }
+    }
+
+    if let Some(jid) = job_id {
+        remove_cancellation_token(jid);
     }
 
     let elapsed_ms = start_time.elapsed().as_millis() as u64;

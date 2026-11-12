@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use async_trait::async_trait;
 use base64::Engine;
@@ -9,29 +10,45 @@ use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
 use crate::drivers::traits::{DatabaseConnection, SchemaNode, SchemaNodeType};
+use crate::services::ssh_tunnel::SshTunnelHandle;
 
 pub struct MySqlConnection {
     conn: Arc<Mutex<sqlx::MySqlConnection>>,
+    ssh_tunnel: Arc<Mutex<Option<SshTunnelHandle>>>,
     database_name: String,
-    connect_options: sqlx::mysql::MySqlConnectOptions,
-    connection_id: u64,
+    config: ConnectionConfig,
+    password: Option<String>,
+    connect_options: Arc<Mutex<sqlx::mysql::MySqlConnectOptions>>,
+    connection_id: Arc<AtomicU64>,
+    in_manual_tx: Arc<AtomicBool>,
 }
 
 impl MySqlConnection {
-    pub async fn connect(config: &ConnectionConfig, password: Option<&str>) -> Result<Self, AppError> {
-        if let Some(ref ssh) = config.ssh_tunnel {
+    async fn establish_raw(
+        config: &ConnectionConfig,
+        password: Option<&str>,
+    ) -> Result<(sqlx::MySqlConnection, sqlx::mysql::MySqlConnectOptions, u64, Option<SshTunnelHandle>), AppError> {
+        let timeout_secs = config.timeout_seconds.unwrap_or(15).max(1) as u64;
+        let remote_host = config.host.as_deref().unwrap_or("localhost");
+        let remote_port = config.port.unwrap_or(3306);
+
+        let mut tunnel_handle: Option<SshTunnelHandle> = None;
+        let (target_host, target_port) = if let Some(ref ssh) = config.ssh_tunnel {
             if ssh.enabled {
-                let ssh_host = ssh.host.as_deref().unwrap_or("bastion");
-                return Err(AppError::Other(format!(
-                    "SSH Tunnel to '{}' is enabled, but local SSH port forwarder is not established yet. Direct connection to database host blocked to prevent security bypass.",
-                    ssh_host
-                )));
+                let handle = SshTunnelHandle::establish(ssh, remote_host, remote_port, timeout_secs).await?;
+                let port = handle.local_port();
+                tunnel_handle = Some(handle);
+                ("127.0.0.1".to_string(), port)
+            } else {
+                (remote_host.to_string(), remote_port)
             }
-        }
+        } else {
+            (remote_host.to_string(), remote_port)
+        };
 
         let mut options = sqlx::mysql::MySqlConnectOptions::new()
-            .host(config.host.as_deref().unwrap_or("localhost"))
-            .port(config.port.unwrap_or(3306))
+            .host(&target_host)
+            .port(target_port)
             .database(&config.database);
 
         if let Some(user) = &config.user {
@@ -71,7 +88,6 @@ impl MySqlConnection {
             }
         }
 
-        let timeout_secs = config.timeout_seconds.unwrap_or(15).max(1) as u64;
         let connect_fut = sqlx::MySqlConnection::connect_with(&options);
         let mut conn = tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), connect_fut)
             .await
@@ -81,12 +97,76 @@ impl MySqlConnection {
             .await
             .unwrap_or(0);
 
+        Ok((conn, options, connection_id, tunnel_handle))
+    }
+
+    pub async fn connect(config: &ConnectionConfig, password: Option<&str>) -> Result<Self, AppError> {
+        let (conn, options, connection_id, tunnel_handle) = Self::establish_raw(config, password).await?;
+
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            ssh_tunnel: Arc::new(Mutex::new(tunnel_handle)),
             database_name: config.database.clone(),
-            connect_options: options,
-            connection_id,
+            config: config.clone(),
+            password: password.map(|s| s.to_string()),
+            connect_options: Arc::new(Mutex::new(options)),
+            connection_id: Arc::new(AtomicU64::new(connection_id)),
+            in_manual_tx: Arc::new(AtomicBool::new(false)),
         })
+    }
+
+    fn is_disconnect_error(err: &sqlx::Error) -> bool {
+        matches!(
+            err,
+            sqlx::Error::Io(_)
+                | sqlx::Error::Protocol(_)
+                | sqlx::Error::PoolTimedOut
+                | sqlx::Error::PoolClosed
+        )
+    }
+
+    async fn run_raw_sql(
+        conn: &mut sqlx::MySqlConnection,
+        sql: &str,
+        start: std::time::Instant,
+    ) -> Result<QueryResult, sqlx::Error> {
+        let mut stream = sqlx::raw_sql(sql).fetch_many(&mut *conn);
+        let mut columns = Vec::new();
+        let mut rows_out = Vec::new();
+        let mut rows_affected = None;
+
+        while let Some(item) = stream.try_next().await? {
+            match item {
+                Either::Left(result) => {
+                    rows_affected = Some(result.rows_affected());
+                }
+                Either::Right(row) => {
+                    if columns.is_empty() {
+                        columns = row
+                            .columns()
+                            .iter()
+                            .map(|col| {
+                                ColumnMeta::new(
+                                    col.name(),
+                                    col.type_info().name(),
+                                    true,
+                                )
+                            })
+                            .collect();
+                    }
+                    let col_len = row.columns().len();
+                    let mut row_values = Vec::with_capacity(col_len);
+                    for i in 0..col_len {
+                        row_values.push(decode_mysql_cell(&row, i));
+                    }
+                    rows_out.push(row_values);
+                }
+            }
+        }
+
+        drop(stream);
+        let elapsed = start.elapsed().as_millis() as u64;
+        Ok(QueryResult::new(columns, rows_out, elapsed, rows_affected))
     }
 }
 
@@ -204,43 +284,27 @@ impl DatabaseConnection for MySqlConnection {
         let start = std::time::Instant::now();
         let mut conn = self.conn.lock().await;
 
-        let mut stream = sqlx::raw_sql(sql).fetch_many(&mut *conn);
-        let mut columns = Vec::new();
-        let mut rows_out = Vec::new();
-        let mut rows_affected = None;
-
-        while let Some(item) = stream.try_next().await? {
-            match item {
-                Either::Left(result) => {
-                    rows_affected = Some(result.rows_affected());
-                }
-                Either::Right(row) => {
-                    if columns.is_empty() {
-                        columns = row
-                            .columns()
-                            .iter()
-                            .map(|col| {
-                                ColumnMeta::new(
-                                    col.name(),
-                                    col.type_info().name(),
-                                    true,
-                                )
-                            })
-                            .collect();
+        match Self::run_raw_sql(&mut *conn, sql, start).await {
+            Ok(res) => Ok(res),
+            Err(err) => {
+                let auto_reconnect = self.config.auto_reconnect.unwrap_or(true);
+                let in_tx = self.in_manual_tx.load(Ordering::SeqCst);
+                if auto_reconnect && !in_tx && Self::is_disconnect_error(&err) {
+                    if let Ok((new_conn, new_opts, new_cid, new_tunnel)) =
+                        Self::establish_raw(&self.config, self.password.as_deref()).await
+                    {
+                        *conn = new_conn;
+                        *self.connect_options.lock().await = new_opts;
+                        self.connection_id.store(new_cid, Ordering::SeqCst);
+                        *self.ssh_tunnel.lock().await = new_tunnel;
+                        return Self::run_raw_sql(&mut *conn, sql, std::time::Instant::now())
+                            .await
+                            .map_err(AppError::from);
                     }
-                    let col_len = row.columns().len();
-                    let mut row_values = Vec::with_capacity(col_len);
-                    for i in 0..col_len {
-                        row_values.push(decode_mysql_cell(&row, i));
-                    }
-                    rows_out.push(row_values);
                 }
+                Err(AppError::from(err))
             }
         }
-
-        drop(stream);
-        let elapsed = start.elapsed().as_millis() as u64;
-        Ok(QueryResult::new(columns, rows_out, elapsed, rows_affected))
     }
 
     async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>, sort_col: Option<&str>, sort_dir: Option<&str>) -> Result<QueryResult, AppError> {
@@ -354,9 +418,11 @@ impl DatabaseConnection for MySqlConnection {
     }
 
     async fn cancel(&self) -> Result<(), AppError> {
-        if self.connection_id > 0 {
-            if let Ok(mut cancel_conn) = sqlx::MySqlConnection::connect_with(&self.connect_options).await {
-                let kill_sql = format!("KILL QUERY {};", self.connection_id);
+        let cid = self.connection_id.load(Ordering::SeqCst);
+        if cid > 0 {
+            let opts = self.connect_options.lock().await.clone();
+            if let Ok(mut cancel_conn) = sqlx::MySqlConnection::connect_with(&opts).await {
+                let kill_sql = format!("KILL QUERY {};", cid);
                 let _ = sqlx::query(&kill_sql).execute(&mut cancel_conn).await;
             }
         }
@@ -364,6 +430,7 @@ impl DatabaseConnection for MySqlConnection {
     }
 
     async fn set_autocommit(&self, enabled: bool) -> Result<(), AppError> {
+        self.in_manual_tx.store(!enabled, Ordering::SeqCst);
         let sql = if enabled { "SET autocommit = 1;" } else { "SET autocommit = 0;" };
         self.execute_query(sql).await?;
         Ok(())

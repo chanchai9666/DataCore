@@ -4,6 +4,7 @@ import type {
   TableIndexStructure,
   TableForeignKeyStructure,
   TableConstraintStructure,
+  TableTriggerDef,
 } from '../../api/queryBuilder';
 
 export * from '../../api/queryBuilder';
@@ -313,6 +314,7 @@ export function parseIndexesFromQueryResult(
         isUnique,
         isPrimary: false,
         indexType: 'INDEX',
+        sql: sql || undefined,
       };
     });
   }
@@ -360,4 +362,36 @@ export function parseIndexesFromQueryResult(
       indexType,
     };
   });
+}
+
+/**
+ * Returns SQL to fetch trigger definitions for a given table (SQLite only).
+ */
+export function getFetchTriggersSql(driver: string, tableName: string): string | null {
+  if (driver?.toLowerCase() !== 'sqlite') return null;
+  const escapedTable = tableName.replace(/'/g, "''");
+  return `SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND tbl_name = '${escapedTable}' AND sql IS NOT NULL ORDER BY name;`;
+}
+
+/**
+ * Parses SQLite trigger definitions. The raw SQL is replayed after a table rebuild.
+ */
+export function parseTriggersFromQueryResult(
+  result: QueryResult,
+  driver: string
+): TableTriggerDef[] {
+  if (driver?.toLowerCase() !== 'sqlite') return [];
+  if (!result || !result.rows || result.rows.length === 0) return [];
+
+  const getStr = (val: CellValue): string | null => {
+    const s = formatCellValue(val);
+    return s === 'NULL' ? null : s;
+  };
+
+  return result.rows
+    .map((row) => ({
+      name: getStr(row[0]) || '',
+      sql: getStr(row[1]) || '',
+    }))
+    .filter((trigger) => trigger.sql.length > 0);
 }

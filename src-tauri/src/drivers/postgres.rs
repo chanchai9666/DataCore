@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::Arc;
 use async_trait::async_trait;
 use base64::Engine;
@@ -10,29 +11,45 @@ use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
 use crate::drivers::traits::{DatabaseConnection, SchemaNode, SchemaNodeType};
+use crate::services::ssh_tunnel::SshTunnelHandle;
 
 pub struct PostgresConnection {
     conn: Arc<Mutex<sqlx::PgConnection>>,
+    ssh_tunnel: Arc<Mutex<Option<SshTunnelHandle>>>,
     database_name: String,
-    connect_options: sqlx::postgres::PgConnectOptions,
-    backend_pid: i32,
+    config: ConnectionConfig,
+    password: Option<String>,
+    connect_options: Arc<Mutex<sqlx::postgres::PgConnectOptions>>,
+    backend_pid: Arc<AtomicI32>,
+    in_manual_tx: Arc<AtomicBool>,
 }
 
 impl PostgresConnection {
-    pub async fn connect(config: &ConnectionConfig, password: Option<&str>) -> Result<Self, AppError> {
-        if let Some(ref ssh) = config.ssh_tunnel {
+    async fn establish_raw(
+        config: &ConnectionConfig,
+        password: Option<&str>,
+    ) -> Result<(sqlx::PgConnection, sqlx::postgres::PgConnectOptions, i32, Option<SshTunnelHandle>), AppError> {
+        let timeout_secs = config.timeout_seconds.unwrap_or(15).max(1) as u64;
+        let remote_host = config.host.as_deref().unwrap_or("localhost");
+        let remote_port = config.port.unwrap_or(5432);
+
+        let mut tunnel_handle: Option<SshTunnelHandle> = None;
+        let (target_host, target_port) = if let Some(ref ssh) = config.ssh_tunnel {
             if ssh.enabled {
-                let ssh_host = ssh.host.as_deref().unwrap_or("bastion");
-                return Err(AppError::Other(format!(
-                    "SSH Tunnel to '{}' is enabled, but local SSH port forwarder is not established yet. Direct connection to database host blocked to prevent security bypass.",
-                    ssh_host
-                )));
+                let handle = SshTunnelHandle::establish(ssh, remote_host, remote_port, timeout_secs).await?;
+                let port = handle.local_port();
+                tunnel_handle = Some(handle);
+                ("127.0.0.1".to_string(), port)
+            } else {
+                (remote_host.to_string(), remote_port)
             }
-        }
+        } else {
+            (remote_host.to_string(), remote_port)
+        };
 
         let mut options = sqlx::postgres::PgConnectOptions::new()
-            .host(config.host.as_deref().unwrap_or("localhost"))
-            .port(config.port.unwrap_or(5432))
+            .host(&target_host)
+            .port(target_port)
             .database(&config.database)
             .statement_cache_capacity(0);
 
@@ -74,7 +91,6 @@ impl PostgresConnection {
             }
         }
 
-        let timeout_secs = config.timeout_seconds.unwrap_or(15).max(1) as u64;
         let connect_fut = sqlx::PgConnection::connect_with(&options);
         let mut conn = tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), connect_fut)
             .await
@@ -84,12 +100,76 @@ impl PostgresConnection {
             .await
             .unwrap_or(0);
 
+        Ok((conn, options, backend_pid, tunnel_handle))
+    }
+
+    pub async fn connect(config: &ConnectionConfig, password: Option<&str>) -> Result<Self, AppError> {
+        let (conn, options, backend_pid, tunnel_handle) = Self::establish_raw(config, password).await?;
+
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            ssh_tunnel: Arc::new(Mutex::new(tunnel_handle)),
             database_name: config.database.clone(),
-            connect_options: options,
-            backend_pid,
+            config: config.clone(),
+            password: password.map(|s| s.to_string()),
+            connect_options: Arc::new(Mutex::new(options)),
+            backend_pid: Arc::new(AtomicI32::new(backend_pid)),
+            in_manual_tx: Arc::new(AtomicBool::new(false)),
         })
+    }
+
+    fn is_disconnect_error(err: &sqlx::Error) -> bool {
+        matches!(
+            err,
+            sqlx::Error::Io(_)
+                | sqlx::Error::Protocol(_)
+                | sqlx::Error::PoolTimedOut
+                | sqlx::Error::PoolClosed
+        )
+    }
+
+    async fn run_raw_sql(
+        conn: &mut sqlx::PgConnection,
+        sql: &str,
+        start: std::time::Instant,
+    ) -> Result<QueryResult, sqlx::Error> {
+        let mut stream = sqlx::raw_sql(sql).fetch_many(&mut *conn);
+        let mut columns = Vec::new();
+        let mut rows_out = Vec::new();
+        let mut rows_affected = None;
+
+        while let Some(item) = stream.try_next().await? {
+            match item {
+                Either::Left(result) => {
+                    rows_affected = Some(result.rows_affected());
+                }
+                Either::Right(row) => {
+                    if columns.is_empty() {
+                        columns = row
+                            .columns()
+                            .iter()
+                            .map(|col| {
+                                ColumnMeta::new(
+                                    col.name(),
+                                    col.type_info().name(),
+                                    true,
+                                )
+                            })
+                            .collect();
+                    }
+                    let col_len = row.columns().len();
+                    let mut row_values = Vec::with_capacity(col_len);
+                    for i in 0..col_len {
+                        row_values.push(decode_pg_cell(&row, i));
+                    }
+                    rows_out.push(row_values);
+                }
+            }
+        }
+
+        drop(stream);
+        let elapsed = start.elapsed().as_millis() as u64;
+        Ok(QueryResult::new(columns, rows_out, elapsed, rows_affected))
     }
 }
 
@@ -177,7 +257,6 @@ fn decode_pg_cell(row: &sqlx::postgres::PgRow, index: usize) -> CellValue {
             row.try_get::<String, _>(index).map(CellValue::Text).unwrap_or(CellValue::Null)
         }
         _ => {
-            // Dynamic fallback to string, integer, float, bool or display representation
             if let Ok(s) = row.try_get::<String, _>(index) {
                 CellValue::Text(s)
             } else if let Ok(n) = row.try_get::<i64, _>(index) {
@@ -206,43 +285,27 @@ impl DatabaseConnection for PostgresConnection {
         let start = std::time::Instant::now();
         let mut conn = self.conn.lock().await;
 
-        let mut stream = sqlx::raw_sql(sql).fetch_many(&mut *conn);
-        let mut columns = Vec::new();
-        let mut rows_out = Vec::new();
-        let mut rows_affected = None;
-
-        while let Some(item) = stream.try_next().await? {
-            match item {
-                Either::Left(result) => {
-                    rows_affected = Some(result.rows_affected());
-                }
-                Either::Right(row) => {
-                    if columns.is_empty() {
-                        columns = row
-                            .columns()
-                            .iter()
-                            .map(|col| {
-                                ColumnMeta::new(
-                                    col.name(),
-                                    col.type_info().name(),
-                                    true,
-                                )
-                            })
-                            .collect();
+        match Self::run_raw_sql(&mut *conn, sql, start).await {
+            Ok(res) => Ok(res),
+            Err(err) => {
+                let auto_reconnect = self.config.auto_reconnect.unwrap_or(true);
+                let in_tx = self.in_manual_tx.load(Ordering::SeqCst);
+                if auto_reconnect && !in_tx && Self::is_disconnect_error(&err) {
+                    if let Ok((new_conn, new_opts, new_pid, new_tunnel)) =
+                        Self::establish_raw(&self.config, self.password.as_deref()).await
+                    {
+                        *conn = new_conn;
+                        *self.connect_options.lock().await = new_opts;
+                        self.backend_pid.store(new_pid, Ordering::SeqCst);
+                        *self.ssh_tunnel.lock().await = new_tunnel;
+                        return Self::run_raw_sql(&mut *conn, sql, std::time::Instant::now())
+                            .await
+                            .map_err(AppError::from);
                     }
-                    let col_len = row.columns().len();
-                    let mut row_values = Vec::with_capacity(col_len);
-                    for i in 0..col_len {
-                        row_values.push(decode_pg_cell(&row, i));
-                    }
-                    rows_out.push(row_values);
                 }
+                Err(AppError::from(err))
             }
         }
-
-        drop(stream);
-        let elapsed = start.elapsed().as_millis() as u64;
-        Ok(QueryResult::new(columns, rows_out, elapsed, rows_affected))
     }
 
     async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>, sort_col: Option<&str>, sort_dir: Option<&str>) -> Result<QueryResult, AppError> {
@@ -314,7 +377,6 @@ impl DatabaseConnection for PostgresConnection {
     }
 
     async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError> {
-        // 1. Discover all non-system/non-temp schemas first so even empty schemas are visible
         let schema_sql = "SELECT schema_name FROM information_schema.schemata \
             WHERE schema_name NOT IN ('pg_catalog', 'information_schema') \
               AND schema_name NOT LIKE 'pg_toast%' \
@@ -328,10 +390,8 @@ impl DatabaseConnection for PostgresConnection {
                 }
             }
         }
-        // Always ensure 'public' exists
         schema_map.entry("public".to_string()).or_default();
 
-        // 2. Query all tables and views, excluding internal temporary/toast schemas
         let sql = "SELECT table_schema, table_name, table_type FROM information_schema.tables \
             WHERE table_schema NOT IN ('pg_catalog', 'information_schema') \
               AND table_schema NOT LIKE 'pg_toast%' \
@@ -360,7 +420,6 @@ impl DatabaseConnection for PostgresConnection {
             schema_nodes.push(node);
         }
 
-        // Sorting: 'public' always first, followed by user schemas A-Z, then system/service schemas
         schema_nodes.sort_by(|a, b| {
             if a.name == "public" {
                 return std::cmp::Ordering::Less;
@@ -403,19 +462,27 @@ impl DatabaseConnection for PostgresConnection {
 
     async fn commit(&self) -> Result<(), AppError> {
         self.execute_query("COMMIT;").await?;
+        if self.in_manual_tx.load(Ordering::SeqCst) {
+            let _ = self.execute_query("BEGIN;").await;
+        }
         Ok(())
     }
 
     async fn rollback(&self) -> Result<(), AppError> {
         self.execute_query("ROLLBACK;").await?;
+        if self.in_manual_tx.load(Ordering::SeqCst) {
+            let _ = self.execute_query("BEGIN;").await;
+        }
         Ok(())
     }
 
     async fn cancel(&self) -> Result<(), AppError> {
-        if self.backend_pid > 0 {
-            if let Ok(mut cancel_conn) = sqlx::PgConnection::connect_with(&self.connect_options).await {
+        let pid = self.backend_pid.load(Ordering::SeqCst);
+        if pid > 0 {
+            let opts = self.connect_options.lock().await.clone();
+            if let Ok(mut cancel_conn) = sqlx::PgConnection::connect_with(&opts).await {
                 let _ = sqlx::query("SELECT pg_cancel_backend($1);")
-                    .bind(self.backend_pid)
+                    .bind(pid)
                     .execute(&mut cancel_conn)
                     .await;
             }
@@ -424,6 +491,7 @@ impl DatabaseConnection for PostgresConnection {
     }
 
     async fn set_autocommit(&self, enabled: bool) -> Result<(), AppError> {
+        self.in_manual_tx.store(!enabled, Ordering::SeqCst);
         if !enabled {
             self.execute_query("BEGIN;").await?;
         }

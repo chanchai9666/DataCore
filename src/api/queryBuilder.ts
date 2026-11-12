@@ -23,6 +23,12 @@ export interface TableIndexStructure {
   isUnique: boolean;
   isPrimary?: boolean;
   indexType?: string;
+  sql?: string;
+}
+
+export interface TableTriggerDef {
+  name: string;
+  sql: string;
 }
 
 export interface CreateTableConfig {
@@ -674,6 +680,9 @@ export interface AddForeignKeyParams {
   onDelete?: string;
   onUpdate?: string;
   existingColumns?: ExistingColumnDef[];
+  originalDdl?: string;
+  existingIndexes?: TableIndexStructure[];
+  existingTriggers?: TableTriggerDef[];
 }
 
 export interface DropForeignKeyParams {
@@ -683,6 +692,163 @@ export interface DropForeignKeyParams {
   constraintName: string;
   existingColumns?: ExistingColumnDef[];
   remainingForeignKeys?: ExistingForeignKeyDef[];
+  originalDdl?: string;
+  existingIndexes?: TableIndexStructure[];
+  existingTriggers?: TableTriggerDef[];
+}
+
+function findMatchingParen(sql: string, openIndex: number): number {
+  if (openIndex < 0) return -1;
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = openIndex; i < sql.length; i++) {
+    const ch = sql[i];
+    if (quote) {
+      if (ch === quote) {
+        if (sql[i + 1] === quote) {
+          i++;
+        } else {
+          quote = null;
+        }
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === '[') {
+      quote = ']';
+      continue;
+    }
+    if (ch === '(') depth++;
+    else if (ch === ')') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function splitTopLevelDefinitions(body: string): string[] {
+  const defs: string[] = [];
+  let current = '';
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (quote) {
+      current += ch;
+      if (ch === quote) {
+        if (body[i + 1] === quote) {
+          current += body[i + 1];
+          i++;
+        } else {
+          quote = null;
+        }
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      current += ch;
+      continue;
+    }
+    if (ch === '[') {
+      quote = ']';
+      current += ch;
+      continue;
+    }
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) {
+      defs.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) defs.push(current.trim());
+  return defs;
+}
+
+function stripConstraintPrefix(definition: string): string {
+  const trimmed = definition.trim();
+  const match = trimmed.match(
+    /^CONSTRAINT\s+("(?:[^"]|"")*"|`(?:[^`]|``)*`|\[[^\]]*\]|\S+)\s+/i
+  );
+  return match ? trimmed.slice(match[0].length) : trimmed;
+}
+
+function isForeignKeyDefinition(definition: string): boolean {
+  return /^FOREIGN\s+KEY\b/i.test(stripConstraintPrefix(definition));
+}
+
+function ensureSemicolon(sql: string): string {
+  const trimmed = sql.trim();
+  return trimmed.endsWith(';') ? trimmed : `${trimmed};`;
+}
+
+function renameCreatedTable(ddl: string, newTableName: string, driver?: string): string {
+  const quotedNew = quoteIdentifier(newTableName, driver);
+  const pattern =
+    /^(\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)(?:"(?:[^"]|"")*"|`(?:[^`]|``)*`|\[[^\]]*\]|[^\s(]+)/i;
+  if (!pattern.test(ddl)) return ddl;
+  return ddl.replace(pattern, (_m, prefix: string) => `${prefix}${quotedNew}`);
+}
+
+function appendTableDefinition(ddl: string, clause: string): string {
+  if (!clause.trim()) return ddl;
+  const open = ddl.indexOf('(');
+  const close = findMatchingParen(ddl, open);
+  if (open < 0 || close < 0) return ddl;
+  const before = ddl.slice(0, close).replace(/[\s,]+$/, '');
+  return `${before},\n  ${clause}\n${ddl.slice(close)}`;
+}
+
+function removeForeignKeyDefinitions(ddl: string): string {
+  const open = ddl.indexOf('(');
+  const close = findMatchingParen(ddl, open);
+  if (open < 0 || close < 0) return ddl;
+  const defs = splitTopLevelDefinitions(ddl.slice(open + 1, close)).filter(
+    (def) => !isForeignKeyDefinition(def)
+  );
+  return `${ddl.slice(0, open + 1)}\n  ${defs.join(',\n  ')}\n${ddl.slice(close)}`;
+}
+
+function buildSqliteRebuildScript(params: {
+  tableName: string;
+  driver?: string;
+  createTableSql: string;
+  columns: ExistingColumnDef[];
+  indexes?: TableIndexStructure[];
+  triggers?: TableTriggerDef[];
+}): string {
+  const { tableName, driver, createTableSql, columns, indexes, triggers } = params;
+  const quotedTemp = quoteIdentifier(`${tableName}_datacore_rebuild`, driver);
+  const quotedOrig = quoteIdentifier(tableName, driver);
+  const colNames = columns.map((c) => quoteIdentifier(c.name, driver)).join(', ');
+
+  const steps: string[] = [
+    'PRAGMA foreign_keys = OFF;',
+    'BEGIN TRANSACTION;',
+    ensureSemicolon(createTableSql.trim()),
+    `INSERT INTO ${quotedTemp} (${colNames}) SELECT ${colNames} FROM ${quotedOrig};`,
+    `DROP TABLE ${quotedOrig};`,
+    `ALTER TABLE ${quotedTemp} RENAME TO ${quotedOrig};`,
+  ];
+
+  for (const index of indexes || []) {
+    if (!index.sql || index.name.startsWith('sqlite_autoindex_')) continue;
+    steps.push(ensureSemicolon(index.sql));
+  }
+  for (const trigger of triggers || []) {
+    if (!trigger.sql) continue;
+    steps.push(ensureSemicolon(trigger.sql));
+  }
+
+  steps.push('COMMIT;', 'PRAGMA foreign_keys = ON;');
+  return steps.join('\n');
 }
 
 export interface TableConstraintStructure {
@@ -739,7 +905,6 @@ export function buildAddForeignKeySql(params: AddForeignKeyParams): string {
 
     const tempTable = `${tableName}_datacore_rebuild`;
     const quotedTemp = quoteIdentifier(tempTable, driver);
-    const quotedOrig = quoteIdentifier(tableName, driver);
     const quotedForeign = quoteIdentifier(foreignTable, driver);
 
     const fkName = constraintName || `fk_${tableName}_${columns.join('_')}`;
@@ -755,45 +920,57 @@ export function buildAddForeignKeySql(params: AddForeignKeyParams): string {
       fkClause += ` ON UPDATE ${onUpdate.toUpperCase()}`;
     }
 
-    const colDefs = existingColumns.map((col) => {
-      let def = `${quoteIdentifier(col.name, driver)} ${col.type || 'TEXT'}`;
-      if (col.isPrimaryKey) {
-        def += ' PRIMARY KEY';
-        if (col.isAutoIncrement) {
-          def += ' AUTOINCREMENT';
+    let createTableSql: string;
+    if (params.originalDdl && params.originalDdl.trim()) {
+      createTableSql = appendTableDefinition(
+        renameCreatedTable(params.originalDdl, tempTable, driver),
+        fkClause
+      );
+    } else {
+      const pkCols = existingColumns.filter((c) => c.isPrimaryKey);
+      const colDefs = existingColumns.map((col) => {
+        let def = `${quoteIdentifier(col.name, driver)} ${col.type || 'TEXT'}`;
+        if (col.isPrimaryKey && pkCols.length === 1) {
+          def += ' PRIMARY KEY';
+          if (col.isAutoIncrement) {
+            def += ' AUTOINCREMENT';
+          }
         }
+        if (col.isUnique && !col.isPrimaryKey) {
+          def += ' UNIQUE';
+        }
+        if (col.nullable === false && !col.isPrimaryKey) {
+          def += ' NOT NULL';
+        }
+        if (col.defaultValue !== undefined && col.defaultValue !== null && col.defaultValue !== '') {
+          def += ` DEFAULT ${col.defaultValue}`;
+        }
+        if (col.checkConstraint) {
+          def += ` CHECK (${col.checkConstraint})`;
+        }
+        if (col.collation) {
+          def += ` COLLATE ${col.collation}`;
+        }
+        return def;
+      });
+
+      if (pkCols.length > 1) {
+        colDefs.push(
+          `PRIMARY KEY (${pkCols.map((c) => quoteIdentifier(c.name, driver)).join(', ')})`
+        );
       }
-      if (col.isUnique && !col.isPrimaryKey) {
-        def += ' UNIQUE';
-      }
-      if (col.nullable === false && !col.isPrimaryKey) {
-        def += ' NOT NULL';
-      }
-      if (col.defaultValue !== undefined && col.defaultValue !== null && col.defaultValue !== '') {
-        def += ` DEFAULT ${col.defaultValue}`;
-      }
-      if (col.checkConstraint) {
-        def += ` CHECK (${col.checkConstraint})`;
-      }
-      if (col.collation) {
-        def += ` COLLATE ${col.collation}`;
-      }
-      return def;
+      colDefs.push(fkClause);
+      createTableSql = `CREATE TABLE ${quotedTemp} (\n  ${colDefs.join(',\n  ')}\n)`;
+    }
+
+    return buildSqliteRebuildScript({
+      tableName,
+      driver,
+      createTableSql,
+      columns: existingColumns,
+      indexes: params.existingIndexes,
+      triggers: params.existingTriggers,
     });
-
-    const allDefs = [...colDefs, fkClause].join(',\n  ');
-    const colNames = existingColumns.map((c) => quoteIdentifier(c.name, driver)).join(', ');
-
-    return [
-      'PRAGMA foreign_keys = OFF;',
-      'BEGIN TRANSACTION;',
-      `CREATE TABLE ${quotedTemp} (\n  ${allDefs}\n);`,
-      `INSERT INTO ${quotedTemp} (${colNames}) SELECT ${colNames} FROM ${quotedOrig};`,
-      `DROP TABLE ${quotedOrig};`,
-      `ALTER TABLE ${quotedTemp} RENAME TO ${quotedOrig};`,
-      'COMMIT;',
-      'PRAGMA foreign_keys = ON;',
-    ].join('\n');
   }
 
   const fullTable = qualifyTable(tableName, schemaName, driver);
@@ -818,7 +995,15 @@ export function buildAddForeignKeySql(params: AddForeignKeyParams): string {
  * Builds a statement to drop a foreign key constraint (or table-rebuild migration for SQLite).
  */
 export function buildDropForeignKeySql(params: DropForeignKeyParams): string {
-  const { tableName, schemaName, driver, constraintName, existingColumns, remainingForeignKeys } = params;
+  const {
+    tableName,
+    schemaName,
+    driver,
+    constraintName,
+    existingColumns,
+    remainingForeignKeys,
+    originalDdl,
+  } = params;
   const d = (driver || '').toLowerCase();
 
   if (d.includes('sqlite')) {
@@ -830,33 +1015,6 @@ export function buildDropForeignKeySql(params: DropForeignKeyParams): string {
 
     const tempTable = `${tableName}_datacore_rebuild`;
     const quotedTemp = quoteIdentifier(tempTable, driver);
-    const quotedOrig = quoteIdentifier(tableName, driver);
-
-    const colDefs = existingColumns.map((col) => {
-      let def = `${quoteIdentifier(col.name, driver)} ${col.type || 'TEXT'}`;
-      if (col.isPrimaryKey) {
-        def += ' PRIMARY KEY';
-        if (col.isAutoIncrement) {
-          def += ' AUTOINCREMENT';
-        }
-      }
-      if (col.isUnique && !col.isPrimaryKey) {
-        def += ' UNIQUE';
-      }
-      if (col.nullable === false && !col.isPrimaryKey) {
-        def += ' NOT NULL';
-      }
-      if (col.defaultValue !== undefined && col.defaultValue !== null && col.defaultValue !== '') {
-        def += ` DEFAULT ${col.defaultValue}`;
-      }
-      if (col.checkConstraint) {
-        def += ` CHECK (${col.checkConstraint})`;
-      }
-      if (col.collation) {
-        def += ` COLLATE ${col.collation}`;
-      }
-      return def;
-    });
 
     const fkClauses = (remainingForeignKeys || [])
       .filter((fk) => fk.name !== constraintName)
@@ -874,19 +1032,56 @@ export function buildDropForeignKeySql(params: DropForeignKeyParams): string {
         return clause;
       });
 
-    const allDefs = [...colDefs, ...fkClauses].join(',\n  ');
-    const colNames = existingColumns.map((c) => quoteIdentifier(c.name, driver)).join(', ');
+    let createTableSql: string;
+    if (originalDdl && originalDdl.trim()) {
+      const renamed = renameCreatedTable(originalDdl, tempTable, driver);
+      const stripped = removeForeignKeyDefinitions(renamed);
+      createTableSql = appendTableDefinition(stripped, fkClauses.join(',\n  '));
+    } else {
+      const pkCols = existingColumns.filter((c) => c.isPrimaryKey);
+      const colDefs = existingColumns.map((col) => {
+        let def = `${quoteIdentifier(col.name, driver)} ${col.type || 'TEXT'}`;
+        if (col.isPrimaryKey && pkCols.length === 1) {
+          def += ' PRIMARY KEY';
+          if (col.isAutoIncrement) {
+            def += ' AUTOINCREMENT';
+          }
+        }
+        if (col.isUnique && !col.isPrimaryKey) {
+          def += ' UNIQUE';
+        }
+        if (col.nullable === false && !col.isPrimaryKey) {
+          def += ' NOT NULL';
+        }
+        if (col.defaultValue !== undefined && col.defaultValue !== null && col.defaultValue !== '') {
+          def += ` DEFAULT ${col.defaultValue}`;
+        }
+        if (col.checkConstraint) {
+          def += ` CHECK (${col.checkConstraint})`;
+        }
+        if (col.collation) {
+          def += ` COLLATE ${col.collation}`;
+        }
+        return def;
+      });
 
-    return [
-      'PRAGMA foreign_keys = OFF;',
-      'BEGIN TRANSACTION;',
-      `CREATE TABLE ${quotedTemp} (\n  ${allDefs}\n);`,
-      `INSERT INTO ${quotedTemp} (${colNames}) SELECT ${colNames} FROM ${quotedOrig};`,
-      `DROP TABLE ${quotedOrig};`,
-      `ALTER TABLE ${quotedTemp} RENAME TO ${quotedOrig};`,
-      'COMMIT;',
-      'PRAGMA foreign_keys = ON;',
-    ].join('\n');
+      if (pkCols.length > 1) {
+        colDefs.push(
+          `PRIMARY KEY (${pkCols.map((c) => quoteIdentifier(c.name, driver)).join(', ')})`
+        );
+      }
+      const allDefs = [...colDefs, ...fkClauses].join(',\n  ');
+      createTableSql = `CREATE TABLE ${quotedTemp} (\n  ${allDefs}\n)`;
+    }
+
+    return buildSqliteRebuildScript({
+      tableName,
+      driver,
+      createTableSql,
+      columns: existingColumns,
+      indexes: params.existingIndexes,
+      triggers: params.existingTriggers,
+    });
   }
 
   const fullTable = qualifyTable(tableName, schemaName, driver);

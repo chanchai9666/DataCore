@@ -9,26 +9,30 @@ use crate::drivers::traits::{DatabaseConnection, SchemaNode, SchemaNodeType};
 #[derive(Clone)]
 pub struct SqliteConnection {
     conn: Arc<Mutex<rusqlite::Connection>>,
-    interrupt_handle: Arc<rusqlite::InterruptHandle>,
+    interrupt_handle: Arc<Mutex<rusqlite::InterruptHandle>>,
     database_name: String,
+    file_path: Option<String>,
+    auto_reconnect: bool,
     autocommit: Arc<Mutex<bool>>,
 }
 
 impl SqliteConnection {
     pub fn open_in_memory() -> Result<Self, AppError> {
         let conn = rusqlite::Connection::open_in_memory()?;
-        let interrupt_handle = Arc::new(conn.get_interrupt_handle());
+        let interrupt_handle = Arc::new(Mutex::new(conn.get_interrupt_handle()));
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             interrupt_handle,
             database_name: "main".to_string(),
+            file_path: None,
+            auto_reconnect: false,
             autocommit: Arc::new(Mutex::new(true)),
         })
     }
 
     pub fn open(path: &str) -> Result<Self, AppError> {
         let conn = rusqlite::Connection::open(path)?;
-        let interrupt_handle = Arc::new(conn.get_interrupt_handle());
+        let interrupt_handle = Arc::new(Mutex::new(conn.get_interrupt_handle()));
         let db_name = std::path::Path::new(path)
             .file_stem()
             .and_then(|s| s.to_str())
@@ -38,35 +42,28 @@ impl SqliteConnection {
             conn: Arc::new(Mutex::new(conn)),
             interrupt_handle,
             database_name: db_name,
+            file_path: Some(path.to_string()),
+            auto_reconnect: true,
             autocommit: Arc::new(Mutex::new(true)),
         })
     }
 
     pub fn from_config(config: &ConnectionConfig) -> Result<Self, AppError> {
-        if config.database == ":memory:" || config.database.starts_with("sqlite::memory:") {
-            Self::open_in_memory()
+        let mut instance = if config.database == ":memory:" || config.database.starts_with("sqlite::memory:") {
+            Self::open_in_memory()?
         } else {
-            Self::open(&config.database)
-        }
-    }
-}
-
-#[async_trait]
-impl DatabaseConnection for SqliteConnection {
-    async fn test_connection(&self) -> Result<u64, AppError> {
-        let start = std::time::Instant::now();
-        let conn = self.conn.lock().await;
-        conn.query_row("SELECT 1;", [], |_| Ok(()))?;
-        let elapsed = start.elapsed().as_millis() as u64;
-        Ok(elapsed)
+            Self::open(&config.database)?
+        };
+        instance.auto_reconnect = config.auto_reconnect.unwrap_or(true);
+        Ok(instance)
     }
 
-    async fn execute_query(&self, sql: &str) -> Result<QueryResult, AppError> {
-        let start = std::time::Instant::now();
-        let conn = self.conn.lock().await;
-
+    fn execute_on_conn(
+        conn: &rusqlite::Connection,
+        sql: &str,
+        start: std::time::Instant,
+    ) -> Result<QueryResult, rusqlite::Error> {
         let trimmed_sql = sql.trim();
-        // If SQL contains multiple statements (semicolons separating non-SELECT commands), execute via execute_batch
         if trimmed_sql.contains(';') && !trimmed_sql.to_uppercase().starts_with("SELECT") {
             let statements: Vec<&str> = trimmed_sql
                 .split(';')
@@ -126,6 +123,41 @@ impl DatabaseConnection for SqliteConnection {
             let rows_affected = stmt.execute([])? as u64;
             let elapsed = start.elapsed().as_millis() as u64;
             Ok(QueryResult::new(Vec::new(), Vec::new(), elapsed, Some(rows_affected)))
+        }
+    }
+}
+
+#[async_trait]
+impl DatabaseConnection for SqliteConnection {
+    async fn test_connection(&self) -> Result<u64, AppError> {
+        let start = std::time::Instant::now();
+        let conn = self.conn.lock().await;
+        conn.query_row("SELECT 1;", [], |_| Ok(()))?;
+        let elapsed = start.elapsed().as_millis() as u64;
+        Ok(elapsed)
+    }
+
+    async fn execute_query(&self, sql: &str) -> Result<QueryResult, AppError> {
+        let start = std::time::Instant::now();
+        let mut conn = self.conn.lock().await;
+
+        match Self::execute_on_conn(&conn, sql, start) {
+            Ok(res) => Ok(res),
+            Err(err) => {
+                let ac = *self.autocommit.lock().await;
+                if self.auto_reconnect && ac {
+                    if let Some(ref path) = self.file_path {
+                        if let Ok(new_conn) = rusqlite::Connection::open(path) {
+                            let new_handle = new_conn.get_interrupt_handle();
+                            *conn = new_conn;
+                            *self.interrupt_handle.lock().await = new_handle;
+                            return Self::execute_on_conn(&conn, sql, std::time::Instant::now())
+                                .map_err(AppError::from);
+                        }
+                    }
+                }
+                Err(AppError::from(err))
+            }
         }
     }
 
@@ -222,7 +254,7 @@ impl DatabaseConnection for SqliteConnection {
     }
 
     async fn cancel(&self) -> Result<(), AppError> {
-        self.interrupt_handle.interrupt();
+        self.interrupt_handle.lock().await.interrupt();
         Ok(())
     }
 

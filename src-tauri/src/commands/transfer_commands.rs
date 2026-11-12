@@ -195,6 +195,10 @@ pub async fn copy_table_cross_db(
     store: State<'_, ConnectionStore>,
     options: CrossDbCopyTableOptions,
 ) -> Result<CrossDbCopyResult, String> {
+    if let Some(ref jid) = options.job_id {
+        register_cancellation_token(jid);
+    }
+
     let src_config = store
         .get(&options.source_connection_id)
         .map_err(|e| e.to_string())?

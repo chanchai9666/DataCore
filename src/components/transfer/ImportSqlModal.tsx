@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Upload, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
-import { pickSqlImportFile, onTransferProgress } from '../../api/dataTransferApi';
+import { pickSqlImportFile, onTransferProgress, cancelTransfer } from '../../api/dataTransferApi';
 import type { SqlImportResult, TransferProgress } from '../../types/dataTransfer';
 
 export interface ImportSqlModalProps {
@@ -25,6 +25,7 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<TransferProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -33,6 +34,7 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
       setLoading(false);
       setProgress(null);
       setError(null);
+      activeJobIdRef.current = null;
     }
   }, [isOpen]);
 
@@ -51,6 +53,19 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
   }, [isOpen, loading]);
 
   if (!isOpen) return null;
+
+  const handleCancelOrClose = async () => {
+    if (loading && activeJobIdRef.current) {
+      try {
+        await cancelTransfer(activeJobIdRef.current);
+        toast.info('SQL import cancelled');
+      } catch (err) {
+        console.error('Failed to cancel SQL import:', err);
+      }
+      return;
+    }
+    onClose();
+  };
 
   const handlePickFile = async () => {
     try {
@@ -71,6 +86,8 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
       return;
     }
 
+    const jobId = `import-sql-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    activeJobIdRef.current = jobId;
     setLoading(true);
     setError(null);
 
@@ -80,6 +97,8 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
         schema: schemaName,
         filePath: filePath.trim(),
         errorPolicy,
+        job_id: jobId,
+        jobId,
       });
 
       toast.success(
@@ -92,10 +111,15 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-      toast.error(`SQL Import failed: ${msg}`);
+      if (msg.toLowerCase().includes('cancelled')) {
+        toast.info('SQL import cancelled by user');
+      } else {
+        setError(msg);
+        toast.error(`SQL Import failed: ${msg}`);
+      }
     } finally {
       setLoading(false);
+      activeJobIdRef.current = null;
     }
   };
 
@@ -117,8 +141,7 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            disabled={loading}
+            onClick={handleCancelOrClose}
             className="text-gray-400 hover:text-white p-1 rounded hover:bg-[#333333] transition-colors"
           >
             <X className="w-4 h-4" />
@@ -227,8 +250,7 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
           <div className="flex items-center justify-end space-x-2 pt-3 border-t border-[#2d2d2d]">
             <button
               type="button"
-              onClick={onClose}
-              disabled={loading}
+              onClick={handleCancelOrClose}
               className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-300 hover:text-white bg-[#2d2d2d] hover:bg-[#383838] transition-colors"
             >
               Cancel

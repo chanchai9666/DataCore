@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRightLeft, X, Loader2, ArrowRight, Database, Table, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
-import { onTransferProgress } from '../../api/dataTransferApi';
+import { onTransferProgress, cancelTransfer } from '../../api/dataTransferApi';
 import { useConnectionStore } from '../../stores/connectionStore';
 import type { TransferProgress } from '../../types/dataTransfer';
 
@@ -36,6 +36,7 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<TransferProgress | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
 
   // Initialize or reset when modal opens or source changes
   useEffect(() => {
@@ -49,8 +50,22 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
       setLoading(false);
       setError(null);
       setProgress(null);
+      activeJobIdRef.current = null;
     }
   }, [isOpen, sourceConnectionId, sourceTableName, sourceSchemaName]);
+
+  const handleCancelOrClose = async () => {
+    if (loading && activeJobIdRef.current) {
+      try {
+        await cancelTransfer(activeJobIdRef.current);
+        toast.info('Transfer cancelled');
+      } catch (err) {
+        console.error('Failed to cancel transfer:', err);
+      }
+      return;
+    }
+    onClose();
+  };
 
   // Adjust default target table name when target connection changes
   const handleTargetConnectionChange = (newTargetConnId: string) => {
@@ -109,6 +124,8 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
       return;
     }
 
+    const jobId = `cross-db-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    activeJobIdRef.current = jobId;
     setLoading(true);
     setError(null);
 
@@ -123,6 +140,8 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
         copyStructure,
         dropTargetIfExists,
         copyData,
+        job_id: jobId,
+        jobId,
       });
 
       toast.success(
@@ -135,10 +154,15 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-      toast.error(`Transfer failed: ${msg}`);
+      if (msg.toLowerCase().includes('cancelled')) {
+        toast.info('Transfer cancelled by user');
+      } else {
+        setError(msg);
+        toast.error(`Transfer failed: ${msg}`);
+      }
     } finally {
       setLoading(false);
+      activeJobIdRef.current = null;
     }
   };
 
@@ -160,8 +184,7 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            disabled={loading}
+            onClick={handleCancelOrClose}
             className="text-gray-400 hover:text-white p-1 rounded hover:bg-[#333333] transition-colors"
           >
             <X className="w-4 h-4" />
@@ -340,8 +363,7 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
           <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#2d2d2d]">
             <button
               type="button"
-              onClick={onClose}
-              disabled={loading}
+              onClick={handleCancelOrClose}
               className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-300 hover:text-white bg-[#2d2d2d] hover:bg-[#383838] transition-colors"
             >
               Cancel

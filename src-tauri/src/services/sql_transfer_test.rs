@@ -5,6 +5,7 @@ mod tests {
     use crate::drivers::DatabaseConnection;
     use crate::models::transfer::{SqlExportOptions, SqlImportOptions};
     use crate::models::{CellValue, DatabaseDriver};
+    use crate::services::data_transfer::{register_cancellation_token, trigger_cancellation};
 
     #[test]
     fn test_split_sql_script_with_delimiter_directive() {
@@ -138,7 +139,7 @@ SELECT * FROM users WHERE name = 'ทดสอบ'; -- ปิดท้าย
             include_drop_table: true,
             include_structure: true,
             include_data: true,
-            batch_size: Some(500),
+            batch_size: Some(1), // Test pagination with batch_size = 1
             job_id: None,
         };
 
@@ -154,5 +155,41 @@ SELECT * FROM users WHERE name = 'ทดสอบ'; -- ปิดท้าย
         assert!(content.contains("Table structure and data for `t2`"));
 
         let _ = std::fs::remove_file(dump_path);
+    }
+
+    #[tokio::test]
+    async fn test_import_sql_abort_rolls_back_on_cancellation() {
+        let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+        conn.execute_query("CREATE TABLE tx_test (id INT PRIMARY KEY);")
+            .await
+            .expect("create table");
+
+        let temp_dir = std::env::temp_dir();
+        let sql_path = temp_dir.join(format!("datacore_cancel_import_{}.sql", uuid::Uuid::new_v4()));
+        std::fs::write(
+            &sql_path,
+            "INSERT INTO tx_test VALUES (1);\nINSERT INTO tx_test VALUES (2);\n",
+        )
+        .unwrap();
+
+        let job_id = "cancel-sql-import-job";
+        register_cancellation_token(job_id);
+        trigger_cancellation(job_id);
+
+        let import_opts = SqlImportOptions {
+            connection_id: "test".to_string(),
+            schema: None,
+            file_path: sql_path.to_str().unwrap().to_string(),
+            error_policy: "abort".to_string(),
+            job_id: Some(job_id.to_string()),
+        };
+
+        let res = import_sql_impl(&conn, &import_opts, None::<fn(_)>).await;
+        assert!(res.is_err());
+
+        let count_res = conn.execute_query("SELECT COUNT(*) FROM tx_test;").await.unwrap();
+        assert_eq!(count_res.rows[0][0], CellValue::Integer(0));
+
+        let _ = std::fs::remove_file(sql_path);
     }
 }

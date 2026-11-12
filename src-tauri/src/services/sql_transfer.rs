@@ -4,7 +4,7 @@ use crate::drivers::DatabaseConnection;
 use crate::error::AppError;
 use crate::models::transfer::{SqlExportOptions, SqlExportResult, SqlImportOptions, SqlImportResult, TransferProgress};
 use crate::models::{CellValue, DatabaseDriver};
-use crate::services::data_transfer::is_transfer_cancelled;
+use crate::services::data_transfer::{is_transfer_cancelled, remove_cancellation_token};
 use crate::services::table_list::get_table_list_metadata_impl;
 
 /// Checks whether a statement string contains any executable SQL (i.e. not solely whitespace and comments).
@@ -219,7 +219,7 @@ fn format_cell_value(val: &CellValue, dialect: &str) -> String {
     }
 }
 
-/// Dumps table DDL and data into a local SQL script file.
+/// Dumps table DDL and data into a local SQL script file using streaming pagination.
 pub async fn export_sql_impl(
     conn: &dyn DatabaseConnection,
     driver: DatabaseDriver,
@@ -259,6 +259,7 @@ pub async fn export_sql_impl(
     for table in &target_tables {
         if let Some(ref jid) = options.job_id {
             if is_transfer_cancelled(jid) {
+                remove_cancellation_token(jid);
                 return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
             }
         }
@@ -318,7 +319,6 @@ pub async fn export_sql_impl(
                     }
                 }
                 DatabaseDriver::Postgres => {
-                    // Generate basic table definition if available or query pg_dump / information_schema
                     let s_name = schema_name.unwrap_or("public");
                     let cols_query = format!(
                         r#"SELECT column_name, data_type, is_nullable, column_default 
@@ -352,44 +352,46 @@ pub async fn export_sql_impl(
             }
         }
 
-        // 3. Table Data
+        // 3. Table Data (Streamed in batches of `batch_size` rows via LIMIT/OFFSET)
         if options.include_data {
-            let select_sql = match driver {
-                DatabaseDriver::Sqlite => format!("SELECT * FROM \"{}\";", table.replace('"', "\"\"")),
+            let quoted_table = match driver {
+                DatabaseDriver::Sqlite => format!("\"{}\"", table.replace('"', "\"\"")),
                 DatabaseDriver::Mysql => {
                     let schema_prefix = match schema_name {
                         Some(s) if !s.is_empty() => format!("`{}`.", s.replace('`', "``")),
                         _ => String::new(),
                     };
-                    format!("SELECT * FROM {schema_prefix}`{}`;", table.replace('`', "``"))
+                    format!("{schema_prefix}`{}`", table.replace('`', "``"))
                 }
                 DatabaseDriver::Postgres => {
                     let s_name = schema_name.unwrap_or("public");
-                    format!("SELECT * FROM \"{}\".\"{}\";", s_name.replace('"', "\"\""), table.replace('"', "\"\""))
+                    format!("\"{}\".\"{}\"", s_name.replace('"', "\"\""), table.replace('"', "\"\""))
                 }
             };
 
-            let query_res = conn.execute_query(&select_sql).await?;
-            let col_names: Vec<String> = query_res.columns.iter().map(|c| c.name.clone()).collect();
-            let rows = query_res.rows;
-
-            if !rows.is_empty() && !col_names.is_empty() {
-                total_rows += rows.len();
-
-                let quoted_table = match driver {
-                    DatabaseDriver::Sqlite => format!("\"{}\"", table.replace('"', "\"\"")),
-                    DatabaseDriver::Mysql => {
-                        let schema_prefix = match schema_name {
-                            Some(s) if !s.is_empty() => format!("`{}`.", s.replace('`', "``")),
-                            _ => String::new(),
-                        };
-                        format!("{schema_prefix}`{}`", table.replace('`', "``"))
+            let mut offset: usize = 0;
+            loop {
+                if let Some(ref jid) = options.job_id {
+                    if is_transfer_cancelled(jid) {
+                        remove_cancellation_token(jid);
+                        return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
                     }
-                    DatabaseDriver::Postgres => {
-                        let s_name = schema_name.unwrap_or("public");
-                        format!("\"{}\".\"{}\"", s_name.replace('"', "\"\""), table.replace('"', "\"\""))
-                    }
-                };
+                }
+
+                let select_sql = format!(
+                    "SELECT * FROM {} LIMIT {} OFFSET {};",
+                    quoted_table, batch_size, offset
+                );
+                let query_res = conn.execute_query(&select_sql).await?;
+                let col_names: Vec<String> = query_res.columns.iter().map(|c| c.name.clone()).collect();
+                let rows = query_res.rows;
+
+                if rows.is_empty() || col_names.is_empty() {
+                    break;
+                }
+
+                let fetched_count = rows.len();
+                total_rows += fetched_count;
 
                 let quoted_cols: Vec<String> = col_names
                     .iter()
@@ -401,35 +403,36 @@ pub async fn export_sql_impl(
 
                 let cols_joined = quoted_cols.join(", ");
 
-                for chunk in rows.chunks(batch_size) {
-                    if let Some(ref jid) = options.job_id {
-                        if is_transfer_cancelled(jid) {
-                            return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
-                        }
-                    }
-
-                    let mut value_tuples = Vec::with_capacity(chunk.len());
-                    for row in chunk {
-                        let formatted: Vec<String> = row
-                            .iter()
-                            .map(|v| format_cell_value(v, dialect))
-                            .collect();
-                        value_tuples.push(format!("({})", formatted.join(", ")));
-                    }
-
-                    writeln!(
-                        writer,
-                        "INSERT INTO {} ({}) VALUES\n{};\n",
-                        quoted_table,
-                        cols_joined,
-                        value_tuples.join(",\n")
-                    )?;
+                let mut value_tuples = Vec::with_capacity(fetched_count);
+                for row in &rows {
+                    let formatted: Vec<String> = row
+                        .iter()
+                        .map(|v| format_cell_value(v, dialect))
+                        .collect();
+                    value_tuples.push(format!("({})", formatted.join(", ")));
                 }
+
+                writeln!(
+                    writer,
+                    "INSERT INTO {} ({}) VALUES\n{};\n",
+                    quoted_table,
+                    cols_joined,
+                    value_tuples.join(",\n")
+                )?;
+
+                if fetched_count < batch_size {
+                    break;
+                }
+                offset += fetched_count;
             }
         }
     }
 
     writer.flush()?;
+
+    if let Some(ref jid) = options.job_id {
+        remove_cancellation_token(jid);
+    }
 
     let metadata = std::fs::metadata(&options.file_path).map_err(|e| {
         AppError::Other(format!("Failed to read export file metadata: {}", e))
@@ -474,6 +477,10 @@ where
 
     let job_id = options.job_id.as_deref();
 
+    if !continue_on_error {
+        let _ = conn.execute_query("BEGIN").await;
+    }
+
     for line_res in reader.lines() {
         let line = line_res.map_err(|e| AppError::Other(format!("Failed to read SQL script line: {}", e)))?;
         let trimmed_line = line.trim();
@@ -481,7 +488,11 @@ where
         // Check cancellation
         if let Some(jid) = job_id {
             if is_transfer_cancelled(jid) {
-                return Err(AppError::Other("SQL import cancelled by user".to_string()));
+                if !continue_on_error {
+                    let _ = conn.execute_query("ROLLBACK").await;
+                }
+                remove_cancellation_token(jid);
+                return Err(AppError::Cancelled("SQL import cancelled by user".to_string()));
             }
         }
 
@@ -533,7 +544,9 @@ where
             // Line comment (-- or #)
             if !in_single_quote && !in_double_quote && !in_backtick {
                 if (c == '-' && next_c == Some('-')) || c == '#' {
-                    current_stmt.push_str(&line[i..]);
+                    for &ch in &chars[i..] {
+                        current_stmt.push(ch);
+                    }
                     break;
                 }
             }
@@ -575,6 +588,16 @@ where
                         i += delim_len;
 
                         if is_executable_sql(&stmt_to_exec) {
+                            if let Some(jid) = job_id {
+                                if is_transfer_cancelled(jid) {
+                                    if !continue_on_error {
+                                        let _ = conn.execute_query("ROLLBACK").await;
+                                    }
+                                    remove_cancellation_token(jid);
+                                    return Err(AppError::Cancelled("SQL import cancelled by user".to_string()));
+                                }
+                            }
+
                             executed_count += 1;
                             if let Some(ref cb) = on_progress {
                                 cb(TransferProgress {
@@ -589,6 +612,10 @@ where
                                 Err(e) => {
                                     failed_statements += 1;
                                     if !continue_on_error {
+                                        let _ = conn.execute_query("ROLLBACK").await;
+                                        if let Some(jid) = job_id {
+                                            remove_cancellation_token(jid);
+                                        }
                                         return Err(AppError::Other(format!(
                                             "SQL Import failed at statement {}: {}\nStatement: {}",
                                             executed_count, e, stmt_to_exec
@@ -611,6 +638,16 @@ where
     // Trailing statement
     let trailing = current_stmt.trim().to_string();
     if is_executable_sql(&trailing) {
+        if let Some(jid) = job_id {
+            if is_transfer_cancelled(jid) {
+                if !continue_on_error {
+                    let _ = conn.execute_query("ROLLBACK").await;
+                }
+                remove_cancellation_token(jid);
+                return Err(AppError::Cancelled("SQL import cancelled by user".to_string()));
+            }
+        }
+
         executed_count += 1;
         if let Some(ref cb) = on_progress {
             cb(TransferProgress {
@@ -624,6 +661,10 @@ where
             Err(e) => {
                 failed_statements += 1;
                 if !continue_on_error {
+                    let _ = conn.execute_query("ROLLBACK").await;
+                    if let Some(jid) = job_id {
+                        remove_cancellation_token(jid);
+                    }
                     return Err(AppError::Other(format!(
                         "SQL Import failed at statement {}: {}\nStatement: {}",
                         executed_count, e, trailing
@@ -631,6 +672,14 @@ where
                 }
             }
         }
+    }
+
+    if !continue_on_error {
+        let _ = conn.execute_query("COMMIT").await;
+    }
+
+    if let Some(jid) = job_id {
+        remove_cancellation_token(jid);
     }
 
     Ok(SqlImportResult {

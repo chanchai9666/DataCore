@@ -14,6 +14,8 @@ import {
   parseForeignKeysFromQueryResult,
   getFetchConstraintsSql,
   parseConstraintsFromQueryResult,
+  getFetchTriggersSql,
+  parseTriggersFromQueryResult,
   type NewTableColumnConfig,
   type CreateTableConfig,
   type TableIndexConfig,
@@ -424,6 +426,153 @@ describe('tableManagementHelpers', () => {
       expect(sql).toContain('ALTER TABLE "orders_datacore_rebuild" RENAME TO "orders";');
       expect(sql).toContain('COMMIT;');
       expect(sql).toContain('PRAGMA foreign_keys = ON;');
+    });
+
+    it('rewrites the original SQLite DDL to preserve constraints, indexes and triggers on ADD', () => {
+      const originalDdl = `CREATE TABLE "orders" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "user_id" INTEGER NOT NULL,
+  "code" TEXT COLLATE NOCASE UNIQUE CHECK (length(code) > 2),
+  CONSTRAINT "fk_orders_user" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE
+)`;
+
+      const sql = buildAddForeignKeySql({
+        tableName: 'orders',
+        driver: 'sqlite',
+        constraintName: 'fk_orders_store',
+        columns: ['store_id'],
+        foreignTable: 'stores',
+        foreignColumns: ['id'],
+        existingColumns: [
+          { name: 'id', type: 'INTEGER', isPrimaryKey: true, isAutoIncrement: true },
+          { name: 'user_id', type: 'INTEGER', nullable: false },
+          { name: 'code', type: 'TEXT' },
+          { name: 'store_id', type: 'INTEGER' },
+        ],
+        originalDdl,
+        existingIndexes: [
+          {
+            name: 'idx_orders_code',
+            columns: ['code'],
+            isUnique: true,
+            sql: 'CREATE UNIQUE INDEX "idx_orders_code" ON "orders" ("code")',
+          },
+          {
+            name: 'sqlite_autoindex_orders_1',
+            columns: ['code'],
+            isUnique: true,
+            sql: 'CREATE UNIQUE INDEX "sqlite_autoindex_orders_1" ON "orders" ("code")',
+          },
+        ],
+        existingTriggers: [
+          {
+            name: 'trg_orders_code',
+            sql: 'CREATE TRIGGER "trg_orders_code" AFTER INSERT ON "orders" BEGIN UPDATE "orders" SET "code" = upper("code") WHERE "id" = NEW."id"; END',
+          },
+        ],
+      });
+
+      expect(sql).toContain('CREATE TABLE "orders_datacore_rebuild"');
+      expect(sql).toContain('"id" INTEGER PRIMARY KEY AUTOINCREMENT');
+      expect(sql).toContain('"code" TEXT COLLATE NOCASE UNIQUE CHECK (length(code) > 2)');
+      expect(sql).toContain('CONSTRAINT "fk_orders_user" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE');
+      expect(sql).toContain('CONSTRAINT "fk_orders_store" FOREIGN KEY ("store_id") REFERENCES "stores" ("id")');
+      expect(sql).toContain('CREATE UNIQUE INDEX "idx_orders_code" ON "orders" ("code");');
+      expect(sql).toContain('CREATE TRIGGER "trg_orders_code"');
+      expect(sql).not.toContain('sqlite_autoindex_orders_1');
+      expect(sql.indexOf('CREATE UNIQUE INDEX')).toBeLessThan(sql.indexOf('COMMIT;'));
+      expect(sql.indexOf('CREATE TRIGGER')).toBeLessThan(sql.indexOf('COMMIT;'));
+    });
+
+    it('rewrites the original SQLite DDL to preserve everything except the dropped FK', () => {
+      const originalDdl = `CREATE TABLE "orders" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "user_id" INTEGER NOT NULL,
+  "store_id" INTEGER NOT NULL,
+  "code" TEXT UNIQUE CHECK (length(code) > 2),
+  CONSTRAINT "fk_orders_user" FOREIGN KEY ("user_id") REFERENCES "users" ("id"),
+  CONSTRAINT "fk_orders_store" FOREIGN KEY ("store_id") REFERENCES "stores" ("id")
+)`;
+
+      const sql = buildDropForeignKeySql({
+        tableName: 'orders',
+        driver: 'sqlite',
+        constraintName: 'fk_orders_user',
+        existingColumns: [
+          { name: 'id', type: 'INTEGER', isPrimaryKey: true, isAutoIncrement: true },
+          { name: 'user_id', type: 'INTEGER', nullable: false },
+          { name: 'store_id', type: 'INTEGER', nullable: false },
+          { name: 'code', type: 'TEXT' },
+        ],
+        remainingForeignKeys: [
+          {
+            name: 'fk_orders_store',
+            columns: ['store_id'],
+            foreignTable: 'stores',
+            foreignColumns: ['id'],
+          },
+        ],
+        originalDdl,
+        existingIndexes: [
+          {
+            name: 'idx_orders_code',
+            columns: ['code'],
+            isUnique: true,
+            sql: 'CREATE UNIQUE INDEX "idx_orders_code" ON "orders" ("code")',
+          },
+        ],
+        existingTriggers: [
+          { name: 'trg_orders', sql: 'CREATE TRIGGER "trg_orders" AFTER INSERT ON "orders" BEGIN SELECT 1; END' },
+        ],
+      });
+
+      expect(sql).not.toContain('fk_orders_user');
+      expect(sql).toContain('fk_orders_store');
+      expect(sql).toContain('"id" INTEGER PRIMARY KEY AUTOINCREMENT');
+      expect(sql).toContain('"code" TEXT UNIQUE CHECK (length(code) > 2)');
+      expect(sql).toContain('CREATE UNIQUE INDEX "idx_orders_code"');
+      expect(sql).toContain('CREATE TRIGGER "trg_orders"');
+    });
+
+    it('emits a single composite PRIMARY KEY instead of duplicating it per column', () => {
+      const sql = buildAddForeignKeySql({
+        tableName: 'order_items',
+        driver: 'sqlite',
+        constraintName: 'fk_order_items_product',
+        columns: ['product_id'],
+        foreignTable: 'products',
+        foreignColumns: ['id'],
+        existingColumns: [
+          { name: 'order_id', type: 'INTEGER', isPrimaryKey: true, nullable: false },
+          { name: 'item_id', type: 'INTEGER', isPrimaryKey: true, nullable: false },
+          { name: 'product_id', type: 'INTEGER' },
+        ],
+      });
+
+      expect(sql).toContain('PRIMARY KEY ("order_id", "item_id")');
+      expect((sql.match(/PRIMARY KEY/g) || []).length).toBe(1);
+    });
+
+    it('fetches and parses SQLite trigger definitions', () => {
+      expect(getFetchTriggersSql('sqlite', 'orders')).toContain(
+        "type = 'trigger' AND tbl_name = 'orders'"
+      );
+      expect(getFetchTriggersSql('postgres', 'orders')).toBeNull();
+
+      const parsed = parseTriggersFromQueryResult(
+        {
+          columns: [],
+          rows: [['trg_orders', 'CREATE TRIGGER "trg_orders" AFTER INSERT ON "orders" BEGIN SELECT 1; END']],
+          execution_time_ms: 1,
+        },
+        'sqlite'
+      );
+      expect(parsed).toEqual([
+        {
+          name: 'trg_orders',
+          sql: 'CREATE TRIGGER "trg_orders" AFTER INSERT ON "orders" BEGIN SELECT 1; END',
+        },
+      ]);
     });
 
     it('generates DROP FOREIGN KEY SQL for MySQL and Postgres', () => {
