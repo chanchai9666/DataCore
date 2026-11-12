@@ -374,12 +374,70 @@ pub fn quote_table_name(table_name: &str, dialect: &str) -> String {
 
 /// Formats a raw string cell value into valid SQL literal.
 pub fn format_sql_literal(val: &str, dialect: &str) -> String {
+    format_sql_literal_with_options(val, None, false, dialect)
+}
+
+/// Formats a raw string cell value into valid SQL literal respecting target type and empty string policy.
+pub fn format_sql_literal_with_options(
+    val: &str,
+    target_type: Option<&str>,
+    empty_as_null: bool,
+    dialect: &str,
+) -> String {
     let trimmed = val.trim();
-    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("null") {
-        return "NULL".to_string();
+    let is_sqlite = dialect.to_lowercase().contains("sqlite");
+
+    if let Some(data_type) = target_type {
+        let dt = data_type.to_lowercase();
+        if dt.contains("char") || dt.contains("text") || dt.contains("clob") || dt.contains("string") {
+            if val.is_empty() {
+                return if empty_as_null { "NULL".to_string() } else { "''".to_string() };
+            }
+            if trimmed.eq_ignore_ascii_case("null") {
+                return "NULL".to_string();
+            }
+            return format!("'{}'", val.replace('\'', "''"));
+        }
+        if dt.contains("int") || dt.contains("serial") {
+            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("null") {
+                return "NULL".to_string();
+            }
+            if let Ok(i) = trimmed.parse::<i64>() {
+                return i.to_string();
+            }
+            return "NULL".to_string();
+        }
+        if dt.contains("float") || dt.contains("double") || dt.contains("real") || dt.contains("numeric") || dt.contains("decimal") {
+            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("null") {
+                return "NULL".to_string();
+            }
+            if let Ok(f) = trimmed.parse::<f64>() {
+                if f.is_finite() {
+                    return f.to_string();
+                }
+            }
+            return "NULL".to_string();
+        }
+        if dt.contains("bool") {
+            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("null") {
+                return "NULL".to_string();
+            }
+            if trimmed.eq_ignore_ascii_case("true") || trimmed == "1" {
+                return if is_sqlite { "1".to_string() } else { "TRUE".to_string() };
+            }
+            if trimmed.eq_ignore_ascii_case("false") || trimmed == "0" {
+                return if is_sqlite { "0".to_string() } else { "FALSE".to_string() };
+            }
+            return "NULL".to_string();
+        }
     }
 
-    let is_sqlite = dialect.to_lowercase().contains("sqlite");
+    if val.is_empty() {
+        return if empty_as_null { "NULL".to_string() } else { "''".to_string() };
+    }
+    if trimmed.eq_ignore_ascii_case("null") || trimmed == "\\N" {
+        return "NULL".to_string();
+    }
 
     if trimmed.eq_ignore_ascii_case("true") {
         return if is_sqlite { "1".to_string() } else { "TRUE".to_string() };
@@ -388,15 +446,23 @@ pub fn format_sql_literal(val: &str, dialect: &str) -> String {
         return if is_sqlite { "0".to_string() } else { "FALSE".to_string() };
     }
 
-    // Try parsing as integer
-    if let Ok(i) = trimmed.parse::<i64>() {
-        return i.to_string();
-    }
+    // Do NOT coerce numbers with leading zeroes (e.g. "0123", "007") or leading "-0" into integers!
+    let has_leading_zero = (trimmed.starts_with('0') && trimmed.len() > 1 && !trimmed.starts_with("0."))
+        || (trimmed.starts_with("-0") && trimmed.len() > 2 && !trimmed.starts_with("-0."));
 
-    // Try parsing as float
-    if let Ok(f) = trimmed.parse::<f64>() {
-        if f.is_finite() {
-            return f.to_string();
+    if !has_leading_zero {
+        // Try parsing as integer
+        if let Ok(i) = trimmed.parse::<i64>() {
+            return i.to_string();
+        }
+
+        // Try parsing as float if it contains decimal point or exponent
+        if trimmed.contains('.') || trimmed.contains('e') || trimmed.contains('E') {
+            if let Ok(f) = trimmed.parse::<f64>() {
+                if f.is_finite() {
+                    return f.to_string();
+                }
+            }
         }
     }
 
@@ -404,11 +470,37 @@ pub fn format_sql_literal(val: &str, dialect: &str) -> String {
     format!("'{}'", val.replace('\'', "''"))
 }
 
-/// Generates a batch INSERT SQL statement for given rows.
-pub fn generate_batch_insert_sql(
+/// Formats a CellValue into a valid SQL literal without type coercion.
+pub fn cell_value_to_sql_literal(val: &CellValue, dialect: &str) -> String {
+    let is_sqlite = dialect.to_lowercase().contains("sqlite");
+    match val {
+        CellValue::Null => "NULL".to_string(),
+        CellValue::Integer(i) => i.to_string(),
+        CellValue::Float(f) => {
+            if f.is_finite() {
+                f.to_string()
+            } else {
+                "NULL".to_string()
+            }
+        }
+        CellValue::Boolean(b) => {
+            if is_sqlite {
+                if *b { "1".to_string() } else { "0".to_string() }
+            } else {
+                if *b { "TRUE".to_string() } else { "FALSE".to_string() }
+            }
+        }
+        CellValue::Text(s) => format!("'{}'", s.replace('\'', "''")),
+        CellValue::Json(j) => format!("'{}'", j.to_string().replace('\'', "''")),
+        CellValue::Bytes(b) => format!("'{}'", b.replace('\'', "''")),
+    }
+}
+
+/// Generates a batch INSERT SQL statement for given CellValue rows.
+pub fn generate_batch_insert_cells_sql(
     table: &str,
     target_columns: &[String],
-    rows: &[Vec<String>],
+    rows: &[Vec<CellValue>],
     dialect: &str,
 ) -> String {
     let quoted_table = quote_table_name(table, dialect);
@@ -422,7 +514,7 @@ pub fn generate_batch_insert_sql(
     for row in rows {
         let formatted_vals: Vec<String> = row
             .iter()
-            .map(|val| format_sql_literal(val, dialect))
+            .map(|val| cell_value_to_sql_literal(val, dialect))
             .collect();
         value_tuples.push(format!("({})", formatted_vals.join(", ")));
     }
@@ -433,6 +525,53 @@ pub fn generate_batch_insert_sql(
         quoted_cols.join(", "),
         value_tuples.join(",\n")
     )
+}
+
+/// Generates a batch INSERT SQL statement for given rows with column types and empty-string policy.
+pub fn generate_batch_insert_sql_with_options(
+    table: &str,
+    target_columns: &[String],
+    target_types: &[Option<String>],
+    rows: &[Vec<String>],
+    treat_empty_as_null: bool,
+    dialect: &str,
+) -> String {
+    let quoted_table = quote_table_name(table, dialect);
+    let quoted_cols: Vec<String> = target_columns
+        .iter()
+        .map(|c| quote_identifier(c, dialect))
+        .collect();
+
+    let mut value_tuples = Vec::with_capacity(rows.len());
+
+    for row in rows {
+        let formatted_vals: Vec<String> = row
+            .iter()
+            .enumerate()
+            .map(|(i, val)| {
+                let target_type = target_types.get(i).and_then(|opt| opt.as_deref());
+                format_sql_literal_with_options(val, target_type, treat_empty_as_null, dialect)
+            })
+            .collect();
+        value_tuples.push(format!("({})", formatted_vals.join(", ")));
+    }
+
+    format!(
+        "INSERT INTO {} ({}) VALUES\n{};",
+        quoted_table,
+        quoted_cols.join(", "),
+        value_tuples.join(",\n")
+    )
+}
+
+/// Generates a batch INSERT SQL statement for given rows.
+pub fn generate_batch_insert_sql(
+    table: &str,
+    target_columns: &[String],
+    rows: &[Vec<String>],
+    dialect: &str,
+) -> String {
+    generate_batch_insert_sql_with_options(table, target_columns, &[], rows, true, dialect)
 }
 
 /// Streams and executes export to a local file.
@@ -495,6 +634,12 @@ where
         .iter()
         .map(|m| m.target_column.clone())
         .collect();
+    let target_types: Vec<Option<String>> = options
+        .column_mappings
+        .iter()
+        .map(|m| m.target_type.clone())
+        .collect();
+    let treat_empty_as_null = options.treat_empty_as_null.unwrap_or(false);
 
     if target_columns.is_empty() {
         return Err(AppError::Other("No column mappings provided".to_string()));
@@ -511,14 +656,23 @@ where
 
     // Handle atomic transaction if policy is Abort
     if options.error_policy == ImportErrorPolicy::Abort {
-        let _ = conn.execute_query("BEGIN").await;
+        conn.execute_query("BEGIN")
+            .await
+            .map_err(|e| AppError::Other(format!("Failed to begin transaction: {}", e)))?;
     }
 
     let mut imported_rows = 0;
     let mut skipped_rows = 0;
 
     for chunk in mapped_rows.chunks(batch_size) {
-        let batch_sql = generate_batch_insert_sql(table, &target_columns, chunk, dialect);
+        let batch_sql = generate_batch_insert_sql_with_options(
+            table,
+            &target_columns,
+            &target_types,
+            chunk,
+            treat_empty_as_null,
+            dialect,
+        );
         let exec_result = conn.execute_query(&batch_sql).await;
 
         match exec_result {
@@ -527,12 +681,26 @@ where
             }
             Err(e) => {
                 if options.error_policy == ImportErrorPolicy::Abort {
-                    let _ = conn.execute_query("ROLLBACK").await;
-                    return Err(AppError::Other(format!("Import failed during batch: {}", e)));
+                    let rollback_res = conn.execute_query("ROLLBACK").await;
+                    let rollback_msg = match rollback_res {
+                        Ok(_) => "Transaction rolled back successfully.".to_string(),
+                        Err(rb_err) => format!("Rollback also failed: {}.", rb_err),
+                    };
+                    return Err(AppError::Other(format!(
+                        "Import failed during batch: {}. {}",
+                        e, rollback_msg
+                    )));
                 } else {
                     // Skip invalid rows policy: fallback to row-by-row insert for this chunk
                     for row in chunk {
-                        let single_sql = generate_batch_insert_sql(table, &target_columns, std::slice::from_ref(row), dialect);
+                        let single_sql = generate_batch_insert_sql_with_options(
+                            table,
+                            &target_columns,
+                            &target_types,
+                            std::slice::from_ref(row),
+                            treat_empty_as_null,
+                            dialect,
+                        );
                         if conn.execute_query(&single_sql).await.is_ok() {
                             imported_rows += 1;
                         } else {
@@ -553,7 +721,9 @@ where
     }
 
     if options.error_policy == ImportErrorPolicy::Abort {
-        let _ = conn.execute_query("COMMIT").await;
+        conn.execute_query("COMMIT")
+            .await
+            .map_err(|e| AppError::Other(format!("Failed to commit transaction: {}", e)))?;
     }
 
     if let Some(ref progress_cb) = on_progress {

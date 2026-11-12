@@ -27,6 +27,7 @@ export interface ExportResult {
 export interface ColumnMapping {
   source_column: string;
   target_column: string;
+  target_type?: string;
 }
 
 export interface ImportOptions {
@@ -37,6 +38,7 @@ export interface ImportOptions {
   column_mappings: ColumnMapping[];
   error_policy: ImportErrorPolicy;
   batch_size?: number;
+  treat_empty_as_null?: boolean;
 }
 
 export interface ImportResult {

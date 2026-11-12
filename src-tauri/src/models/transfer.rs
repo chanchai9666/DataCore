@@ -55,6 +55,8 @@ pub struct ExportResult {
 pub struct ColumnMapping {
     pub source_column: String,
     pub target_column: String,
+    #[serde(default)]
+    pub target_type: Option<String>,
 }
 
 fn default_error_policy() -> ImportErrorPolicy {
@@ -74,6 +76,8 @@ pub struct ImportOptions {
     pub error_policy: ImportErrorPolicy,
     #[serde(default)]
     pub batch_size: Option<usize>,
+    #[serde(default)]
+    pub treat_empty_as_null: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

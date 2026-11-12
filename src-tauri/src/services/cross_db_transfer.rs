@@ -3,8 +3,8 @@ use crate::drivers::DatabaseConnection;
 use crate::error::AppError;
 use crate::models::query::ColumnMeta;
 use crate::models::transfer::{CrossDbCopyResult, CrossDbCopyTableOptions, TransferProgress};
-use crate::models::{CellValue, DatabaseDriver};
-use crate::services::data_transfer::generate_batch_insert_sql;
+use crate::models::DatabaseDriver;
+use crate::services::data_transfer::generate_batch_insert_cells_sql;
 
 /// Maps a column data type from source dialect to target dialect.
 pub fn map_data_type(src_type: &str, _src_dialect: &str, target_dialect: &str) -> String {
@@ -225,34 +225,16 @@ where
         let batch_size = options.batch_size.unwrap_or(500).max(1);
 
         for chunk in rows.chunks(batch_size) {
-            // Convert CellValue row to string row for generate_batch_insert_sql
-            let string_rows: Vec<Vec<String>> = chunk
-                .iter()
-                .map(|row| {
-                    row.iter()
-                        .map(|v| match v {
-                            CellValue::Null => "".to_string(),
-                            CellValue::Integer(i) => i.to_string(),
-                            CellValue::Float(f) => f.to_string(),
-                            CellValue::Boolean(b) => b.to_string(),
-                            CellValue::Text(s) => s.clone(),
-                            CellValue::Json(j) => j.to_string(),
-                            CellValue::Bytes(b64) => b64.clone(),
-                        })
-                        .collect()
-                })
-                .collect();
-
             let target_table_unquoted = match options.target_schema.as_deref() {
                 Some(s) if !s.is_empty() => format!("{}.{}", s, options.target_table),
                 _ => options.target_table.clone(),
             };
 
-            // We generate the batch insert sql directly
-            let insert_sql = generate_batch_insert_sql(
+            // We generate the batch insert sql directly using raw CellValues (no lossy string heuristic)
+            let insert_sql = generate_batch_insert_cells_sql(
                 &target_table_unquoted,
                 &col_names,
-                &string_rows,
+                chunk,
                 tgt_dialect,
             );
 

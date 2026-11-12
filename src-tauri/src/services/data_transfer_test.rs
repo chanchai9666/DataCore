@@ -159,18 +159,22 @@ async fn test_import_csv_sqlite() {
             ColumnMapping {
                 source_column: "Full Name".to_string(),
                 target_column: "name".to_string(),
+                target_type: None,
             },
             ColumnMapping {
                 source_column: "User Age".to_string(),
                 target_column: "age".to_string(),
+                target_type: None,
             },
             ColumnMapping {
                 source_column: "Email Address".to_string(),
                 target_column: "email".to_string(),
+                target_type: None,
             },
         ],
         error_policy: ImportErrorPolicy::Abort,
         batch_size: Some(10),
+        treat_empty_as_null: None,
     };
 
     let result = import_data_impl(&conn, "employees", &options, "sqlite", None::<fn(TransferProgress)>)
@@ -208,14 +212,17 @@ async fn test_import_csv_skip_invalid_rows() {
             ColumnMapping {
                 source_column: "sku".to_string(),
                 target_column: "sku".to_string(),
+                target_type: None,
             },
             ColumnMapping {
                 source_column: "price".to_string(),
                 target_column: "price".to_string(),
+                target_type: None,
             },
         ],
         error_policy: ImportErrorPolicy::Skip,
         batch_size: Some(2),
+        treat_empty_as_null: None,
     };
 
     let result = import_data_impl(&conn, "products", &options, "sqlite", None::<fn(TransferProgress)>)
@@ -251,18 +258,22 @@ async fn test_import_json_sqlite() {
             ColumnMapping {
                 source_column: "title".to_string(),
                 target_column: "title".to_string(),
+                target_type: None,
             },
             ColumnMapping {
                 source_column: "author".to_string(),
                 target_column: "author".to_string(),
+                target_type: None,
             },
             ColumnMapping {
                 source_column: "year".to_string(),
                 target_column: "year".to_string(),
+                target_type: None,
             },
         ],
         error_policy: ImportErrorPolicy::Abort,
         batch_size: Some(10),
+        treat_empty_as_null: None,
     };
 
     let result = import_data_impl(&conn, "books", &options, "sqlite", None::<fn(TransferProgress)>)
@@ -271,4 +282,115 @@ async fn test_import_json_sqlite() {
 
     assert_eq!(result.total_rows, 2);
     assert_eq!(result.imported_rows, 2);
+}
+
+#[tokio::test]
+async fn test_import_preserves_empty_string_and_leading_zeros() {
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+    conn.execute_query("CREATE TABLE items (code TEXT, name TEXT, notes TEXT);")
+        .await
+        .expect("create table");
+
+    let mut temp_csv = NamedTempFile::new().expect("create temp file");
+    writeln!(temp_csv, "code,name,notes").unwrap();
+    writeln!(temp_csv, "01234,Alpha,").unwrap();
+    temp_csv.flush().unwrap();
+
+    let options = ImportOptions {
+        file_path: temp_csv.path().to_str().unwrap().to_string(),
+        format: TransferFormat::Csv,
+        delimiter: Some(','),
+        has_headers: true,
+        column_mappings: vec![
+            ColumnMapping {
+                source_column: "code".to_string(),
+                target_column: "code".to_string(),
+                target_type: Some("TEXT".to_string()),
+            },
+            ColumnMapping {
+                source_column: "name".to_string(),
+                target_column: "name".to_string(),
+                target_type: Some("TEXT".to_string()),
+            },
+            ColumnMapping {
+                source_column: "notes".to_string(),
+                target_column: "notes".to_string(),
+                target_type: Some("TEXT".to_string()),
+            },
+        ],
+        error_policy: ImportErrorPolicy::Abort,
+        batch_size: Some(10),
+        treat_empty_as_null: Some(false),
+    };
+
+    let result = import_data_impl(&conn, "items", &options, "sqlite", None::<fn(TransferProgress)>)
+        .await
+        .expect("import csv");
+
+    assert_eq!(result.imported_rows, 1);
+
+    let query_res = conn
+        .execute_query("SELECT code, name, notes FROM items;")
+        .await
+        .expect("query items");
+
+    assert_eq!(query_res.rows[0][0], CellValue::Text("01234".to_string()));
+    assert_eq!(query_res.rows[0][1], CellValue::Text("Alpha".to_string()));
+    assert_eq!(query_res.rows[0][2], CellValue::Text("".to_string())); // Preserved as empty string!
+}
+
+#[tokio::test]
+async fn test_import_abort_policy_rolls_back_and_returns_error() {
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+    conn.execute_query("CREATE TABLE unique_items (id INTEGER PRIMARY KEY, sku TEXT UNIQUE);")
+        .await
+        .expect("create table");
+
+    // Pre-insert an existing sku
+    conn.execute_query("INSERT INTO unique_items VALUES (1, 'SKU-EXISTING');")
+        .await
+        .expect("insert existing");
+
+    let mut temp_csv = NamedTempFile::new().expect("create temp file");
+    writeln!(temp_csv, "id,sku").unwrap();
+    writeln!(temp_csv, "2,SKU-NEW").unwrap();
+    writeln!(temp_csv, "3,SKU-EXISTING").unwrap(); // Duplicate!
+    temp_csv.flush().unwrap();
+
+    let options = ImportOptions {
+        file_path: temp_csv.path().to_str().unwrap().to_string(),
+        format: TransferFormat::Csv,
+        delimiter: Some(','),
+        has_headers: true,
+        column_mappings: vec![
+            ColumnMapping {
+                source_column: "id".to_string(),
+                target_column: "id".to_string(),
+                target_type: Some("INTEGER".to_string()),
+            },
+            ColumnMapping {
+                source_column: "sku".to_string(),
+                target_column: "sku".to_string(),
+                target_type: Some("TEXT".to_string()),
+            },
+        ],
+        error_policy: ImportErrorPolicy::Abort,
+        batch_size: Some(10),
+        treat_empty_as_null: None,
+    };
+
+    let err = import_data_impl(&conn, "unique_items", &options, "sqlite", None::<fn(TransferProgress)>)
+        .await
+        .expect_err("should abort on duplicate");
+
+    let err_str = err.to_string();
+    assert!(err_str.contains("Import failed during batch"), "Error should mention batch failure: {}", err_str);
+    assert!(err_str.contains("Transaction rolled back successfully"), "Error should report rollback status: {}", err_str);
+
+    // Verify row 2 was rolled back and only the initial row 1 exists
+    let count_res = conn
+        .execute_query("SELECT COUNT(*) FROM unique_items;")
+        .await
+        .expect("count");
+    assert_eq!(count_res.rows[0][0], CellValue::Integer(1));
 }
