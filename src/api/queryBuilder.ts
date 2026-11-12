@@ -204,18 +204,14 @@ export function formatSqlLiteral(
 
 /**
  * Finds the index of the primary key column from metadata.
+ * Prioritizes explicit primary key flags, falling back only to an exact 'id' column.
+ * Avoids unsafe partial/suffix heuristics (*_id) that misidentify foreign keys.
  */
 export function findPrimaryKeyIndex(columns: ColumnMeta[]): number {
   const explicitPk = columns.findIndex((c) => c.is_primary_key === true);
   if (explicitPk >= 0) return explicitPk;
 
-  const candidates = ['id', '_id', 'uuid', 'pk'];
-  for (const name of candidates) {
-    const idx = columns.findIndex((c) => c.name.toLowerCase() === name);
-    if (idx >= 0) return idx;
-  }
-
-  return columns.findIndex((c) => c.name.toLowerCase().endsWith('_id') || c.name.toLowerCase().endsWith('id'));
+  return columns.findIndex((c) => c.name.toLowerCase() === 'id');
 }
 
 /**
@@ -251,7 +247,11 @@ export function buildWhereClause(
     }
   });
 
-  return conditions.length > 0 ? conditions.join(' AND ') : '1 = 1';
+  if (conditions.length === 0) {
+    throw new Error('Cannot identify target row: no columns or primary key available');
+  }
+
+  return conditions.join(' AND ');
 }
 
 /**
@@ -474,11 +474,21 @@ export function buildUpdateSql(options: BuildUpdateOptions): string {
   const valSql = formatSqlLiteral(newValue, driver, targetCol.data_type);
   const whereSql = buildWhereClause(columns, row, driver);
 
-  let sql = `UPDATE ${fullTable} SET ${colSql} = ${valSql} WHERE ${whereSql}`;
-  if (driver === 'mysql' && findPrimaryKeyIndex(columns) < 0) {
-    sql += ' LIMIT 1';
+  const pkIdx = findPrimaryKeyIndex(columns);
+  if (pkIdx >= 0) {
+    return `UPDATE ${fullTable} SET ${colSql} = ${valSql} WHERE ${whereSql};`;
   }
-  return `${sql};`;
+
+  // Fallback when no explicit primary key exists: guard to a single row to prevent mass modification
+  const normDriver = driver?.toLowerCase();
+  if (normDriver === 'mysql') {
+    return `UPDATE ${fullTable} SET ${colSql} = ${valSql} WHERE ${whereSql} LIMIT 1;`;
+  }
+  if (normDriver === 'sqlite') {
+    return `UPDATE ${fullTable} SET ${colSql} = ${valSql} WHERE rowid = (SELECT rowid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;
+  }
+  // Postgres
+  return `UPDATE ${fullTable} SET ${colSql} = ${valSql} WHERE ctid = (SELECT ctid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;
 }
 
 /**
@@ -489,11 +499,21 @@ export function buildDeleteSql(options: BuildDeleteOptions): string {
   const fullTable = qualifyTable(tableName, schemaName, driver);
   const whereSql = buildWhereClause(columns, row, driver);
 
-  let sql = `DELETE FROM ${fullTable} WHERE ${whereSql}`;
-  if (driver === 'mysql' && findPrimaryKeyIndex(columns) < 0) {
-    sql += ' LIMIT 1';
+  const pkIdx = findPrimaryKeyIndex(columns);
+  if (pkIdx >= 0) {
+    return `DELETE FROM ${fullTable} WHERE ${whereSql};`;
   }
-  return `${sql};`;
+
+  // Fallback when no explicit primary key exists: guard to a single row to prevent mass deletion
+  const normDriver = driver?.toLowerCase();
+  if (normDriver === 'mysql') {
+    return `DELETE FROM ${fullTable} WHERE ${whereSql} LIMIT 1;`;
+  }
+  if (normDriver === 'sqlite') {
+    return `DELETE FROM ${fullTable} WHERE rowid = (SELECT rowid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;
+  }
+  // Postgres
+  return `DELETE FROM ${fullTable} WHERE ctid = (SELECT ctid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;
 }
 
 /**

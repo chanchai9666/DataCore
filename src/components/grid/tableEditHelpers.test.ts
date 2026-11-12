@@ -112,7 +112,7 @@ describe('tableEditHelpers', () => {
       });
 
       expect(sql).toBe(
-        `UPDATE "public"."tags" SET "weight" = 25 WHERE "tag" = 'beverage' AND "weight" = 10;`
+        `UPDATE "public"."tags" SET "weight" = 25 WHERE ctid = (SELECT ctid FROM "public"."tags" WHERE "tag" = 'beverage' AND "weight" = 10 LIMIT 1);`
       );
     });
   });

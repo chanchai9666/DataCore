@@ -255,6 +255,77 @@ describe('queryBuilder', () => {
       expect(sql).toBe('DELETE FROM "users" WHERE "id" = 5;');
     });
 
+    it('guards fallback UPDATE and DELETE without PK using single-row limits (Postgres ctid, SQLite rowid, MySQL LIMIT 1)', () => {
+      const noPkCols = [
+        { name: 'tag', data_type: 'varchar', nullable: false, is_primary_key: false },
+        { name: 'score', data_type: 'int', nullable: false, is_primary_key: false },
+      ];
+      const row = [{ Text: 'tech' }, { Integer: 100 }];
+
+      // Postgres
+      const pgUpdate = buildUpdateSql({
+        driver: 'postgres',
+        tableName: 'tags',
+        schemaName: 'public',
+        columns: noPkCols,
+        row,
+        colIndex: 1,
+        newValue: 200,
+      });
+      expect(pgUpdate).toBe(
+        'UPDATE "public"."tags" SET "score" = 200 WHERE ctid = (SELECT ctid FROM "public"."tags" WHERE "tag" = \'tech\' AND "score" = 100 LIMIT 1);'
+      );
+
+      const pgDelete = buildDeleteSql({
+        driver: 'postgres',
+        tableName: 'tags',
+        schemaName: 'public',
+        columns: noPkCols,
+        row,
+      });
+      expect(pgDelete).toBe(
+        'DELETE FROM "public"."tags" WHERE ctid = (SELECT ctid FROM "public"."tags" WHERE "tag" = \'tech\' AND "score" = 100 LIMIT 1);'
+      );
+
+      // SQLite
+      const sqliteUpdate = buildUpdateSql({
+        driver: 'sqlite',
+        tableName: 'tags',
+        columns: noPkCols,
+        row,
+        colIndex: 1,
+        newValue: 300,
+      });
+      expect(sqliteUpdate).toBe(
+        'UPDATE "tags" SET "score" = 300 WHERE rowid = (SELECT rowid FROM "tags" WHERE "tag" = \'tech\' AND "score" = 100 LIMIT 1);'
+      );
+
+      // MySQL
+      const mysqlUpdate = buildUpdateSql({
+        driver: 'mysql',
+        tableName: 'tags',
+        columns: noPkCols,
+        row,
+        colIndex: 1,
+        newValue: 400,
+      });
+      expect(mysqlUpdate).toBe(
+        'UPDATE `tags` SET `score` = 400 WHERE `tag` = \'tech\' AND `score` = 100 LIMIT 1;'
+      );
+
+      // Error when no columns
+      expect(() =>
+        buildUpdateSql({
+          driver: 'postgres',
+          tableName: 'empty',
+          columns: [],
+          row: [],
+          colIndex: 0,
+          newValue: 1,
+        })
+      ).toThrow();
+    });
+
     it('generates INSERT sql', () => {
       const sql = buildInsertSql({
         driver: 'postgres',
