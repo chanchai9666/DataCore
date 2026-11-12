@@ -74,16 +74,19 @@ describe('ExportSqlModal', () => {
 
     await waitFor(() => {
       expect(dataTransferApi.pickSqlExportFile).toHaveBeenCalledWith('users.sql');
-      expect(dbApi.exportSql).toHaveBeenCalledWith({
-        connectionId: 'conn-1',
-        schema: 'public',
-        tables: ['users'],
-        filePath: '/path/to/users.sql',
-        includeDropTable: true,
-        includeStructure: true,
-        includeData: false,
-        batchSize: 500,
-      });
+      expect(dbApi.exportSql).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionId: 'conn-1',
+          schema: 'public',
+          tables: ['users'],
+          filePath: '/path/to/users.sql',
+          includeDropTable: true,
+          includeStructure: true,
+          includeData: false,
+          batchSize: 500,
+          jobId: expect.any(String),
+        })
+      );
       expect(handleSuccess).toHaveBeenCalled();
       expect(handleClose).toHaveBeenCalled();
     });

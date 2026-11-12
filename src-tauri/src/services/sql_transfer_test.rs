@@ -77,6 +77,7 @@ SELECT * FROM users WHERE name = 'ทดสอบ'; -- ปิดท้าย
             include_structure: true,
             include_data: true,
             batch_size: Some(500),
+            job_id: None,
         };
 
         let export_res = export_sql_impl(&conn, DatabaseDriver::Sqlite, &export_opts)
@@ -138,6 +139,7 @@ SELECT * FROM users WHERE name = 'ทดสอบ'; -- ปิดท้าย
             include_structure: true,
             include_data: true,
             batch_size: Some(500),
+            job_id: None,
         };
 
         let export_res = export_sql_impl(&conn, DatabaseDriver::Sqlite, &export_opts)

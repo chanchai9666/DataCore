@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Download, X, Loader2, FileCode } from 'lucide-react';
 import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
-import { pickSqlExportFile } from '../../api/dataTransferApi';
+import { pickSqlExportFile, cancelTransfer } from '../../api/dataTransferApi';
 import type { SqlExportResult } from '../../types/dataTransfer';
 
 export interface ExportSqlModalProps {
@@ -28,10 +28,23 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
   const [includeDropTable, setIncludeDropTable] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
 
   if (!isOpen) return null;
 
   const targetName = tableName || (schemaName ? `${schemaName}_dump` : 'database_dump');
+
+  const handleCancelExport = async () => {
+    if (loading && activeJobIdRef.current) {
+      try {
+        await cancelTransfer(activeJobIdRef.current);
+        toast.info('Export cancelled');
+      } catch (err) {
+        console.error('Failed to cancel export:', err);
+      }
+    }
+    onClose();
+  };
 
   const handleExport = async () => {
     setError(null);
@@ -41,6 +54,8 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
         return; // User cancelled
       }
 
+      const jobId = `export-sql-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      activeJobIdRef.current = jobId;
       setLoading(true);
 
       let tables = tableName ? [tableName] : [];
@@ -62,6 +77,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
         includeStructure: mode === 'both' || mode === 'structure',
         includeData: mode === 'both' || mode === 'data',
         batchSize: 500,
+        jobId,
       });
 
       const sizeKb = (result.fileSizeBytes / 1024).toFixed(1);
@@ -197,8 +213,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
           <div className="flex items-center justify-end space-x-2 pt-3 border-t border-[#2d2d2d]">
             <button
               type="button"
-              onClick={onClose}
-              disabled={loading}
+              onClick={handleCancelExport}
               className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-300 hover:text-white bg-[#2d2d2d] hover:bg-[#383838] transition-colors"
             >
               Cancel

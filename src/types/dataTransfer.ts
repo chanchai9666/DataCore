@@ -84,6 +84,8 @@ export interface SqlExportOptions {
   includeStructure: boolean;
   includeData: boolean;
   batchSize?: number;
+  job_id?: string;
+  jobId?: string;
 }
 
 export interface SqlImportOptions {

@@ -65,4 +65,50 @@ mod tests {
         assert_eq!(ssh.user.as_deref(), Some("ubuntu"));
         assert_eq!(ssh.auth_type.as_deref(), Some("key"));
     }
+
+    #[tokio::test]
+    async fn test_ssh_tunnel_safety_guard_blocks_unauthorized_direct_connection() {
+        use crate::drivers::postgres::PostgresConnection;
+        use crate::drivers::mysql::MySqlConnection;
+        use crate::models::connection::SshTunnelConfig;
+
+        let mut config = ConnectionConfig {
+            id: "pg-ssh-test".to_string(),
+            name: "Bastion Protected PG".to_string(),
+            driver: DatabaseDriver::Postgres,
+            host: Some("internal-db.ec2.internal".to_string()),
+            port: Some(5432),
+            database: "prod_db".to_string(),
+            user: Some("app".to_string()),
+            folder: None,
+            ssl_mode: None,
+            ssl_certs: None,
+            ssh_tunnel: Some(SshTunnelConfig {
+                enabled: true,
+                host: Some("jumpbox.corp.com".to_string()),
+                port: Some(22),
+                user: Some("bastion_admin".to_string()),
+                auth_type: Some("key".to_string()),
+                private_key_path: Some("~/.ssh/id_rsa".to_string()),
+                passphrase: None,
+            }),
+            timeout_seconds: Some(5),
+            auto_reconnect: Some(true),
+        };
+
+        // Attempting direct Postgres connection with ssh_tunnel enabled must fail with security bypass error
+        let pg_res = PostgresConnection::connect(&config, Some("pass")).await;
+        assert!(pg_res.is_err(), "Postgres connection must be blocked when SSH tunnel is enabled but not forwarded");
+        let pg_err = pg_res.err().unwrap().to_string();
+        assert!(pg_err.contains("SSH Tunnel to 'jumpbox.corp.com' is enabled"));
+        assert!(pg_err.contains("Direct connection to database host blocked to prevent security bypass"));
+
+        // Switch to MySQL and verify the same security guard applies
+        config.driver = DatabaseDriver::Mysql;
+        let my_res = MySqlConnection::connect(&config, Some("pass")).await;
+        assert!(my_res.is_err(), "MySQL connection must be blocked when SSH tunnel is enabled but not forwarded");
+        let my_err = my_res.err().unwrap().to_string();
+        assert!(my_err.contains("SSH Tunnel to 'jumpbox.corp.com' is enabled"));
+        assert!(my_err.contains("Direct connection to database host blocked to prevent security bypass"));
+    }
 }

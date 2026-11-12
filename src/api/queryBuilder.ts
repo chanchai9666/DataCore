@@ -203,35 +203,63 @@ export function formatSqlLiteral(
 }
 
 /**
- * Finds the index of the primary key column from metadata.
- * Prioritizes explicit primary key flags, falling back only to an exact 'id' column.
- * Avoids unsafe partial/suffix heuristics (*_id) that misidentify foreign keys.
+ * Finds all indices of primary key columns from metadata.
+ * Prioritizes explicit primary key flags.
+ * Falls back to an exact 'id' column if no column has is_primary_key === true.
  */
-export function findPrimaryKeyIndex(columns: ColumnMeta[]): number {
-  const explicitPk = columns.findIndex((c) => c.is_primary_key === true);
-  if (explicitPk >= 0) return explicitPk;
+export function findPrimaryKeyIndexes(columns: ColumnMeta[]): number[] {
+  const explicitPks = columns
+    .map((c, idx) => (c.is_primary_key === true ? idx : -1))
+    .filter((idx) => idx >= 0);
 
-  return columns.findIndex((c) => c.name.toLowerCase() === 'id');
+  if (explicitPks.length > 0) {
+    return explicitPks;
+  }
+
+  const fallbackId = columns.findIndex((c) => c.name.toLowerCase() === 'id');
+  if (fallbackId >= 0) {
+    return [fallbackId];
+  }
+
+  return [];
 }
 
 /**
- * Builds a WHERE clause identifying a single row by PK or all non-null values.
+ * Finds the index of the first primary key column from metadata.
+ * Provided for backwards compatibility with single-PK callers.
+ */
+export function findPrimaryKeyIndex(columns: ColumnMeta[]): number {
+  const indexes = findPrimaryKeyIndexes(columns);
+  return indexes.length > 0 ? indexes[0] : -1;
+}
+
+/**
+ * Builds a WHERE clause identifying a single row by PK (including composite PKs) or all non-null values.
  */
 export function buildWhereClause(
   columns: ColumnMeta[],
   row: CellValue[],
   driver: DatabaseDriver
 ): string {
-  const pkIdx = findPrimaryKeyIndex(columns);
-  if (pkIdx >= 0) {
-    const pkCol = columns[pkIdx];
-    const rawPk = extractCellValue(row[pkIdx]).rawValue;
-    if (rawPk !== null && rawPk !== undefined) {
-      return `${quoteIdentifier(pkCol.name, driver)} = ${formatSqlLiteral(
-        rawPk,
-        driver,
-        pkCol.data_type
-      )}`;
+  const pkIndexes = findPrimaryKeyIndexes(columns);
+  if (pkIndexes.length > 0) {
+    const pkConditions: string[] = [];
+    for (const pkIdx of pkIndexes) {
+      const pkCol = columns[pkIdx];
+      const rawPk = extractCellValue(row[pkIdx]).rawValue;
+      if (rawPk !== null && rawPk !== undefined) {
+        pkConditions.push(
+          `${quoteIdentifier(pkCol.name, driver)} = ${formatSqlLiteral(
+            rawPk,
+            driver,
+            pkCol.data_type
+          )}`
+        );
+      }
+    }
+    // If all composite PK columns have valid values, use composite PK WHERE
+    if (pkConditions.length === pkIndexes.length) {
+      return pkConditions.join(' AND ');
     }
   }
 
@@ -474,8 +502,8 @@ export function buildUpdateSql(options: BuildUpdateOptions): string {
   const valSql = formatSqlLiteral(newValue, driver, targetCol.data_type);
   const whereSql = buildWhereClause(columns, row, driver);
 
-  const pkIdx = findPrimaryKeyIndex(columns);
-  if (pkIdx >= 0) {
+  const pkIndexes = findPrimaryKeyIndexes(columns);
+  if (pkIndexes.length > 0) {
     return `UPDATE ${fullTable} SET ${colSql} = ${valSql} WHERE ${whereSql};`;
   }
 
@@ -499,8 +527,8 @@ export function buildDeleteSql(options: BuildDeleteOptions): string {
   const fullTable = qualifyTable(tableName, schemaName, driver);
   const whereSql = buildWhereClause(columns, row, driver);
 
-  const pkIdx = findPrimaryKeyIndex(columns);
-  if (pkIdx >= 0) {
+  const pkIndexes = findPrimaryKeyIndexes(columns);
+  if (pkIndexes.length > 0) {
     return `DELETE FROM ${fullTable} WHERE ${whereSql};`;
   }
 
@@ -616,6 +644,11 @@ export interface ExistingColumnDef {
   type?: string;
   nullable?: boolean;
   isPrimaryKey?: boolean;
+  defaultValue?: string | null;
+  isUnique?: boolean;
+  checkConstraint?: string;
+  isAutoIncrement?: boolean;
+  collation?: string;
 }
 
 export interface ExistingForeignKeyDef {
@@ -726,9 +759,24 @@ export function buildAddForeignKeySql(params: AddForeignKeyParams): string {
       let def = `${quoteIdentifier(col.name, driver)} ${col.type || 'TEXT'}`;
       if (col.isPrimaryKey) {
         def += ' PRIMARY KEY';
+        if (col.isAutoIncrement) {
+          def += ' AUTOINCREMENT';
+        }
+      }
+      if (col.isUnique && !col.isPrimaryKey) {
+        def += ' UNIQUE';
       }
       if (col.nullable === false && !col.isPrimaryKey) {
         def += ' NOT NULL';
+      }
+      if (col.defaultValue !== undefined && col.defaultValue !== null && col.defaultValue !== '') {
+        def += ` DEFAULT ${col.defaultValue}`;
+      }
+      if (col.checkConstraint) {
+        def += ` CHECK (${col.checkConstraint})`;
+      }
+      if (col.collation) {
+        def += ` COLLATE ${col.collation}`;
       }
       return def;
     });
@@ -738,10 +786,12 @@ export function buildAddForeignKeySql(params: AddForeignKeyParams): string {
 
     return [
       'PRAGMA foreign_keys = OFF;',
+      'BEGIN TRANSACTION;',
       `CREATE TABLE ${quotedTemp} (\n  ${allDefs}\n);`,
       `INSERT INTO ${quotedTemp} (${colNames}) SELECT ${colNames} FROM ${quotedOrig};`,
       `DROP TABLE ${quotedOrig};`,
       `ALTER TABLE ${quotedTemp} RENAME TO ${quotedOrig};`,
+      'COMMIT;',
       'PRAGMA foreign_keys = ON;',
     ].join('\n');
   }
@@ -786,9 +836,24 @@ export function buildDropForeignKeySql(params: DropForeignKeyParams): string {
       let def = `${quoteIdentifier(col.name, driver)} ${col.type || 'TEXT'}`;
       if (col.isPrimaryKey) {
         def += ' PRIMARY KEY';
+        if (col.isAutoIncrement) {
+          def += ' AUTOINCREMENT';
+        }
+      }
+      if (col.isUnique && !col.isPrimaryKey) {
+        def += ' UNIQUE';
       }
       if (col.nullable === false && !col.isPrimaryKey) {
         def += ' NOT NULL';
+      }
+      if (col.defaultValue !== undefined && col.defaultValue !== null && col.defaultValue !== '') {
+        def += ` DEFAULT ${col.defaultValue}`;
+      }
+      if (col.checkConstraint) {
+        def += ` CHECK (${col.checkConstraint})`;
+      }
+      if (col.collation) {
+        def += ` COLLATE ${col.collation}`;
       }
       return def;
     });
@@ -814,10 +879,12 @@ export function buildDropForeignKeySql(params: DropForeignKeyParams): string {
 
     return [
       'PRAGMA foreign_keys = OFF;',
+      'BEGIN TRANSACTION;',
       `CREATE TABLE ${quotedTemp} (\n  ${allDefs}\n);`,
       `INSERT INTO ${quotedTemp} (${colNames}) SELECT ${colNames} FROM ${quotedOrig};`,
       `DROP TABLE ${quotedOrig};`,
       `ALTER TABLE ${quotedTemp} RENAME TO ${quotedOrig};`,
+      'COMMIT;',
       'PRAGMA foreign_keys = ON;',
     ].join('\n');
   }

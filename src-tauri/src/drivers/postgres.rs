@@ -20,6 +20,16 @@ pub struct PostgresConnection {
 
 impl PostgresConnection {
     pub async fn connect(config: &ConnectionConfig, password: Option<&str>) -> Result<Self, AppError> {
+        if let Some(ref ssh) = config.ssh_tunnel {
+            if ssh.enabled {
+                let ssh_host = ssh.host.as_deref().unwrap_or("bastion");
+                return Err(AppError::Other(format!(
+                    "SSH Tunnel to '{}' is enabled, but local SSH port forwarder is not established yet. Direct connection to database host blocked to prevent security bypass.",
+                    ssh_host
+                )));
+            }
+        }
+
         let mut options = sqlx::postgres::PgConnectOptions::new()
             .host(config.host.as_deref().unwrap_or("localhost"))
             .port(config.port.unwrap_or(5432))

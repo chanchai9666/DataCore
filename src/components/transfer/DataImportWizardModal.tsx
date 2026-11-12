@@ -21,6 +21,7 @@ import {
 } from '../../api/dataTransferApi';
 import { dbApi } from '../../api/db';
 import { formatCellValue } from '../../types/db';
+import { formatSqlLiteral } from '../../api/queryBuilder';
 import type {
   ColumnMapping,
   ImportErrorPolicy,
@@ -107,11 +108,11 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
       if (d.includes('sqlite')) {
         sql = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;";
       } else if (d.includes('mysql')) {
-        const schema = initialSchemaName ? `'${initialSchemaName}'` : 'DATABASE()';
+        const schema = initialSchemaName ? formatSqlLiteral(initialSchemaName, 'mysql') : 'DATABASE()';
         sql = `SELECT table_name FROM information_schema.tables WHERE table_schema = ${schema} AND table_type = 'BASE TABLE' ORDER BY table_name;`;
       } else {
         const schema = initialSchemaName || 'public';
-        sql = `SELECT table_name FROM information_schema.tables WHERE table_schema = '${schema}' AND table_type = 'BASE TABLE' ORDER BY table_name;`;
+        sql = `SELECT table_name FROM information_schema.tables WHERE table_schema = ${formatSqlLiteral(schema, 'postgres')} AND table_type = 'BASE TABLE' ORDER BY table_name;`;
       }
 
       const res = await dbApi.executeDirectQuery(connectionId, sql);

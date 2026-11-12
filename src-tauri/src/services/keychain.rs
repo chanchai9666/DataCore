@@ -12,6 +12,7 @@ use crate::error::AppError;
 pub const SERVICE_NAME: &str = "datacore";
 const NONCE_LEN: usize = 12;
 const KEY_LEN: usize = 32;
+const KEY_HEADER_V1: &[u8; 4] = b"DCV1";
 
 #[cfg(unix)]
 fn set_secure_permissions(path: &Path) -> Result<(), AppError> {
@@ -129,12 +130,36 @@ impl Vault {
         let key_file = self.vault_dir.join(".vault.key");
         if key_file.exists() {
             let key_bytes = fs::read(&key_file)?;
-            if key_bytes.len() == KEY_LEN {
+
+            // 1. Version 1 Format: 4-byte Magic "DCV1" + 32-byte obfuscated key = 36 bytes
+            if key_bytes.len() == 4 + KEY_LEN && &key_bytes[..4] == KEY_HEADER_V1 {
                 let mut key = [0u8; KEY_LEN];
                 for i in 0..KEY_LEN {
-                    key[i] = key_bytes[i] ^ mdk[i];
+                    key[i] = key_bytes[4 + i] ^ mdk[i];
                 }
                 return Ok(key);
+            }
+
+            // 2. Legacy Format: 32-byte raw AES key without magic header (Auto-migrate to DCV1)
+            if key_bytes.len() == KEY_LEN {
+                let mut legacy_key = [0u8; KEY_LEN];
+                legacy_key.copy_from_slice(&key_bytes);
+
+                // Auto-migrate to DCV1 format atomically
+                let mut payload = Vec::with_capacity(4 + KEY_LEN);
+                payload.extend_from_slice(KEY_HEADER_V1);
+                for i in 0..KEY_LEN {
+                    payload.push(legacy_key[i] ^ mdk[i]);
+                }
+
+                let tmp_key_file = self.vault_dir.join(".vault.key.tmp");
+                if let Ok(()) = fs::write(&tmp_key_file, &payload) {
+                    let _ = set_secure_permissions(&tmp_key_file);
+                    let _ = fs::rename(&tmp_key_file, &key_file);
+                    let _ = set_secure_permissions(&key_file);
+                }
+
+                return Ok(legacy_key);
             }
         }
 
@@ -142,14 +167,15 @@ impl Vault {
         let mut key_bytes = [0u8; KEY_LEN];
         rand::rng().fill(&mut key_bytes);
 
-        // Obfuscate with machine-derived secret before writing to disk
-        let mut obfuscated = [0u8; KEY_LEN];
+        // Obfuscate with machine-derived secret and write with DCV1 header
+        let mut payload = Vec::with_capacity(4 + KEY_LEN);
+        payload.extend_from_slice(KEY_HEADER_V1);
         for i in 0..KEY_LEN {
-            obfuscated[i] = key_bytes[i] ^ mdk[i];
+            payload.push(key_bytes[i] ^ mdk[i]);
         }
 
         let tmp_key_file = self.vault_dir.join(".vault.key.tmp");
-        fs::write(&tmp_key_file, obfuscated)?;
+        fs::write(&tmp_key_file, &payload)?;
         set_secure_permissions(&tmp_key_file)?;
         fs::rename(&tmp_key_file, &key_file)?;
         set_secure_permissions(&key_file)?;

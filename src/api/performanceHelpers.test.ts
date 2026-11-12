@@ -90,6 +90,9 @@ describe('performanceHelpers', () => {
       expect(buildGetViewDdlSql('user_summary', 'public', 'postgres')).toContain('pg_views');
       expect(buildGetViewDdlSql('user_summary', 'app_db', 'mysql')).toContain('SHOW CREATE VIEW');
       expect(buildGetViewDdlSql('user_summary', '', 'sqlite')).toContain('sqlite_master');
+      expect(buildGetViewDdlSql("view'with'quotes", '', 'sqlite')).toBe(
+        "SELECT sql FROM sqlite_master WHERE type='view' AND name='view''with''quotes';"
+      );
     });
   });
 

@@ -105,7 +105,7 @@ export function buildGetViewDdlSql(viewName: string, schemaName: string, driver:
   }
 
   if (d === 'sqlite') {
-    return `SELECT sql FROM sqlite_master WHERE type='view' AND name='${viewName}';`;
+    return `SELECT sql FROM sqlite_master WHERE type='view' AND name=${formatSqlLiteral(viewName, 'sqlite')};`;
   }
 
   // PostgreSQL

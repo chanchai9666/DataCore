@@ -54,6 +54,10 @@ pub async fn export_data(
     file_path: String,
     options: ExportOptions,
 ) -> Result<ExportResult, String> {
+    if let Some(ref jid) = options.job_id {
+        register_cancellation_token(jid);
+    }
+
     let config = store
         .get(&connection_id)
         .map_err(|e| e.to_string())?
@@ -134,6 +138,10 @@ pub async fn export_sql(
     store: State<'_, ConnectionStore>,
     options: SqlExportOptions,
 ) -> Result<SqlExportResult, String> {
+    if let Some(ref jid) = options.job_id {
+        register_cancellation_token(jid);
+    }
+
     let config = store
         .get(&options.connection_id)
         .map_err(|e| e.to_string())?

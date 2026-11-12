@@ -674,6 +674,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           type: c.dataType,
           nullable: c.isNullable,
           isPrimaryKey: c.isPrimaryKey,
+          defaultValue: c.defaultValue,
         })),
       });
     } catch {
@@ -703,6 +704,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           type: c.dataType,
           nullable: c.isNullable,
           isPrimaryKey: c.isPrimaryKey,
+          defaultValue: c.defaultValue,
         })),
       });
 
@@ -740,6 +742,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           type: c.dataType,
           nullable: c.isNullable,
           isPrimaryKey: c.isPrimaryKey,
+          defaultValue: c.defaultValue,
         })),
         remainingForeignKeys: foreignKeys.filter((fk) => fk.name !== dropFkTarget.name),
       });

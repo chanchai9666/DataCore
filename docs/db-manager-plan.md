@@ -28,7 +28,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 - เลือกชนิดฐานข้อมูล, ใส่ host/port/user/password
 - รองรับการกรอกรหัสผ่านโดยตรงและตัวเลือก Remember password:
-  - **เมื่อเลือก Remember password:** จัดเก็บรหัสผ่านอย่างปลอดภัยใน Local Encrypted Vault เข้ารหัสด้วย AES-256-GCM ที่ `~/.datacore/vault.enc` (file permission 0600) พร้อมไฟล์กุญแจ `~/.datacore/.vault.key` **คงอยู่ข้ามการปิด-เปิดโปรแกรมและการ restart เครื่อง** โดยไม่ต้องกรอกรหัสผ่านซ้ำ ไม่มีการบันทึก Plaintext ลงไฟล์คอนฟิก และปิดการเรียกใช้งาน OS Keychain โดยสมบูรณ์เพื่อป้องกันหน้าต่างขอสิทธิ์ของระบบปฏิบัติการ
+  - **เมื่อเลือก Remember password:** จัดเก็บรหัสผ่านอย่างปลอดภัยใน Local Encrypted Vault เข้ารหัสด้วย AES-256-GCM ที่ `~/.datacore/vault.enc` (file permission 0600) พร้อมไฟล์กุญแจ `~/.datacore/.vault.key` มี Magic header `DCV1` พร้อมระบบ auto-migration จากกุญแจ legacy 32-byte อัตโนมัติ (Issue #81) **คงอยู่ข้ามการปิด-เปิดโปรแกรมและการ restart เครื่อง** โดยไม่ต้องกรอกรหัสผ่านซ้ำ ไม่มีการบันทึก Plaintext ลงไฟล์คอนฟิก และปิดการเรียกใช้งาน OS Keychain โดยสมบูรณ์เพื่อป้องกันหน้าต่างขอสิทธิ์ของระบบปฏิบัติการ
   - **เมื่อไม่เลือก Remember password:** จัดเก็บรหัสผ่านเฉพาะในหน่วยความจำ RAM (In-Memory SessionManager) ชั่วคราวระหว่างการใช้งานในระดับ Session ช่วยให้เปิดแท็บหรือคิวรีต่อเนื่องได้โดยไม่ต้องกรอกรหัสผ่านซ้ำ และจะถูกล้างทิ้งทันทีเมื่อตัดการเชื่อมต่อ (Disconnect) ปิดโปรแกรม หรือ restart เครื่อง (Issue #73) โดยไม่ล้างรหัสใน RAM ทิ้งหากผู้ใช้ไม่ได้ตั้งใจลบ
 - เลือกโหมด SSL (`disable`, `prefer`, `require`, `verify-ca`, `verify-full`) พร้อมแท็บจัดการความปลอดภัยและการเชื่อมต่อขั้นสูง (Issue #78):
   - **SSL / TLS Certificates:** กำหนดไฟล์ CA Certificate (`ca_cert_path`), Client Certificate (`client_cert_path`), และ Client Key (`client_key_path`) สำหรับการเชื่อมต่อ mutual TLS (mTLS) ไปยัง PostgreSQL และ MySQL
@@ -223,7 +223,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Table Structure Editor & Constraint Management (Phase 23 - เสร็จสมบูรณ์)**:
   - จัดการ Columns, Indexes, Foreign Keys, และ Constraints อย่างเต็มรูปแบบ
   - รองรับ Foreign Key สำหรับ PostgreSQL และ MySQL ผ่าน `ALTER TABLE ... ADD/DROP CONSTRAINT`
-  - สำหรับ SQLite ซึ่งไม่รองรับ `ALTER TABLE ADD/DROP CONSTRAINT` ระบบสร้าง Table-rebuild migration script อัตโนมัติ (`PRAGMA foreign_keys = OFF` -> `CREATE TABLE ..._datacore_rebuild` พร้อม Foreign Key ใหม่ -> Copy ข้อมูล -> Drop เดิม -> Rename -> `PRAGMA foreign_keys = ON`) ภายใต้ atomic batch execution และแสดงคำแนะนำแก่ผู้ใช้ (Issue #79)
+  - สำหรับ SQLite ซึ่งไม่รองรับ `ALTER TABLE ADD/DROP CONSTRAINT` ระบบสร้าง Table-rebuild migration script อัตโนมัติ (`PRAGMA foreign_keys = OFF` -> `BEGIN TRANSACTION` -> `CREATE TABLE ..._datacore_rebuild` พร้อม Foreign Key ใหม่โดยคงค่า DEFAULT, UNIQUE, CHECK, AUTOINCREMENT ครบถ้วน -> Copy ข้อมูล -> Drop เดิม -> Rename -> `COMMIT` -> `PRAGMA foreign_keys = ON`) ภายใต้ atomic batch execution และแสดงคำแนะนำแก่ผู้ใช้ (Issue #79)
 - **การจัดการตารางและการถ่ายโอนข้อมูลขั้นสูง (ดู [Technical Design Doc](designs/table_management_and_data_transfer.md))**:
   - **Table List View (เสร็จสมบูรณ์)**: หน้าจอภาพรวมตารางระดับ Database/Schema ในรูปแบบ Detailed Metadata Grid (Glide Data Grid แสดง Estimated Rows ปราศจาก Table Lock, Data Size, Index Size, Storage Engine, Collation พร้อม Search Filter ค้นหาชื่อตาราง)
   - **Table List Context Menu**: เมนูคลิกขวาบนแถวตารางใน Table List View (Open Data, Design Structure, Duplicate Table, Copy Table to DB, Export as SQL Dump, Export Table Data, Import as SQL Dump, Import Table Data, Copy Table Name, Drop Table)

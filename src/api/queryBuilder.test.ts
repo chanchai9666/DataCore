@@ -255,6 +255,38 @@ describe('queryBuilder', () => {
       expect(sql).toBe('DELETE FROM "users" WHERE "id" = 5;');
     });
 
+    it('generates UPDATE and DELETE sql with composite primary keys using all PK columns', () => {
+      const compositeCols = [
+        { name: 'order_id', data_type: 'int', nullable: false, is_primary_key: true },
+        { name: 'item_id', data_type: 'int', nullable: false, is_primary_key: true },
+        { name: 'quantity', data_type: 'int', nullable: false, is_primary_key: false },
+      ];
+      const row = [{ Integer: 101 }, { Integer: 502 }, { Integer: 3 }];
+
+      const updateSql = buildUpdateSql({
+        driver: 'postgres',
+        tableName: 'order_items',
+        schemaName: 'sales',
+        columns: compositeCols,
+        row,
+        colIndex: 2,
+        newValue: 5,
+      });
+      expect(updateSql).toBe(
+        'UPDATE "sales"."order_items" SET "quantity" = 5 WHERE "order_id" = 101 AND "item_id" = 502;'
+      );
+
+      const deleteSql = buildDeleteSql({
+        driver: 'mysql',
+        tableName: 'order_items',
+        columns: compositeCols,
+        row,
+      });
+      expect(deleteSql).toBe(
+        'DELETE FROM `order_items` WHERE `order_id` = 101 AND `item_id` = 502;'
+      );
+    });
+
     it('guards fallback UPDATE and DELETE without PK using single-row limits (Postgres ctid, SQLite rowid, MySQL LIMIT 1)', () => {
       const noPkCols = [
         { name: 'tag', data_type: 'varchar', nullable: false, is_primary_key: false },

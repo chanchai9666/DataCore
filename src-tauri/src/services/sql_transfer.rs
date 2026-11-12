@@ -257,6 +257,12 @@ pub async fn export_sql_impl(
     let total_tables = target_tables.len();
 
     for table in &target_tables {
+        if let Some(ref jid) = options.job_id {
+            if is_transfer_cancelled(jid) {
+                return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
+            }
+        }
+
         writeln!(writer, "--")?;
         writeln!(writer, "-- Table structure and data for `{}`", table)?;
         writeln!(writer, "--\n")?;
@@ -396,6 +402,12 @@ pub async fn export_sql_impl(
                 let cols_joined = quoted_cols.join(", ");
 
                 for chunk in rows.chunks(batch_size) {
+                    if let Some(ref jid) = options.job_id {
+                        if is_transfer_cancelled(jid) {
+                            return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
+                        }
+                    }
+
                     let mut value_tuples = Vec::with_capacity(chunk.len());
                     for row in chunk {
                         let formatted: Vec<String> = row

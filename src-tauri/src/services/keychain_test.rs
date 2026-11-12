@@ -101,3 +101,52 @@ fn test_vault_key_is_machine_bound_and_not_raw_aes_key() {
     // Due to machine key mismatch, decryption must fail
     assert!(result.is_err(), "Vault must fail decryption when machine-derived key differs");
 }
+
+#[test]
+fn test_vault_key_legacy_migration_from_raw_32byte_key() {
+    use aes_gcm::aead::{Aead, KeyInit};
+    use aes_gcm::Aes256Gcm;
+    use std::collections::HashMap;
+
+    let dir = tempdir().expect("create temp dir");
+
+    // 1. Manually synthesize legacy vault files:
+    // Raw 32-byte AES key written directly to .vault.key without any header or XOR obfuscation
+    let raw_aes_key: [u8; 32] = [42u8; 32];
+    let key_file = dir.path().join(".vault.key");
+    fs::write(&key_file, &raw_aes_key).expect("write legacy 32-byte key file");
+    assert_eq!(fs::metadata(&key_file).unwrap().len(), 32);
+
+    // Encrypt legacy payload with this raw key into vault.enc
+    let mut payload_map = HashMap::new();
+    payload_map.insert("legacy-conn-1".to_string(), "old-remembered-password-xyz".to_string());
+    let plaintext = serde_json::to_vec(&payload_map).expect("serialize payload");
+
+    let cipher = Aes256Gcm::new_from_slice(&raw_aes_key).unwrap();
+    let nonce = [7u8; 12];
+    let ciphertext = cipher.encrypt((&nonce).into(), plaintext.as_ref()).unwrap();
+
+    let mut vault_file_bytes = Vec::new();
+    vault_file_bytes.extend_from_slice(&nonce);
+    vault_file_bytes.extend_from_slice(&ciphertext);
+    let vault_file = dir.path().join("vault.enc");
+    fs::write(&vault_file, &vault_file_bytes).expect("write legacy vault.enc");
+
+    // 2. Open Vault with modern code (simulating app upgrade)
+    let machine_id = "test-upgrade-machine-uuid";
+    let upgraded_vault = Vault::with_machine_id(dir.path(), machine_id.to_string());
+
+    // 3. Must successfully read password from legacy encrypted vault
+    let retrieved = upgraded_vault.get_password("legacy-conn-1").expect("read legacy password");
+    assert_eq!(retrieved.as_deref(), Some("old-remembered-password-xyz"));
+
+    // 4. Verify that .vault.key was automatically migrated to DCV1 format (36 bytes: 4 magic + 32 key)
+    let migrated_bytes = fs::read(&key_file).expect("read migrated key file");
+    assert_eq!(migrated_bytes.len(), 36, "Migrated key file must be 36 bytes (4 magic + 32 key)");
+    assert_eq!(&migrated_bytes[..4], b"DCV1", "Header must be DCV1");
+
+    // 5. Verify that in subsequent session, modern vault continues to read seamlessly from migrated key
+    let next_session_vault = Vault::with_machine_id(dir.path(), machine_id.to_string());
+    let next_retrieved = next_session_vault.get_password("legacy-conn-1").expect("read after migration");
+    assert_eq!(next_retrieved.as_deref(), Some("old-remembered-password-xyz"));
+}

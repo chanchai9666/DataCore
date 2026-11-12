@@ -253,6 +253,15 @@ pub fn export_query_result_to_writer<W: Write>(
 ) -> Result<(usize, u64), AppError> {
     let mut counting_writer = CountingWriter::new(writer);
 
+    let check_cancel = || -> Result<(), AppError> {
+        if let Some(ref jid) = options.job_id {
+            if is_transfer_cancelled(jid) {
+                return Err(AppError::Cancelled("Export cancelled by user".to_string()));
+            }
+        }
+        Ok(())
+    };
+
     match options.format {
         TransferFormat::Csv => {
             let delim = options.delimiter.unwrap_or(',');
@@ -267,7 +276,10 @@ pub fn export_query_result_to_writer<W: Write>(
                     .map_err(|e| AppError::Other(format!("CSV write header error: {}", e)))?;
             }
 
-            for row in &result.rows {
+            for (idx, row) in result.rows.iter().enumerate() {
+                if idx % 100 == 0 {
+                    check_cancel()?;
+                }
                 let record: Vec<String> = row
                     .iter()
                     .map(|cell| match cell {
@@ -295,7 +307,10 @@ pub fn export_query_result_to_writer<W: Write>(
             let col_names: Vec<&str> = result.columns.iter().map(|c| c.name.as_str()).collect();
 
             if is_ndjson {
-                for row in &result.rows {
+                for (idx, row) in result.rows.iter().enumerate() {
+                    if idx % 100 == 0 {
+                        check_cancel()?;
+                    }
                     let map = row_to_json_map(&col_names, row);
                     let line = serde_json::to_string(&map)
                         .map_err(|e| AppError::Other(format!("JSON serialization error: {}", e)))?;
@@ -307,6 +322,9 @@ pub fn export_query_result_to_writer<W: Write>(
                     .map_err(|e| AppError::Other(format!("JSON write error: {}", e)))?;
 
                 for (idx, row) in result.rows.iter().enumerate() {
+                    if idx % 100 == 0 {
+                        check_cancel()?;
+                    }
                     let map = row_to_json_map(&col_names, row);
                     let json_str = serde_json::to_string_pretty(&map)
                         .map_err(|e| AppError::Other(format!("JSON serialization error: {}", e)))?;
@@ -336,6 +354,7 @@ pub fn export_query_result_to_writer<W: Write>(
         }
     }
 
+    check_cancel()?;
     let bytes_written = counting_writer.bytes_written;
     Ok((result.rows.len(), bytes_written))
 }
@@ -620,8 +639,20 @@ pub async fn export_data_impl(
     file_path: &str,
     options: &ExportOptions,
 ) -> Result<ExportResult, AppError> {
+    if let Some(ref jid) = options.job_id {
+        if is_transfer_cancelled(jid) {
+            return Err(AppError::Cancelled("Export cancelled by user".to_string()));
+        }
+    }
+
     let start_time = Instant::now();
     let query_result = conn.execute_query(sql).await?;
+
+    if let Some(ref jid) = options.job_id {
+        if is_transfer_cancelled(jid) {
+            return Err(AppError::Cancelled("Export cancelled by user".to_string()));
+        }
+    }
 
     let file = File::create(file_path)
         .map_err(|e| AppError::Other(format!("Failed to create export file '{}': {}", file_path, e)))?;
@@ -862,17 +893,74 @@ where
             let mut current_chunk: Vec<Vec<String>> = Vec::with_capacity(batch_size);
 
             if is_array {
-                let val: serde_json::Value = serde_json::from_reader(full_reader)
-                    .map_err(|e| AppError::Other(format!("Invalid JSON array: {}", e)))?;
-                if let serde_json::Value::Array(items) = val {
-                    for item in items {
-                        if let Err(err) = check_cancelled(job_id) {
-                            if options.error_policy == ImportErrorPolicy::Abort {
-                                let _ = conn.execute_query("ROLLBACK").await;
-                            }
-                            return Err(err);
+                let mut stream_bytes = full_reader.bytes();
+
+                fn get_next_non_ws<I: Iterator<Item = std::io::Result<u8>>>(iter: &mut I) -> Option<u8> {
+                    while let Some(Ok(b)) = iter.next() {
+                        if !b.is_ascii_whitespace() {
+                            return Some(b);
                         }
-                        if let serde_json::Value::Object(map) = item {
+                    }
+                    None
+                }
+
+                // First non-ws is '[', consume it
+                let mut next_char = get_next_non_ws(&mut stream_bytes);
+                if next_char == Some(b'[') {
+                    next_char = get_next_non_ws(&mut stream_bytes);
+                }
+
+                while let Some(ch) = next_char {
+                    if ch == b']' {
+                        break;
+                    }
+                    if ch == b',' {
+                        next_char = get_next_non_ws(&mut stream_bytes);
+                        continue;
+                    }
+
+                    if ch == b'{' {
+                        let mut obj_bytes = vec![b'{'];
+                        let mut brace_depth = 1;
+                        let mut in_string = false;
+                        let mut escape_next = false;
+
+                        for byte_res in &mut stream_bytes {
+                            let b = byte_res.map_err(|e| AppError::Other(format!("Read error: {}", e)))?;
+                            obj_bytes.push(b);
+
+                            if escape_next {
+                                escape_next = false;
+                                continue;
+                            }
+                            if b == b'\\' && in_string {
+                                escape_next = true;
+                                continue;
+                            }
+                            if b == b'"' {
+                                in_string = !in_string;
+                                continue;
+                            }
+                            if !in_string {
+                                if b == b'{' {
+                                    brace_depth += 1;
+                                } else if b == b'}' {
+                                    brace_depth -= 1;
+                                    if brace_depth == 0 {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Ok(serde_json::Value::Object(map)) = serde_json::from_slice(&obj_bytes) {
+                            if let Err(err) = check_cancelled(job_id) {
+                                if options.error_policy == ImportErrorPolicy::Abort {
+                                    let _ = conn.execute_query("ROLLBACK").await;
+                                }
+                                return Err(err);
+                            }
+
                             let mut row = Vec::with_capacity(options.column_mappings.len());
                             for mapping in &options.column_mappings {
                                 let val_str = match map.get(&mapping.source_column) {
@@ -908,6 +996,10 @@ where
                                 }
                             }
                         }
+
+                        next_char = get_next_non_ws(&mut stream_bytes);
+                    } else {
+                        next_char = get_next_non_ws(&mut stream_bytes);
                     }
                 }
             } else {

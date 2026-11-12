@@ -363,20 +363,24 @@ describe('tableManagementHelpers', () => {
         onDelete: 'CASCADE',
         onUpdate: 'SET NULL',
         existingColumns: [
-          { name: 'id', type: 'INTEGER', isPrimaryKey: true },
-          { name: 'user_id', type: 'INTEGER', nullable: false },
+          { name: 'id', type: 'INTEGER', isPrimaryKey: true, isAutoIncrement: true },
+          { name: 'user_id', type: 'INTEGER', nullable: false, defaultValue: '0' },
+          { name: 'code', type: 'TEXT', isUnique: true, checkConstraint: 'length(code) > 2' },
           { name: 'amount', type: 'REAL' },
         ],
       });
 
       expect(sql).toContain('PRAGMA foreign_keys = OFF;');
+      expect(sql).toContain('BEGIN TRANSACTION;');
       expect(sql).toContain('CREATE TABLE "orders_datacore_rebuild" (');
-      expect(sql).toContain('"id" INTEGER PRIMARY KEY');
-      expect(sql).toContain('"user_id" INTEGER NOT NULL');
+      expect(sql).toContain('"id" INTEGER PRIMARY KEY AUTOINCREMENT');
+      expect(sql).toContain('"user_id" INTEGER NOT NULL DEFAULT 0');
+      expect(sql).toContain('"code" TEXT UNIQUE CHECK (length(code) > 2)');
       expect(sql).toContain('CONSTRAINT "fk_orders_user" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE SET NULL');
-      expect(sql).toContain('INSERT INTO "orders_datacore_rebuild" ("id", "user_id", "amount") SELECT "id", "user_id", "amount" FROM "orders";');
+      expect(sql).toContain('INSERT INTO "orders_datacore_rebuild" ("id", "user_id", "code", "amount") SELECT "id", "user_id", "code", "amount" FROM "orders";');
       expect(sql).toContain('DROP TABLE "orders";');
       expect(sql).toContain('ALTER TABLE "orders_datacore_rebuild" RENAME TO "orders";');
+      expect(sql).toContain('COMMIT;');
       expect(sql).toContain('PRAGMA foreign_keys = ON;');
     });
 
@@ -412,11 +416,13 @@ describe('tableManagementHelpers', () => {
       });
 
       expect(sql).toContain('PRAGMA foreign_keys = OFF;');
+      expect(sql).toContain('BEGIN TRANSACTION;');
       expect(sql).toContain('CREATE TABLE "orders_datacore_rebuild"');
       expect(sql).toContain('CONSTRAINT "fk_orders_store" FOREIGN KEY ("store_id") REFERENCES "stores" ("id")');
       expect(sql).not.toContain('fk_orders_user');
       expect(sql).toContain('DROP TABLE "orders";');
       expect(sql).toContain('ALTER TABLE "orders_datacore_rebuild" RENAME TO "orders";');
+      expect(sql).toContain('COMMIT;');
       expect(sql).toContain('PRAGMA foreign_keys = ON;');
     });
 

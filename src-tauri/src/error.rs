@@ -17,6 +17,9 @@ pub enum AppError {
     #[error("Database error: {0}")]
     Database(String),
 
+    #[error("Cancelled: {0}")]
+    Cancelled(String),
+
     #[error("{0}")]
     Other(String),
 }

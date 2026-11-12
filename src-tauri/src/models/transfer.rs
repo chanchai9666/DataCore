@@ -42,6 +42,8 @@ pub struct ExportOptions {
     pub include_headers: bool,
     #[serde(default)]
     pub json_structure: Option<JsonStructure>,
+    #[serde(default, alias = "job_id", alias = "jobId")]
+    pub job_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -147,6 +149,8 @@ pub struct SqlExportOptions {
     pub include_data: bool,
     #[serde(default, alias = "batch_size")]
     pub batch_size: Option<usize>,
+    #[serde(default, alias = "job_id", alias = "jobId")]
+    pub job_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -208,6 +212,8 @@ pub struct CrossDbCopyTableOptions {
     pub copy_data: bool,
     #[serde(default, alias = "batch_size")]
     pub batch_size: Option<usize>,
+    #[serde(default, alias = "job_id", alias = "jobId")]
+    pub job_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

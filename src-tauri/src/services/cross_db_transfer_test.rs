@@ -75,6 +75,7 @@ mod tests {
             drop_target_if_exists: true,
             copy_data: true,
             batch_size: Some(500),
+            job_id: None,
         };
 
         let res = copy_table_cross_db_impl(
@@ -131,6 +132,7 @@ mod tests {
             drop_target_if_exists: true,
             copy_data: true,
             batch_size: Some(10),
+            job_id: None,
         };
 
         let res = copy_table_cross_db_impl(

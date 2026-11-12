@@ -80,6 +80,7 @@ fn test_export_query_result_to_csv() {
         delimiter: Some(','),
         include_headers: true,
         json_structure: None,
+        job_id: None,
     };
 
     let (rows, bytes) = export_query_result_to_writer(&query_result, &mut buf, &options).expect("export csv");
@@ -112,6 +113,7 @@ fn test_export_query_result_to_json_array() {
         delimiter: None,
         include_headers: true,
         json_structure: Some(JsonStructure::Array),
+        job_id: None,
     };
 
     let (rows, _) = export_query_result_to_writer(&query_result, &mut buf, &options).expect("export json");
@@ -121,6 +123,40 @@ fn test_export_query_result_to_json_array() {
     let parsed: serde_json::Value = serde_json::from_str(&output).expect("valid json array");
     assert!(parsed.is_array());
     assert_eq!(parsed[0]["name"], "Alice");
+}
+
+#[test]
+fn test_export_cancellation() {
+    use crate::services::data_transfer::{register_cancellation_token, trigger_cancellation};
+
+    let query_result = QueryResult {
+        columns: vec![
+            ColumnMeta::new("id", "INTEGER", false),
+            ColumnMeta::new("name", "TEXT", true),
+        ],
+        rows: (0..500)
+            .map(|i| vec![CellValue::Integer(i), CellValue::Text(format!("User {}", i))])
+            .collect(),
+        execution_time_ms: 5,
+        rows_affected: None,
+    };
+
+    let job_id = "test-export-cancel-job";
+    register_cancellation_token(job_id);
+    trigger_cancellation(job_id);
+
+    let mut buf = Vec::new();
+    let options = ExportOptions {
+        format: TransferFormat::Csv,
+        delimiter: Some(','),
+        include_headers: true,
+        json_structure: None,
+        job_id: Some(job_id.to_string()),
+    };
+
+    let res = export_query_result_to_writer(&query_result, &mut buf, &options);
+    assert!(res.is_err(), "Export must fail when cancellation token is triggered");
+    assert!(res.unwrap_err().to_string().contains("cancelled"));
 }
 
 #[test]
