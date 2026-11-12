@@ -1,4 +1,4 @@
-import { quoteIdentifier, qualifyTable } from './queryBuilder';
+import { quoteIdentifier, qualifyTable, formatSqlLiteral } from './queryBuilder';
 
 export type IndexType = 'BTREE' | 'HASH' | 'GIN' | 'GIST' | 'FULLTEXT';
 
@@ -113,7 +113,7 @@ export function buildGetViewDdlSql(viewName: string, schemaName: string, driver:
   return `
 SELECT definition 
 FROM pg_views 
-WHERE schemaname = '${s}' AND viewname = '${viewName}';
+WHERE schemaname = ${formatSqlLiteral(s, 'postgres')} AND viewname = ${formatSqlLiteral(viewName, 'postgres')};
   `.trim();
 }
 
@@ -128,7 +128,7 @@ export function buildGetTablePartitionsSql(
   const d = driver?.toLowerCase() || 'postgres';
 
   if (d === 'mysql') {
-    const schemaClause = schemaName ? `AND TABLE_SCHEMA = '${schemaName}'` : '';
+    const schemaClause = schemaName ? `AND TABLE_SCHEMA = ${formatSqlLiteral(schemaName, 'mysql')}` : '';
     return `
 SELECT 
   PARTITION_NAME AS name,
@@ -137,7 +137,7 @@ SELECT
   TABLE_ROWS AS row_count,
   ROUND(DATA_LENGTH / 1024 / 1024, 2) AS data_size_mb
 FROM information_schema.PARTITIONS
-WHERE TABLE_NAME = '${tableName}' ${schemaClause}
+WHERE TABLE_NAME = ${formatSqlLiteral(tableName, 'mysql')} ${schemaClause}
   AND PARTITION_NAME IS NOT NULL
 ORDER BY PARTITION_ORDINAL_POSITION ASC;
     `.trim();
@@ -161,7 +161,7 @@ JOIN pg_inherits i ON i.inhparent = p.oid
 JOIN pg_class c ON c.oid = i.inhrelid
 JOIN pg_namespace n ON n.oid = p.relnamespace
 LEFT JOIN pg_partitioned_table pt ON pt.partrelid = p.oid
-WHERE n.nspname = '${s}' AND p.relname = '${tableName}'
+WHERE n.nspname = ${formatSqlLiteral(s, 'postgres')} AND p.relname = ${formatSqlLiteral(tableName, 'postgres')}
 ORDER BY c.relname ASC;
   `.trim();
 }

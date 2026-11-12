@@ -62,13 +62,14 @@ describe('securityHelpers', () => {
       );
     });
 
-    it('builds queries to fetch RLS status and policies', () => {
-      const statusSql = buildGetRlsStatusSql('documents', 'public', 'postgres');
-      expect(statusSql).toContain('pg_tables');
-      expect(statusSql).toContain('rowsecurity');
+    it('builds queries to fetch RLS status and policies with escaped schema and table literals', () => {
+      const statusSql = buildGetRlsStatusSql("user's_data", "tenant's_schema", 'postgres');
+      expect(statusSql).toContain("schemaname = 'tenant''s_schema'");
+      expect(statusSql).toContain("tablename = 'user''s_data'");
 
-      const policiesSql = buildGetRlsPoliciesSql('documents', 'public', 'postgres');
-      expect(policiesSql).toContain('pg_policies');
+      const policiesSql = buildGetRlsPoliciesSql("user's_data", "tenant's_schema", 'postgres');
+      expect(policiesSql).toContain("schemaname = 'tenant''s_schema'");
+      expect(policiesSql).toContain("tablename = 'user''s_data'");
     });
   });
 

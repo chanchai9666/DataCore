@@ -1,4 +1,4 @@
-import { quoteIdentifier, qualifyTable } from './queryBuilder';
+import { quoteIdentifier, qualifyTable, formatSqlLiteral } from './queryBuilder';
 
 export type PolicyCommand = 'ALL' | 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE';
 
@@ -126,7 +126,9 @@ export function buildGetRlsStatusSql(
   const d = driver?.toLowerCase() || 'postgres';
   if (d === 'postgres') {
     const s = schemaName || 'public';
-    return `SELECT rowsecurity FROM pg_tables WHERE schemaname = '${s}' AND tablename = '${tableName}';`;
+    const sSql = formatSqlLiteral(s, 'postgres');
+    const tSql = formatSqlLiteral(tableName, 'postgres');
+    return `SELECT rowsecurity FROM pg_tables WHERE schemaname = ${sSql} AND tablename = ${tSql};`;
   }
   return `-- SQLite / MySQL native RLS status not applicable`;
 }
@@ -142,6 +144,8 @@ export function buildGetRlsPoliciesSql(
   const d = driver?.toLowerCase() || 'postgres';
   if (d === 'postgres') {
     const s = schemaName || 'public';
+    const sSql = formatSqlLiteral(s, 'postgres');
+    const tSql = formatSqlLiteral(tableName, 'postgres');
     return `
 SELECT
   policyname,
@@ -151,7 +155,7 @@ SELECT
   qual AS using_expression,
   with_check AS check_expression
 FROM pg_policies
-WHERE schemaname = '${s}' AND tablename = '${tableName}'
+WHERE schemaname = ${sSql} AND tablename = ${tSql}
 ORDER BY policyname ASC;
     `.trim();
   }

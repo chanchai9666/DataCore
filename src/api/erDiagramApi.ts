@@ -7,6 +7,7 @@ import type {
   CellValue,
 } from '../types/db';
 import { formatCellValue } from '../types/db';
+import { formatSqlLiteral } from './queryBuilder';
 import { dbApi } from './db';
 import {
   getFetchForeignKeysSql,
@@ -264,7 +265,7 @@ export async function fetchERDiagramData(
     );
     tableNames = res.rows.map((r: CellValue[]) => formatCellValue(r[0]));
   } else if (d.includes('mysql')) {
-    const schemaSql = schemaName ? `'${schemaName}'` : 'DATABASE()';
+    const schemaSql = schemaName ? formatSqlLiteral(schemaName, 'mysql') : 'DATABASE()';
     const res = await dbApi.executeDirectQuery(
       connectionId,
       `SELECT table_name FROM information_schema.tables WHERE table_schema = ${schemaSql} AND table_type = 'BASE TABLE' ORDER BY table_name;`
@@ -275,7 +276,7 @@ export async function fetchERDiagramData(
     const s = schemaName || 'public';
     const res = await dbApi.executeDirectQuery(
       connectionId,
-      `SELECT table_name FROM information_schema.tables WHERE table_schema = '${s}' AND table_type = 'BASE TABLE' ORDER BY table_name;`
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = ${formatSqlLiteral(s, 'postgres')} AND table_type = 'BASE TABLE' ORDER BY table_name;`
     );
     tableNames = res.rows.map((r: CellValue[]) => formatCellValue(r[0]));
   }
@@ -288,17 +289,17 @@ export async function fetchERDiagramData(
     let columns: ERColumn[] = [];
 
     if (d.includes('sqlite')) {
-      const colRes = await dbApi.executeDirectQuery(connectionId, `PRAGMA table_info('${tName}');`);
+      const colRes = await dbApi.executeDirectQuery(connectionId, `PRAGMA table_info(${formatSqlLiteral(tName, 'sqlite')});`);
       columns = parseSQLiteColumns(colRes);
 
-      const fkRes = await dbApi.executeDirectQuery(connectionId, `PRAGMA foreign_key_list('${tName}');`);
+      const fkRes = await dbApi.executeDirectQuery(connectionId, `PRAGMA foreign_key_list(${formatSqlLiteral(tName, 'sqlite')});`);
       const fks = parseForeignKeysFromQueryResult(fkRes, driver);
       allRelationships.push(...buildERRelationships(tName, fks));
     } else if (d.includes('mysql')) {
-      const schemaSql = schemaName ? `'${schemaName}'` : 'DATABASE()';
+      const schemaSql = schemaName ? formatSqlLiteral(schemaName, 'mysql') : 'DATABASE()';
       const colRes = await dbApi.executeDirectQuery(
         connectionId,
-        `SELECT column_name, data_type, is_nullable, column_key FROM information_schema.columns WHERE table_schema = ${schemaSql} AND table_name = '${tName}' ORDER BY ordinal_position;`
+        `SELECT column_name, data_type, is_nullable, column_key FROM information_schema.columns WHERE table_schema = ${schemaSql} AND table_name = ${formatSqlLiteral(tName, 'mysql')} ORDER BY ordinal_position;`
       );
       columns = parseMySQLColumns(colRes);
 
@@ -321,7 +322,7 @@ export async function fetchERDiagramData(
           ON c.table_name = kcu.table_name AND c.column_name = kcu.column_name AND c.table_schema = kcu.table_schema 
         LEFT JOIN information_schema.table_constraints tc 
           ON kcu.constraint_name = tc.constraint_name AND tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = c.table_schema 
-        WHERE c.table_name = '${tName}' AND c.table_schema = '${s}' 
+        WHERE c.table_name = ${formatSqlLiteral(tName, 'postgres')} AND c.table_schema = ${formatSqlLiteral(s, 'postgres')} 
         ORDER BY c.ordinal_position;`
       );
       columns = parsePostgresColumns(colRes);
