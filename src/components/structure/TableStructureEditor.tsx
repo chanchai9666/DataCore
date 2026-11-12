@@ -40,6 +40,10 @@ import {
   composeDataType,
   parseDataType,
   getDataTypeSpec,
+  getFetchTableDdlSql,
+  parseTableDdlFromQueryResult,
+  enrichColumnsFromSqliteDdl,
+  enrichForeignKeysFromSqliteDdl,
   type TableColumnStructure,
 } from './tableStructureHelpers';
 import {
@@ -56,8 +60,11 @@ import {
   buildDropConstraintSql,
   getFetchConstraintsSql,
   parseConstraintsFromQueryResult,
+  getFetchTriggersSql,
+  parseTriggersFromQueryResult,
   type TableConstraintStructure,
 } from './tableManagementHelpers';
+import type { TableTriggerDef } from '../../api/queryBuilder';
 import { DropTableModal } from './DropTableModal';
 import { RenameTableModal } from './RenameTableModal';
 import { TableMaintenanceModal } from './TableMaintenanceModal';
@@ -124,6 +131,8 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
 }) => {
   const [columns, setColumns] = useState<TableColumnStructure[]>([]);
   const [indexes, setIndexes] = useState<TableIndexStructure[]>([]);
+  const [triggers, setTriggers] = useState<TableTriggerDef[]>([]);
+  const [tableDdl, setTableDdl] = useState<string | null>(null);
   const [foreignKeys, setForeignKeys] = useState<TableForeignKeyStructure[]>([]);
   const [constraints, setConstraints] = useState<TableConstraintStructure[]>([]);
   const [activeTab, setActiveTab] = useState<'columns' | 'indexes' | 'foreign-keys' | 'constraints' | 'security' | 'ddl'>('columns');
@@ -300,6 +309,21 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         );
       }
 
+      // Enrich SQLite columns with attributes only available in the original DDL
+      let parsedDdl: string | null = null;
+      if ((driver || '').toLowerCase() === 'sqlite') {
+        try {
+          const ddlSql = getFetchTableDdlSql(driver, tableName, schemaName);
+          if (ddlSql) {
+            const ddlRes = await dbApi.executeQuery(tabId, ddlSql);
+            parsedDdl = parseTableDdlFromQueryResult(ddlRes);
+            parsedCols = enrichColumnsFromSqliteDdl(parsedCols, parsedDdl);
+          }
+        } catch (ddlErr) {
+          console.warn('DDL load fallback error:', ddlErr);
+        }
+      }
+      setTableDdl(parsedDdl);
       setColumns(parsedCols);
 
       // Fetch indexes
@@ -312,11 +336,30 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         console.warn('Index load fallback error:', idxErr);
       }
 
+      // Fetch triggers (SQLite only)
+      try {
+        const triggerSql = getFetchTriggersSql(driver, tableName);
+        if (triggerSql) {
+          const triggerRes = await dbApi.executeQuery(tabId, triggerSql);
+          setTriggers(parseTriggersFromQueryResult(triggerRes, driver));
+        } else {
+          setTriggers([]);
+        }
+      } catch (triggerErr) {
+        console.warn('Trigger load fallback error:', triggerErr);
+      }
+
       // Fetch foreign keys
       try {
         const fkSql = getFetchForeignKeysSql(driver, tableName, schemaName);
         const fkRes = await dbApi.executeQuery(tabId, fkSql);
-        const parsedFk = parseForeignKeysFromQueryResult(fkRes, driver);
+        let parsedFk = parseForeignKeysFromQueryResult(fkRes, driver);
+        // For SQLite, PRAGMA foreign_key_list does not expose constraint names.
+        // Enrich with real names parsed from the original DDL so that DROP FK
+        // table-rebuild migrations can correctly identify the targeted constraint.
+        if ((driver || '').toLowerCase().includes('sqlite') && parsedDdl) {
+          parsedFk = enrichForeignKeysFromSqliteDdl(parsedFk, parsedDdl);
+        }
         setForeignKeys(parsedFk);
       } catch (fkErr) {
         console.warn('Foreign key load fallback error:', fkErr);
@@ -675,12 +718,49 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           nullable: c.isNullable,
           isPrimaryKey: c.isPrimaryKey,
           defaultValue: c.defaultValue,
+          isUnique: c.isUnique,
+          checkConstraint: c.checkConstraint,
+          isAutoIncrement: c.isAutoIncrement,
+          collation: c.collation,
         })),
+        originalDdl: tableDdl ?? undefined,
+        existingIndexes: indexes,
+        existingTriggers: triggers,
       });
     } catch {
       return '';
     }
-  }, [driver, tableName, schemaName, newFkName, newFkCol, newFkForeignTable, newFkForeignCol, newFkOnDelete, newFkOnUpdate, columns]);
+  }, [driver, tableName, schemaName, newFkName, newFkCol, newFkForeignTable, newFkForeignCol, newFkOnDelete, newFkOnUpdate, columns, tableDdl, indexes, triggers]);
+
+  // Preview SQL for Drop Foreign Key
+  const dropFkPreviewSql = useMemo(() => {
+    if (!dropFkTarget) return '';
+    try {
+      return buildDropForeignKeySql({
+        driver,
+        tableName,
+        schemaName,
+        constraintName: dropFkTarget.name,
+        existingColumns: columns.map((c) => ({
+          name: c.name,
+          type: c.dataType,
+          nullable: c.isNullable,
+          isPrimaryKey: c.isPrimaryKey,
+          defaultValue: c.defaultValue,
+          isUnique: c.isUnique,
+          checkConstraint: c.checkConstraint,
+          isAutoIncrement: c.isAutoIncrement,
+          collation: c.collation,
+        })),
+        remainingForeignKeys: foreignKeys.filter((fk) => fk.name !== dropFkTarget.name),
+        originalDdl: tableDdl ?? undefined,
+        existingIndexes: indexes,
+        existingTriggers: triggers,
+      });
+    } catch {
+      return '';
+    }
+  }, [driver, tableName, schemaName, dropFkTarget, columns, foreignKeys, tableDdl, indexes, triggers]);
 
   // Handle Add Foreign Key
   const handleAddFkSubmit = async (e: React.FormEvent) => {
@@ -705,7 +785,14 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           nullable: c.isNullable,
           isPrimaryKey: c.isPrimaryKey,
           defaultValue: c.defaultValue,
+          isUnique: c.isUnique,
+          checkConstraint: c.checkConstraint,
+          isAutoIncrement: c.isAutoIncrement,
+          collation: c.collation,
         })),
+        originalDdl: tableDdl ?? undefined,
+        existingIndexes: indexes,
+        existingTriggers: triggers,
       });
 
       await dbApi.executeQuery(tabId, sql);
@@ -743,7 +830,14 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           nullable: c.isNullable,
           isPrimaryKey: c.isPrimaryKey,
           defaultValue: c.defaultValue,
+          isUnique: c.isUnique,
+          checkConstraint: c.checkConstraint,
+          isAutoIncrement: c.isAutoIncrement,
+          collation: c.collation,
         })),
+        originalDdl: tableDdl ?? undefined,
+        existingIndexes: indexes,
+        existingTriggers: triggers,
         remainingForeignKeys: foreignKeys.filter((fk) => fk.name !== dropFkTarget.name),
       });
       await dbApi.executeQuery(tabId, sql);
@@ -3004,12 +3098,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               </p>
 
               <div className="p-2 rounded bg-gray-950 border border-gray-800 font-mono text-[11px] text-red-300">
-                {buildDropForeignKeySql({
-                  tableName,
-                  schemaName,
-                  driver,
-                  constraintName: dropFkTarget.name,
-                })}
+                {dropFkPreviewSql}
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-2">

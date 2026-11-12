@@ -1,4 +1,5 @@
 import { QueryResult, CellValue, ColumnMeta, formatCellValue } from '../../types/db';
+import type { TableForeignKeyStructure } from '../../api/queryBuilder';
 
 export interface TableColumnStructure {
   name: string;
@@ -8,6 +9,10 @@ export interface TableColumnStructure {
   defaultValue: string | null;
   isPrimaryKey: boolean;
   ordinalPosition: number;
+  isUnique?: boolean;
+  checkConstraint?: string;
+  isAutoIncrement?: boolean;
+  collation?: string;
 }
 
 export interface AddColumnParams {
@@ -342,6 +347,180 @@ export function parseColumnsFromQueryResult(
 }
 
 /**
+ * Returns SQL to fetch the raw CREATE TABLE statement (SQLite only).
+ */
+export function getFetchTableDdlSql(
+  driver: string,
+  tableName: string,
+  _schemaName?: string
+): string | null {
+  const d = (driver || '').toLowerCase();
+  if (!d.includes('sqlite')) return null;
+  const escapedTable = tableName.replace(/'/g, "''");
+  return `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = '${escapedTable}';`;
+}
+
+/**
+ * Extracts the raw CREATE TABLE statement from a query result.
+ */
+export function parseTableDdlFromQueryResult(result: QueryResult): string | null {
+  if (!result || !result.rows || result.rows.length === 0) return null;
+  const value = formatCellValue(result.rows[0]?.[0]);
+  return value === 'NULL' || !value ? null : value;
+}
+
+function findMatchingParen(sql: string, openIndex: number): number {
+  if (openIndex < 0) return -1;
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = openIndex; i < sql.length; i++) {
+    const ch = sql[i];
+    if (quote) {
+      if (ch === quote) {
+        if (sql[i + 1] === quote) i++;
+        else quote = null;
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === '[') {
+      quote = ']';
+      continue;
+    }
+    if (ch === '(') depth++;
+    else if (ch === ')') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function splitSqliteDefinitions(body: string): string[] {
+  const defs: string[] = [];
+  let current = '';
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (quote) {
+      current += ch;
+      if (ch === quote) {
+        if (body[i + 1] === quote) {
+          current += body[i + 1];
+          i++;
+        } else {
+          quote = null;
+        }
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      current += ch;
+      continue;
+    }
+    if (ch === '[') {
+      quote = ']';
+      current += ch;
+      continue;
+    }
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) {
+      defs.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) defs.push(current.trim());
+  return defs;
+}
+
+function unquoteIdentifier(identifier: string): string {
+  if (identifier.startsWith('"') && identifier.endsWith('"')) {
+    return identifier.slice(1, -1).replace(/""/g, '"');
+  }
+  if (identifier.startsWith('`') && identifier.endsWith('`')) {
+    return identifier.slice(1, -1).replace(/``/g, '`');
+  }
+  if (identifier.startsWith('[') && identifier.endsWith(']')) {
+    return identifier.slice(1, -1);
+  }
+  return identifier;
+}
+
+function extractBalancedExpression(text: string, keyword: string): string | undefined {
+  const regex = new RegExp(`\\b${keyword}\\s*\\(`, 'i');
+  const match = regex.exec(text);
+  if (!match) return undefined;
+  const open = text.indexOf('(', match.index);
+  const close = findMatchingParen(text, open);
+  if (close < 0) return undefined;
+  return text.slice(open + 1, close).trim();
+}
+
+/**
+ * Enriches SQLite columns parsed from PRAGMA table_info with attributes that are
+ * only present in the original CREATE TABLE DDL (AUTOINCREMENT/UNIQUE/CHECK/COLLATE).
+ */
+export function enrichColumnsFromSqliteDdl(
+  columns: TableColumnStructure[],
+  ddl: string | null | undefined
+): TableColumnStructure[] {
+  if (!ddl || columns.length === 0) return columns;
+  const open = ddl.indexOf('(');
+  const close = findMatchingParen(ddl, open);
+  if (open < 0 || close < 0) return columns;
+
+  const definitions = splitSqliteDefinitions(ddl.slice(open + 1, close));
+  const byName = new Map<string, Partial<TableColumnStructure>>();
+
+  for (const definition of definitions) {
+    const withoutConstraint = definition
+      .trim()
+      .replace(/^CONSTRAINT\s+("(?:[^"]|"")*"|`(?:[^`]|``)*`|\[[^\]]*\]|\S+)\s+/i, '');
+    if (/^(PRIMARY\s+KEY|UNIQUE|CHECK|FOREIGN\s+KEY)\b/i.test(withoutConstraint)) {
+      continue;
+    }
+
+    const nameMatch = withoutConstraint.match(
+      /^("(?:[^"]|"")*"|`(?:[^`]|``)*`|\[[^\]]*\]|\S+)/
+    );
+    if (!nameMatch) continue;
+    const name = unquoteIdentifier(nameMatch[1]);
+    const attrs = withoutConstraint.slice(nameMatch[0].length);
+
+    const collationMatch = attrs.match(
+      /\bCOLLATE\s+("(?:[^"]|"")*"|`(?:[^`]|``)*`|\[[^\]]*\]|[A-Za-z0-9_]+)/i
+    );
+
+    byName.set(name.toLowerCase(), {
+      isAutoIncrement: /\bAUTOINCREMENT\b/i.test(attrs) || undefined,
+      isUnique: /\bUNIQUE\b/i.test(attrs) || undefined,
+      checkConstraint: extractBalancedExpression(attrs, 'CHECK'),
+      collation: collationMatch ? unquoteIdentifier(collationMatch[1]) : undefined,
+    });
+  }
+
+  return columns.map((column) => {
+    const extra = byName.get(column.name.toLowerCase());
+    if (!extra) return column;
+    return {
+      ...column,
+      isAutoIncrement: extra.isAutoIncrement,
+      isUnique: extra.isUnique,
+      checkConstraint: extra.checkConstraint,
+      collation: extra.collation,
+    };
+  });
+}
+
+/**
  * Builds ALTER TABLE ... ADD COLUMN SQL statement.
  */
 export function buildAddColumnSql({
@@ -475,22 +654,130 @@ export function generateTableDdl({
   columns: TableColumnStructure[];
 }): string {
   const tableRef = getTableRef(tableName, schemaName, driver);
-  const pks = columns.filter((c) => c.isPrimaryKey).map((c) => quoteIdentifier(c.name, driver));
+  const pkColumns = columns.filter((c) => c.isPrimaryKey);
+  const pks = pkColumns.map((c) => quoteIdentifier(c.name, driver));
+  const inlinePk =
+    pkColumns.length === 1 && pkColumns[0].isAutoIncrement ? pkColumns[0] : null;
 
   const colDefs = columns.map((col) => {
     let line = `  ${quoteIdentifier(col.name, driver)} ${col.dataType}`;
+    if (inlinePk && col.name === inlinePk.name) {
+      line += ' PRIMARY KEY AUTOINCREMENT';
+    }
+    if (col.isUnique && !col.isPrimaryKey) {
+      line += ' UNIQUE';
+    }
     if (!col.isNullable) {
       line += ' NOT NULL';
     }
     if (col.defaultValue !== null && col.defaultValue !== undefined && col.defaultValue !== '') {
       line += ` DEFAULT ${col.defaultValue}`;
     }
+    if (col.checkConstraint) {
+      line += ` CHECK (${col.checkConstraint})`;
+    }
+    if (col.collation) {
+      line += ` COLLATE ${col.collation}`;
+    }
     return line;
   });
 
-  if (pks.length > 0) {
+  if (pks.length > 0 && !inlinePk) {
     colDefs.push(`  PRIMARY KEY (${pks.join(', ')})`);
   }
 
   return `CREATE TABLE ${tableRef} (\n${colDefs.join(',\n')}\n);`;
+}
+
+/**
+ * Enriches SQLite foreign key structures parsed from PRAGMA foreign_key_list with
+ * the actual constraint names from the original CREATE TABLE DDL.
+ *
+ * PRAGMA foreign_key_list does not expose constraint names — it only returns a
+ * numeric `id`. This function parses CONSTRAINT ... FOREIGN KEY clauses from the
+ * DDL and matches them to PRAGMA rows by comparing (fromColumns, foreignTable,
+ * foreignColumns). When a match is found the synthetic `fk_<id>_<table>` name is
+ * replaced with the real constraint name so that DROP FK table-rebuild migrations
+ * can correctly exclude the targeted constraint.
+ */
+export function enrichForeignKeysFromSqliteDdl(
+  foreignKeys: TableForeignKeyStructure[],
+  ddl: string | null | undefined
+): TableForeignKeyStructure[] {
+  if (!ddl || foreignKeys.length === 0) return foreignKeys;
+
+  const open = ddl.indexOf('(');
+  const close = findMatchingParen(ddl, open);
+  if (open < 0 || close < 0) return foreignKeys;
+
+  const definitions = splitSqliteDefinitions(ddl.slice(open + 1, close));
+
+  interface ParsedFkDef {
+    name: string | null;
+    columns: string[];
+    foreignTable: string;
+    foreignColumns: string[];
+  }
+
+  const ddlFks: ParsedFkDef[] = [];
+
+  for (const def of definitions) {
+    const stripped = def.trim();
+
+    // Match: [CONSTRAINT <name>] FOREIGN KEY (<cols>) REFERENCES <table> (<cols>)
+    const constraintMatch = stripped.match(
+      /^CONSTRAINT\s+(\"(?:[^\"]|\"\")*\"|`(?:[^`]|``)*`|\[[^\]]*\]|\S+)\s+FOREIGN\s+KEY\b/i
+    );
+    const fkMatch = /\bFOREIGN\s+KEY\b/i.test(
+      constraintMatch ? stripped.slice(constraintMatch[0].length - 'FOREIGN KEY'.length) : stripped
+    );
+    if (!fkMatch) continue;
+
+    const constraintName = constraintMatch ? unquoteIdentifier(constraintMatch[1]) : null;
+
+    // Extract FOREIGN KEY (cols)
+    const fkColsStart = stripped.search(/\bFOREIGN\s+KEY\s*\(/i);
+    if (fkColsStart < 0) continue;
+    const fkParenOpen = stripped.indexOf('(', fkColsStart);
+    const fkParenClose = findMatchingParen(stripped, fkParenOpen);
+    if (fkParenOpen < 0 || fkParenClose < 0) continue;
+    const fromColsRaw = stripped.slice(fkParenOpen + 1, fkParenClose);
+    const fromCols = fromColsRaw
+      .split(',')
+      .map((c) => unquoteIdentifier(c.trim().replace(/^[\"`\[]|[\"`\]]$/g, '')));
+
+    // Extract REFERENCES <table> (cols)
+    const refPart = stripped.slice(fkParenClose + 1);
+    const refMatch = refPart.match(
+      /\bREFERENCES\s+(\"(?:[^\"]|\"\")*\"|`(?:[^`]|``)*`|\[[^\]]*\]|\S+)\s*\(/i
+    );
+    if (!refMatch) continue;
+    const foreignTable = unquoteIdentifier(refMatch[1]);
+    const refParenOpen = refPart.indexOf('(', refMatch.index!);
+    const refParenClose = findMatchingParen(refPart, refParenOpen);
+    if (refParenOpen < 0 || refParenClose < 0) continue;
+    const foreignColsRaw = refPart.slice(refParenOpen + 1, refParenClose);
+    const foreignCols = foreignColsRaw
+      .split(',')
+      .map((c) => unquoteIdentifier(c.trim().replace(/^[\"`\[]|[\"`\]]$/g, '')));
+
+    ddlFks.push({ name: constraintName, columns: fromCols, foreignTable, foreignColumns: foreignCols });
+  }
+
+  if (ddlFks.length === 0) return foreignKeys;
+
+  return foreignKeys.map((fk) => {
+    const match = ddlFks.find(
+      (d) =>
+        d.name !== null &&
+        d.foreignTable.toLowerCase() === fk.foreignTableName.toLowerCase() &&
+        d.columns.length === fk.columnNames.length &&
+        d.columns.every((c, i) => c.toLowerCase() === (fk.columnNames[i] ?? '').toLowerCase()) &&
+        d.foreignColumns.length === fk.foreignColumnNames.length &&
+        d.foreignColumns.every(
+          (c, i) => c.toLowerCase() === (fk.foreignColumnNames[i] ?? '').toLowerCase()
+        )
+    );
+    return match ? { ...fk, name: match.name! } : fk;
+  });
 }

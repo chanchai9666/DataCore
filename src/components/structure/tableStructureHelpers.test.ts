@@ -12,6 +12,10 @@ import {
   composeDataType,
   parseDataType,
   getDataTypeSpec,
+  getFetchTableDdlSql,
+  parseTableDdlFromQueryResult,
+  enrichColumnsFromSqliteDdl,
+  enrichForeignKeysFromSqliteDdl,
   type TableColumnStructure,
 } from './tableStructureHelpers';
 import type { QueryResult } from '../../types/db';
@@ -302,6 +306,52 @@ describe('tableStructureHelpers', () => {
     });
   });
 
+  describe('SQLite DDL enrichment', () => {
+    const ddl = `CREATE TABLE "orders" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "code" TEXT COLLATE NOCASE UNIQUE,
+  "amount" REAL CHECK (amount > 0 AND amount < (1000 * 2)),
+  "user_id" INTEGER NOT NULL
+)`;
+
+    it('returns the sqlite_master DDL query only for SQLite', () => {
+      expect(getFetchTableDdlSql('sqlite', 'orders')).toContain(
+        "FROM sqlite_master WHERE type = 'table' AND name = 'orders'"
+      );
+      expect(getFetchTableDdlSql('postgres', 'orders')).toBeNull();
+    });
+
+    it('extracts the raw DDL from a query result', () => {
+      expect(
+        parseTableDdlFromQueryResult({ columns: [], rows: [[ddl]], execution_time_ms: 1 })
+      ).toBe(ddl);
+      expect(parseTableDdlFromQueryResult({ columns: [], rows: [[null]], execution_time_ms: 1 })).toBeNull();
+    });
+
+    it('enriches parsed columns with AUTOINCREMENT, UNIQUE, CHECK and COLLATE', () => {
+      const columns: TableColumnStructure[] = [
+        { name: 'id', dataType: 'INTEGER', isNullable: false, defaultValue: null, isPrimaryKey: true, ordinalPosition: 1 },
+        { name: 'code', dataType: 'TEXT', isNullable: true, defaultValue: null, isPrimaryKey: false, ordinalPosition: 2 },
+        { name: 'amount', dataType: 'REAL', isNullable: true, defaultValue: null, isPrimaryKey: false, ordinalPosition: 3 },
+        { name: 'user_id', dataType: 'INTEGER', isNullable: false, defaultValue: null, isPrimaryKey: false, ordinalPosition: 4 },
+      ];
+
+      const enriched = enrichColumnsFromSqliteDdl(columns, ddl);
+      expect(enriched[0].isAutoIncrement).toBe(true);
+      expect(enriched[1].isUnique).toBe(true);
+      expect(enriched[1].collation).toBe('NOCASE');
+      expect(enriched[2].checkConstraint).toBe('amount > 0 AND amount < (1000 * 2)');
+      expect(enriched[3].isUnique).toBeUndefined();
+    });
+
+    it('leaves columns unchanged when DDL is missing', () => {
+      const columns: TableColumnStructure[] = [
+        { name: 'id', dataType: 'INTEGER', isNullable: false, defaultValue: null, isPrimaryKey: true, ordinalPosition: 1 },
+      ];
+      expect(enrichColumnsFromSqliteDdl(columns, null)).toBe(columns);
+    });
+  });
+
   describe('generateTableDdl', () => {
     it('generates a CREATE TABLE DDL', () => {
       const columns: TableColumnStructure[] = [
@@ -343,6 +393,132 @@ describe('tableStructureHelpers', () => {
       expect(ddl).toContain('"name" text NOT NULL');
       expect(ddl).toContain('"sort_order" integer DEFAULT 0');
       expect(ddl).toContain('PRIMARY KEY ("id")');
+    });
+  });
+
+  describe('enrichForeignKeysFromSqliteDdl', () => {
+    it('replaces synthetic PRAGMA names with real CONSTRAINT names from DDL', () => {
+      const ddl = `CREATE TABLE "orders" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "user_id" INTEGER NOT NULL,
+  "store_id" INTEGER NOT NULL,
+  CONSTRAINT "fk_orders_user" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE,
+  CONSTRAINT "fk_orders_store" FOREIGN KEY ("store_id") REFERENCES "stores" ("id")
+)`;
+
+      const pragmaFks = [
+        {
+          name: 'fk_0_users',
+          columnNames: ['user_id'],
+          foreignTableName: 'users',
+          foreignColumnNames: ['id'],
+          onDelete: 'CASCADE',
+          onUpdate: 'NO ACTION',
+        },
+        {
+          name: 'fk_1_stores',
+          columnNames: ['store_id'],
+          foreignTableName: 'stores',
+          foreignColumnNames: ['id'],
+          onDelete: 'NO ACTION',
+          onUpdate: 'NO ACTION',
+        },
+      ];
+
+      const enriched = enrichForeignKeysFromSqliteDdl(pragmaFks, ddl);
+      expect(enriched[0].name).toBe('fk_orders_user');
+      expect(enriched[1].name).toBe('fk_orders_store');
+    });
+
+    it('leaves FK name unchanged when DDL has no CONSTRAINT name', () => {
+      const ddl = `CREATE TABLE "orders" (
+  "id" INTEGER PRIMARY KEY,
+  "user_id" INTEGER,
+  FOREIGN KEY ("user_id") REFERENCES "users" ("id")
+)`;
+
+      const pragmaFks = [
+        {
+          name: 'fk_0_users',
+          columnNames: ['user_id'],
+          foreignTableName: 'users',
+          foreignColumnNames: ['id'],
+          onDelete: 'NO ACTION',
+          onUpdate: 'NO ACTION',
+        },
+      ];
+
+      const enriched = enrichForeignKeysFromSqliteDdl(pragmaFks, ddl);
+      // No CONSTRAINT name in DDL — keep the synthetic name
+      expect(enriched[0].name).toBe('fk_0_users');
+    });
+
+    it('handles composite FK columns correctly', () => {
+      const ddl = `CREATE TABLE "order_items" (
+  "order_id" INTEGER NOT NULL,
+  "product_id" INTEGER NOT NULL,
+  CONSTRAINT "fk_oi_product" FOREIGN KEY ("order_id", "product_id") REFERENCES "products" ("id", "sku")
+)`;
+
+      const pragmaFks = [
+        {
+          name: 'fk_0_products',
+          columnNames: ['order_id', 'product_id'],
+          foreignTableName: 'products',
+          foreignColumnNames: ['id', 'sku'],
+          onDelete: 'NO ACTION',
+          onUpdate: 'NO ACTION',
+        },
+      ];
+
+      const enriched = enrichForeignKeysFromSqliteDdl(pragmaFks, ddl);
+      expect(enriched[0].name).toBe('fk_oi_product');
+    });
+
+    it('returns original list unchanged when ddl is null', () => {
+      const pragmaFks = [
+        {
+          name: 'fk_0_users',
+          columnNames: ['user_id'],
+          foreignTableName: 'users',
+          foreignColumnNames: ['id'],
+          onDelete: 'NO ACTION',
+          onUpdate: 'NO ACTION',
+        },
+      ];
+
+      const enriched = enrichForeignKeysFromSqliteDdl(pragmaFks, null);
+      expect(enriched).toBe(pragmaFks);
+    });
+
+    it('returns original list unchanged when foreignKeys is empty', () => {
+      const ddl = `CREATE TABLE "orders" ("id" INTEGER PRIMARY KEY)`;
+      const enriched = enrichForeignKeysFromSqliteDdl([], ddl);
+      expect(enriched).toEqual([]);
+    });
+
+    it('does not cross-match when columns differ between DDL and PRAGMA', () => {
+      const ddl = `CREATE TABLE "orders" (
+  "id" INTEGER PRIMARY KEY,
+  "user_id" INTEGER,
+  "ref_id" INTEGER,
+  CONSTRAINT "fk_orders_ref" FOREIGN KEY ("ref_id") REFERENCES "users" ("id")
+)`;
+
+      const pragmaFks = [
+        {
+          name: 'fk_0_users',
+          columnNames: ['user_id'],
+          foreignTableName: 'users',
+          foreignColumnNames: ['id'],
+          onDelete: 'NO ACTION',
+          onUpdate: 'NO ACTION',
+        },
+      ];
+
+      const enriched = enrichForeignKeysFromSqliteDdl(pragmaFks, ddl);
+      // "user_id" vs "ref_id" → no match → keep synthetic name
+      expect(enriched[0].name).toBe('fk_0_users');
     });
   });
 });
