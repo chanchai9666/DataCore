@@ -19,6 +19,7 @@ import {
   History,
   Key,
   Network,
+  GitCompare,
   type LucideIcon,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -57,6 +58,7 @@ export interface MainToolbarProps {
   onOpenHistory?: () => void;
   onOpenSnippets?: () => void;
   onOpenERDiagram?: () => void;
+  onOpenSchemaDiff?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   customItems?: ToolbarActionItem[];
@@ -82,6 +84,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenHistory,
   onOpenSnippets,
   onOpenERDiagram,
+  onOpenSchemaDiff,
   theme = 'dark',
   onToggleTheme,
   customItems,
@@ -365,6 +368,20 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   >
                     <Network className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span>Visual ER Diagram...</span>
+                  </button>
+                )}
+                {onOpenSchemaDiff && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-schema-diff-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenSchemaDiff();
+                    }}
+                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                  >
+                    <GitCompare className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                    <span>Schema Diff & Sync...</span>
                   </button>
                 )}
                 {onOpenLocks && (

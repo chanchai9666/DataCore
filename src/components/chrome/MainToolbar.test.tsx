@@ -138,6 +138,8 @@ describe('MainToolbar Component', () => {
     const onOpenAuditLog = vi.fn();
     const onOpenSecurity = vi.fn();
     const onOpenHistory = vi.fn();
+    const onOpenERDiagram = vi.fn();
+    const onOpenSchemaDiff = vi.fn();
 
     render(
       <MainToolbar
@@ -146,6 +148,8 @@ describe('MainToolbar Component', () => {
         onOpenAuditLog={onOpenAuditLog}
         onOpenSecurity={onOpenSecurity}
         onOpenHistory={onOpenHistory}
+        onOpenERDiagram={onOpenERDiagram}
+        onOpenSchemaDiff={onOpenSchemaDiff}
       />
     );
 
@@ -179,5 +183,15 @@ describe('MainToolbar Component', () => {
     fireEvent.click(toolsBtn);
     fireEvent.click(screen.getByTestId('toolbar-tools-history-btn'));
     expect(onOpenHistory).toHaveBeenCalledTimes(1);
+
+    // 6. ER Diagram
+    fireEvent.click(toolsBtn);
+    fireEvent.click(screen.getByTestId('toolbar-tools-er-diagram-btn'));
+    expect(onOpenERDiagram).toHaveBeenCalledTimes(1);
+
+    // 7. Schema Diff
+    fireEvent.click(toolsBtn);
+    fireEvent.click(screen.getByTestId('toolbar-tools-schema-diff-btn'));
+    expect(onOpenSchemaDiff).toHaveBeenCalledTimes(1);
   });
 });

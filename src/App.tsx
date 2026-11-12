@@ -13,6 +13,7 @@ import { LockInspectorModal } from './components/transactions/LockInspectorModal
 import { AuditLogDrawer } from './components/security/AuditLogDrawer';
 import { ConnectionSecurityModal } from './components/security/ConnectionSecurityModal';
 import { HistorySnippetsDrawer } from './components/editor/HistorySnippetsDrawer';
+import { SchemaDiffModal } from './components/diff/SchemaDiffModal';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
 import { openQueryTab, openTableListTab, openERDiagramTab } from './components/sidebar/tabHelpers';
@@ -43,6 +44,7 @@ export function App() {
   const [isAuditLogDrawerOpen, setIsAuditLogDrawerOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
+  const [isSchemaDiffModalOpen, setIsSchemaDiffModalOpen] = useState(false);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
@@ -247,6 +249,7 @@ export function App() {
             });
           }
         }}
+        onOpenSchemaDiff={() => setIsSchemaDiffModalOpen(true)}
         onEditConnection={(conn) => {
           setConnectionToEdit(conn);
           setIsConnectionDialogOpen(true);
@@ -369,6 +372,14 @@ export function App() {
           onClose={() => setIsSecurityModalOpen(false)}
         />
       )}
+
+      {/* Global Schema Diff & Synchronization Modal */}
+      <SchemaDiffModal
+        isOpen={isSchemaDiffModalOpen}
+        onClose={() => setIsSchemaDiffModalOpen(false)}
+        initialConnectionId={resolvedConnectionId || undefined}
+        initialSchemaName={activeTab?.schemaName}
+      />
 
       {/* Global History & Snippets Drawer */}
       <HistorySnippetsDrawer
