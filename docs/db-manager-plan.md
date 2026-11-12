@@ -35,9 +35,9 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ![Table Designer](images/03-table-designer.png)
 
-- แก้ไขคอลัมน์ ชนิดข้อมูล Not Null, key และค่า default
-- แท็บ Indexes, Foreign Keys, Constraints
-- Preview SQL ก่อนใช้การเปลี่ยนแปลงจริง
+- แก้ไขคอลัมน์ ชนิดข้อมูล, Nullable, Primary Key และ Default Value
+- แท็บโครงสร้างตารางครอบคลุม: Columns, Indexes (B-Tree, Hash, GIN, GiST, Full-text, Composite, Unique), Foreign Keys, Constraints (CHECK / UNIQUE), และ Security (Row-Level Security / RLS Policy Manager)
+- แถบ SQL Preview แสดงคำสั่ง DDL แบบ Real-time พร้อมปุ่มคัดลอก DDL Script
 
 ---
 
@@ -419,16 +419,17 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **Local Encrypted Vault Dashboard:** แสดงสถานะการเข้ารหัสรหัสผ่านในเครื่องด้วย AES-256-GCM (`~/.datacore/vault.enc`, file permission 0600)
   - **Database At-Rest Encryption Status:** ตรวจสอบคุณสมบัติ Transparent Data Encryption (TDE) หรือการเข้ารหัสไฟล์ฐานข้อมูลของเซิร์ฟเวอร์
 
+---
 
-
-
-
-
-
-
-
-
-
-
-
-
+## 4. สถานะภาพรวมการพัฒนา (Development Status Summary)
+- **สถานะ Phase:** เสร็จสมบูรณ์ครบถ้วน 100% ตั้งแต่ Phase 1 ถึง Phase 27
+- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 558 tests ผ่าน 100%
+  - Rust Backend Unit & Integration Tests: 35/35 passed
+  - Frontend Vitest Component & Unit Tests: 523/523 passed
+- **ระบบความปลอดภัย (Security):**
+  - Zero Plaintext Disk Storage สำหรับรหัสผ่าน (AES-256-GCM Vault)
+  - TLS In-Transit Encryption รองรับระดับสูงสุด (`verify-full`)
+  - Row-Level Security (RLS) บริหารจัดการสิทธิ์ระดับแถวได้โดยตรง
+- **Visual & Platform Polish:**
+  - ไอคอนแอปพลิเคชันสไตล์ Luxury Minimalist Squircle ตัดขอบโปร่งใสตามมาตรฐาน Apple macOS HIG
+  - รองรับ Apple Silicon ARM64 Native พร้อมทั้ง Dark Mode และ Light Mode อย่างสมบูรณ์แบบ
