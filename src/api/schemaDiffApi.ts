@@ -178,14 +178,22 @@ export function compareSchemas(
   };
 }
 
+export interface GenerateMigrationOptions {
+  allowDestructiveDrop?: boolean;
+}
+
 export function generateMigrationSql(
   diff: SchemaDiffResult,
-  driver: string = 'postgres'
+  driver: string = 'postgres',
+  options?: GenerateMigrationOptions
 ): MigrationScript {
   const upLines: string[] = [];
   const downLines: string[] = [];
 
-  const isMySql = driver.toLowerCase().includes('mysql');
+  const d = driver.toLowerCase();
+  const isMySql = d.includes('mysql');
+  const isSqlite = d.includes('sqlite');
+  const allowDestructiveDrop = options?.allowDestructiveDrop ?? false;
   const quote = (name: string) => (isMySql ? `\`${name}\`` : `"${name}"`);
 
   // 1. Process table additions and modifications
@@ -200,8 +208,14 @@ export function generateMigrationSql(
       upLines.push(`CREATE TABLE ${quote(table.tableName)} (\n${colDefs.join(',\n')}\n);`);
       downLines.push(`DROP TABLE IF EXISTS ${quote(table.tableName)};`);
     } else if (table.status === 'only_in_target') {
-      // Drop table in target
-      upLines.push(`DROP TABLE IF EXISTS ${quote(table.tableName)};`);
+      // Drop table in target (protected by safeguard guard)
+      if (allowDestructiveDrop) {
+        upLines.push(`DROP TABLE IF EXISTS ${quote(table.tableName)};`);
+      } else {
+        upLines.push(
+          `-- [SAFEGUARD] Table only exists in target. Destructive DROP disabled by default:\n-- DROP TABLE IF EXISTS ${quote(table.tableName)};`
+        );
+      }
       const colDefs = table.columnDiffs.map((c) => {
         const nullability = c.targetNullable ? '' : ' NOT NULL';
         const pk = c.targetPk ? ' PRIMARY KEY' : '';
@@ -220,9 +234,15 @@ export function generateMigrationSql(
             `ALTER TABLE ${quote(table.tableName)} DROP COLUMN ${quote(col.name)};`
           );
         } else if (col.status === 'removed') {
-          upLines.push(
-            `ALTER TABLE ${quote(table.tableName)} DROP COLUMN ${quote(col.name)};`
-          );
+          if (allowDestructiveDrop) {
+            upLines.push(
+              `ALTER TABLE ${quote(table.tableName)} DROP COLUMN ${quote(col.name)};`
+            );
+          } else {
+            upLines.push(
+              `-- [SAFEGUARD] Column removed in source. Destructive DROP COLUMN disabled by default:\n-- ALTER TABLE ${quote(table.tableName)} DROP COLUMN ${quote(col.name)};`
+            );
+          }
           const nullability = col.targetNullable ? '' : ' NOT NULL';
           downLines.push(
             `ALTER TABLE ${quote(table.tableName)} ADD COLUMN ${quote(col.name)} ${col.targetType || 'TEXT'}${nullability};`
@@ -235,6 +255,13 @@ export function generateMigrationSql(
             downLines.push(
               `ALTER TABLE ${quote(table.tableName)} MODIFY COLUMN ${quote(col.name)} ${col.targetType};`
             );
+          } else if (isSqlite) {
+            upLines.push(
+              `-- [SQLITE REBUILD REQUIRED] SQLite does not support ALTER COLUMN TYPE. Table rebuild required for column ${quote(col.name)} (${col.targetType} -> ${col.sourceType}).`
+            );
+            downLines.push(
+              `-- [SQLITE REBUILD REQUIRED] SQLite does not support ALTER COLUMN TYPE. Table rebuild required for column ${quote(col.name)} (${col.sourceType} -> ${col.targetType}).`
+            );
           } else {
             upLines.push(
               `ALTER TABLE ${quote(table.tableName)} ALTER COLUMN ${quote(col.name)} TYPE ${col.sourceType};`
@@ -242,6 +269,43 @@ export function generateMigrationSql(
             downLines.push(
               `ALTER TABLE ${quote(table.tableName)} ALTER COLUMN ${quote(col.name)} TYPE ${col.targetType};`
             );
+          }
+        } else if (col.status === 'nullability_mismatch') {
+          if (isMySql) {
+            const nullClause = col.sourceNullable ? 'NULL' : 'NOT NULL';
+            upLines.push(
+              `ALTER TABLE ${quote(table.tableName)} MODIFY COLUMN ${quote(col.name)} ${col.sourceType || 'TEXT'} ${nullClause};`
+            );
+            const downNullClause = col.targetNullable ? 'NULL' : 'NOT NULL';
+            downLines.push(
+              `ALTER TABLE ${quote(table.tableName)} MODIFY COLUMN ${quote(col.name)} ${col.targetType || 'TEXT'} ${downNullClause};`
+            );
+          } else if (isSqlite) {
+            upLines.push(
+              `-- [SQLITE REBUILD REQUIRED] SQLite does not support altering column nullability. Table rebuild required for column ${quote(col.name)}.`
+            );
+            downLines.push(
+              `-- [SQLITE REBUILD REQUIRED] SQLite does not support altering column nullability. Table rebuild required for column ${quote(col.name)}.`
+            );
+          } else {
+            if (col.sourceNullable) {
+              upLines.push(
+                `ALTER TABLE ${quote(table.tableName)} ALTER COLUMN ${quote(col.name)} DROP NOT NULL;`
+              );
+            } else {
+              upLines.push(
+                `ALTER TABLE ${quote(table.tableName)} ALTER COLUMN ${quote(col.name)} SET NOT NULL;`
+              );
+            }
+            if (col.targetNullable) {
+              downLines.push(
+                `ALTER TABLE ${quote(table.tableName)} ALTER COLUMN ${quote(col.name)} DROP NOT NULL;`
+              );
+            } else {
+              downLines.push(
+                `ALTER TABLE ${quote(table.tableName)} ALTER COLUMN ${quote(col.name)} SET NOT NULL;`
+              );
+            }
           }
         }
       }

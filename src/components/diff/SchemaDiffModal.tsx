@@ -57,6 +57,7 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
   const [activeViewTab, setActiveViewTab] = useState<'details' | 'migration_up' | 'migration_down'>('details');
   const [copied, setCopied] = useState<boolean>(false);
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
+  const [allowDestructiveDrop, setAllowDestructiveDrop] = useState<boolean>(false);
 
   // Initialize connection selectors
   useEffect(() => {
@@ -103,7 +104,7 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
 
       const diff = compareSchemas(srcSchemaData, tgtSchemaData);
       setDiffResult(diff);
-      const scripts = generateMigrationSql(diff, tgtConn.driver);
+      const scripts = generateMigrationSql(diff, tgtConn.driver, { allowDestructiveDrop });
       setMigrationScript(scripts);
 
       if (diff.tables.length > 0) {
@@ -118,6 +119,17 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
     }
   };
 
+  // Whenever allowDestructiveDrop changes, recompute migration script
+  useEffect(() => {
+    if (diffResult && targetConnId) {
+      const tgtConn = connections.find((c) => c.id === targetConnId);
+      const scripts = generateMigrationSql(diffResult, tgtConn?.driver || 'postgres', {
+        allowDestructiveDrop,
+      });
+      setMigrationScript(scripts);
+    }
+  }, [allowDestructiveDrop, diffResult, targetConnId, connections]);
+
   const handleCopySql = (sql: string) => {
     navigator.clipboard.writeText(sql);
     setCopied(true);
@@ -127,6 +139,18 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
 
   const handleExecuteMigration = async () => {
     if (!migrationScript?.up || !targetConnId) return;
+
+    if (allowDestructiveDrop && migrationScript.up.includes('DROP TABLE IF EXISTS')) {
+      const dangerConfirmed = await showConfirmDialog(
+        'Warning: Destructive DROP TABLE is enabled. Existing tables in the target database will be permanently deleted. Are you sure you want to proceed?',
+        {
+          title: 'DANGER: Destructive Table Deletion',
+          okLabel: 'Permanently Drop Tables',
+          kind: 'error',
+        }
+      );
+      if (!dangerConfirmed) return;
+    }
 
     const confirmed = await showConfirmDialog(
       'Are you sure you want to apply the UP migration script to the target database? This may modify or drop schema objects.',
@@ -523,6 +547,17 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
+                    {activeViewTab === 'migration_up' && (
+                      <label className="flex items-center gap-1.5 text-xs text-amber-300 font-medium cursor-pointer mr-2 select-none">
+                        <input
+                          type="checkbox"
+                          checked={allowDestructiveDrop}
+                          onChange={(e) => setAllowDestructiveDrop(e.target.checked)}
+                          className="rounded border-line bg-surface text-amber-500 focus:ring-0"
+                        />
+                        <span>Allow destructive DROP</span>
+                      </label>
+                    )}
                     <button
                       type="button"
                       onClick={() =>

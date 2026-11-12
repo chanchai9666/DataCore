@@ -453,7 +453,9 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **2. Synchronized DDL Migration Generator:**
   - สร้างคำสั่ง SQL Migration UP Script เพื่อปรับปรุงฐานข้อมูล Target ให้ตรงกับ Source อัตโนมัติ (`CREATE TABLE`, `ALTER TABLE ADD COLUMN`, `ALTER TABLE DROP COLUMN`, `ALTER TABLE ALTER/MODIFY COLUMN TYPE`)
   - สร้างคำสั่ง SQL Migration DOWN Script สำหรับ Rollback ย้อนคืนการเปลี่ยนแปลง
-  - รองรับทั้ง PostgreSQL, MySQL และ SQLite
+  - รองรับทั้ง PostgreSQL, MySQL และ SQLite โดยระบุแจ้งเตือน table rebuild บน SQLite สำหรับคำสั่ง ALTER COLUMN/TYPE/NULLABILITY ที่ไม่รองรับ (Issue #71)
+  - เพิ่มระบบ Safeguard แยกคำสั่งทำลายข้อมูล (`DROP TABLE`, `DROP COLUMN`) ออกเป็นคอมเมนต์ในค่าเริ่มต้น ป้องกันการลบตารางใน target โดยพลการ โดยต้องเปิดใช้งานตัวเลือก *"Allow destructive DROP"* อย่างชัดเจนก่อนรันคำสั่ง (Issue #71)
+  - รองรับการปรับเปลี่ยน Nullability Mismatch (`ALTER COLUMN SET/DROP NOT NULL` บน Postgres และ `MODIFY COLUMN ... NULL/NOT NULL` บน MySQL) (Issue #71)
 - **3. Interactive Side-by-Side Diff UI:**
   - หน้าต่าง Modal สลับ Source/Target ได้ในคลิกเดียว พร้อม Quick Search และตัวกรองสถานะ (All, Modified, In Source, In Target)
   - แผงตรวจสอบความแตกต่างของคอลัมน์แบบ Color-coded Side-by-Side Table
