@@ -655,4 +655,69 @@ describe('TableStructureEditor', () => {
       );
     });
   });
+
+  it('correctly unwraps CellValue Rust objects for RLS status and policies, and disables RLS on non-Postgres', async () => {
+    vi.mocked(dbApi.executeQuery).mockImplementation(async (_tabId, sql) => {
+      if (sql.includes('SELECT rowsecurity FROM pg_tables')) {
+        return {
+          columns: [],
+          rows: [[{ Boolean: true }]],
+          execution_time_ms: 1,
+        };
+      }
+      if (sql.includes('pg_policies')) {
+        return {
+          columns: [],
+          rows: [
+            [
+              { Text: 'policy_secure_tenant' },
+              { Boolean: true },
+              { Text: 'authenticated, admin' },
+              { Text: 'SELECT' },
+              { Text: 'tenant_id = current_setting("app.current_tenant")' },
+              { Null: null },
+            ],
+          ],
+          execution_time_ms: 1,
+        };
+      }
+      return mockColumnsResult;
+    });
+
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    const rlsTabBtn = await screen.findByTestId('tab-security-btn');
+    fireEvent.click(rlsTabBtn);
+
+    // Verify policy name is unwrapped without [object Object]
+    expect(await screen.findByText('policy_secure_tenant')).toBeInTheDocument();
+    expect(screen.queryByText(/\[object Object\]/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('rls-status-state')).toHaveTextContent('ENABLED');
+
+    // Now render with MySQL driver and verify toggle button is disabled and warns
+    render(
+      <TableStructureEditor
+        tabId="tab-mysql"
+        connectionId="conn-mysql"
+        tableName="categories"
+        schemaName="public"
+        driver="mysql"
+      />
+    );
+
+    const mysqlTabBtn = screen.getAllByTestId('tab-security-btn')[1];
+    fireEvent.click(mysqlTabBtn);
+
+    const mysqlToggleBtns = screen.getAllByTestId('toggle-rls-btn');
+    const mysqlToggleBtn = mysqlToggleBtns[mysqlToggleBtns.length - 1];
+    expect(mysqlToggleBtn).toBeDisabled();
+  });
 });

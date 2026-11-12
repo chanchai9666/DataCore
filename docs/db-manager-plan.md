@@ -411,8 +411,8 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ### Phase 27: Row-Level Security (RLS) Manager & In-Transit (TLS) and At-Rest Encryption (✅ เสร็จสมบูรณ์ - Issue #52)
 - **1. Row-Level Security (RLS) Management:**
-  - **RLS Enable/Disable Toggle:** ควบคุมสิทธิ์ความปลอดภัยระดับแถว (`ALTER TABLE ... ENABLE/DISABLE ROW LEVEL SECURITY`) ในแท็บ Security ของ TableStructureEditor
-  - **RLS Policy Manager:** ตรวจสอบรายการ Policy (Name, Command, Roles, USING Expression, WITH CHECK Expression), สร้าง Policy ใหม่ และลบ Policy (`CREATE POLICY` / `DROP POLICY`)
+  - **RLS Enable/Disable Toggle:** ควบคุมสิทธิ์ความปลอดภัยระดับแถว (`ALTER TABLE ... ENABLE/DISABLE ROW LEVEL SECURITY`) ในแท็บ Security ของ TableStructureEditor พร้อมปิดการใช้งานปุ่ม Toggle บน Driver ที่ไม่รองรับ (MySQL/SQLite) และแปลงค่า `CellValue` Rust อย่างถูกต้อง (Issue #70)
+  - **RLS Policy Manager:** ตรวจสอบรายการ Policy (Name, Command, Roles, USING Expression, WITH CHECK Expression), สร้าง Policy ใหม่ และลบ Policy (`CREATE POLICY` / `DROP POLICY`) โดย unwrap ค่า `CellValue` เพื่อไม่ให้แสดงผลเป็น `[object Object]` (Issue #70)
 - **2. In-Transit Encryption (TLS/SSL):**
   - **Rust Backend SSL Driver Support:** รองรับ `ssl_mode` (`disable`, `prefer`, `require`, `verify-ca`, `verify-full`) บน PostgreSQL และ MySQL (`sqlx::postgres::PgSslMode`, `sqlx::mysql::MySqlSslMode`)
   - **Connection TLS Form & Contract Sync (Issue #63):** เพิ่มตัวเลือก SSL Mode พร้อมคำอธิบายความปลอดภัย และ sync data contract ทั้ง `ssl_mode` และ `sslMode` (serde alias) ระหว่าง Frontend กับ Rust Backend โดยส่งค่าที่ผู้ใช้เลือกไปยัง `testConnection` และ `saveConnection` อย่างครบถ้วน

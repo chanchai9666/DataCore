@@ -64,6 +64,7 @@ import { TableMaintenanceModal } from './TableMaintenanceModal';
 import { TablePartitionsModal } from '../performance/TablePartitionsModal';
 import { buildAdvancedCreateIndexSql, type IndexType } from '../../api/performanceHelpers';
 import { useAuditLogStore } from '../../stores/auditLogStore';
+import { formatCellValue } from '../../types/db';
 import { Split } from 'lucide-react';
 
 export interface TableStructureEditorProps {
@@ -337,21 +338,25 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         if (rlsStatusSql && !rlsStatusSql.startsWith('--')) {
           const rlsRes = await dbApi.executeQuery(tabId, rlsStatusSql);
           if (rlsRes.rows && rlsRes.rows.length > 0) {
-            const val = rlsRes.rows[0][0];
-            setRlsEnabled(val === true || val === 't' || val === 'true' || val === 1);
+            const rawVal = rlsRes.rows[0][0];
+            const strVal = formatCellValue(rawVal).toLowerCase();
+            setRlsEnabled(strVal === 'true' || strVal === 't' || strVal === '1');
           }
         }
         const rlsPoliciesSql = buildGetRlsPoliciesSql(tableName, schemaName, driver);
         if (rlsPoliciesSql && !rlsPoliciesSql.startsWith('--')) {
           const policiesRes = await dbApi.executeQuery(tabId, rlsPoliciesSql);
-          const parsedPolicies: RlsPolicy[] = (policiesRes.rows || []).map((r) => ({
-            name: String(r[0] ?? ''),
-            permissive: r[1] === true || r[1] === 't' || r[1] === 'PERMISSIVE' || r[1] === 'true',
-            roles: String(r[2] ?? 'PUBLIC').split(',').map((x) => x.trim()).filter(Boolean),
-            command: String(r[3] ?? 'ALL').toUpperCase() as PolicyCommand,
-            usingExpr: r[4] ? String(r[4]) : undefined,
-            checkExpr: r[5] ? String(r[5]) : undefined,
-          }));
+          const parsedPolicies: RlsPolicy[] = (policiesRes.rows || []).map((r) => {
+            const pVal = formatCellValue(r[1]).toLowerCase();
+            return {
+              name: formatCellValue(r[0]),
+              permissive: pVal === 'true' || pVal === 't' || pVal === 'permissive' || pVal === '1',
+              roles: formatCellValue(r[2] ?? 'PUBLIC').split(',').map((x) => x.trim()).filter(Boolean),
+              command: (formatCellValue(r[3] ?? 'ALL').toUpperCase() || 'ALL') as PolicyCommand,
+              usingExpr: r[4] ? formatCellValue(r[4]) : undefined,
+              checkExpr: r[5] ? formatCellValue(r[5]) : undefined,
+            };
+          });
           setRlsPolicies(parsedPolicies);
         }
       } catch (rlsErr) {
@@ -831,6 +836,10 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
 
   // Handle Toggle RLS
   const handleToggleRls = async () => {
+    if (driver !== 'postgres') {
+      showStatus('error', 'Row-Level Security (RLS) is natively supported only on PostgreSQL.');
+      return;
+    }
     setSubmitting(true);
     try {
       const nextState = !rlsEnabled;
@@ -856,6 +865,10 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   // Handle Create Policy Submit
   const handleAddPolicySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (driver !== 'postgres') {
+      showStatus('error', 'Row-Level Security (RLS) policies are natively supported only on PostgreSQL.');
+      return;
+    }
     if (!newPolicyName.trim()) return;
     setSubmitting(true);
     try {
@@ -892,6 +905,10 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   // Handle Drop Policy
   const handleDropPolicyConfirm = async () => {
     if (!dropPolicyTarget) return;
+    if (driver !== 'postgres') {
+      showStatus('error', 'Row-Level Security (RLS) policies are natively supported only on PostgreSQL.');
+      return;
+    }
     setSubmitting(true);
     try {
       const sql = buildDropPolicySql(dropPolicyTarget.name, tableName, schemaName, driver);
@@ -1120,9 +1137,14 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 type="button"
                 data-testid="toggle-rls-btn"
                 onClick={handleToggleRls}
-                disabled={submitting}
+                disabled={submitting || driver !== 'postgres'}
+                title={driver !== 'postgres' ? 'RLS is only supported on PostgreSQL' : undefined}
                 className={`inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded text-white shadow-sm transition-colors ${
-                  rlsEnabled ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'
+                  driver !== 'postgres'
+                    ? 'bg-gray-700 opacity-50 cursor-not-allowed'
+                    : rlsEnabled
+                      ? 'bg-amber-600 hover:bg-amber-500'
+                      : 'bg-emerald-600 hover:bg-emerald-500'
                 }`}
               >
                 <Shield className="w-3.5 h-3.5" />
@@ -1739,11 +1761,14 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 type="button"
                 data-testid="rls-toggle-status-btn"
                 onClick={handleToggleRls}
-                disabled={submitting}
+                disabled={submitting || driver !== 'postgres'}
+                title={driver !== 'postgres' ? 'RLS is only supported on PostgreSQL' : undefined}
                 className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                  rlsEnabled
-                    ? 'bg-amber-700/80 hover:bg-amber-600 text-white'
-                    : 'bg-emerald-700/80 hover:bg-emerald-600 text-white'
+                  driver !== 'postgres'
+                    ? 'bg-gray-700 opacity-50 cursor-not-allowed'
+                    : rlsEnabled
+                      ? 'bg-amber-700/80 hover:bg-amber-600 text-white'
+                      : 'bg-emerald-700/80 hover:bg-emerald-600 text-white'
                 }`}
               >
                 {rlsEnabled ? 'Disable RLS' : 'Enable RLS'}
