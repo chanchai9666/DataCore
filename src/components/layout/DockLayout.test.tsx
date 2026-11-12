@@ -777,4 +777,84 @@ describe('DockLayout', () => {
       expect(status.lastQuery).toContain('SELECT * FROM public.products');
     });
   });
+
+  it('commits staged changes atomically within BEGIN and COMMIT, and rolls back on failure', async () => {
+    const tableKey = 'conn-1.users';
+    usePendingChangesStore.getState().clearAll();
+    usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-staged-tx',
+          title: 'users',
+          type: 'table',
+          connectionId: 'conn-1',
+          tableName: 'users',
+          schemaName: 'main',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 'tab-staged-tx',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalled();
+    });
+
+    // Stage an edit in pendingChangesStore
+    usePendingChangesStore.getState().stageCellEdit(tableKey, {
+      rowIndex: 0,
+      colIndex: 0,
+      colName: 'name',
+      oldValue: 'Alice',
+      newValue: 'Alice Bob',
+    });
+
+    const commitBtn = await screen.findByRole('button', { name: /commit changes/i });
+    expect(commitBtn).toBeInTheDocument();
+
+    const callOrder: string[] = [];
+    (dbApi.executeQuery as any).mockImplementation((_tabId: string, sql: string) => {
+      callOrder.push(sql);
+      return Promise.resolve({ columns: [], rows: [], execution_time_ms: 1 });
+    });
+
+    fireEvent.click(commitBtn);
+
+    await waitFor(() => {
+      expect(callOrder[0]).toBe('BEGIN');
+      expect(callOrder[callOrder.length - 1]).toBe('COMMIT');
+      expect(callOrder.some((sql) => sql.includes('UPDATE'))).toBe(true);
+    });
+
+    // Now test failure scenario: statement fails -> ROLLBACK is called
+    usePendingChangesStore.getState().stageCellEdit(tableKey, {
+      rowIndex: 0,
+      colIndex: 0,
+      colName: 'name',
+      oldValue: 'Alice',
+      newValue: 'Alice Broken',
+    });
+
+    const rollbackCallOrder: string[] = [];
+    (dbApi.executeQuery as any).mockImplementation((_tabId: string, sql: string) => {
+      rollbackCallOrder.push(sql);
+      if (sql.includes('UPDATE')) {
+        return Promise.reject(new Error('Constraint failure'));
+      }
+      return Promise.resolve({ columns: [], rows: [], execution_time_ms: 1 });
+    });
+
+    const commitBtn2 = await screen.findByRole('button', { name: /commit changes/i });
+    fireEvent.click(commitBtn2);
+
+    await waitFor(() => {
+      expect(rollbackCallOrder[0]).toBe('BEGIN');
+      expect(rollbackCallOrder).toContain('ROLLBACK');
+    });
+  });
 });

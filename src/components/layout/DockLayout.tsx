@@ -669,8 +669,19 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       if (statements.length === 0) return;
 
       try {
-        for (const stmt of statements) {
-          await dbApi.executeQuery(tabId, stmt);
+        await dbApi.executeQuery(tabId, 'BEGIN');
+        try {
+          for (const stmt of statements) {
+            await dbApi.executeQuery(tabId, stmt);
+          }
+          await dbApi.executeQuery(tabId, 'COMMIT');
+        } catch (execErr) {
+          try {
+            await dbApi.executeQuery(tabId, 'ROLLBACK');
+          } catch (rbErr) {
+            console.error('Failed to rollback staged transaction:', rbErr);
+          }
+          throw execErr;
         }
 
         usePendingChangesStore.getState().discardChanges(tableKey);

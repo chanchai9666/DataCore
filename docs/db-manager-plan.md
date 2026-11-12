@@ -286,7 +286,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - สวิตช์สลับโหมด Auto-Commit vs Manual Staging Mode บน GridBottomBar
 - โหมด Staging: รวบรวม Cell Edits, Insert Rows, Delete Rows ไว้ใน pendingChangesStore
 - แสดงผลไฮไลต์สีบนเซลล์และแถวที่มีการเปลี่ยนแปลง (Blue/Green/Red tints)
-- ปุ่ม Commit รวมคำสั่ง SQL รันเป็น Batch Transaction และปุ่ม Discard คืนค่าเดิม
+- ปุ่ม Commit รวมคำสั่ง SQL รันเป็น Atomic Transaction ครอบด้วย `BEGIN` และ `COMMIT` พร้อมสั่ง `ROLLBACK` อัตโนมัติหากมีคำสั่งใดล้มเหลว (Issue #80) และปุ่ม Discard คืนค่าเดิม
 
 ### Phase 8: DataGrid Input Sanitization & Smart Type Handling (✅ เสร็จสมบูรณ์ - Issue #32)
 - **Data/Time Type Sanitization:** จัดการการแก้ไขช่องวันที่/เวลา (`timestamp`, `timestamptz`, `date`, `time`) อย่างปลอดภัย หากผู้ใช้กรอก `0`, `""` หรือ `null` ในคอลัมน์ที่เป็น Nullable จะถูกแปลงเป็น `NULL` อัตโนมัติ ป้องกัน Database Error เช่น `date/time field value out of range: "0"`
