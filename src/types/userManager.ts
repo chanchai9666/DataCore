@@ -6,6 +6,7 @@ export interface DbUser {
   canCreateDb: boolean;
   canCreateRole: boolean;
   validUntil?: string;
+  roles?: string[];
 }
 
 export interface CreateUserOptions {

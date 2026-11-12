@@ -496,18 +496,18 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ### Phase 32: Database User & Privilege Manager (✅ เสร็จสมบูรณ์ - Issue #61)
 - **1. User & Role Introspection:**
-  - ดึงข้อมูล Database Users, Roles, Hosts, Superuser status, Login permissions, และ Create DB privileges
+  - ดึงข้อมูล Database Users, Roles, Hosts, Superuser status, Login permissions, Create DB privileges, และ Assigned Roles / Memberships ผ่าน `pg_auth_members` (PostgreSQL) และ `mysql.default_roles` (MySQL) (Issue #75)
   - รองรับทั้ง PostgreSQL (`pg_roles`) และ MySQL (`mysql.user`)
 - **2. User Lifecycle Management:**
   - เพิ่มบัญชีผู้ใช้ใหม่ (Create User/Role) พร้อมตั้งรหัสผ่าน, Host scope, และสิทธิ์พื้นฐาน
   - เปลี่ยนรหัสผ่านผู้ใช้งาน (Alter Password) พร้อมระบบ Input Masking และการยืนยันรหัสผ่าน
   - ลบบัญชีผู้ใช้ (Drop User/Role) พร้อม Native Confirmation Dialog เพื่อความปลอดภัย
 - **3. Granular Privilege Configuration (GRANT / REVOKE):**
-  - แสดงและปรับแต่งสิทธิ์ระดับตารางและฐานข้อมูล: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, `REFERENCES`, `TRIGGER`
+  - แสดงและปรับแต่งสิทธิ์ระดับตารางและฐานข้อมูลอย่างครบถ้วน: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, `ALTER`, `REFERENCES`, `INDEX`, `TRIGGER`, และ `ALL PRIVILEGES` (Issue #75)
   - สั่ง `GRANT` และ `REVOKE` สิทธิ์ไปยังเป้าหมายที่ระบุ (Table / Database) แบบ Real-time
 - **4. Integrated Desktop Management Interface:**
   - เมนูเรียกใช้งานจาก Tools dropdown บน MainToolbar (`toolbar-tools-user-manager-btn`)
-  - ค้นหาและกรองรายชื่อผู้ใช้งานแบบ Instant Search พร้อมแท็บแยกสัดส่วนชัดเจน: Account Attributes, Privileges & Roles, และ Security & Password
+  - ค้นหาและกรองรายชื่อผู้ใช้งานแบบ Instant Search พร้อมแท็บแยกสัดส่วนชัดเจน: Account Attributes (รวมถึง Assigned Roles Badges), Privileges & Roles, และ Security & Password (Issue #75)
   - ปรับปรุงเสถียรภาพ Lifecycle State Updates (Issue #62) ป้องกัน Infinite Re-render / Infinite Reload Loop ใน React Effect เมื่อโหลดข้อมูลผู้ใช้
 
 ---

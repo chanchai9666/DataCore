@@ -37,6 +37,7 @@ describe('UserPrivilegeManagerModal', () => {
         canLogin: true,
         canCreateDb: true,
         canCreateRole: true,
+        roles: ['admin_group', 'pg_read_all_data'],
       },
       {
         name: 'read_only_user',
@@ -44,6 +45,7 @@ describe('UserPrivilegeManagerModal', () => {
         canLogin: true,
         canCreateDb: false,
         canCreateRole: false,
+        roles: [],
       },
     ]);
   });
@@ -103,5 +105,51 @@ describe('UserPrivilegeManagerModal', () => {
 
     // In an infinite loop, fetchDatabaseUsers is called multiple times continuously
     expect(userManagerApi.fetchDatabaseUsers).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders assigned roles badges in user attributes tab', async () => {
+    render(
+      <UserPrivilegeManagerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        connectionId="conn_1"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('user-list-item-postgres')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('admin_group')).toBeInTheDocument();
+    expect(screen.getByText('pg_read_all_data')).toBeInTheDocument();
+  });
+
+  it('renders all granular privileges in privileges tab', async () => {
+    render(
+      <UserPrivilegeManagerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        connectionId="conn_1"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('user-list-item-postgres')).toBeInTheDocument();
+    });
+
+    const privTabBtn = screen.getByRole('button', { name: /grant \/ revoke privileges/i });
+    fireEvent.click(privTabBtn);
+
+    expect(screen.getByTestId('privilege-checkbox-SELECT')).toBeInTheDocument();
+    expect(screen.getByTestId('privilege-checkbox-INSERT')).toBeInTheDocument();
+    expect(screen.getByTestId('privilege-checkbox-UPDATE')).toBeInTheDocument();
+    expect(screen.getByTestId('privilege-checkbox-DELETE')).toBeInTheDocument();
+    expect(screen.getByTestId('privilege-checkbox-CREATE')).toBeInTheDocument();
+    expect(screen.getByTestId('privilege-checkbox-DROP')).toBeInTheDocument();
+    expect(screen.getByTestId('privilege-checkbox-ALTER')).toBeInTheDocument();
+    expect(screen.getByTestId('privilege-checkbox-REFERENCES')).toBeInTheDocument();
+    expect(screen.getByTestId('privilege-checkbox-INDEX')).toBeInTheDocument();
+    expect(screen.getByTestId('privilege-checkbox-TRIGGER')).toBeInTheDocument();
+    expect(screen.getByTestId('privilege-checkbox-ALL PRIVILEGES')).toBeInTheDocument();
   });
 });

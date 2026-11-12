@@ -7,27 +7,48 @@ import {
   buildAlterUserPasswordSql,
   buildGrantPrivilegeSql,
   buildRevokePrivilegeSql,
+  SUPPORTED_PRIVILEGES,
 } from './userManagerApi';
 import type { QueryResult } from '../types/db';
 
 describe('userManagerApi', () => {
+  describe('SUPPORTED_PRIVILEGES', () => {
+    it('includes all necessary DDL and DML privileges', () => {
+      expect(SUPPORTED_PRIVILEGES).toContain('SELECT');
+      expect(SUPPORTED_PRIVILEGES).toContain('INSERT');
+      expect(SUPPORTED_PRIVILEGES).toContain('UPDATE');
+      expect(SUPPORTED_PRIVILEGES).toContain('DELETE');
+      expect(SUPPORTED_PRIVILEGES).toContain('CREATE');
+      expect(SUPPORTED_PRIVILEGES).toContain('DROP');
+      expect(SUPPORTED_PRIVILEGES).toContain('ALTER');
+      expect(SUPPORTED_PRIVILEGES).toContain('REFERENCES');
+      expect(SUPPORTED_PRIVILEGES).toContain('INDEX');
+      expect(SUPPORTED_PRIVILEGES).toContain('TRIGGER');
+      expect(SUPPORTED_PRIVILEGES).toContain('ALL PRIVILEGES');
+    });
+  });
+
   describe('buildFetchUsersSql', () => {
-    it('returns pg_roles query for postgres', () => {
+    it('returns pg_roles query with role memberships for postgres', () => {
       const sql = buildFetchUsersSql('postgres');
       expect(sql).toContain('pg_roles');
       expect(sql).toContain('rolname');
       expect(sql).toContain('rolsuper');
+      expect(sql).toContain('pg_auth_members');
+      expect(sql).toContain('roles');
     });
 
-    it('returns mysql.user query for mysql', () => {
+    it('returns mysql.user query with default_roles for mysql', () => {
       const sql = buildFetchUsersSql('mysql');
       expect(sql).toContain('mysql.user');
       expect(sql).toContain('User');
+      expect(sql).toContain('default_roles');
+      expect(sql).toContain('roles');
     });
   });
 
   describe('parseUsersResult', () => {
-    it('parses postgres pg_roles result', () => {
+    it('parses postgres pg_roles result with roles list', () => {
       const queryResult: QueryResult = {
         columns: [
           { name: 'name', data_type: 'name', nullable: false },
@@ -36,6 +57,7 @@ describe('userManagerApi', () => {
           { name: 'can_create_db', data_type: 'boolean', nullable: false },
           { name: 'can_create_role', data_type: 'boolean', nullable: false },
           { name: 'valid_until', data_type: 'text', nullable: true },
+          { name: 'roles', data_type: 'text', nullable: true },
         ],
         rows: [
           [
@@ -45,6 +67,7 @@ describe('userManagerApi', () => {
             { Boolean: true },
             { Boolean: false },
             null,
+            { Text: 'analyst, developer' },
           ],
         ],
         execution_time_ms: 2,
@@ -60,18 +83,20 @@ describe('userManagerApi', () => {
         canCreateDb: true,
         canCreateRole: false,
         validUntil: undefined,
+        roles: ['analyst', 'developer'],
       });
     });
 
-    it('parses mysql user table result', () => {
+    it('parses mysql user table result with roles list', () => {
       const queryResult: QueryResult = {
         columns: [
           { name: 'name', data_type: 'char', nullable: false },
           { name: 'host', data_type: 'char', nullable: false },
           { name: 'is_superuser', data_type: 'char', nullable: false },
+          { name: 'roles', data_type: 'text', nullable: true },
         ],
         rows: [
-          [{ Text: 'bob' }, { Text: '%' }, { Text: 'Y' }],
+          [{ Text: 'bob' }, { Text: '%' }, { Text: 'Y' }, { Text: 'app_admin, reporting' }],
         ],
         execution_time_ms: 1,
       };
@@ -86,6 +111,7 @@ describe('userManagerApi', () => {
         canCreateDb: true,
         canCreateRole: true,
         validUntil: undefined,
+        roles: ['app_admin', 'reporting'],
       });
     });
   });

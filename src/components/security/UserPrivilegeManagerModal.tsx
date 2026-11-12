@@ -22,6 +22,7 @@ import {
   buildAlterUserPasswordSql,
   buildGrantPrivilegeSql,
   buildRevokePrivilegeSql,
+  SUPPORTED_PRIVILEGES,
 } from '../../api/userManagerApi';
 import { dbApi } from '../../api/db';
 import { showConfirmDialog } from '../../utils/dialog';
@@ -484,6 +485,25 @@ export const UserPrivilegeManagerModal: React.FC<UserPrivilegeManagerModalProps>
                           </div>
                         </div>
 
+                        {/* Assigned Roles & Memberships */}
+                        <div className="p-4 rounded-lg border border-line bg-black/5 dark:bg-white/5 space-y-2.5">
+                          <h4 className="font-semibold text-text">Assigned Roles & Memberships:</h4>
+                          {selectedUser.roles && selectedUser.roles.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5" data-testid="user-roles-container">
+                              {selectedUser.roles.map((r) => (
+                                <span
+                                  key={r}
+                                  className="px-2 py-0.5 rounded text-xs font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                >
+                                  {r}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-muted text-[11px]">No specific roles or group memberships assigned.</p>
+                          )}
+                        </div>
+
                         {selectedUser.validUntil && (
                           <div className="p-3 rounded-lg border border-line bg-panel text-muted">
                             Password Expiry / Valid Until:{' '}
@@ -516,12 +536,13 @@ export const UserPrivilegeManagerModal: React.FC<UserPrivilegeManagerModalProps>
                             <label className="block text-muted font-medium mb-1.5">
                               Privilege Types:
                             </label>
-                            <div className="grid grid-cols-3 gap-2">
-                              {['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'ALL PRIVILEGES'].map((p) => {
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                              {SUPPORTED_PRIVILEGES.map((p) => {
                                 const isChecked = selectedPrivileges.includes(p);
                                 return (
                                   <label
                                     key={p}
+                                    data-testid={`privilege-checkbox-${p}`}
                                     className="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-white/5"
                                   >
                                     <input
@@ -536,7 +557,7 @@ export const UserPrivilegeManagerModal: React.FC<UserPrivilegeManagerModalProps>
                                       }}
                                       className="rounded border-line text-blue-600 focus:ring-0"
                                     />
-                                    <span className="text-text font-mono font-medium">{p}</span>
+                                    <span className="text-text font-mono font-medium text-[11px] truncate">{p}</span>
                                   </label>
                                 );
                               })}
