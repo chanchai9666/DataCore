@@ -141,6 +141,7 @@ describe('MainToolbar Component', () => {
     const onOpenERDiagram = vi.fn();
     const onOpenSchemaDiff = vi.fn();
     const onOpenActivityMonitor = vi.fn();
+    const onOpenUserManager = vi.fn();
 
     render(
       <MainToolbar
@@ -152,6 +153,7 @@ describe('MainToolbar Component', () => {
         onOpenERDiagram={onOpenERDiagram}
         onOpenSchemaDiff={onOpenSchemaDiff}
         onOpenActivityMonitor={onOpenActivityMonitor}
+        onOpenUserManager={onOpenUserManager}
       />
     );
 
@@ -200,5 +202,10 @@ describe('MainToolbar Component', () => {
     fireEvent.click(toolsBtn);
     fireEvent.click(screen.getByTestId('toolbar-tools-activity-monitor-btn'));
     expect(onOpenActivityMonitor).toHaveBeenCalledTimes(1);
+
+    // 9. User & Privilege Manager
+    fireEvent.click(toolsBtn);
+    fireEvent.click(screen.getByTestId('toolbar-tools-user-manager-btn'));
+    expect(onOpenUserManager).toHaveBeenCalledTimes(1);
   });
 });

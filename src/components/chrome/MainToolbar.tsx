@@ -21,6 +21,7 @@ import {
   Network,
   GitCompare,
   Activity,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -61,6 +62,7 @@ export interface MainToolbarProps {
   onOpenERDiagram?: () => void;
   onOpenSchemaDiff?: () => void;
   onOpenActivityMonitor?: () => void;
+  onOpenUserManager?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   customItems?: ToolbarActionItem[];
@@ -88,6 +90,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenERDiagram,
   onOpenSchemaDiff,
   onOpenActivityMonitor,
+  onOpenUserManager,
   theme = 'dark',
   onToggleTheme,
   customItems,
@@ -441,6 +444,20 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   >
                     <Key className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                     <span>Connection Security (TLS / At-Rest)...</span>
+                  </button>
+                )}
+                {onOpenUserManager && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-user-manager-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenUserManager();
+                    }}
+                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                  >
+                    <Users className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>User & Privilege Manager...</span>
                   </button>
                 )}
                 {(onOpenHistory || onOpenSnippets) && (

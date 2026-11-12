@@ -480,23 +480,32 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **3. Toolbar Integration:**
   - เชื่อมต่อเมนู Import Data และ Export Data บน MainToolbar เข้าสู่ระบบ Multi-step Wizard โดยตรง สามารถเลือกตารางเป้าหมายได้แม้ยังไม่ได้เปิดแท็บตารางค้างไว้
 
-### Phase 32: Database User & Privilege Manager (Issue #61)
-- บริหารจัดการ Database Users, Roles, รหัสผ่าน และการมอบ/เพิกถอนสิทธิ์ (GRANT / REVOKE Permissions)
+### Phase 32: Database User & Privilege Manager (✅ เสร็จสมบูรณ์ - Issue #61)
+- **1. User & Role Introspection:**
+  - ดึงข้อมูล Database Users, Roles, Hosts, Superuser status, Login permissions, และ Create DB privileges
+  - รองรับทั้ง PostgreSQL (`pg_roles`) และ MySQL (`mysql.user`)
+- **2. User Lifecycle Management:**
+  - เพิ่มบัญชีผู้ใช้ใหม่ (Create User/Role) พร้อมตั้งรหัสผ่าน, Host scope, และสิทธิ์พื้นฐาน
+  - เปลี่ยนรหัสผ่านผู้ใช้งาน (Alter Password) พร้อมระบบ Input Masking และการยืนยันรหัสผ่าน
+  - ลบบัญชีผู้ใช้ (Drop User/Role) พร้อม Native Confirmation Dialog เพื่อความปลอดภัย
+- **3. Granular Privilege Configuration (GRANT / REVOKE):**
+  - แสดงและปรับแต่งสิทธิ์ระดับตารางและฐานข้อมูล: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, `REFERENCES`, `TRIGGER`
+  - สั่ง `GRANT` และ `REVOKE` สิทธิ์ไปยังเป้าหมายที่ระบุ (Table / Database) แบบ Real-time
+- **4. Integrated Desktop Management Interface:**
+  - เมนูเรียกใช้งานจาก Tools dropdown บน MainToolbar (`toolbar-tools-user-manager-btn`)
+  - ค้นหาและกรองรายชื่อผู้ใช้งานแบบ Instant Search พร้อมแท็บแยกสัดส่วนชัดเจน: Account Attributes, Privileges & Roles, และ Security & Password
 
 ---
 
 ## 4. สถานะภาพรวมการพัฒนา (Development Status Summary)
-- **สถานะ Phase:** Phase 1 ถึง Phase 31 เสร็จสมบูรณ์ และกำลังพัฒนาต่อยอด Phase 32 (Issue #61)
-- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 587 tests ผ่าน 100%
+- **สถานะ Phase:** ครบถ้วนสมบูรณ์ทั้ง 32 Phase (Phase 1 ถึง Phase 32)
+- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 598+ tests ผ่าน 100%
   - Rust Backend Unit & Integration Tests: 35/35 passed
-  - Frontend Vitest Component & Unit Tests: 552/552 passed
-- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 558 tests ผ่าน 100%
-  - Rust Backend Unit & Integration Tests: 35/35 passed
-  - Frontend Vitest Component & Unit Tests: 523/523 passed
+  - Frontend Vitest Component & Unit Tests: 563/563 passed
 - **ระบบความปลอดภัย (Security):**
   - Zero Plaintext Disk Storage สำหรับรหัสผ่าน (AES-256-GCM Vault)
   - TLS In-Transit Encryption รองรับระดับสูงสุด (`verify-full`)
-  - Row-Level Security (RLS) บริหารจัดการสิทธิ์ระดับแถวได้โดยตรง
+  - Row-Level Security (RLS) และ User Privilege Management (GRANT/REVOKE) บริหารจัดการสิทธิ์ได้ครอบคลุม
 - **Visual & Platform Polish:**
   - ไอคอนแอปพลิเคชันสไตล์ Luxury Minimalist Squircle ตัดขอบโปร่งใสตามมาตรฐาน Apple macOS HIG
   - รองรับ Apple Silicon ARM64 Native พร้อมทั้ง Dark Mode และ Light Mode อย่างสมบูรณ์แบบ

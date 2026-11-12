@@ -13,6 +13,7 @@ import { ConnectionSecurityModal } from './components/security/ConnectionSecurit
 import { HistorySnippetsDrawer } from './components/editor/HistorySnippetsDrawer';
 import { SchemaDiffModal } from './components/diff/SchemaDiffModal';
 import { ActivityMonitorModal } from './components/monitor/ActivityMonitorModal';
+import { UserPrivilegeManagerModal } from './components/security/UserPrivilegeManagerModal';
 import { DataImportWizardModal } from './components/transfer/DataImportWizardModal';
 import { DataExportWizardModal } from './components/transfer/DataExportWizardModal';
 import { useConnectionStore } from './stores/connectionStore';
@@ -43,6 +44,7 @@ export function App() {
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isSchemaDiffModalOpen, setIsSchemaDiffModalOpen] = useState(false);
   const [isActivityMonitorModalOpen, setIsActivityMonitorModalOpen] = useState(false);
+  const [isUserManagerModalOpen, setIsUserManagerModalOpen] = useState(false);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
@@ -229,6 +231,7 @@ export function App() {
         onOpenActivityMonitor={() => {
           if (resolvedConnectionId) setIsActivityMonitorModalOpen(true);
         }}
+        onOpenUserManager={() => setIsUserManagerModalOpen(true)}
         onEditConnection={(conn) => {
           setConnectionToEdit(conn);
           setIsConnectionDialogOpen(true);
@@ -366,6 +369,13 @@ export function App() {
       <ActivityMonitorModal
         isOpen={isActivityMonitorModalOpen}
         onClose={() => setIsActivityMonitorModalOpen(false)}
+        connectionId={resolvedConnectionId || undefined}
+      />
+
+      {/* Global Database User & Privilege Manager Modal */}
+      <UserPrivilegeManagerModal
+        isOpen={isUserManagerModalOpen}
+        onClose={() => setIsUserManagerModalOpen(false)}
         connectionId={resolvedConnectionId || undefined}
       />
 
