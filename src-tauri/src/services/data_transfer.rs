@@ -825,6 +825,7 @@ pub async fn export_data_impl(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn execute_import_chunk(
     conn: &dyn DatabaseConnection,
     table: &str,

@@ -114,7 +114,7 @@ fn test_vault_key_legacy_migration_from_raw_32byte_key() {
     // Raw 32-byte AES key written directly to .vault.key without any header or XOR obfuscation
     let raw_aes_key: [u8; 32] = [42u8; 32];
     let key_file = dir.path().join(".vault.key");
-    fs::write(&key_file, &raw_aes_key).expect("write legacy 32-byte key file");
+    fs::write(&key_file, raw_aes_key).expect("write legacy 32-byte key file");
     assert_eq!(fs::metadata(&key_file).unwrap().len(), 32);
 
     // Encrypt legacy payload with this raw key into vault.enc

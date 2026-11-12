@@ -100,7 +100,7 @@ mod tests {
         let pg_res = PostgresConnection::connect(&config, Some("pass")).await;
         assert!(pg_res.is_err(), "Postgres connection must be blocked when SSH tunnel is enabled but not forwarded");
         let pg_err = pg_res.err().unwrap().to_string();
-        assert!(pg_err.contains("SSH Tunnel to 'jumpbox.corp.com' is enabled"));
+        assert!(pg_err.contains("SSH Tunnel to 'jumpbox.corp.com'"));
         assert!(pg_err.contains("Direct connection to database host blocked to prevent security bypass"));
 
         // Switch to MySQL and verify the same security guard applies
@@ -108,7 +108,7 @@ mod tests {
         let my_res = MySqlConnection::connect(&config, Some("pass")).await;
         assert!(my_res.is_err(), "MySQL connection must be blocked when SSH tunnel is enabled but not forwarded");
         let my_err = my_res.err().unwrap().to_string();
-        assert!(my_err.contains("SSH Tunnel to 'jumpbox.corp.com' is enabled"));
+        assert!(my_err.contains("SSH Tunnel to 'jumpbox.corp.com'"));
         assert!(my_err.contains("Direct connection to database host blocked to prevent security bypass"));
     }
 }

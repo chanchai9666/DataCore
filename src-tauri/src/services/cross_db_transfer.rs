@@ -1,7 +1,7 @@
 use std::time::Instant;
 use crate::drivers::DatabaseConnection;
 use crate::error::AppError;
-use crate::models::query::{CellValue, ColumnMeta};
+use crate::models::query::ColumnMeta;
 use crate::models::transfer::{CrossDbCopyResult, CrossDbCopyTableOptions, TransferProgress};
 use crate::models::DatabaseDriver;
 use crate::services::data_transfer::{

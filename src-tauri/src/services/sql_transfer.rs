@@ -542,13 +542,15 @@ where
             }
 
             // Line comment (-- or #)
-            if !in_single_quote && !in_double_quote && !in_backtick {
-                if (c == '-' && next_c == Some('-')) || c == '#' {
-                    for &ch in &chars[i..] {
-                        current_stmt.push(ch);
-                    }
-                    break;
+            if !in_single_quote
+                && !in_double_quote
+                && !in_backtick
+                && ((c == '-' && next_c == Some('-')) || c == '#')
+            {
+                for &ch in &chars[i..] {
+                    current_stmt.push(ch);
                 }
+                break;
             }
 
             // Quotes handling

@@ -285,7 +285,7 @@ impl DatabaseConnection for PostgresConnection {
         let start = std::time::Instant::now();
         let mut conn = self.conn.lock().await;
 
-        match Self::run_raw_sql(&mut *conn, sql, start).await {
+        match Self::run_raw_sql(&mut conn, sql, start).await {
             Ok(res) => Ok(res),
             Err(err) => {
                 let auto_reconnect = self.config.auto_reconnect.unwrap_or(true);
@@ -298,7 +298,7 @@ impl DatabaseConnection for PostgresConnection {
                         *self.connect_options.lock().await = new_opts;
                         self.backend_pid.store(new_pid, Ordering::SeqCst);
                         *self.ssh_tunnel.lock().await = new_tunnel;
-                        return Self::run_raw_sql(&mut *conn, sql, std::time::Instant::now())
+                        return Self::run_raw_sql(&mut conn, sql, std::time::Instant::now())
                             .await
                             .map_err(AppError::from);
                     }
