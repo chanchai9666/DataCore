@@ -43,8 +43,10 @@ describe('ExecutionPlanDrawer', () => {
     );
 
     expect(screen.getByText('Query Execution Plan')).toBeInTheDocument();
-    expect(screen.getByText(/Seq Scan on users/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Seq Scan on users/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/0\.032 ms/).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('kpi-total-cost')).toHaveTextContent('1.05');
+    expect(screen.getByTestId('kpi-estimated-rows')).toHaveTextContent('5 rows');
   });
 
   it('detects scan warning for sequential scan', () => {

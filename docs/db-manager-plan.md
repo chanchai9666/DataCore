@@ -377,7 +377,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - MySQL: `EXPLAIN FORMAT=JSON` หรือ `EXPLAIN ANALYZE` (MySQL 8.0.18+)
   - SQLite: `EXPLAIN QUERY PLAN`
 - **Editor Toolbar Integration:** เพิ่มปุ่ม "Explain" และตัวเลือก "Explain Analyze" บนแถบเครื่องมือของ Query Editor
-- **Execution Plan Viewer:** แสดงผลแผนการทำงานของ Query ทั้งแบบ Plan Node Tree, Summary Metrics (Planning/Execution Time, Total Cost, Estimated Rows) และ Raw Engine Output ให้ตรวจสอบได้อย่างละเอียด
+- **Execution Plan Viewer:** แสดงผลแผนการทำงานของ Query ทั้งแบบ Structured Plan Node Tree, Summary Metrics (Planning/Execution Time, Total Cost, Estimated Rows, Actual Rows) และ Raw Engine Output ให้ตรวจสอบได้อย่างละเอียด โดยมีโมดูล Plan Parser (`planParser.ts`) สกัดโครงสร้าง hierarchy จริง (ทั้ง JSON และ Text) จาก PostgreSQL, MySQL และ SQLite ปราศจากการคาดเดาด้วย indentation เพียงอย่างเดียว (Issue #77)
 
 ### Phase 23: Foreign Keys & Constraints Manager in Table Designer (✅ เสร็จสมบูรณ์ - Issue #47)
 - **Foreign Key & Constraint SQL Helpers:** เพิ่ม SQL ดึงข้อมูล Metadata ของคีย์นอก (Foreign Keys) และข้อกำหนด (Check/Unique Constraints) สำหรับ PostgreSQL, MySQL, SQLite

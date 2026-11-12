@@ -10,8 +10,11 @@ import {
   Layers,
   FileText,
   Zap,
+  TrendingDown,
+  Users,
 } from 'lucide-react';
-import type { QueryResult, CellValue } from '../../types/db';
+import type { QueryResult } from '../../types/db';
+import { parseExecutionPlan, extractCellString } from '../../api/planParser';
 
 export interface ExecutionPlanDrawerProps {
   isOpen: boolean;
@@ -20,19 +23,6 @@ export interface ExecutionPlanDrawerProps {
   planResult: QueryResult | null;
   isAnalyzing?: boolean;
   driver?: string;
-}
-
-function extractCellString(val: CellValue): string {
-  if (val === null || val === undefined) return '';
-  if (typeof val === 'object') {
-    if ('Text' in val && typeof val.Text === 'string') return val.Text;
-    if ('String' in val && typeof val.String === 'string') return val.String;
-    if ('Integer' in val) return String(val.Integer);
-    if ('Number' in val) return String(val.Number);
-    if ('Json' in val) return typeof val.Json === 'string' ? val.Json : JSON.stringify(val.Json);
-    return JSON.stringify(val);
-  }
-  return String(val);
 }
 
 export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
@@ -56,44 +46,23 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
     return planLines.join('\n');
   }, [planLines]);
 
+  // Structured parsed plan
+  const parsedPlan = useMemo(() => {
+    return parseExecutionPlan(planResult, driver);
+  }, [planResult, driver]);
+
   // Insights / Analysis detection
   const analysisInfo = useMemo(() => {
-    const full = fullPlanText.toLowerCase();
-
-    const hasSeqScan =
-      full.includes('seq scan') ||
-      full.includes('scan table') ||
-      full.includes('type: all') ||
-      (full.includes('scan') && !full.includes('index'));
-
-    const hasIndexScan =
-      full.includes('index scan') ||
-      full.includes('index only scan') ||
-      full.includes('using index') ||
-      full.includes('bitmap index scan') ||
-      full.includes('search') ||
-      full.includes('key:');
-
-    // Planning / Execution timing extraction
-    let planningTime: string | null = null;
-    let executionTime: string | null = null;
-
-    for (const line of planLines) {
-      if (line.toLowerCase().includes('planning time:')) {
-        planningTime = line.split(':')[1]?.trim() || null;
-      }
-      if (line.toLowerCase().includes('execution time:')) {
-        executionTime = line.split(':')[1]?.trim() || null;
-      }
-    }
-
     return {
-      hasSeqScan,
-      hasIndexScan,
-      planningTime,
-      executionTime,
+      hasSeqScan: parsedPlan.hasSeqScan,
+      hasIndexScan: parsedPlan.hasIndexScan,
+      planningTime: parsedPlan.planningTime || null,
+      executionTime: parsedPlan.executionTime || null,
+      totalCost: parsedPlan.totalCost,
+      estimatedRows: parsedPlan.estimatedRows,
+      actualRows: parsedPlan.actualRows,
     };
-  }, [fullPlanText, planLines]);
+  }, [parsedPlan]);
 
   const handleCopy = () => {
     navigator.clipboard?.writeText(fullPlanText);
@@ -177,13 +146,35 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
       </div>
 
       {/* Summary KPI Badges */}
-      <div className="grid grid-cols-3 gap-2 border-b border-zinc-200 p-3 text-xs dark:border-zinc-800">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 border-b border-zinc-200 p-3 text-xs dark:border-zinc-800">
         <div className="rounded border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-800/40">
           <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Execution Time</div>
           <div className="flex items-center gap-1 font-semibold text-zinc-800 dark:text-zinc-200">
             <Clock size={12} className="text-blue-500" />
-            <span>
+            <span className="truncate">
               {analysisInfo.executionTime || (planResult ? `${planResult.execution_time_ms} ms` : '-')}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-800/40">
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Total Cost</div>
+          <div className="flex items-center gap-1 font-semibold text-zinc-800 dark:text-zinc-200">
+            <TrendingDown size={12} className="text-indigo-500" />
+            <span className="truncate" data-testid="kpi-total-cost">
+              {analysisInfo.totalCost || '-'}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-800/40">
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Estimated Rows</div>
+          <div className="flex items-center gap-1 font-semibold text-zinc-800 dark:text-zinc-200">
+            <Users size={12} className="text-amber-500" />
+            <span className="truncate" data-testid="kpi-estimated-rows">
+              {analysisInfo.estimatedRows !== undefined
+                ? `${analysisInfo.estimatedRows.toLocaleString()} rows`
+                : '-'}
             </span>
           </div>
         </div>
@@ -192,12 +183,12 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
           <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Index Usage</div>
           <div className="flex items-center gap-1 font-semibold">
             {analysisInfo.hasIndexScan ? (
-              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 truncate">
                 <CheckCircle2 size={12} />
                 <span>Index Scan</span>
               </span>
             ) : analysisInfo.hasSeqScan ? (
-              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 truncate">
                 <AlertTriangle size={12} />
                 <span>Sequential Scan</span>
               </span>
@@ -207,11 +198,11 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
           </div>
         </div>
 
-        <div className="rounded border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-800/40">
+        <div className="rounded border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-800/40 col-span-2 sm:col-span-1">
           <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Plan Steps</div>
           <div className="flex items-center gap-1 font-semibold text-zinc-800 dark:text-zinc-200">
             <Layers size={12} className="text-purple-500" />
-            <span>{planLines.length} nodes</span>
+            <span className="truncate">{parsedPlan.nodes.length} nodes</span>
           </div>
         </div>
       </div>
@@ -238,7 +229,7 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
           }`}
         >
           <Layers size={13} />
-          <span>Visual Plan</span>
+          <span>Visual Plan Tree</span>
         </button>
 
         <button
@@ -257,49 +248,79 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
 
       {/* Plan Content */}
       <div className="flex-1 overflow-y-auto p-4">
-        {planLines.length === 0 ? (
+        {parsedPlan.nodes.length === 0 ? (
           <div className="py-12 text-center text-xs text-zinc-400">
             No execution plan available
           </div>
         ) : viewMode === 'visual' ? (
-          <div className="space-y-2">
-            {planLines.map((line, idx) => {
-              const trimmed = line.trim();
-              const isIndex =
-                trimmed.toLowerCase().includes('index') ||
-                trimmed.toLowerCase().includes('search');
-              const isSeq =
-                trimmed.toLowerCase().includes('seq scan') ||
-                trimmed.toLowerCase().includes('scan');
-
-              // Indentation detection
-              const leadingSpaces = line.length - line.trimStart().length;
-              const indentLevel = Math.min(Math.floor(leadingSpaces / 2), 6);
-
+          <div className="space-y-2.5">
+            {parsedPlan.nodes.map((node) => {
               return (
                 <div
-                  key={idx}
-                  style={{ marginLeft: `${indentLevel * 14}px` }}
-                  className={`rounded-md border p-2.5 text-xs font-mono shadow-sm transition-all ${
-                    isIndex
-                      ? 'border-emerald-200 bg-emerald-50/40 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200'
-                      : isSeq
-                      ? 'border-amber-200 bg-amber-50/40 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200'
+                  key={node.id}
+                  style={{ marginLeft: `${node.level * 18}px` }}
+                  className={`relative rounded-md border p-3 text-xs shadow-sm transition-all ${
+                    node.level > 0 ? 'border-l-4' : ''
+                  } ${
+                    node.isIndex
+                      ? 'border-emerald-200 bg-emerald-50/40 text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200'
+                      : node.isSeqScan
+                      ? 'border-amber-200 bg-amber-50/40 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200'
                       : 'border-zinc-200 bg-white text-zinc-800 dark:border-zinc-800 dark:bg-zinc-800/60 dark:text-zinc-200'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium break-all">{trimmed}</span>
-                    {isIndex && (
-                      <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-sans font-semibold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200">
-                        Index
-                      </span>
-                    )}
-                    {isSeq && (
-                      <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-sans font-semibold text-amber-700 dark:bg-amber-900 dark:text-amber-200">
-                        Scan
-                      </span>
-                    )}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="font-semibold font-mono text-[12px] flex items-center gap-1.5">
+                        {node.level > 0 && <span className="text-zinc-400 font-sans">↳</span>}
+                        <span>{node.nodeType}</span>
+                        {node.relation && (
+                          <span className="rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.2 text-[10px] text-zinc-600 dark:text-zinc-300">
+                            on {node.relation}
+                          </span>
+                        )}
+                      </div>
+                      {node.detail !== node.nodeType && (
+                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono break-all">
+                          {node.detail}
+                        </div>
+                      )}
+                      {node.filter && (
+                        <div className="text-[10px] text-amber-700 dark:text-amber-300 font-mono">
+                          Filter: {node.filter}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <div className="flex items-center gap-1">
+                        {node.isIndex && (
+                          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-sans font-semibold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200">
+                            Index
+                          </span>
+                        )}
+                        {node.isSeqScan && (
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-sans font-semibold text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+                            Scan
+                          </span>
+                        )}
+                      </div>
+                      {node.cost && node.cost.raw && (
+                        <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 bg-black/5 dark:bg-white/5 px-1 rounded">
+                          cost: {node.cost.raw}
+                        </span>
+                      )}
+                      {node.estimatedRows !== undefined && (
+                        <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+                          est: {node.estimatedRows} rows
+                        </span>
+                      )}
+                      {node.actualRows !== undefined && (
+                        <span className="text-[10px] font-mono text-blue-600 dark:text-blue-400">
+                          act: {node.actualRows} rows
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
