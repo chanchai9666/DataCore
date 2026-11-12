@@ -9,6 +9,7 @@ import {
   PanelLeftOpen,
   Layers,
   Wrench,
+  Network,
 } from 'lucide-react';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -27,6 +28,7 @@ import { sortInMemoryRows } from '../grid/sortUtils';
 import { InsertRowModal } from '../grid/InsertRowModal';
 import { TableStructureEditor } from '../structure/TableStructureEditor';
 import { TableListTab } from '../tablelist/TableListTab';
+import { ERDiagramTab } from '../diagram/ERDiagramTab';
 import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
 import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
@@ -866,6 +868,8 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                 >
                   {tab.type === 'table-list' ? (
                     <Database className="w-3.5 h-3.5 flex-shrink-0 text-purple-400" />
+                  ) : tab.type === 'er-diagram' ? (
+                    <Network className="w-3.5 h-3.5 flex-shrink-0 text-emerald-400" />
                   ) : tab.type === 'table' ? (
                     <Table className="w-3.5 h-3.5 flex-shrink-0 text-emerald-400" />
                   ) : (
@@ -943,6 +947,16 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                   <span>Add Connection</span>
                 </button>
               ) : null}
+            </div>
+          ) : activeTab.type === 'er-diagram' ? (
+            /* ER Diagram Tab */
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <ERDiagramTab
+                connectionId={activeTab.connectionId}
+                driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
+                schemaName={activeTab.schemaName}
+                theme={theme}
+              />
             </div>
           ) : activeTab.type === 'table-list' ? (
             /* Table List View Tab */

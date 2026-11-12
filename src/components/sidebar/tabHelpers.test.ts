@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { openQueryTab, openTableTab, openTableListTab } from './tabHelpers';
+import { openQueryTab, openTableTab, openTableListTab, openERDiagramTab } from './tabHelpers';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import type { ConnectionConfig } from '../../types/db';
@@ -147,6 +147,37 @@ describe('tabHelpers', () => {
       const tabs = useTabStore.getState().tabs;
       expect(tabs).toHaveLength(1);
       expect(useTabStore.getState().activeTabId).toBe('tables:conn-pg-1:public');
+    });
+  });
+
+  describe('openERDiagramTab', () => {
+    it('opens an er-diagram tab with schema name', () => {
+      openERDiagramTab({
+        connectionId: 'conn-pg-1',
+        schemaName: 'public',
+      });
+
+      const tabs = useTabStore.getState().tabs;
+      expect(tabs).toHaveLength(1);
+      expect(tabs[0].id).toBe('er:conn-pg-1:public');
+      expect(tabs[0].type).toBe('er-diagram');
+      expect(tabs[0].title).toBe('ER (public)');
+      expect(tabs[0].schemaName).toBe('public');
+    });
+
+    it('focuses existing er-diagram tab instead of duplicating', () => {
+      openERDiagramTab({
+        connectionId: 'conn-pg-1',
+        schemaName: 'public',
+      });
+      openERDiagramTab({
+        connectionId: 'conn-pg-1',
+        schemaName: 'public',
+      });
+
+      const tabs = useTabStore.getState().tabs;
+      expect(tabs).toHaveLength(1);
+      expect(useTabStore.getState().activeTabId).toBe('er:conn-pg-1:public');
     });
   });
 });

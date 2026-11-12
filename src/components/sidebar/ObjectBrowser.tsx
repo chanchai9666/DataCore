@@ -21,13 +21,14 @@ import {
   FolderPlus,
   Palette,
   ChevronRight,
+  Network,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useFolderStore } from '../../stores/folderStore';
 import { useTabStore } from '../../stores/tabStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, SchemaNode } from '../../types/db';
-import { openTableTab, openQueryTab, openTableListTab } from './tabHelpers';
+import { openTableTab, openQueryTab, openTableListTab, openERDiagramTab } from './tabHelpers';
 import { FolderModal } from './FolderModal';
 import { CreateTableModal } from '../structure/CreateTableModal';
 import { DropTableModal } from '../structure/DropTableModal';
@@ -633,6 +634,14 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
   const handleOpenTableList = useCallback((node: BrowserTreeNode) => {
     openTableListTab({
+      connectionId: node.connectionId,
+      schemaName: node.schemaName,
+    });
+    setContextMenu(null);
+  }, []);
+
+  const handleOpenERDiagram = useCallback((node: BrowserTreeNode) => {
+    openERDiagramTab({
       connectionId: node.connectionId,
       schemaName: node.schemaName,
     });
@@ -1442,15 +1451,27 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 contextMenu.node.name.startsWith('Tables') ||
                 contextMenu.node.nodeType === 'database' ||
                 contextMenu.node.nodeType === 'schema') && (
-                <button
-                  type="button"
-                  data-testid="view-table-list-btn"
-                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-purple-400 font-medium"
-                  onClick={() => handleOpenTableList(contextMenu.node)}
-                >
-                  <Table className="w-3.5 h-3.5 text-purple-400" />
-                  <span>View Tables (Details)</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    data-testid="view-table-list-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-purple-400 font-medium"
+                    onClick={() => handleOpenTableList(contextMenu.node)}
+                  >
+                    <Table className="w-3.5 h-3.5 text-purple-400" />
+                    <span>View Tables (Details)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="view-er-diagram-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-emerald-400 font-medium"
+                    onClick={() => handleOpenERDiagram(contextMenu.node)}
+                  >
+                    <Network className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>View ER Diagram</span>
+                  </button>
+                </>
               )}
 
               <button

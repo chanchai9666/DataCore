@@ -66,7 +66,7 @@ export interface TableSortState {
 export interface Tab {
   id: string;
   connectionId: string;
-  type: 'query' | 'table' | 'table-list';
+  type: 'query' | 'table' | 'table-list' | 'er-diagram';
   title: string;
   autoCommit: boolean;
   queryContent: string;
@@ -76,6 +76,39 @@ export interface Tab {
   filterState?: TableFilterState;
   sortState?: TableSortState;
   columnWidths?: Record<string, number>;
+}
+
+export interface ERColumn {
+  name: string;
+  dataType: string;
+  isPrimaryKey: boolean;
+  isNullable: boolean;
+}
+
+export interface ERTable {
+  id: string;
+  name: string;
+  schema?: string;
+  columns: ERColumn[];
+  x: number;
+  y: number;
+  isCollapsed?: boolean;
+}
+
+export interface ERRelationship {
+  id: string;
+  fromTable: string;
+  fromColumn: string;
+  toTable: string;
+  toColumn: string;
+  constraintName?: string;
+  onUpdate?: string;
+  onDelete?: string;
+}
+
+export interface ERDiagramData {
+  tables: ERTable[];
+  relationships: ERRelationship[];
 }
 
 export type FilterOperator =

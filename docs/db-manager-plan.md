@@ -421,10 +421,43 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **Local Encrypted Vault Dashboard:** แสดงสถานะการเข้ารหัสรหัสผ่านในเครื่องด้วย AES-256-GCM (`~/.datacore/vault.enc`, file permission 0600)
   - **Database At-Rest Encryption Status:** ตรวจสอบคุณสมบัติ Transparent Data Encryption (TDE) หรือการเข้ารหัสไฟล์ฐานข้อมูลของเซิร์ฟเวอร์
 
+### Phase 28: Visual ER Diagram Viewer & Designer (✅ เสร็จสมบูรณ์ - Issue #57)
+- **1. Schema Introspection for ER Diagram:**
+  - ดึงข้อมูล Tables, Columns, Data Types, Nullability, Primary Keys และ Foreign Keys ทั้งหมดของ Database/Schema ในรอบเดียว
+  - รองรับทั้ง SQLite (`PRAGMA table_info`, `PRAGMA foreign_key_list`), PostgreSQL (`information_schema`), และ MySQL (`information_schema`)
+- **2. Interactive Canvas & Auto-Layout Engine:**
+  - Canvas พื้นหลังแบบ Interactive Pan & Zoom พร้อมปุ่ม Zoom In, Zoom Out, Reset Zoom, และ Fit to View
+  - อัลกอริทึมจัดวาง Table Nodes แบบ Topological/Grid Hierarchy อัตโนมัติ ป้องกันการทับซ้อน
+  - ลากย้ายตำแหน่ง Table Card ได้อย่างอิสระ (Drag & Drop)
+  - พับเก็บ/ขยายคอลัมน์ของ Table Card (Collapse/Expand) เพื่อประหยัดพื้นที่
+  - วาดเส้นความสัมพันธ์ (Cubic Bézier Foreign Key Lines) พร้อมสัญลักษณ์ Cardinality (1:N, 1:1) และไฮไลท์สีเมื่อนำเมาส์ไปชี้ (Hover Highlight)
+- **3. Search, Filter & Export:**
+  - ค้นหาตารางในแผนภาพแบบ Quick Search Highlight
+  - ส่งออกแผนภาพเป็นไฟล์รูปภาพภาพ SVG (Scalable Vector Graphics) หรือสร้าง DDL SQL Script
+- **4. User Interface Integration:**
+  - เปิดแท็บ `er-diagram` ได้จากคลิกขวาที่ Database/Schema ใน Object Browser หรือเมนู Tools บน MainToolbar
+
+### Phase 29: Database Schema Comparison & Synchronization (Schema Diff - Issue #58)
+- ตรวจจับความแตกต่างของโครงสร้างตาราง, คอลัมน์, ชนิดข้อมูล, Indexes และ Foreign Keys ระหว่าง 2 Schemas
+- แสดงตารางเปรียบเทียบ Side-by-Side Diff และสร้าง DDL Migration Script
+
+### Phase 30: Server Activity Monitor & Process List (Issue #59)
+- หน้าต่างตรวจสอบ Real-time Activity, Active Connections, Running Queries, Execution Duration และ Transaction Locks
+- ฟังก์ชัน Terminate/Kill Session พร้อม Confirmation ป้องกันอันตราย
+
+### Phase 31: Comprehensive Data Import/Export Wizard (CSV, JSON, Excel - Issue #60)
+- Wizard นำเข้าและส่งออกข้อมูลแบบทีละขั้นตอน รองรับ CSV, TSV, JSON และ Excel (.xlsx) พร้อมระบบ Auto-detect Delimiter และ Column Mapping
+
+### Phase 32: Database User & Privilege Manager (Issue #61)
+- บริหารจัดการ Database Users, Roles, รหัสผ่าน และการมอบ/เพิกถอนสิทธิ์ (GRANT / REVOKE Permissions)
+
 ---
 
 ## 4. สถานะภาพรวมการพัฒนา (Development Status Summary)
-- **สถานะ Phase:** เสร็จสมบูรณ์ครบถ้วน 100% ตั้งแต่ Phase 1 ถึง Phase 27
+- **สถานะ Phase:** Phase 1 ถึง Phase 28 เสร็จสมบูรณ์ และกำลังพัฒนาต่อยอด Phase 29 ถึง Phase 32 (Issue #58 - #61)
+- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 572 tests ผ่าน 100%
+  - Rust Backend Unit & Integration Tests: 35/35 passed
+  - Frontend Vitest Component & Unit Tests: 537/537 passed
 - **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 558 tests ผ่าน 100%
   - Rust Backend Unit & Integration Tests: 35/35 passed
   - Frontend Vitest Component & Unit Tests: 523/523 passed

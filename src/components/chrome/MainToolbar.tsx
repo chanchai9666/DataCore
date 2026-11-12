@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   History,
   Key,
+  Network,
   type LucideIcon,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -55,6 +56,7 @@ export interface MainToolbarProps {
   onOpenSecurity?: () => void;
   onOpenHistory?: () => void;
   onOpenSnippets?: () => void;
+  onOpenERDiagram?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   customItems?: ToolbarActionItem[];
@@ -79,6 +81,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenSecurity,
   onOpenHistory,
   onOpenSnippets,
+  onOpenERDiagram,
   theme = 'dark',
   onToggleTheme,
   customItems,
@@ -348,6 +351,20 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   >
                     <Cpu className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                     <span>Performance & Metrics...</span>
+                  </button>
+                )}
+                {onOpenERDiagram && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-er-diagram-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenERDiagram();
+                    }}
+                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                  >
+                    <Network className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Visual ER Diagram...</span>
                   </button>
                 )}
                 {onOpenLocks && (

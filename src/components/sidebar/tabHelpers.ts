@@ -13,6 +13,36 @@ export interface OpenTableListTabParams {
   schemaName?: string;
 }
 
+export interface OpenERDiagramTabParams {
+  connectionId: string;
+  schemaName?: string;
+}
+
+export function openERDiagramTab({
+  connectionId,
+  schemaName,
+}: OpenERDiagramTabParams): void {
+  const fullId = `er:${connectionId}:${schemaName || 'default'}`;
+  const existingTab = useTabStore.getState().tabs.find((t) => t.id === fullId);
+
+  if (existingTab) {
+    useTabStore.getState().setActiveTab(fullId);
+    return;
+  }
+
+  const title = schemaName ? `ER (${schemaName})` : 'ER Diagram';
+
+  useTabStore.getState().openTab({
+    id: fullId,
+    connectionId,
+    type: 'er-diagram',
+    title,
+    schemaName,
+    autoCommit: true,
+    queryContent: '',
+  });
+}
+
 export function openTableListTab({
   connectionId,
   schemaName,

@@ -15,7 +15,7 @@ import { ConnectionSecurityModal } from './components/security/ConnectionSecurit
 import { HistorySnippetsDrawer } from './components/editor/HistorySnippetsDrawer';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
-import { openQueryTab, openTableListTab } from './components/sidebar/tabHelpers';
+import { openQueryTab, openTableListTab, openERDiagramTab } from './components/sidebar/tabHelpers';
 import { useShortcuts } from './hooks/useShortcuts';
 import { dbApi } from './api/db';
 import type { ConnectionConfig } from './types/db';
@@ -239,6 +239,14 @@ export function App() {
           if (resolvedConnectionId) setIsSecurityModalOpen(true);
         }}
         onOpenHistory={() => setIsHistoryDrawerOpen(true)}
+        onOpenERDiagram={() => {
+          if (resolvedConnectionId) {
+            openERDiagramTab({
+              connectionId: resolvedConnectionId,
+              schemaName: activeTab?.schemaName,
+            });
+          }
+        }}
         onEditConnection={(conn) => {
           setConnectionToEdit(conn);
           setIsConnectionDialogOpen(true);
