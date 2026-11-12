@@ -215,3 +215,109 @@ FROM pg_settings
 WHERE name IN ('data_encryption', 'ssl');
   `.trim();
 }
+
+export interface AtRestEncryptionInfo {
+  isEncrypted: boolean;
+  status: 'enabled' | 'disabled' | 'unknown';
+  technology: string;
+  details: string;
+}
+
+function extractCellString(cell: unknown): string {
+  if (cell == null) return '';
+  if (typeof cell === 'object') {
+    const obj = cell as Record<string, unknown>;
+    if ('Text' in obj) return String(obj.Text ?? '');
+    if ('Integer' in obj) return String(obj.Integer ?? '');
+    if ('Boolean' in obj) return String(obj.Boolean ?? '');
+    if ('Float' in obj) return String(obj.Float ?? '');
+  }
+  return String(cell);
+}
+
+/**
+ * Parses the raw query result of at-rest encryption check without guessing or false positives.
+ */
+export function parseAtRestEncryptionResult(
+  driver: string,
+  result: { rows?: unknown[][] } | null | undefined
+): AtRestEncryptionInfo {
+  const d = driver?.toLowerCase() || 'postgres';
+
+  if (!result || !result.rows || result.rows.length === 0) {
+    if (d === 'sqlite') {
+      return {
+        isEncrypted: false,
+        status: 'disabled',
+        technology: 'Standard SQLite (Unencrypted Database File)',
+        details: 'SQLite database file is unencrypted on the local file system (DataCore vault secures client credentials separately).',
+      };
+    }
+    return {
+      isEncrypted: false,
+      status: 'unknown',
+      technology: 'Unknown / Unsupported',
+      details: 'Unable to inspect at-rest encryption status from database server.',
+    };
+  }
+
+  if (d === 'mysql') {
+    let encryptTables = 'OFF';
+    for (const row of result.rows) {
+      const varName = extractCellString(row[0]).toLowerCase();
+      const val = extractCellString(row[1]).toUpperCase();
+      if (varName === 'innodb_encrypt_tables') {
+        encryptTables = val;
+      }
+    }
+
+    const isEncrypted = encryptTables === 'ON' || encryptTables === 'FORCE';
+    return {
+      isEncrypted,
+      status: isEncrypted ? 'enabled' : 'disabled',
+      technology: 'InnoDB Tablespace Encryption (TDE)',
+      details: isEncrypted
+        ? `InnoDB tablespace encryption is enabled (${encryptTables}).`
+        : `InnoDB tablespace encryption is disabled (${encryptTables}). Storage is unencrypted.`,
+    };
+  }
+
+  if (d === 'sqlite') {
+    const firstCell = extractCellString(result.rows[0]?.[0]);
+    const hasCipher = firstCell.trim().length > 0;
+    if (hasCipher) {
+      return {
+        isEncrypted: true,
+        status: 'enabled',
+        technology: `SQLCipher (${firstCell})`,
+        details: 'SQLite database file is encrypted at-rest with SQLCipher.',
+      };
+    }
+    return {
+      isEncrypted: false,
+      status: 'disabled',
+      technology: 'Standard SQLite (Unencrypted Database File)',
+      details: 'SQLite database file is unencrypted on the local file system (DataCore vault secures client credentials separately).',
+    };
+  }
+
+  // PostgreSQL
+  let dataEncryption = 'off';
+  for (const row of result.rows) {
+    const name = extractCellString(row[0]).toLowerCase();
+    const val = extractCellString(row[1]).toLowerCase();
+    if (name === 'data_encryption') {
+      dataEncryption = val;
+    }
+  }
+
+  const isEncrypted = dataEncryption === 'on';
+  return {
+    isEncrypted,
+    status: isEncrypted ? 'enabled' : 'disabled',
+    technology: 'PostgreSQL Transparent Data Encryption (TDE)',
+    details: isEncrypted
+      ? 'Cluster data blocks are encrypted at rest (data_encryption = on).'
+      : 'Cluster data blocks are unencrypted (data_encryption = off). Client credentials secured via DataCore Encrypted Vault.',
+  };
+}

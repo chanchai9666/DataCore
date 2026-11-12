@@ -7,6 +7,7 @@ import {
   buildGetRlsPoliciesSql,
   buildGetTlsStatusSql,
   buildGetAtRestEncryptionSql,
+  parseAtRestEncryptionResult,
 } from './securityHelpers';
 
 describe('securityHelpers', () => {
@@ -82,6 +83,64 @@ describe('securityHelpers', () => {
     it('builds At-Rest encryption queries', () => {
       expect(buildGetAtRestEncryptionSql('mysql')).toContain('innodb_encrypt_tables');
       expect(buildGetAtRestEncryptionSql('postgres')).toContain('pg_settings');
+    });
+
+    it('correctly parses MySQL TDE status without false positives from row count', () => {
+      // innodb_encrypt_tables is OFF
+      const offResult = {
+        rows: [['innodb_encrypt_tables', 'OFF']],
+      };
+      const offInfo = parseAtRestEncryptionResult('mysql', offResult);
+      expect(offInfo.isEncrypted).toBe(false);
+      expect(offInfo.status).toBe('disabled');
+      expect(offInfo.details).toContain('disabled');
+
+      // innodb_encrypt_tables is ON
+      const onResult = {
+        rows: [['innodb_encrypt_tables', 'ON']],
+      };
+      const onInfo = parseAtRestEncryptionResult('mysql', onResult);
+      expect(onInfo.isEncrypted).toBe(true);
+      expect(onInfo.status).toBe('enabled');
+      expect(onInfo.details).toContain('enabled');
+    });
+
+    it('correctly parses PostgreSQL at-rest encryption status', () => {
+      const offResult = {
+        rows: [
+          ['data_encryption', 'off'],
+          ['ssl', 'on'],
+        ],
+      };
+      const offInfo = parseAtRestEncryptionResult('postgres', offResult);
+      expect(offInfo.isEncrypted).toBe(false);
+      expect(offInfo.status).toBe('disabled');
+
+      const onResult = {
+        rows: [
+          ['data_encryption', 'on'],
+          ['ssl', 'on'],
+        ],
+      };
+      const onInfo = parseAtRestEncryptionResult('postgres', onResult);
+      expect(onInfo.isEncrypted).toBe(true);
+      expect(onInfo.status).toBe('enabled');
+    });
+
+    it('correctly parses SQLite database file encryption vs standard unencrypted', () => {
+      // Standard SQLite has empty rows for PRAGMA cipher_version
+      const standardSqlite = { rows: [] };
+      const standardInfo = parseAtRestEncryptionResult('sqlite', standardSqlite);
+      expect(standardInfo.isEncrypted).toBe(false);
+      expect(standardInfo.status).toBe('disabled');
+      expect(standardInfo.technology).toContain('Standard SQLite');
+
+      // SQLCipher returns version
+      const cipherSqlite = { rows: [['4.5.5']] };
+      const cipherInfo = parseAtRestEncryptionResult('sqlite', cipherSqlite);
+      expect(cipherInfo.isEncrypted).toBe(true);
+      expect(cipherInfo.status).toBe('enabled');
+      expect(cipherInfo.technology).toContain('SQLCipher');
     });
   });
 });

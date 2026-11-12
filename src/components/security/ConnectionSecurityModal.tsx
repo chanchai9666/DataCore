@@ -7,14 +7,17 @@ import {
   HardDrive,
   KeyRound,
   CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
 import { dbApi } from '../../api/db';
 import {
   buildGetTlsStatusSql,
   buildGetAtRestEncryptionSql,
+  parseAtRestEncryptionResult,
   type TlsStatusInfo,
-  type AtRestStatusInfo,
+  type AtRestEncryptionInfo,
 } from '../../api/securityHelpers';
 import { formatCellValue } from '../../types/db';
 
@@ -36,7 +39,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
   onClose,
 }) => {
   const [tlsInfo, setTlsInfo] = useState<TlsStatusInfo | null>(null);
-  const [atRestInfo, setAtRestInfo] = useState<AtRestStatusInfo | null>(null);
+  const [atRestInfo, setAtRestInfo] = useState<AtRestEncryptionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchSecurityStatus = async () => {
@@ -105,30 +108,17 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
     }
 
     // 2. At-Rest
-    const atRestSql = buildGetAtRestEncryptionSql(d);
     try {
-      if (d === 'sqlite') {
-        setAtRestInfo({
-          isEncrypted: true,
-          technology: 'Local Encrypted Vault & File Security',
-          details: 'Zero plain-text password persistence; credentials stored in AES-256-GCM encrypted container',
-        });
-      } else {
-        const restRes = await dbApi.executeDirectQuery(connectionId, atRestSql);
-        const hasTde = restRes && restRes.rows && restRes.rows.length > 0;
-        setAtRestInfo({
-          isEncrypted: hasTde,
-          technology: d === 'mysql' ? 'InnoDB Tablespace Encryption (TDE)' : 'Transparent Data Encryption / Disk Encryption',
-          details: hasTde
-            ? 'Server storage volumes and data blocks are encrypted at rest'
-            : 'Standard file system storage with client credentials secured via AES-256-GCM Vault',
-        });
-      }
+      const atRestSql = buildGetAtRestEncryptionSql(d);
+      const restRes = await dbApi.executeDirectQuery(connectionId, atRestSql);
+      const atRestData = parseAtRestEncryptionResult(d, restRes);
+      setAtRestInfo(atRestData);
     } catch {
       setAtRestInfo({
-        isEncrypted: true,
-        technology: 'Local Encrypted Vault (AES-256-GCM)',
-        details: 'Credentials stored at ~/.datacore/vault.enc with 0600 permissions',
+        isEncrypted: false,
+        status: 'unknown',
+        technology: 'Inspection Unsupported / Restricted',
+        details: 'Server does not expose at-rest encryption configuration or query permissions are restricted.',
       });
     } finally {
       setIsLoading(false);
@@ -250,8 +240,20 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                 <HardDrive className="h-4 w-4 text-indigo-500" />
                 <span>At-Rest Encryption (การจัดเก็บข้อมูล)</span>
               </div>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                Active & Protected
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                  atRestInfo?.isEncrypted
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                    : atRestInfo?.status === 'unknown'
+                    ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                }`}
+              >
+                {atRestInfo?.isEncrypted
+                  ? 'Encrypted (TDE Active)'
+                  : atRestInfo?.status === 'unknown'
+                  ? 'Unknown / Unsupported'
+                  : 'Unencrypted at Rest'}
               </span>
             </div>
 
@@ -269,13 +271,19 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
               </div>
 
               <div className="flex items-start gap-2.5 rounded-lg bg-white p-3 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60">
-                <CheckCircle2 className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                {atRestInfo?.isEncrypted ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                ) : atRestInfo?.status === 'unknown' ? (
+                  <AlertCircle className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                )}
                 <div className="space-y-0.5">
                   <div className="font-medium text-slate-800 dark:text-slate-200">
                     {atRestInfo?.technology || 'Database Storage Security'}
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {atRestInfo?.details || 'Database files and tablespaces are safeguarded by underlying OS volume encryption.'}
+                    {atRestInfo?.details || 'Database files and tablespaces are unencrypted.'}
                   </p>
                 </div>
               </div>
