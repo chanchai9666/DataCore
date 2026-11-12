@@ -8,3 +8,5 @@ pub use transfer::*;
 
 #[cfg(test)]
 mod query_test;
+#[cfg(test)]
+mod connection_test;

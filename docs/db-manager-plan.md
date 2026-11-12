@@ -415,7 +415,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **RLS Policy Manager:** ตรวจสอบรายการ Policy (Name, Command, Roles, USING Expression, WITH CHECK Expression), สร้าง Policy ใหม่ และลบ Policy (`CREATE POLICY` / `DROP POLICY`)
 - **2. In-Transit Encryption (TLS/SSL):**
   - **Rust Backend SSL Driver Support:** รองรับ `ssl_mode` (`disable`, `prefer`, `require`, `verify-ca`, `verify-full`) บน PostgreSQL และ MySQL (`sqlx::postgres::PgSslMode`, `sqlx::mysql::MySqlSslMode`)
-  - **Connection TLS Form:** เพิ่มตัวเลือก SSL Mode พร้อมคำอธิบายความปลอดภัย
+  - **Connection TLS Form & Contract Sync (Issue #63):** เพิ่มตัวเลือก SSL Mode พร้อมคำอธิบายความปลอดภัย และ sync data contract ทั้ง `ssl_mode` และ `sslMode` (serde alias) ระหว่าง Frontend กับ Rust Backend โดยส่งค่าที่ผู้ใช้เลือกไปยัง `testConnection` และ `saveConnection` อย่างครบถ้วน
   - **Live Connection Encryption Inspector:** หน้าจอตรวจสอบสถานะการเชื่อมต่อ TLS แบบ Real-time (Cipher Suite, TLS Protocol Version, Key Exchange Bit Strength) ผ่านคำสั่ง `pg_stat_ssl` / MySQL `Ssl_cipher`
 - **3. At-Rest Encryption (การเข้ารหัสขณะจัดเก็บ):**
   - **Local Encrypted Vault Dashboard:** แสดงสถานะการเข้ารหัสรหัสผ่านในเครื่องด้วย AES-256-GCM (`~/.datacore/vault.enc`, file permission 0600)

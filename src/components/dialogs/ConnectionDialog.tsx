@@ -77,7 +77,7 @@ function initializeFormData(initial?: ConnectionConfig | null): ConnectionFormDa
     user: initial.user ?? (initial.driver === 'postgres' ? 'postgres' : initial.driver === 'mysql' ? 'root' : ''),
     password: '',
     folder: initial.folder || '',
-    sslMode: 'prefer',
+    sslMode: initial.ssl_mode || initial.sslMode || 'prefer',
   };
 }
 
@@ -191,6 +191,8 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       database: formData.database.trim(),
       user: formData.driver !== 'sqlite' ? formData.user.trim() : undefined,
       folder: formData.folder?.trim() || undefined,
+      ssl_mode: formData.driver !== 'sqlite' ? (formData.sslMode || 'prefer') : undefined,
+      sslMode: formData.driver !== 'sqlite' ? (formData.sslMode || 'prefer') : undefined,
     };
   };
 

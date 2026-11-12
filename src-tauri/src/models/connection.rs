@@ -21,5 +21,6 @@ pub struct ConnectionConfig {
     pub database: String,
     pub user: Option<String>,
     pub folder: Option<String>,
+    #[serde(default, alias = "sslMode")]
     pub ssl_mode: Option<String>,
 }

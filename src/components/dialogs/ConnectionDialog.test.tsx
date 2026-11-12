@@ -328,12 +328,56 @@ describe('ConnectionDialog', () => {
             port: 5432,
             database: 'analytics',
             user: 'postgres',
+            ssl_mode: 'prefer',
           }),
           'pgpass'
         );
       });
 
       expect(onClose).toHaveBeenCalled();
+    });
+
+    it('preserves and transmits custom sslMode when testing and saving connection', async () => {
+      vi.mocked(dbApi.saveConnection).mockResolvedValueOnce();
+      vi.mocked(dbApi.testConnection).mockResolvedValueOnce(42);
+
+      render(<ConnectionDialog isOpen={true} onClose={onClose} />);
+
+      fireEvent.click(screen.getByRole('tab', { name: /postgres/i }));
+      fireEvent.change(screen.getByLabelText(/connection name/i), {
+        target: { value: 'Secure PG' },
+      });
+      fireEvent.change(screen.getByLabelText(/database/i), {
+        target: { value: 'secure_db' },
+      });
+      fireEvent.change(screen.getByLabelText(/ssl mode/i), {
+        target: { value: 'verify-full' },
+      });
+
+      // Test connection sends ssl_mode
+      fireEvent.click(screen.getByRole('button', { name: /test connection/i }));
+      await waitFor(() => {
+        expect(dbApi.testConnection).toHaveBeenCalledWith(
+          expect.objectContaining({
+            ssl_mode: 'verify-full',
+            sslMode: 'verify-full',
+          }),
+          ''
+        );
+      });
+
+      // Save sends ssl_mode
+      fireEvent.click(screen.getByRole('button', { name: /save/i }));
+      await waitFor(() => {
+        expect(dbApi.saveConnection).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'Secure PG',
+            ssl_mode: 'verify-full',
+            sslMode: 'verify-full',
+          }),
+          ''
+        );
+      });
     });
 
     it('preserves existing keychain password (passes undefined) when editing without changing password', async () => {
