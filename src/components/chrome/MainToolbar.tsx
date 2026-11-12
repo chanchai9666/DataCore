@@ -20,6 +20,7 @@ import {
   Key,
   Network,
   GitCompare,
+  Activity,
   type LucideIcon,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -59,6 +60,7 @@ export interface MainToolbarProps {
   onOpenSnippets?: () => void;
   onOpenERDiagram?: () => void;
   onOpenSchemaDiff?: () => void;
+  onOpenActivityMonitor?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   customItems?: ToolbarActionItem[];
@@ -85,6 +87,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenSnippets,
   onOpenERDiagram,
   onOpenSchemaDiff,
+  onOpenActivityMonitor,
   theme = 'dark',
   onToggleTheme,
   customItems,
@@ -382,6 +385,20 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   >
                     <GitCompare className="w-3.5 h-3.5 text-purple-400 shrink-0" />
                     <span>Schema Diff & Sync...</span>
+                  </button>
+                )}
+                {onOpenActivityMonitor && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-activity-monitor-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenActivityMonitor();
+                    }}
+                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                  >
+                    <Activity className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                    <span>Server Activity & Process List...</span>
                   </button>
                 )}
                 {onOpenLocks && (

@@ -140,6 +140,7 @@ describe('MainToolbar Component', () => {
     const onOpenHistory = vi.fn();
     const onOpenERDiagram = vi.fn();
     const onOpenSchemaDiff = vi.fn();
+    const onOpenActivityMonitor = vi.fn();
 
     render(
       <MainToolbar
@@ -150,6 +151,7 @@ describe('MainToolbar Component', () => {
         onOpenHistory={onOpenHistory}
         onOpenERDiagram={onOpenERDiagram}
         onOpenSchemaDiff={onOpenSchemaDiff}
+        onOpenActivityMonitor={onOpenActivityMonitor}
       />
     );
 
@@ -193,5 +195,10 @@ describe('MainToolbar Component', () => {
     fireEvent.click(toolsBtn);
     fireEvent.click(screen.getByTestId('toolbar-tools-schema-diff-btn'));
     expect(onOpenSchemaDiff).toHaveBeenCalledTimes(1);
+
+    // 8. Activity Monitor
+    fireEvent.click(toolsBtn);
+    fireEvent.click(screen.getByTestId('toolbar-tools-activity-monitor-btn'));
+    expect(onOpenActivityMonitor).toHaveBeenCalledTimes(1);
   });
 });

@@ -452,9 +452,19 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **4. Toolbar & System Integration:**
   - เชื่อมต่อเมนูเข้าสู่ MainToolbar Tools (`toolbar-tools-schema-diff-btn`) พร้อมเปิดใช้งานได้ทันทีจากทุกหน้าจอ
 
-### Phase 30: Server Activity Monitor & Process List (Issue #59)
-- หน้าต่างตรวจสอบ Real-time Activity, Active Connections, Running Queries, Execution Duration และ Transaction Locks
-- ฟังก์ชัน Terminate/Kill Session พร้อม Confirmation ป้องกันอันตราย
+### Phase 30: Server Activity Monitor & Process List (✅ เสร็จสมบูรณ์ - Issue #59)
+- **1. Real-time Process Introspection:**
+  - ดึงข้อมูล Active Connections, Sessions, Client Hosts, Running Queries, Execution Durations, และ Lock Waits
+  - รองรับทั้ง PostgreSQL (`pg_stat_activity`), MySQL (`information_schema.PROCESSLIST`), และ SQLite (`PRAGMA database_list`)
+- **2. Live Metrics & Filtering Suite:**
+  - แผงสรุปสถานะการทำงาน: Total Sessions, Active Queries, Idle Connections, Long-running Queries (>10s), และ Locked/Waiting Sessions
+  - ตัวกรองข้อความค้นหา (Search Query, User, PID) แบบ Instant Filter
+- **3. Real-time Auto-Refresh:**
+  - เลือกระยะเวลา Auto-refresh ได้อย่างอิสระ: Manual, ทุก 2 วินาที, ทุก 5 วินาที, ทุก 10 วินาที, หรือทุก 30 วินาที
+- **4. Safe Process Cancellation & Termination:**
+  - ปุ่มสั่ง Cancel Query เฉพาะคำสั่งที่กำลังรันอยู่โดยไม่ตัดการเชื่อมต่อ (`pg_cancel_backend` / `KILL QUERY`)
+  - ปุ่มสั่ง Terminate Session เพื่อตัดการเชื่อมต่อและ Rollback ทรานแซกชันที่ค้างอยู่ (`pg_terminate_backend` / `KILL`) พร้อมกล่องข้อความยืนยันความปลอดภัย Native Confirmation Dialog
+  - ลิ้นชัก Query Detail ด้านล่างสำหรับตรวจสอบคำสั่ง SQL ขนาดยาวแบบเต็มพร้อมปุ่ม Copy
 
 ### Phase 31: Comprehensive Data Import/Export Wizard (CSV, JSON, Excel - Issue #60)
 - Wizard นำเข้าและส่งออกข้อมูลแบบทีละขั้นตอน รองรับ CSV, TSV, JSON และ Excel (.xlsx) พร้อมระบบ Auto-detect Delimiter และ Column Mapping
@@ -465,10 +475,10 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 ---
 
 ## 4. สถานะภาพรวมการพัฒนา (Development Status Summary)
-- **สถานะ Phase:** Phase 1 ถึง Phase 29 เสร็จสมบูรณ์ และกำลังพัฒนาต่อยอด Phase 30 ถึง Phase 32 (Issue #59 - #61)
-- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 575 tests ผ่าน 100%
+- **สถานะ Phase:** Phase 1 ถึง Phase 30 เสร็จสมบูรณ์ และกำลังพัฒนาต่อยอด Phase 31 ถึง Phase 32 (Issue #60 - #61)
+- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 584 tests ผ่าน 100%
   - Rust Backend Unit & Integration Tests: 35/35 passed
-  - Frontend Vitest Component & Unit Tests: 540/540 passed
+  - Frontend Vitest Component & Unit Tests: 549/549 passed
 - **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 558 tests ผ่าน 100%
   - Rust Backend Unit & Integration Tests: 35/35 passed
   - Frontend Vitest Component & Unit Tests: 523/523 passed

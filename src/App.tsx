@@ -14,6 +14,7 @@ import { AuditLogDrawer } from './components/security/AuditLogDrawer';
 import { ConnectionSecurityModal } from './components/security/ConnectionSecurityModal';
 import { HistorySnippetsDrawer } from './components/editor/HistorySnippetsDrawer';
 import { SchemaDiffModal } from './components/diff/SchemaDiffModal';
+import { ActivityMonitorModal } from './components/monitor/ActivityMonitorModal';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
 import { openQueryTab, openTableListTab, openERDiagramTab } from './components/sidebar/tabHelpers';
@@ -45,6 +46,7 @@ export function App() {
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isSchemaDiffModalOpen, setIsSchemaDiffModalOpen] = useState(false);
+  const [isActivityMonitorModalOpen, setIsActivityMonitorModalOpen] = useState(false);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
@@ -250,6 +252,9 @@ export function App() {
           }
         }}
         onOpenSchemaDiff={() => setIsSchemaDiffModalOpen(true)}
+        onOpenActivityMonitor={() => {
+          if (resolvedConnectionId) setIsActivityMonitorModalOpen(true);
+        }}
         onEditConnection={(conn) => {
           setConnectionToEdit(conn);
           setIsConnectionDialogOpen(true);
@@ -379,6 +384,13 @@ export function App() {
         onClose={() => setIsSchemaDiffModalOpen(false)}
         initialConnectionId={resolvedConnectionId || undefined}
         initialSchemaName={activeTab?.schemaName}
+      />
+
+      {/* Global Server Activity Monitor & Process List Modal */}
+      <ActivityMonitorModal
+        isOpen={isActivityMonitorModalOpen}
+        onClose={() => setIsActivityMonitorModalOpen(false)}
+        connectionId={resolvedConnectionId || undefined}
       />
 
       {/* Global History & Snippets Drawer */}
