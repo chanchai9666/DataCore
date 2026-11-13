@@ -6,6 +6,8 @@ import { sql, SQLite, PostgreSQL, MySQL, StandardSQL } from '@codemirror/lang-sq
 import { toast } from 'sonner';
 import { EditorToolbar } from './EditorToolbar';
 import { applySafeLimit, type SafeLimitOption } from '../../utils/sqlLimitHelper';
+import { analyzeDangerousQuery, type DangerousQueryAnalysis } from '../../utils/dangerousQueryDetector';
+import { DangerousQueryConfirmModal } from '../dialogs/DangerousQueryConfirmModal';
 import { HistorySnippetsDrawer } from './HistorySnippetsDrawer';
 import { ExecutionPlanDrawer } from './ExecutionPlanDrawer';
 import { SavepointModal } from '../transactions/SavepointModal';
@@ -65,6 +67,13 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   // Safe Limit state
   const [safeLimit, setSafeLimit] = useState<SafeLimitOption>(1000);
   const [isLimitedActive, setIsLimitedActive] = useState(false);
+
+  // Dangerous Query Guard state
+  const [pendingDangerousQuery, setPendingDangerousQuery] = useState<{
+    sql: string;
+    analysis: DangerousQueryAnalysis;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Enterprise features states
   const [isolationLevel, setIsolationLevel] = useState<IsolationLevel>('READ COMMITTED');
@@ -130,84 +139,101 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       const { modifiedSql, isLimited } = applySafeLimit(sqlToExecute, safeLimit);
       setIsLimitedActive(isLimited);
 
-      setIsRunning(true);
-      setErrorMessage(null);
+      const executeSql = async (sqlToRun: string, isLim: boolean) => {
+        setIsRunning(true);
+        setErrorMessage(null);
 
-      try {
-        const result = await dbApi.executeQuery(targetTabId, modifiedSql);
-        setExecutionTimeMs(result.execution_time_ms);
-        setRowCount(result.rows ? result.rows.length : 0);
-        setRowsAffected(result.rows_affected ?? null);
-        useStatusStore.getState().setTabStatus(targetTabId, {
-          lastQuery: modifiedSql,
-          executionTimeMs: result.execution_time_ms,
-          rowCount: result.rows ? result.rows.length : (result.rows_affected ?? 0),
-          statusMessage: isLimited ? `Safe Limit: Results capped at ${safeLimit} rows` : null,
-        });
+        try {
+          const result = await dbApi.executeQuery(targetTabId, sqlToRun);
+          setExecutionTimeMs(result.execution_time_ms);
+          setRowCount(result.rows ? result.rows.length : 0);
+          setRowsAffected(result.rows_affected ?? null);
+          useStatusStore.getState().setTabStatus(targetTabId, {
+            lastQuery: sqlToRun,
+            executionTimeMs: result.execution_time_ms,
+            rowCount: result.rows ? result.rows.length : (result.rows_affected ?? 0),
+            statusMessage: isLim ? `Safe Limit: Results capped at ${safeLimit} rows` : null,
+          });
 
-        // Record successful query to query history
-        const conn = useConnectionStore.getState().connections.find((c) => c.id === currentTab?.connectionId);
-        useQueryHistoryStore.getState().addHistoryItem({
+          // Record successful query to query history
+          const conn = useConnectionStore.getState().connections.find((c) => c.id === currentTab?.connectionId);
+          useQueryHistoryStore.getState().addHistoryItem({
+            sql: sqlToRun,
+            executionTimeMs: result.execution_time_ms,
+            rowCount: result.rows ? result.rows.length : undefined,
+            rowsAffected: result.rows_affected ?? null,
+            status: 'success',
+            connectionId: currentTab?.connectionId,
+            connectionName: conn?.name,
+            database: conn?.database,
+          });
+
+          // Record to security audit log
+          useAuditLogStore.getState().addLog({
+            action: /^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sqlToRun) ? 'DDL' : 'QUERY',
+            user: conn?.user || 'default',
+            connectionId: currentTab?.connectionId,
+            connectionName: conn?.name,
+            database: conn?.database,
+            query: sqlToRun,
+            executionTimeMs: result.execution_time_ms,
+            rowsAffected: result.rows_affected ?? (result.rows ? result.rows.length : 0),
+            status: 'SUCCESS',
+          });
+
+          onQueryResult?.(result);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          setErrorMessage(msg);
+          useStatusStore.getState().setTabStatus(targetTabId, {
+            lastQuery: sqlToRun,
+            statusMessage: `Error: ${msg}`,
+          });
+
+          // Record failed query to query history
+          const conn = useConnectionStore.getState().connections.find((c) => c.id === currentTab?.connectionId);
+          useQueryHistoryStore.getState().addHistoryItem({
+            sql: sqlToRun,
+            executionTimeMs: 0,
+            status: 'error',
+            errorMessage: msg,
+            connectionId: currentTab?.connectionId,
+            connectionName: conn?.name,
+            database: conn?.database,
+          });
+
+          // Record failure to audit log
+          useAuditLogStore.getState().addLog({
+            action: /^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sqlToRun) ? 'DDL' : 'QUERY',
+            user: conn?.user || 'default',
+            connectionId: currentTab?.connectionId,
+            connectionName: conn?.name,
+            database: conn?.database,
+            query: sqlToRun,
+            status: 'FAILURE',
+            errorMessage: msg,
+          });
+
+          onError?.(err);
+        } finally {
+          setIsRunning(false);
+        }
+      };
+
+      const analysis = analyzeDangerousQuery(modifiedSql);
+      if (analysis.isDangerous) {
+        setPendingDangerousQuery({
           sql: modifiedSql,
-          executionTimeMs: result.execution_time_ms,
-          rowCount: result.rows ? result.rows.length : undefined,
-          rowsAffected: result.rows_affected ?? null,
-          status: 'success',
-          connectionId: currentTab?.connectionId,
-          connectionName: conn?.name,
-          database: conn?.database,
+          analysis,
+          onConfirm: () => {
+            setPendingDangerousQuery(null);
+            executeSql(modifiedSql, isLimited);
+          },
         });
-
-        // Record to security audit log
-        useAuditLogStore.getState().addLog({
-          action: /^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sqlToExecute) ? 'DDL' : 'QUERY',
-          user: conn?.user || 'default',
-          connectionId: currentTab?.connectionId,
-          connectionName: conn?.name,
-          database: conn?.database,
-          query: sqlToExecute,
-          executionTimeMs: result.execution_time_ms,
-          rowsAffected: result.rows_affected ?? (result.rows ? result.rows.length : 0),
-          status: 'SUCCESS',
-        });
-
-        onQueryResult?.(result);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setErrorMessage(msg);
-        useStatusStore.getState().setTabStatus(targetTabId, {
-          lastQuery: sqlToExecute,
-          statusMessage: `Error: ${msg}`,
-        });
-
-        // Record failed query to query history
-        const conn = useConnectionStore.getState().connections.find((c) => c.id === currentTab?.connectionId);
-        useQueryHistoryStore.getState().addHistoryItem({
-          sql: sqlToExecute,
-          executionTimeMs: 0,
-          status: 'error',
-          errorMessage: msg,
-          connectionId: currentTab?.connectionId,
-          connectionName: conn?.name,
-          database: conn?.database,
-        });
-
-        // Record failure to audit log
-        useAuditLogStore.getState().addLog({
-          action: /^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sqlToExecute) ? 'DDL' : 'QUERY',
-          user: conn?.user || 'default',
-          connectionId: currentTab?.connectionId,
-          connectionName: conn?.name,
-          database: conn?.database,
-          query: sqlToExecute,
-          status: 'FAILURE',
-          errorMessage: msg,
-        });
-
-        onError?.(err);
-      } finally {
-        setIsRunning(false);
+        return;
       }
+
+      await executeSql(modifiedSql, isLimited);
     },
     [targetTabId, tab, onQueryResult, onError, safeLimit]
   );
@@ -534,6 +560,17 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         isOpen={isAuditLogOpen}
         onClose={() => setIsAuditLogOpen(false)}
       />
+
+      {/* Dangerous Query Confirmation Modal */}
+      {pendingDangerousQuery && (
+        <DangerousQueryConfirmModal
+          isOpen={true}
+          sql={pendingDangerousQuery.sql}
+          analysis={pendingDangerousQuery.analysis}
+          onConfirm={pendingDangerousQuery.onConfirm}
+          onCancel={() => setPendingDangerousQuery(null)}
+        />
+      )}
     </div>
   );
 };

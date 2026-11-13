@@ -436,4 +436,78 @@ describe('SqlEditor', () => {
 
     expect(screen.queryByTestId('safe-limit-badge')).not.toBeInTheDocument();
   });
+
+  it('intercepts dangerous query like DROP TABLE and prompts confirmation modal', async () => {
+    vi.spyOn(dbApi, 'executeQuery').mockResolvedValue(mockQueryResult);
+
+    const dropTab: Tab = {
+      ...sampleTab,
+      id: 'tab-drop-1',
+      queryContent: 'DROP TABLE users;',
+    };
+    useTabStore.setState({
+      tabs: [dropTab],
+      activeTabId: 'tab-drop-1',
+    });
+
+    render(<SqlEditor tabId="tab-drop-1" />);
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    // Confirmation modal should appear
+    expect(screen.getByRole('alertdialog', { name: /dangerous query warning/i })).toBeInTheDocument();
+    expect(screen.getByText(/destructive drop command detected/i)).toBeInTheDocument();
+
+    // Query should NOT have been executed yet
+    expect(dbApi.executeQuery).not.toHaveBeenCalled();
+
+    // Click "Execute Anyway"
+    const confirmBtn = screen.getByRole('button', { name: /execute anyway/i });
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith('tab-drop-1', 'DROP TABLE users;');
+    });
+
+    // Modal closes
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('cancels dangerous query when Cancel is clicked in modal', async () => {
+    vi.spyOn(dbApi, 'executeQuery').mockResolvedValue(mockQueryResult);
+
+    const deleteTab: Tab = {
+      ...sampleTab,
+      id: 'tab-del-1',
+      queryContent: 'DELETE FROM users;',
+    };
+    useTabStore.setState({
+      tabs: [deleteTab],
+      activeTabId: 'tab-del-1',
+    });
+
+    render(<SqlEditor tabId="tab-del-1" />);
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+
+    // Click Cancel
+    const cancelBtn = screen.getByRole('button', { name: /^cancel$/i });
+    await act(async () => {
+      fireEvent.click(cancelBtn);
+    });
+
+    // Modal closes without executing
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(dbApi.executeQuery).not.toHaveBeenCalled();
+  });
 });
