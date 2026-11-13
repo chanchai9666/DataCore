@@ -98,15 +98,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150" />
         <Dialog.Content
           aria-describedby="export-modal-desc"
-          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-lg w-full flex flex-col text-gray-200 focus:outline-none"
+          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-panel border border-line rounded-lg shadow-2xl max-w-lg w-full flex flex-col text-text focus:outline-none"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800 bg-gray-950/40">
-            <div className="flex items-center space-x-2 text-blue-400">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-panel">
+            <div className="flex items-center space-x-2 text-blue-500">
               <Download className="w-5 h-5" />
               <Dialog.Title asChild>
-                <h2 id="export-modal-title" className="text-base font-semibold">
-                  Export Data - <span className="font-mono text-white">{tableName}</span>
+                <h2 id="export-modal-title" className="text-base font-semibold text-text">
+                  Export Data - <span className="font-mono">{tableName}</span>
                 </h2>
               </Dialog.Title>
             </div>
@@ -115,7 +115,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 type="button"
                 onClick={handleCancelOrClose}
                 aria-label="Close dialog"
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-muted hover:text-text transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -129,7 +129,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           <div className="p-5 space-y-5 text-xs">
             {/* Format Selector */}
             <div>
-              <label className="block text-gray-300 font-medium mb-2">Export Format</label>
+              <label className="block text-text font-medium mb-2">Export Format</label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -137,8 +137,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   onClick={() => setFormat('csv')}
                   className={`flex items-center justify-center space-x-2 p-3 rounded-md border text-sm font-medium transition-all ${
                     format === 'csv'
-                      ? 'border-blue-500 bg-blue-500/10 text-blue-300'
-                      : 'border-gray-700 bg-gray-950 hover:border-gray-600 text-gray-400'
+                      ? 'border-blue-500 bg-blue-500/10 text-blue-500 font-semibold'
+                      : 'border-line bg-sidebar hover:border-gray-500 text-muted hover:text-text'
                   }`}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
@@ -150,8 +150,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   onClick={() => setFormat('json')}
                   className={`flex items-center justify-center space-x-2 p-3 rounded-md border text-sm font-medium transition-all ${
                     format === 'json'
-                      ? 'border-blue-500 bg-blue-500/10 text-blue-300'
-                      : 'border-gray-700 bg-gray-950 hover:border-gray-600 text-gray-400'
+                      ? 'border-blue-500 bg-blue-500/10 text-blue-500 font-semibold'
+                      : 'border-line bg-sidebar hover:border-gray-500 text-muted hover:text-text'
                   }`}
                 >
                   <FileCode className="w-4 h-4" />
@@ -198,14 +198,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
             {/* CSV Options */}
             {format === 'csv' && (
-              <div className="p-3.5 bg-gray-950/60 rounded border border-gray-800 space-y-3">
+              <div className="p-3.5 bg-sidebar rounded border border-line space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-gray-300">Delimiter</label>
+                  <label className="text-text">Delimiter</label>
                   <select
                     value={delimiter}
                     onChange={(e) => setDelimiter(e.target.value)}
                     data-testid="export-delimiter-select"
-                    className="bg-gray-900 border border-gray-700 rounded px-2.5 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                    className="bg-grid border border-line rounded px-2.5 py-1 text-xs text-text focus:border-blue-500 focus:outline-none"
                   >
                     <option value=",">Comma ( , )</option>
                     <option value=";">Semicolon ( ; )</option>
@@ -213,13 +213,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   </select>
                 </div>
                 <div className="flex items-center justify-between">
-                  <label className="text-gray-300">Include Header Row</label>
+                  <label className="text-text">Include Header Row</label>
                   <input
                     type="checkbox"
                     checked={includeHeaders}
                     onChange={(e) => setIncludeHeaders(e.target.checked)}
                     data-testid="export-include-headers-checkbox"
-                    className="rounded border-gray-700 text-blue-600 focus:ring-0 focus:outline-none"
+                    className="rounded border-line text-blue-600 focus:ring-0 focus:outline-none"
                   />
                 </div>
               </div>
@@ -227,14 +227,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
             {/* JSON Options */}
             {format === 'json' && (
-              <div className="p-3.5 bg-gray-950/60 rounded border border-gray-800 space-y-3">
+              <div className="p-3.5 bg-sidebar rounded border border-line space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-gray-300">Structure</label>
+                  <label className="text-text">Structure</label>
                   <select
                     value={jsonStructure}
                     onChange={(e) => setJsonStructure(e.target.value as JsonStructure)}
                     data-testid="export-json-structure-select"
-                    className="bg-gray-900 border border-gray-700 rounded px-2.5 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                    className="bg-grid border border-line rounded px-2.5 py-1 text-xs text-text focus:border-blue-500 focus:outline-none"
                   >
                     <option value="array">JSON Array ( [ &#123;...&#125;, &#123;...&#125; ] )</option>
                     <option value="ndjson">NDJSON / Lines ( &#123;...&#125;\n&#123;...&#125; )</option>
@@ -245,11 +245,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end space-x-2 px-5 py-3 border-t border-gray-800 bg-gray-950/40">
+          <div className="flex items-center justify-end space-x-2 px-5 py-3 border-t border-line bg-panel">
             <button
               type="button"
               onClick={handleCancelOrClose}
-              className="px-3 py-1.5 rounded text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              className="px-3 py-1.5 rounded text-xs text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             >
               Cancel
             </button>

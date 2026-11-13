@@ -358,14 +358,14 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
         {/* Modal Container */}
         <Dialog.Content
           aria-describedby="connection-dialog-desc"
-          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl bg-gray-900 border border-gray-700 rounded-lg shadow-2xl flex flex-col overflow-hidden max-h-[90vh] focus:outline-none"
+          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl bg-panel border border-line rounded-lg shadow-2xl flex flex-col overflow-hidden max-h-[90vh] text-text focus:outline-none"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 bg-gray-900/60">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-panel">
             <div className="flex items-center space-x-2">
-              <Database className="w-5 h-5 text-blue-400" />
+              <Database className="w-5 h-5 text-accent" />
               <Dialog.Title asChild>
-                <h2 id="connection-dialog-title" className="text-base font-semibold text-gray-100">
+                <h2 id="connection-dialog-title" className="text-base font-semibold text-text">
                   {initialConnection ? 'Edit Connection' : 'New Connection'}
                 </h2>
               </Dialog.Title>
@@ -374,7 +374,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                className="p-1 rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                 aria-label="Close"
               >
                 <X className="w-4 h-4" />
@@ -386,11 +386,11 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
           </Dialog.Description>
 
         {/* Driver Tabs Selector */}
-        <div className="px-5 pt-4 bg-gray-900">
+        <div className="px-5 pt-4 bg-panel">
           <div
             role="tablist"
             aria-label="Driver tabs"
-            className="flex space-x-1 p-1 bg-gray-950 rounded-lg border border-gray-800"
+            className="flex space-x-1 p-1 bg-sidebar rounded-lg border border-line"
           >
             <button
               type="button"
@@ -400,7 +400,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
               className={`flex-1 py-1.5 px-3 text-xs font-medium rounded-md transition-all ${
                 formData.driver === 'sqlite'
                   ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                  : 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               SQLite
@@ -413,7 +413,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
               className={`flex-1 py-1.5 px-3 text-xs font-medium rounded-md transition-all ${
                 formData.driver === 'postgres'
                   ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                  : 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               PostgreSQL
@@ -426,7 +426,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
               className={`flex-1 py-1.5 px-3 text-xs font-medium rounded-md transition-all ${
                 formData.driver === 'mysql'
                   ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                  : 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               MySQL
@@ -468,13 +468,13 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-800 bg-gray-950/50">
+        <div className="flex items-center justify-between px-5 py-3 border-t border-line bg-sidebar">
           <div className="flex items-center space-x-3">
             <button
               type="button"
               onClick={handleTestConnection}
               disabled={testStatus.type === 'testing' || isSaving}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-200 border border-gray-700 hover:bg-gray-750 hover:text-white transition-colors disabled:opacity-50"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-medium bg-panel text-text border border-line hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
             >
               {testStatus.type === 'testing' ? (
                 <>
@@ -483,18 +483,18 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
                 </>
               ) : (
                 <>
-                  <PlugZap className="w-3.5 h-3.5 text-blue-400" />
+                  <PlugZap className="w-3.5 h-3.5 text-accent" />
                   <span>Test Connection</span>
                 </>
               )}
             </button>
-            <label className="flex items-center space-x-1.5 text-xs text-gray-300 cursor-pointer select-none">
+            <label className="flex items-center space-x-1.5 text-xs text-text cursor-pointer select-none">
               <input
                 type="checkbox"
                 aria-label="Connect immediately after saving"
                 checked={connectImmediately}
                 onChange={(e) => setConnectImmediately(e.target.checked)}
-                className="w-3.5 h-3.5 rounded bg-gray-800 border-gray-700 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                className="w-3.5 h-3.5 rounded bg-panel border-line text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
               />
               <span>Connect immediately after saving</span>
             </label>
@@ -506,7 +506,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
                 type="button"
                 onClick={onClose}
                 disabled={isSaving}
-                className="px-3.5 py-1.5 rounded text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
+                className="px-3.5 py-1.5 rounded text-xs font-medium text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               >
                 Cancel
               </button>

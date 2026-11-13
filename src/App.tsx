@@ -50,8 +50,14 @@ export function App() {
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
   const activeConnection = connections.find((c) => c.id === resolvedConnectionId);
 
-  // System theme detection: defaults to system preference
+  // Theme initialization: restore from localStorage or system preference
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const savedTheme = localStorage.getItem('datacore-theme');
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        return savedTheme;
+      }
+    }
     if (
       typeof window !== 'undefined' &&
       window.matchMedia &&
@@ -62,11 +68,14 @@ export function App() {
     return 'dark';
   });
 
-  // Listen for system appearance changes
+  // Listen for system appearance changes if no manual theme override is set
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e: MediaQueryListEvent) => {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('datacore-theme')) {
+        return; // Respect manual user preference
+      }
       setTheme(e.matches ? 'dark' : 'light');
     };
     mediaQuery.addEventListener('change', handleChange);
@@ -119,7 +128,13 @@ export function App() {
   }, []);
 
   const handleToggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    setTheme((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('datacore-theme', next);
+      }
+      return next;
+    });
   };
 
   const handleOpenNewConnection = () => {

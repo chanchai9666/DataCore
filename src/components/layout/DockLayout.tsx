@@ -60,13 +60,49 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
   const { connections, activeConnectionId, connectedConnectionIds } = useConnectionStore();
   const hasConnectedDatabase = (connectedConnectionIds?.length ?? 0) > 0;
 
-  // Sidebar collapse & resize state
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(260);
+  // Sidebar collapse & resize state with localStorage persistence
+  const [sidebarCollapsed, setSidebarCollapsedState] = useState<boolean>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('datacore-sidebar-collapsed');
+      if (saved !== null) return saved === 'true';
+    }
+    return false;
+  });
+
+  const setSidebarCollapsed = useCallback((collapsed: boolean) => {
+    setSidebarCollapsedState(collapsed);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('datacore-sidebar-collapsed', String(collapsed));
+    }
+  }, []);
+
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('datacore-sidebar-width');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 180 && parsed <= 500) {
+          return parsed;
+        }
+      }
+    }
+    return 260;
+  });
   const isResizingRef = useRef(false);
 
-  // Split pane height state for Query tab (editor height in pixels)
-  const [editorHeight, setEditorHeight] = useState<number>(260);
+  // Split pane height state for Query tab (editor height in pixels) with localStorage persistence
+  const [editorHeight, setEditorHeight] = useState<number>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('datacore-editor-height');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 100 && parsed <= 1200) {
+          return parsed;
+        }
+      }
+    }
+    return 260;
+  });
   const isResizingSplitRef = useRef(false);
   const querySplitContainerRef = useRef<HTMLDivElement>(null);
 
@@ -731,15 +767,20 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
   const handleMouseDownResize = (e: React.MouseEvent) => {
     e.preventDefault();
     isResizingRef.current = true;
+    let currentWidth = sidebarWidth;
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!isResizingRef.current) return;
       const newWidth = Math.max(180, Math.min(500, moveEvent.clientX));
+      currentWidth = newWidth;
       setSidebarWidth(newWidth);
     };
 
     const handleMouseUp = () => {
       isResizingRef.current = false;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('datacore-sidebar-width', String(currentWidth));
+      }
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
@@ -754,17 +795,22 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     isResizingSplitRef.current = true;
     const startY = e.clientY;
     const startHeight = editorHeight;
+    let currentHeight = editorHeight;
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!isResizingSplitRef.current) return;
       const deltaY = moveEvent.clientY - startY;
       const containerH = querySplitContainerRef.current?.clientHeight || 600;
       const newHeight = Math.max(100, Math.min(containerH - 100, startHeight + deltaY));
+      currentHeight = newHeight;
       setEditorHeight(newHeight);
     };
 
     const handleMouseUp = () => {
       isResizingSplitRef.current = false;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('datacore-editor-height', String(currentHeight));
+      }
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };

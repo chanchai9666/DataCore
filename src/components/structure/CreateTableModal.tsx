@@ -299,14 +299,14 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150" />
         <Dialog.Content
           aria-describedby="create-table-desc"
-          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full flex flex-col text-gray-200 max-h-[90vh] focus:outline-none"
+          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-panel border border-line rounded-lg shadow-2xl max-w-4xl w-full flex flex-col text-text max-h-[90vh] focus:outline-none"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800 bg-gray-950/40">
-            <div className="flex items-center space-x-2 text-emerald-400">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-panel">
+            <div className="flex items-center space-x-2 text-emerald-500">
               <Plus className="w-5 h-5" />
               <Dialog.Title asChild>
-                <h2 id="create-table-title" className="text-base font-semibold">
+                <h2 id="create-table-title" className="text-base font-semibold text-text">
                   Create New Table
                 </h2>
               </Dialog.Title>
@@ -316,7 +316,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                 type="button"
                 onClick={onClose}
                 aria-label="Close dialog"
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-muted hover:text-text transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>

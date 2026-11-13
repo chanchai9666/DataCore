@@ -27,6 +27,8 @@ export default {
         grid: 'var(--bg-grid)',
         panel: 'var(--bg-panel)',
         line: 'var(--border)',
+        border: 'var(--border)',
+        text: 'var(--text)',
         accent: 'var(--accent)',
         'accent-hover': 'var(--accent-hover)',
         sel: 'var(--sel)',
