@@ -151,7 +151,7 @@ describe('SqlEditor', () => {
     });
 
     await waitFor(() => {
-      expect(dbApi.executeQuery).toHaveBeenCalledWith('tab-test-1', 'SELECT * FROM users;');
+      expect(dbApi.executeQuery).toHaveBeenCalledWith('tab-test-1', 'SELECT * FROM users LIMIT 1000;');
       expect(handleResult).toHaveBeenCalledWith(mockQueryResult);
     });
 
@@ -176,7 +176,7 @@ describe('SqlEditor', () => {
     });
 
     await waitFor(() => {
-      expect(dbApi.executeQuery).toHaveBeenCalledWith('tab-test-1', 'SELECT * FROM users;');
+      expect(dbApi.executeQuery).toHaveBeenCalledWith('tab-test-1', 'SELECT * FROM users LIMIT 1000;');
       expect(handleResult).toHaveBeenCalledWith(mockQueryResult);
     });
   });
@@ -218,7 +218,7 @@ describe('SqlEditor', () => {
     });
 
     await waitFor(() => {
-      expect(dbApi.executeQuery).toHaveBeenCalledWith('tab-test-2', 'SELECT 1;');
+      expect(dbApi.executeQuery).toHaveBeenCalledWith('tab-test-2', 'SELECT 1 LIMIT 1000;');
     });
   });
 
@@ -326,7 +326,7 @@ describe('SqlEditor', () => {
     const { useQueryHistoryStore } = await import('../../stores/queryHistoryStore');
     const history = useQueryHistoryStore.getState().history;
     expect(history.length).toBeGreaterThan(0);
-    expect(history[0].sql).toBe('SELECT * FROM users;');
+    expect(history[0].sql).toBe('SELECT * FROM users LIMIT 1000;');
     expect(history[0].status).toBe('success');
   });
 
@@ -392,5 +392,48 @@ describe('SqlEditor', () => {
     });
 
     expect(screen.getByRole('dialog', { name: /query execution plan/i })).toBeInTheDocument();
+  });
+
+  it('applies Safe Limit 1000 automatically to SELECT queries without limit', async () => {
+    vi.spyOn(dbApi, 'executeQuery').mockResolvedValue(mockQueryResult);
+
+    render(<SqlEditor />);
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-test-1',
+        'SELECT * FROM users LIMIT 1000;'
+      );
+    });
+
+    expect(screen.getByTestId('safe-limit-badge')).toBeInTheDocument();
+  });
+
+  it('allows disabling Safe Limit via toolbar selector', async () => {
+    vi.spyOn(dbApi, 'executeQuery').mockResolvedValue(mockQueryResult);
+
+    render(<SqlEditor />);
+
+    const limitSelect = screen.getByLabelText(/safe limit/i);
+    fireEvent.change(limitSelect, { target: { value: 'none' } });
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-test-1',
+        'SELECT * FROM users;'
+      );
+    });
+
+    expect(screen.queryByTestId('safe-limit-badge')).not.toBeInTheDocument();
   });
 });

@@ -15,12 +15,16 @@ import {
   Flag,
 } from 'lucide-react';
 import type { IsolationLevel } from '../../api/transactionHelpers';
+import type { SafeLimitOption } from '../../utils/sqlLimitHelper';
 
 export interface EditorToolbarProps {
   isRunning: boolean;
   autoCommit: boolean;
   isolationLevel?: IsolationLevel;
   onChangeIsolationLevel?: (level: IsolationLevel) => void;
+  safeLimit?: SafeLimitOption;
+  onChangeSafeLimit?: (limit: SafeLimitOption) => void;
+  isLimitedActive?: boolean;
   executionTimeMs?: number | null;
   rowCount?: number | null;
   rowsAffected?: number | null;
@@ -44,6 +48,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   autoCommit,
   isolationLevel = 'READ COMMITTED',
   onChangeIsolationLevel,
+  safeLimit = 1000,
+  onChangeSafeLimit,
+  isLimitedActive = false,
   executionTimeMs,
   rowCount,
   rowsAffected,
@@ -447,10 +454,60 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             <span>Snippets</span>
           </button>
         )}
+
+        {/* Separator */}
+        {onChangeSafeLimit && (
+          <div style={{ width: '1px', height: '18px', backgroundColor: '#d1d5db', margin: '0 4px' }} />
+        )}
+
+        {/* Safe Limit Dropdown */}
+        {onChangeSafeLimit && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <span style={{ fontSize: '11px', color: '#6b7280', userSelect: 'none' }}>Limit:</span>
+            <select
+              aria-label="Safe Limit"
+              value={String(safeLimit)}
+              onChange={(e) => {
+                const val = e.target.value;
+                onChangeSafeLimit(val === 'none' ? 'none' : (Number(val) as SafeLimitOption));
+              }}
+              style={{
+                fontSize: '11px',
+                padding: '3px 6px',
+                borderRadius: '4px',
+                border: '1px solid #d1d5db',
+                backgroundColor: '#ffffff',
+                color: '#374151',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="1000">1,000 (Safe Default)</option>
+              <option value="5000">5,000</option>
+              <option value="10000">10,000</option>
+              <option value="none">No Limit</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Right status indicators */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#6b7280', fontSize: '12px' }}>
+        {isLimitedActive && rowCount != null && (
+          <div
+            data-testid="safe-limit-badge"
+            title="Query results were automatically capped by Safe Limit Guard"
+            style={{
+              padding: '2px 6px',
+              borderRadius: '4px',
+              backgroundColor: '#fef3c7',
+              color: '#b45309',
+              fontSize: '11px',
+              fontWeight: 500,
+            }}
+          >
+            Safe Limit (1,000) Active
+          </div>
+        )}
         {isRunning && (
           <div
             data-testid="running-spinner"

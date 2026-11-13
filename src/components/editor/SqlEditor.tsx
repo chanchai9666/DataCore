@@ -5,6 +5,7 @@ import { Prec } from '@codemirror/state';
 import { sql, SQLite, PostgreSQL, MySQL, StandardSQL } from '@codemirror/lang-sql';
 import { toast } from 'sonner';
 import { EditorToolbar } from './EditorToolbar';
+import { applySafeLimit, type SafeLimitOption } from '../../utils/sqlLimitHelper';
 import { HistorySnippetsDrawer } from './HistorySnippetsDrawer';
 import { ExecutionPlanDrawer } from './ExecutionPlanDrawer';
 import { SavepointModal } from '../transactions/SavepointModal';
@@ -60,6 +61,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const [planResult, setPlanResult] = useState<QueryResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [explainTargetSql, setExplainTargetSql] = useState('');
+
+  // Safe Limit state
+  const [safeLimit, setSafeLimit] = useState<SafeLimitOption>(1000);
+  const [isLimitedActive, setIsLimitedActive] = useState(false);
 
   // Enterprise features states
   const [isolationLevel, setIsolationLevel] = useState<IsolationLevel>('READ COMMITTED');
@@ -122,25 +127,28 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
 
       if (!sqlToExecute) return;
 
+      const { modifiedSql, isLimited } = applySafeLimit(sqlToExecute, safeLimit);
+      setIsLimitedActive(isLimited);
+
       setIsRunning(true);
       setErrorMessage(null);
 
       try {
-        const result = await dbApi.executeQuery(targetTabId, sqlToExecute);
+        const result = await dbApi.executeQuery(targetTabId, modifiedSql);
         setExecutionTimeMs(result.execution_time_ms);
         setRowCount(result.rows ? result.rows.length : 0);
         setRowsAffected(result.rows_affected ?? null);
         useStatusStore.getState().setTabStatus(targetTabId, {
-          lastQuery: sqlToExecute,
+          lastQuery: modifiedSql,
           executionTimeMs: result.execution_time_ms,
           rowCount: result.rows ? result.rows.length : (result.rows_affected ?? 0),
-          statusMessage: null,
+          statusMessage: isLimited ? `Safe Limit: Results capped at ${safeLimit} rows` : null,
         });
 
         // Record successful query to query history
         const conn = useConnectionStore.getState().connections.find((c) => c.id === currentTab?.connectionId);
         useQueryHistoryStore.getState().addHistoryItem({
-          sql: sqlToExecute,
+          sql: modifiedSql,
           executionTimeMs: result.execution_time_ms,
           rowCount: result.rows ? result.rows.length : undefined,
           rowsAffected: result.rows_affected ?? null,
@@ -201,7 +209,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         setIsRunning(false);
       }
     },
-    [targetTabId, tab, onQueryResult, onError]
+    [targetTabId, tab, onQueryResult, onError, safeLimit]
   );
 
   // Keymap extension for Cmd+Enter / Ctrl+Enter
@@ -423,6 +431,9 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         autoCommit={tab.autoCommit}
         isolationLevel={isolationLevel}
         onChangeIsolationLevel={handleChangeIsolationLevel}
+        safeLimit={safeLimit}
+        onChangeSafeLimit={setSafeLimit}
+        isLimitedActive={isLimitedActive}
         executionTimeMs={executionTimeMs}
         rowCount={rowCount}
         rowsAffected={rowsAffected}
