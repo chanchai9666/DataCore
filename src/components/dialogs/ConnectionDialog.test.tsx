@@ -298,8 +298,32 @@ describe('ConnectionDialog', () => {
 
       expect(useConnectionStore.getState().connections).toHaveLength(1);
       expect(useConnectionStore.getState().connections[0].name).toBe('Local SQLite');
-      expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ name: 'Local SQLite' }));
+      expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ name: 'Local SQLite' }), true);
       expect(onClose).toHaveBeenCalled();
+    });
+
+    it('passes autoConnect=false when "Connect immediately after saving" is unchecked', async () => {
+      vi.mocked(dbApi.saveConnection).mockResolvedValueOnce();
+
+      render(<ConnectionDialog isOpen={true} onClose={onClose} onSaved={onSaved} />);
+
+      fireEvent.change(screen.getByLabelText(/connection name/i), {
+        target: { value: 'Manual SQLite' },
+      });
+      fireEvent.change(screen.getByLabelText(/database path/i), {
+        target: { value: ':memory:' },
+      });
+
+      const autoConnectCheckbox = screen.getByLabelText(/connect immediately after saving/i);
+      expect(autoConnectCheckbox).toBeChecked();
+      fireEvent.click(autoConnectCheckbox);
+      expect(autoConnectCheckbox).not.toBeChecked();
+
+      fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ name: 'Manual SQLite' }), false);
+      });
     });
 
     it('saves PostgreSQL connection with password through connection store', async () => {

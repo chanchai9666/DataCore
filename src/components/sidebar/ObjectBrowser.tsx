@@ -494,12 +494,13 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   }, [markConnected, markDisconnected]);
 
   const lastProcessedSavedConnRef = useRef<string | null>(null);
-  // Auto-refresh schema when an already connected connection is edited
+  // Auto-connect and load schema when a connection is saved
   useEffect(() => {
     if (lastSavedConnectionId && lastSavedConnectionId !== lastProcessedSavedConnRef.current) {
       lastProcessedSavedConnRef.current = lastSavedConnectionId;
       const targetConn = (connections || []).find((c) => lastSavedConnectionId.startsWith(c.id));
-      if (targetConn && connectedConnectionIds.includes(targetConn.id)) {
+      const shouldAutoConnect = lastSavedConnectionId.includes('-connect-');
+      if (targetConn && (shouldAutoConnect || connectedConnectionIds.includes(targetConn.id))) {
         fetchSchema(targetConn.id);
       }
     }

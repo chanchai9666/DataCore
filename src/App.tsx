@@ -132,9 +132,15 @@ export function App() {
     setConnectionToEdit(null);
   };
 
-  const handleSavedConnection = (saved: ConnectionConfig) => {
+  const handleSavedConnection = (saved: ConnectionConfig, autoConnect = true) => {
     setActiveConnection(saved.id);
-    setLastSavedConnectionId(`${saved.id}-${Date.now()}`);
+    setLastSavedConnectionId(`${saved.id}-${autoConnect ? 'connect' : 'noconnect'}-${Date.now()}`);
+    if (autoConnect) {
+      openQueryTab({
+        connectionId: saved.id,
+        connectionName: saved.name,
+      });
+    }
   };
 
   const handleNewQuery = () => {

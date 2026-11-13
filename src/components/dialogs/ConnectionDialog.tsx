@@ -12,7 +12,7 @@ export interface ConnectionDialogProps {
   isOpen: boolean;
   onClose: () => void;
   initialConnection?: ConnectionConfig | null;
-  onSaved?: (connection: ConnectionConfig) => void;
+  onSaved?: (connection: ConnectionConfig, autoConnect?: boolean) => void;
 }
 
 type TestStatus =
@@ -128,6 +128,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
   const [errors, setErrors] = useState<Partial<Record<keyof ConnectionFormData, string>>>({});
   const [testStatus, setTestStatus] = useState<TestStatus>({ type: 'idle' });
   const [isSaving, setIsSaving] = useState(false);
+  const [connectImmediately, setConnectImmediately] = useState(!initialConnection);
 
   // Reset form when dialog opens or initialConnection changes
   useEffect(() => {
@@ -136,6 +137,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       setErrors({});
       setTestStatus({ type: 'idle' });
       setIsSaving(false);
+      setConnectImmediately(!initialConnection);
 
       if (initialConnection?.id) {
         dbApi.getStoredPassword(initialConnection.id).then((storedPwd) => {
@@ -328,7 +330,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       }
       toast.success(`Connection "${config.name}" saved successfully`);
       if (onSaved) {
-        onSaved(config);
+        onSaved(config, connectImmediately);
       }
       onClose();
     } catch (err: unknown) {
@@ -467,7 +469,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
 
         {/* Footer Actions */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-gray-800 bg-gray-950/50">
-          <div>
+          <div className="flex items-center space-x-3">
             <button
               type="button"
               onClick={handleTestConnection}
@@ -486,6 +488,16 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
                 </>
               )}
             </button>
+            <label className="flex items-center space-x-1.5 text-xs text-gray-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                aria-label="Connect immediately after saving"
+                checked={connectImmediately}
+                onChange={(e) => setConnectImmediately(e.target.checked)}
+                className="w-3.5 h-3.5 rounded bg-gray-800 border-gray-700 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+              />
+              <span>Connect immediately after saving</span>
+            </label>
           </div>
 
           <div className="flex items-center space-x-2">

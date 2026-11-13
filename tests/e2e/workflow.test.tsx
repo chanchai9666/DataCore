@@ -149,6 +149,10 @@ describe('E2E Workflow Test', () => {
     const pathInput = screen.getByLabelText(/database path/i);
     fireEvent.change(pathInput, { target: { value: '/tmp/test.db' } });
 
+    // Uncheck auto-connect to test manual connection and manual tab creation workflow
+    const autoConnectCheckbox = screen.getByLabelText(/connect immediately after saving/i);
+    fireEvent.click(autoConnectCheckbox);
+
     // Save connection
     const saveBtn = screen.getByRole('button', { name: /^save$/i });
     fireEvent.click(saveBtn);
