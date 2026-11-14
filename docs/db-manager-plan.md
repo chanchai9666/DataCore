@@ -662,4 +662,35 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - ย้ายฟังก์ชัน Runtime `formatCellValue` ออกจาก `src/types/db.ts` ไปไว้ใน `src/utils/cellFormatter.ts` พร้อม unit test ครอบคลุม
   - ทำความสะอาดพารามิเตอร์ IPC ใน `src/api/db.ts` ให้เป็น camelCase มาตรฐานเดียว ปราศจาก redundant aliases ตาม Tauri 2 convention
 
+---
+
+## 7. แผนการปรับปรุงคุณภาพโค้ดและความปลอดภัยเชิงลึก (DataCore 360° Audit & Remediation Roadmap)
+
+อ้างอิงจาก **รายงานการตรวจสอบโค้ดและแผนการแก้ไขฉบับสมบูรณ์ (DataCore 360° Audit & Remediation Guide)** ได้ทำการตรวจสอบซอร์สโค้ดจริงอย่างละเอียด และเปิด GitHub Issues รองรับการแก้ไขปัญหาครอบคลุม 4 มิติ รวม 19 รายการ ดังนี้:
+
+### 7.1 ตาราง GitHub Issues ที่เปิดจากการตรวจสอบเชิงลึก
+
+| Issue | Severity | หัวข้อและขอบเขตปัญหา | ไฟล์หลักฐานที่เกี่ยวข้อง |
+| :--- | :---: | :--- | :--- |
+| **#107** | 🔴 Critical | แก้ไข `simulate_query_impact_impl` รัน `SAVEPOINT` ก่อน `BEGIN` ป้องกันคำสั่ง `DELETE`/`UPDATE` เผลอลบข้อมูลจริงใน MySQL (ISSUE-01) | `src-tauri/src/commands/db.rs` |
+| **#108** | 🟠 High | แก้ไข Race Condition สิทธิ์ไฟล์รหัสผ่าน `/tmp` และป้องกัน SSH Option Injection ใน `ssh_tunnel.rs` (ISSUE-02) | `src-tauri/src/services/ssh_tunnel.rs` |
+| **#109** | 🟠 High | แก้ไขการตั้งสิทธิ์โฟลเดอร์ `.datacore` เป็น `0o700` แทน `0o600` ป้องกัน Permission Denied บน macOS/Linux (ISSUE-03) | `src-tauri/src/services/keychain.rs` |
+| **#110** | 🟡 Medium | ขยาย `path_guard.rs` ให้บล็อกการเข้าถึงโฟลเดอร์ `.datacore` และไฟล์คอนฟิก/audit ทั้งหมด (ISSUE-04) | `src-tauri/src/services/path_guard.rs` |
+| **#111** | 🟡 Medium | Redact รหัสผ่านใน Audit Log และ Query History สำหรับคำสั่ง `CREATE/ALTER USER` (ISSUE-05) | `src-tauri/src/services/audit_logger.rs`, `src/api/auditApi.ts`, `src/stores/queryHistoryStore.ts` |
+| **#112** | 🟡 Medium | ปรับปรุงการจัดการ Backslash Escape (`\`) ให้ตรงตาม Dialect (SQLite, PostgreSQL, MySQL) (ISSUE-06) | `src/api/sqlSplitter.ts`, `src-tauri/src/drivers/sqlite.rs`, `src/components/grid/filterUtils.ts`, `src-tauri/src/services/data_transfer.rs`, `src-tauri/src/services/sql_transfer.rs` |
+| **#113** | 🟢 Low | ปรับปรุงการทำความสะอาดชื่อ Savepoint ให้รองรับภาษาไทย ตัวเลข และป้องกันชื่อว่าง (ISSUE-07) | `src/api/transactionHelpers.ts` |
+| **#114** | 🟠 High | ปรับปรุง `validate_table_filter` ให้ข้ามข้อความใน String Literal (`'...'`) เพื่อไม่บล็อกคำค้นหาปกติ (ISSUE-08) | `src-tauri/src/drivers/traits.rs` |
+| **#115** | 🟠 High | แก้ไข `InsertRowModal` ตรวจสอบ Auto-Generated Column ให้ถูกต้อง ไม่ล็อกคอลัมน์ทั่วไปและ Foreign Key เป็น `NULL` (ISSUE-09) | `src/components/grid/InsertRowModal.tsx` |
+| **#116** | 🟠 High | ปรับปรุง `filterUtils` ไม่ตัด Quote จากตัวเลขที่มีเลข 0 นำหน้า หรือเมื่อไม่ใช่ Numeric Type บน PostgreSQL (ISSUE-10) | `src/components/grid/filterUtils.ts` |
+| **#117** | 🟠 High | แก้ไข Primary Key หายเมื่อคัดลอกตารางข้ามฐานข้อมูลมายัง SQLite ใน `cross_db_transfer` (ISSUE-11) | `src-tauri/src/services/cross_db_transfer.rs` |
+| **#118** | 🟡 Medium | ปรับปรุงการ Export ข้อมูล Binary เป็น Hex Literal และดึง Default/PK ของ PostgreSQL ใน `sql_transfer` (ISSUE-12) | `src-tauri/src/services/sql_transfer.rs`, `src-tauri/src/services/data_transfer.rs` |
+| **#119** | 🟡 Medium | ป้องกันการสูญเสียความแม่นยำของตัวเลข `BIGINT` และ Decimal ที่เกิน Safe Integer ใน `InsertRowModal` (ISSUE-13) | `src/components/grid/InsertRowModal.tsx`, `src-tauri/src/drivers/postgres.rs`, `mysql.rs` |
+| **#120** | 🟢 Low | ซ่อนปุ่ม Terminate Session ใน `ActivityMonitorModal` เมื่อเป็นฐานข้อมูล SQLite (ISSUE-14) | `src/components/modals/ActivityMonitorModal.tsx` |
+| **#121** | 🟡 Medium | เพิ่มประสิทธิภาพการคำนวณ Foreign Key ใน `ERDiagramTab` ด้วย Set $O(1)$ ขณะลากการ์ดตาราง (ISSUE-15) | `src/components/diagram/ERDiagramTab.tsx` |
+| **#122** | 🟠 High | แก้ไข `FilterBar.tsx` ฮาร์ดโค้ดสี Dark Mode เพื่อให้แสดงผลถูกต้องใน Light Mode (ISSUE-18) | `src/components/grid/FilterBar.tsx` |
+| **#123** | 🟠 High | ปรับปรุงสีพื้นหลัง Canvas และสีคอลัมน์ PK/FK ใน `ERDiagramTab` ให้รองรับ Light Mode (ISSUE-19) | `src/components/diagram/ERDiagramTab.tsx` |
+| **#124** | 🟡 Medium | เพิ่มตัวแปร CSS Aliases ใน `tokens.css` แก้ปัญหา `PaginationBar` แสดงสีดำใน Light Mode (ISSUE-20) | `src/components/grid/PaginationBar.tsx`, `src/styles/tokens.css` |
+| **#125** | 🟡 Medium | ปรับปรุง `DropTableModal` และ `DangerousQueryConfirmModal` ให้รองรับทั้ง Light และ Dark Mode (ISSUE-21) | `src/components/structure/DropTableModal.tsx`, `src/components/dialogs/DangerousQueryConfirmModal.tsx` |
+
+
 
