@@ -827,6 +827,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Separate Row Selection from Column Expansion:** แก้ไขฟังก์ชัน `handleClick` บนโหนดประเภท Table และ View ไม่ให้ trigger `node.toggle()` หรือดึงรายการคอลัมน์ออกมาเมื่อคลิกที่ชื่อตาราง โดยคงไว้เฉพาะการเลือกแถว (`node.select()`)
     - **Explicit Column Expansion Control:** การเปิดดูและคลี่รายการคอลัมน์ใต้ตารางจะเกิดขึ้นเฉพาะเมื่อผู้ใช้คลิกปุ่มเฉพาะ **Show Columns** (ไอคอนสีฟ้าข้างปุ่ม Play) หรือคลิกที่ลูกศร Chevron เท่านั้น ป้องกันปัญหาโครงสร้าง tree ขยายกางคอลัมน์ออกมารกโดยไม่ตั้งใจ
 
+28. **Issue #136: Replace Text Active Badge with Sleek Luminous Status Symbol & Refine Spacing (`ConnectionTreeNode.tsx`)**
+    - **Luminous Active Dot Indicator:** เปลี่ยนจากป้ายตัวอักษรข้อความ `ACTIVE` ก้อนเหลี่ยม เป็นไอคอนสัญลักษณ์สถานะเรืองแสงสไตล์โมเดิร์น (Luminous Active Dot: `w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.85)] ring-2 ring-blue-500/20`) แสดงผลบนโหนด Connection ที่เชื่อมต่ออยู่กับแท็บปัจจุบัน และโหนด Table/View ที่กำลังเปิดใช้งานอยู่ใน Active Tab
+    - **Driver Badge Spacing Decoupling:** จัดตำแหน่งด้วย `ml-auto` และเพิ่มระยะเว้นช่องว่างระหว่าง Active Dot กับป้าย Driver Badge (`PG`, `MY`, `SQ`) เป็น `mr-2.5` (~10px) ช่วยให้ไม่เบียดชิดติดกันจนอึดอัด ดูสะอาดตา สบายตา และเป็นระเบียบตามหลัก UI/UX
+
+
 
 
 

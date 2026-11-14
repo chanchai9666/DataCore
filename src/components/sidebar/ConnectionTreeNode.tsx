@@ -426,23 +426,21 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
           {data.name}
         </span>
 
-        {/* Active Badge for Table/View or Connection */}
+        {/* Active Indicator Symbol for Table/View or Connection */}
         {isTargetActiveTable && (
           <span
-            className="ml-1 px-1 py-0.2 text-[8px] rounded font-sans uppercase font-bold bg-blue-600 text-white leading-none shrink-0"
+            className="ml-auto mr-1.5 flex h-2 w-2 shrink-0 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.85)] ring-2 ring-blue-500/20"
             title="Active tab"
-          >
-            active
-          </span>
+            data-testid="indicator-active-table"
+          />
         )}
 
         {isTargetActiveConnection && (
           <span
-            className="ml-1 px-1 py-0.2 text-[8px] rounded font-sans uppercase font-bold bg-blue-600 text-white leading-none shrink-0"
+            className="ml-auto mr-2.5 flex h-2 w-2 shrink-0 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.85)] ring-2 ring-blue-500/20"
             title="Active connection"
-          >
-            active
-          </span>
+            data-testid="indicator-active-connection"
+          />
         )}
 
       {/* Column Data Type & PK/FK Badges */}

@@ -151,4 +151,46 @@ describe('ConnectionTreeNode Badges', () => {
     expect(node.toggle).not.toHaveBeenCalled();
     expect(onLoadTableColumns).not.toHaveBeenCalled();
   });
+
+  it('renders luminous active indicator symbol for active connection and table', () => {
+    const connData: BrowserTreeNode = {
+      id: 'conn-pg',
+      name: 'POS V2',
+      nodeType: 'connection',
+      connectionId: 'conn-pg',
+      driver: 'postgres',
+    };
+
+    const connNode = createMockNode(connData);
+    const { rerender } = render(
+      <ObjectBrowserContext.Provider value={{ activeConnectionId: 'conn-pg' }}>
+        <ConnectionTreeNode node={connNode} style={{}} dragHandle={vi.fn()} tree={{} as any} />
+      </ObjectBrowserContext.Provider>
+    );
+
+    const connIndicator = screen.getByTestId('indicator-active-connection');
+    expect(connIndicator).toBeInTheDocument();
+    expect(connIndicator.className).toContain('bg-blue-500');
+    expect(connIndicator.className).toContain('mr-2.5');
+
+    const tableData: BrowserTreeNode = {
+      id: 'table-credit',
+      name: 'credit_accounts',
+      nodeType: 'table',
+      connectionId: 'conn-pg',
+      tableName: 'credit_accounts',
+      driver: 'postgres',
+    };
+
+    const tableNode = createMockNode(tableData);
+    rerender(
+      <ObjectBrowserContext.Provider value={{ activeConnectionId: 'conn-pg', activeTableName: 'credit_accounts' }}>
+        <ConnectionTreeNode node={tableNode} style={{}} dragHandle={vi.fn()} tree={{} as any} />
+      </ObjectBrowserContext.Provider>
+    );
+
+    const tableIndicator = screen.getByTestId('indicator-active-table');
+    expect(tableIndicator).toBeInTheDocument();
+    expect(tableIndicator.className).toContain('bg-blue-500');
+  });
 });
