@@ -149,7 +149,7 @@ pub struct SqlExportOptions {
     pub include_data: bool,
     #[serde(default, alias = "batch_size")]
     pub batch_size: Option<usize>,
-    #[serde(default, alias = "job_id", alias = "jobId")]
+    #[serde(default, alias = "job_id")]
     pub job_id: Option<String>,
 }
 
@@ -212,7 +212,7 @@ pub struct CrossDbCopyTableOptions {
     pub copy_data: bool,
     #[serde(default, alias = "batch_size")]
     pub batch_size: Option<usize>,
-    #[serde(default, alias = "job_id", alias = "jobId")]
+    #[serde(default, alias = "job_id")]
     pub job_id: Option<String>,
 }
 

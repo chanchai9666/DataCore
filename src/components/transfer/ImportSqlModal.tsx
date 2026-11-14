@@ -135,7 +135,6 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
         schema: effectiveSchema,
         filePath: filePath.trim(),
         errorPolicy,
-        job_id: jobId,
         jobId,
       });
 

@@ -78,6 +78,9 @@ describe('ImportSqlModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /Execute SQL Script/i }));
 
     await waitFor(() => {
+      const callArgs = vi.mocked(dbApi.importSql).mock.calls[0][0];
+      expect(callArgs.jobId).toEqual(expect.any(String));
+      expect(callArgs.job_id).toBeUndefined();
       expect(dbApi.importSql).toHaveBeenCalledWith(
         expect.objectContaining({
           connectionId: 'conn-1',

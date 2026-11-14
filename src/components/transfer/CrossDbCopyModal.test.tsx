@@ -167,6 +167,9 @@ describe('CrossDbCopyModal', () => {
     fireEvent.click(screen.getByTestId('start-transfer-btn'));
 
     await waitFor(() => {
+      const callArgs = vi.mocked(dbApi.copyTableCrossDb).mock.calls[0][0];
+      expect(callArgs.jobId).toEqual(expect.any(String));
+      expect(callArgs.job_id).toBeUndefined();
       expect(dbApi.copyTableCrossDb).toHaveBeenCalledWith(
         expect.objectContaining({
           sourceConnectionId: 'conn-sqlite',

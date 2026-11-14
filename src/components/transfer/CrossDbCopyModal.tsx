@@ -156,7 +156,6 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
         copyStructure,
         dropTargetIfExists,
         copyData,
-        job_id: jobId,
         jobId,
       });
 

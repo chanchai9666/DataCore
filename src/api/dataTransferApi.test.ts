@@ -9,6 +9,7 @@ import {
   pickImportFile,
   pickExportFile,
   onTransferProgress,
+  cancelTransfer,
 } from './dataTransferApi';
 import type { ExportOptions, ImportOptions } from '../types/dataTransfer';
 
@@ -134,5 +135,14 @@ describe('dataTransferApi', () => {
     const resultUnlisten = await onTransferProgress(cb);
     expect(event.listen).toHaveBeenCalledWith('transfer://progress', expect.any(Function));
     expect(resultUnlisten).toBe(unlisten);
+  });
+
+  it('calls invoke for cancelTransfer with jobId', async () => {
+    vi.mocked(core.invoke).mockResolvedValueOnce(true);
+    const res = await cancelTransfer('job-test-123');
+    expect(core.invoke).toHaveBeenCalledWith('cancel_transfer', {
+      jobId: 'job-test-123',
+    });
+    expect(res).toBe(true);
   });
 });

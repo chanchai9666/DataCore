@@ -166,4 +166,39 @@ mod tests {
         assert_eq!(query_res.rows[2][1], CellValue::Text("normal".to_string()));
         assert_eq!(query_res.rows[2][2], CellValue::Null);
     }
+
+    #[test]
+    fn test_cross_db_copy_options_deserialization() {
+        // Test camelCase serialization as sent from frontend
+        let json_camel = r#"{
+            "sourceConnectionId": "c1",
+            "sourceTable": "t1",
+            "targetConnectionId": "c2",
+            "targetTable": "t2",
+            "copyStructure": true,
+            "dropTargetIfExists": false,
+            "copyData": true,
+            "jobId": "job-camel-123"
+        }"#;
+        let opts: CrossDbCopyTableOptions = serde_json::from_str(json_camel).expect("deserialize camelCase");
+        assert_eq!(opts.source_connection_id, "c1");
+        assert_eq!(opts.source_table, "t1");
+        assert_eq!(opts.target_connection_id, "c2");
+        assert_eq!(opts.target_table, "t2");
+        assert_eq!(opts.job_id, Some("job-camel-123".to_string()));
+
+        // Test snake_case alias deserialization
+        let json_snake = r#"{
+            "source_connection_id": "c1",
+            "source_table": "t1",
+            "target_connection_id": "c2",
+            "target_table": "t2",
+            "copy_structure": true,
+            "drop_target_if_exists": false,
+            "copy_data": true,
+            "job_id": "job-snake-456"
+        }"#;
+        let opts_snake: CrossDbCopyTableOptions = serde_json::from_str(json_snake).expect("deserialize snake_case");
+        assert_eq!(opts_snake.job_id, Some("job-snake-456".to_string()));
+    }
 }

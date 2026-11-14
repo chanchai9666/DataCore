@@ -806,6 +806,13 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
       - **MySQL:** ปรับ Label เป็น `Database / Schema:` และดึงชื่อ Database ใน connection configuration มาเป็นค่าเริ่มต้น ไม่ใช้คำว่า `public`
       - **Dynamic Switching:** เมื่อผู้ใช้เปลี่ยน Connection ใน Dropdown ระบบจะรีเซ็ตและปรับ Schema ให้สอดคล้องกับ Driver ใหม่อัตโนมัติทันที
 
+25. **Issue #133: Fix Duplicate `jobId` in Transfer IPC Options Causing Cross-DB Transfer Failure (`CrossDbCopyModal.tsx`, `ImportSqlModal.tsx`, `dataTransferApi.ts`, `transfer.rs`)**
+    - **Root Cause & IPC Contract Fix:** แก้ไขปัญหาคำสั่ง `copy_table_cross_db` ล้มเหลวพร้อม error `duplicate field 'jobId'` ซึ่งเกิดจากโมดอล `CrossDbCopyModal.tsx` ส่งทั้ง `job_id` และ `jobId` ไปใน payload เดียวกัน ทำให้ Serde ในฝั่ง Rust ปฏิเสธการ Deserialization เนื่องจากมี duplicate field mapping
+    - **Comprehensive Deduplication:** ลบ duplicate keys ออกจาก `CrossDbCopyModal.tsx` และ `ImportSqlModal.tsx` โดยส่งเฉพาะ `jobId` ตาม camelCase serialization contract
+    - **API & Serde Model Normalization:** แก้ไขฟังก์ชัน `cancelTransfer` ใน `src/api/dataTransferApi.ts` ให้ส่ง `{ jobId }` ตัวเดียว และปรับโครงสร้าง Rust struct ใน `src-tauri/src/models/transfer.rs` (`CrossDbCopyTableOptions`, `SqlExportOptions`) ให้ใช้ `#[serde(default, alias = "job_id")]` อย่างถูกต้องเพื่อรองรับทั้ง camelCase และ snake_case โดยไม่มี redundant alias
+    - **Automated Verification:** เพิ่ม unit tests ทั้งฝั่ง Frontend (`CrossDbCopyModal.test.tsx`, `ImportSqlModal.test.tsx`, `dataTransferApi.test.ts`) เพื่อยืนยันว่า payload ไม่มีคีย์ซ้ำ และฝั่ง Rust (`cross_db_transfer_test.rs`) เพื่อยืนยันการ deserialize ตัวเลือกจากทั้ง camelCase และ snake_case อย่างสมบูรณ์
+
+
 
 
 
