@@ -6,7 +6,7 @@
 [![Rust](https://img.shields.io/badge/Rust-1.85+-orange?logo=rust)](https://www.rust-lang.org/)
 [![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/Tests-Passing%20(558%2F558)-brightgreen)](https://github.com/)
+[![Tests](https://img.shields.io/badge/Tests-Passing%20(907%2F907)-brightgreen)](https://github.com/)
 
 ---
 
@@ -62,8 +62,30 @@
 * **ตารางข้อมูลความเร็วสูง (Glide Data Grid):** เรนเดอร์บน HTML5 Canvas ลื่นไหลแม้ข้อมูลมีปริมาณมหาศาล, แบ่งหน้าทีละ 100 แถว, แสดงผลค่า `NULL` ชัดเจน, รองรับ Inline Edit / Insert Row, Filter Bar Builder และ **Cell Detail Drawer**
 * **Global Tools Dropdown Menu:** รวมศูนย์เครื่องมือวิเคราะห์ระดับโปรแกรมบน MainToolbar เข้าถึง Metrics, Locks, Audit Log, Query History & Snippets, และ Connection Security ได้ทันที
 * **Query History & Saved Snippets:** บันทึกประวัติการรันคำสั่ง SQL ย้อนหลัง 200 รายการ พร้อมระบบบันทึกและจัดการ Snippet คำสั่งที่ใช้บ่อย
+* **Command Palette (⌘K / ⌘P):** ศูนย์กลางสั่งการด้วยคีย์บอร์ดระดับโปรแกรม ค้นหาคำสั่ง, สลับ Connection, เปิด Table/View ได้อย่างรวดเร็ว
 * **Connection Folder Grouping:** จัดกลุ่มการเชื่อมต่อเป็นโฟลเดอร์ พร้อมเลือกสีโฟลเดอร์ตามต้องการ
 * **Application Visual Identity:** ไอคอนแอปพลิเคชันสไตล์ Luxury Minimalist Squircle ตัดขอบโปร่งใสตามมาตรฐาน **macOS Human Interface Guidelines (HIG)**
+
+### 7. การเขียนคิวรีและการแนะนำโค้ดอัจฉริยะ (Querying, Autocomplete & No-Code Builder)
+* **Visual Query Builder (No-Code SELECT Query Builder):** สร้างคำสั่ง SELECT Query ได้ง่ายดายผ่านหน้าต่าง No-Code UI โดยไม่ต้องพิมพ์ SQL:
+  - เลือกตารางหลัก (Base Table) และตั้ง Alias
+  - เลือกคอลัมน์ พร้อม Alias และฟังก์ชันสรุปผลรวม (COUNT, SUM, AVG, MIN, MAX)
+  - กำหนด Table JOINs (INNER, LEFT, RIGHT, FULL) พร้อมเงื่อนไข ON
+  - กำหนดตัวกรองเงื่อนไข WHERE (equals, contains, between, is null ฯลฯ) สลับระหว่าง AND / OR
+  - กำหนดการจัดเรียง (ORDER BY) และขอบเขตแถว (LIMIT / OFFSET)
+  - แสดงผล Live SQL Preview ตาม Dialect จริง พร้อมปุ่ม Copy, Open in SQL Editor หรือกด Run Query เพื่อแสดงผลลัพธ์ผ่าน Data Grid ได้ทันที
+* **Schema-Aware Autocomplete สำหรับ SQL Editor:** แนะนำคำสั่งอัตโนมัติใน CodeMirror 6 โดยดึง Metadata จากโครงสร้างฐานข้อมูลจริง (`Record<string, string[]>`) แนะนำชื่อตาราง, Views, และชื่อคอลัมน์พร้อม Data Types เมื่อพิมพ์หลังคำสั่ง `FROM`, `JOIN`, `SELECT` หรือ `<table>.` พร้อมระบบ Invalidate Cache อัตโนมัติเมื่อมีการรันคำสั่ง DDL (`CREATE`, `ALTER`, `DROP`)
+* **SQL Formatter (⌘⇧F) & Multi-Result Tabs:**
+  - จัดรูปแบบโค้ด SQL ให้เป็นระเบียบสวยงามผ่านไลบรารี `sql-formatter` รองรับ dialect ของ PostgreSQL, MySQL และ SQLite ด้วยปุ่มบน Toolbar หรือคีย์ลัด `⌘⇧F` (Mac) / `Ctrl+Shift+F`
+  - รองรับการรัน Batch Script ที่มีหลายคำสั่ง (เช่น `SELECT 1; SELECT 2;`) โดย SQLite driver แยก statement แบบ Quote-aware และแสดงผลลัพธ์แยกแต่ละชุดบน Multi-Result Tabs (`Result 1`, `Result 2`, `Messages`)
+* **Horizontal Split Layout สำหรับหน้าจอกว้าง (Ultrawide Monitors):** สลับโหมดแบ่งหน้าจอใน Query Editor ได้ทั้ง Vertical Split (บน/ล่าง) และ Horizontal Split (Editor ซ้าย / Data Grid ขวา) พร้อมแถบ Resizer ปรับขนาดความกว้างได้ตามต้องการ และจดจำการตั้งค่าลงใน `localStorage`
+* **Safe Mutation Impact Preview (Simulation Guard):** พรีวิวผลกระทบของคำสั่ง `DELETE` / `UPDATE` ก่อนรันจริง เพื่อดูจำนวนแถวที่จะได้รับผลกระทบ โดยระบบจำลองคำสั่งภายใต้ Transaction และทำการ Rollback 100% เสมอ ป้องกันการลบข้อมูลทั้งตารางโดยไม่ตั้งใจ
+
+### 8. ความสะดวก การเข้าถึง และสถาปัตยกรรมระดับโมดูลาร์ (Accessibility, i18n & Modular Design)
+* **ระบบ Internationalization (i18n):** รองรับภาษาไทย (th) และภาษาอังกฤษ (en) สลับภาษาได้ทันทีแบบ Reactive บน Toolbar และ StatusBar โดยไม่ต้องรีสตาร์ทแอป และบันทึกค่าภาษาไว้ใน `localStorage`
+* **Deep Tree Object Browser:** ขยายโหนด Table ใน Sidebar ให้แสดงลูกศรคลี่ดู Columns พร้อม Data Types และไอคอน PK/FK (Lazy-loaded) และรองรับการ Drag & Drop หรือดับเบิลคลิกชื่อคอลัมน์เพื่อแทรกลงใน SQL Editor ทันที
+* **Keyboard Splitter Navigation (Accessibility A11y):** แถบ Resizer ใน DockLayout รองรับมาตรฐาน `role="separator"`, `tabIndex={0}`, `aria-orientation` และสามารถปรับขนาดความกว้าง/ความสูงได้ด้วยปุ่มลูกศรบนคีย์บอร์ด
+* **Modular UI Architecture:** สถาปัตยกรรมคอมโพเนนต์ระดับโมดูลาร์ แยกหน้าจอ `TableStructureEditor` ออกเป็น 5 Sub-tabs ย่อย (`ColumnsTab`, `IndexesTab`, `ForeignKeysTab`, `ConstraintsTab`, `RlsSecurityTab`) ให้ไฟล์มีขนาดกะทัดรัด บำรุงรักษาง่าย และทำความสะอาด Tauri IPC parameters เป็น camelCase มาตรฐานเดียว ปราศจากความซ้ำซ้อน
 
 ---
 
@@ -172,7 +194,7 @@ make dev-web
 | `make install` | ติดตั้ง Dependencies ของ Frontend ทั้งหมดผ่าน `pnpm` |
 | `make dev` | รันแอปพลิเคชัน Desktop ในโหมด Development (Tauri 2) |
 | `make dev-web` | รันเฉพาะ Vite Web Dev Server สำหรับทดสอบ UI บน Browser |
-| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 35 tests และ Vitest 523 tests รวม **558 tests ผ่าน 100%**) |
+| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 87 tests และ Vitest 820 tests รวม **907 tests ผ่าน 100%**) |
 | `make test-backend` | รันเฉพาะ Unit & Integration Tests ฝั่ง Rust Backend |
 | `make test-frontend`| รันเฉพาะ Unit & Component Tests ฝั่ง React Frontend |
 | `make check` | ตรวจสอบ Compilation (`cargo check`) และ TypeScript Type Checking (`tsc`) ทั้งระบบ |
@@ -185,39 +207,47 @@ make dev-web
 
 ## 🧪 การทดสอบ (Testing)
 
-โปรเจกต์นี้ได้รับการพัฒนาด้วยแนวทาง **Test-Driven Development (TDD)** โดยมีชุดการทดสอบรวม **558 tests (ผ่าน 100%)**:
+โปรเจกต์นี้ได้รับการพัฒนาด้วยแนวทาง **Test-Driven Development (TDD)** โดยมีชุดการทดสอบรวม **907 tests (ผ่าน 100%)**:
 
 ```bash
 # รันเทสต์ทั้งหมด
 make test
 ```
 
-* **Rust Backend (35 tests):**
+* **Rust Backend (87 tests):**
   - Data Contract Serialization & Roundtrip
-  - Local Encrypted Vault (AES-256-GCM) Persistence & File Permission
-  - Connection Store Atomic Persistence
-  - SQLite Dynamic Type Extraction, Pagination & Transaction Lifecycle
+  - Local Encrypted Vault (AES-256-GCM) Persistence, File Permissions (0600) & Argon2id Master Password KEK Derivation
+  - Connection Store Atomic Persistence & Isolation
+  - SQLite Dynamic Type Extraction, Pagination, Interrupt Cancellation & Multi-Statement Batch Script Execution
   - Dedicated Session Lifecycle & Explicit Rollback on Close
   - Schema Metadata Connection Isolation
   - Table List View Metadata Query & Size Calculation (SQLite)
   - Duplicate Table Native SQL Cloner & Options Validation
-  - SQL Script Splitter & Multi-Statement Parsing with `DELIMITER`
+  - SQL Script Splitter & Multi-Statement Parsing with Quote/Comment Awareness & `DELIMITER`
   - SQL Export & Import Lifecycle (SQLite)
-  - CSV & JSON Streaming Data Transfer, Delimiter Detection & Column Mapping
+  - CSV & JSON Streaming Data Transfer, Delimiter Detection, Column Mapping & Cancellation
   - Cross-Database Table Transfer: Cross-Engine Data Type Mapping (`SQLite` ⟷ `PostgreSQL` ⟷ `MySQL`), DDL Generation & Streaming Batch Inserts
-* **React Frontend (523 tests):**
-  - Zustand Stores (`tabStore`, `connectionStore`, `auditLogStore`, `snippetStore`, `folderStore`, `queryHistoryStore`)
-  - Object Browser Tree Component, Node Navigation, Context Menu, Connection Color Folders
-  - CodeMirror 6 SQL Editor, Dialects, Keymap (`⌘+Enter`), Toolbar Actions
+  - Path Traversal Guard: ป้องกัน Directory Traversal (`../`), System Paths และ Sensitive User Directory Exposure
+  - Tamper-Evident Cryptographic Hash Chain Audit Logger (Append-only, SHA-256 Hashing, Rotation & Verification)
+  - Mutation Impact Preview Simulation Engine (Guaranteed 100% Rollback)
+* **React Frontend (820 tests):**
+  - Zustand Stores (`tabStore`, `connectionStore`, `auditLogStore`, `snippetStore`, `folderStore`, `queryHistoryStore`, `schemaStore`, `pendingChangesStore`)
+  - Object Browser Tree Component, Deep Tree Columns Drill-down (Lazy-loading, Types, PK/FK Badges, Drag & Drop), Node Navigation, Context Menu, Connection Color Folders
+  - CodeMirror 6 SQL Editor, Dialects, Schema-Aware Autocomplete, Keymap (`⌘+Enter`, `⌘⇧F`), Toolbar Actions
   - Glide Data Grid Canvas Integration, NULL Indicators, Cell Detail Drawer, Inline Row Editing / Row Insertion
-  - Table Structure Editor & Table Management (Create Table, Drop Table with CASCADE, Rename Table, Maintenance Modal)
+  - Visual Query Builder Tab: Base Table, Columns & Aliases, Aggregates, Multi-Table JOINs, Filter Conditions (AND/OR), Sorting, Limit, Live SQL Preview & SQL Editor Export
+  - Internationalization (i18n): Thai & English translations, Instant Reactive Language Switcher, LocalStorage Persistence
+  - SQL Formatter Helper, Multi-Result Tabs Sub-layout, Horizontal/Vertical Split Layout Persistence
+  - Table Structure Editor & Modular Sub-tabs (`ColumnsTab`, `IndexesTab`, `ForeignKeysTab`, `ConstraintsTab`, `RlsSecurityTab`)
+  - Table Management Modals (Create Table, Drop Table with CASCADE, Rename Table, Maintenance Modal)
   - Extended Indexes, Foreign Keys & Constraints Managers with Live SQL Preview
   - Row-Level Security (RLS) Manager, Enable/Disable Toggle, Policy Editor, Drop Policy
   - Connection Security Modal: In-Transit TLS Inspection & At-Rest Encryption Status
   - Table List Tab View: Detailed Metadata Grid, Formatting Helpers (Bytes & Row Count), Sorting, Searching, and Right-Click Context Menu
   - Duplicate Table Modal, SQL/CSV/JSON Import & Export Modals, Cross-Database Copy Modal
   - Connection Dialog Form Switching, Latency Measurement, SSL Mode Configuration
-  - Database Metrics Modal, Lock Inspector Modal, Audit Log Drawer, History & Snippets Drawer
+  - Database Metrics Modal, Lock Inspector Modal, Audit Log Drawer, History & Snippets Drawer, Impact Preview Modal, Command Palette
+  - DockLayout Splitter Accessibility (ARIA `role="separator"`, `tabIndex={0}`, keyboard navigation)
   - End-to-End User Journey Workflow Test
 
 ---
@@ -233,6 +263,12 @@ make test
 - [x] **Phase 25: Enterprise Capabilities** (ACID Transactions, Extended Indexes, Cache Metrics, Partitioning Viewer, Audit Log)
 - [x] **Phase 26: MainToolbar Tools Menu & Global Drawers Integration**
 - [x] **Phase 27: Row-Level Security (RLS) Manager, In-Transit TLS & At-Rest Encryption Inspector**
+- [x] **Phase 28: Visual ER Diagram Viewer & Designer** (Topological Layout, Pan & Zoom, SVG Export)
+- [x] **Phase 29: Database Schema Comparison & Synchronization** (Schema Diff, UP/DOWN Migration Scripts)
+- [x] **Phase 30: Server Activity Monitor & Process List** (Active Sessions, Query Termination, Auto-Refresh)
+- [x] **Phase 31: Comprehensive Data Import/Export Wizard** (Multi-step Column Mapping, CSV/JSON/TSV)
+- [x] **Phase 32: Database User & Privilege Manager** (User Lifecycle, GRANT/REVOKE, Host Scopes)
+- [x] **Phase 33: Modern UX/UI Upgrade & Performance Suite** (Internationalization i18n th/en, Visual Query Builder No-Code UI, Schema-Aware Autocomplete, SQL Formatter ⌘⇧F, Multi-Result Tabs, Horizontal Split Layout, Deep Tree Object Browser, Keyboard Splitter Accessibility, และ Modular TableStructureEditor Architecture)
 
 ---
 

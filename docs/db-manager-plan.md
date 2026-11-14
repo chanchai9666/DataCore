@@ -516,19 +516,25 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 ---
 
 ## 4. สถานะภาพรวมการพัฒนา (Development Status Summary)
-- **สถานะ Phase:** ครบถ้วนสมบูรณ์ทั้ง 32 Phase (Phase 1 ถึง Phase 32)
-- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 652+ tests ผ่าน 100%
-  - Rust Backend Unit & Integration Tests: 50/50 passed (Issue #82)
-  - Frontend Vitest Component & Unit Tests: 602/602 passed
+- **สถานะ Phase:** ครบถ้วนสมบูรณ์ทั้ง 33 Phase (Phase 1 ถึง Phase 33)
+- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 907 tests ผ่าน 100%
+  - Rust Backend Unit & Integration Tests: 87/87 passed
+  - Frontend Vitest Component & Unit Tests: 820/820 passed
   - Code Quality & Linting: Cargo Clippy (`-D warnings`) ผ่าน 100% ปราศจาก Warning
 - **ระบบความปลอดภัย (Security):**
   - Zero Plaintext Disk Storage สำหรับรหัสผ่าน (AES-256-GCM Vault)
   - TLS In-Transit Encryption รองรับระดับสูงสุด (`verify-full`)
   - SSH Tunneling พร้อม Guard ป้องกัน Security Bypass
   - Row-Level Security (RLS) และ User Privilege Management (GRANT/REVOKE) บริหารจัดการสิทธิ์ได้ครอบคลุม
+  - Tamper-Evident Hash Chain Audit Log (Rust Backend)
+  - Mutation Impact Preview Simulation Engine
 - **Visual & Platform Polish:**
   - ไอคอนแอปพลิเคชันสไตล์ Luxury Minimalist Squircle ตัดขอบโปร่งใสตามมาตรฐาน Apple macOS HIG
   - รองรับ Apple Silicon ARM64 Native พร้อมทั้ง Dark Mode และ Light Mode อย่างสมบูรณ์แบบ
+  - ระบบสองภาษา (i18n: ภาษาไทยและภาษาอังกฤษ) สลับได้ทันทีแบบ Reactive
+  - Visual Query Builder (No-Code SELECT Query Builder)
+  - Schema-Aware Autocomplete และ SQL Formatter (⌘⇧F) สำหรับ CodeMirror 6
+  - Deep Tree Object Browser (Columns/Types/Badges) พร้อม Keyboard Splitter Navigation (A11y)
 
 ---
 
@@ -576,7 +582,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - เพิ่มปุ่ม Format บน `EditorToolbar.tsx` และคีย์ลัด ⌘⇧F (macOS) / Ctrl+Shift+F (Windows/Linux)
   - พัฒนา Quote-aware SQL Statement Splitter ทั้งใน Rust (`split_sql_statements` ใน `sqlite.rs`) และ Frontend (`sqlSplitter.ts`) ป้องกันปัญหาเครื่องหมาย `;` ใน string literals และ comments
   - รองรับ Multi-Result Tabs บน `DockLayout.tsx` เมื่อรันสคริปต์ที่มีหลาย query statements: แสดงผลลัพธ์แยกแท็บย่อย `Result 1 (users)`, `Result 2 (orders)`, และแท็บ `Messages` สำหรับสรุปผลการรัน
-- **Issue #93:** `feat(navigation): ขยาย Object Browser Tree ให้แสดง Columns ใน Sidebar และเพิ่ม Keyboard Splitter Navigation` — คลี่ดูโครงสร้างคอลัมน์ในแถบด้านข้าง
+- **Issue #93:** `feat(navigation): ขยาย Object Browser Tree ให้แสดง Columns ใน Sidebar และเพิ่ม Keyboard Splitter Navigation` — [COMPLETED]
+  - ขยาย `SchemaNodeType` ทั้งใน Rust (`src-tauri/src/drivers/traits.rs`) และ TypeScript (`src/types/db.ts`) ให้รองรับ `Column`, `Index`, `ForeignKey`, `Trigger`, `Function`, `Procedure`
+  - ขยายโหนด Table ใน `src/components/sidebar/ObjectBrowser.tsx` ให้มีลูกศรคลี่ดู Columns พร้อม Data Types และไอคอน PK/FK (โหลดแบบ Lazy-loading เมื่อผู้ใช้กดคลี่ลูกศร)
+  - รองรับการลาก (Drag and Drop) คอลัมน์ และการดับเบิลคลิกชื่อคอลัมน์เพื่อแทรกคำลงใน SQL Editor ทันที
+  - ปรับปรุง Accessibility ของแถบแบ่งหน้าต่าง (Splitter) ใน `src/components/layout/DockLayout.tsx` เพิ่ม `role="separator"`, `tabIndex={0}`, `aria-orientation="vertical"` และรองรับการปรับขนาดด้วยปุ่มลูกศรซ้าย/ขวาบนคีย์บอร์ด
 - **Issue #94:** `feat(shortcuts): Keyboard Shortcuts Expansion และ Keybinding Cheat Sheet Modal (⌘/)` — เพิ่มคีย์ลัดครอบคลุมและหน้าต่างสรุปคีย์ลัด
 
 #### 🟢 Phase 3: Accessibility, Localization & Advanced Capabilities
@@ -625,7 +635,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 | **#103** | `security(audit): ย้าย Audit Log จาก localStorage ไปยัง Rust Backend พร้อม Tamper-Evident Hashing` | 🟠 High | ย้าย Audit Trail ไปบันทึกฝั่ง Rust (`~/.datacore/audit.jsonl` สิทธิ์ 0600) แบบ Append-Only พร้อม Hash Chaining |
 | **#104** | `security(transfer): ตรวจสอบความปลอดภัยของพาธไฟล์ (Path Traversal Guard) ใน Data Transfer IPC` | 🟡 Medium | ป้องกัน Path Traversal (`../`) และบล็อกการเขียนทับไฟล์ระบบสำคัญของผู้ใช้ในคำสั่งนำเข้า/ส่งออกข้อมูล |
 | **#105** | `security(encryption): เสริมความปลอดภัย Vault Key ด้วย Master Password (Argon2id) และรองรับ SQLCipher สำหรับ SQLite` | 🟡 Medium | เพิ่มตัวเลือก Argon2id Master Password เข้ารหัส `.vault.key` และเปิดฟีเจอร์ SQLCipher สำหรับ SQLite |
-| **#106** | `refactor(architecture): แยก Monolithic UI Components (TableStructureEditor, ObjectBrowser, DockLayout) และลบความซ้ำซ้อนใน IPC Parameters` | 🟡 Medium | แยกไฟล์ UI ขนาดใหญ่ (>1,000-3,000 บรรทัด) เป็นโมดูลย่อย และปรับแต่ง IPC parameters ให้เป็นมาตรฐานเดียว |
+| **#106** | `refactor(architecture): แยก Monolithic UI Components (TableStructureEditor, ObjectBrowser, DockLayout) และลบความซ้ำซ้อนใน IPC Parameters` | 🟡 Medium | [COMPLETED] แยก `TableStructureEditor` ออกเป็น 5 Sub-tabs ย่อย, แยก `cellFormatter.ts` และทำความสะอาด Tauri IPC parameters |
 
 ### 6.2 การขยายขอบเขตและอัปเดต Issues เดิมที่เกี่ยวข้อง
 - **Issue #84 (Read-Only Mode):** [COMPLETED] เพิ่มฟีเจอร์ Environment Color Badges (`development` = สีเขียว Emerald, `staging` = สีส้ม Amber, `production` = สีแดง Red) และ Read-Only Mode พร้อมการบังคับใช้ระดับ **Database Session & Driver (Backend)**: SQLite `PRAGMA query_only = ON;`, PostgreSQL `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;`, MySQL `SET SESSION transaction_read_only = 1;` และการป้องกันบน UI (SqlEditor ปฏิเสธ DML/DDL write queries พร้อมแจ้งเตือน Read-Only banner, DataGrid ปิดการแก้ไขเซลล์/เพิ่มแถว/ลบแถว) เพื่อความปลอดภัยสูงสุด
