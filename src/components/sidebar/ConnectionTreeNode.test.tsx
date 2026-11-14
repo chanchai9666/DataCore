@@ -170,7 +170,7 @@ describe('ConnectionTreeNode Badges', () => {
 
     const connIndicator = screen.getByTestId('indicator-active-connection');
     expect(connIndicator).toBeInTheDocument();
-    expect(connIndicator.className).toContain('bg-blue-500');
+    expect(connIndicator.className).toContain('bg-emerald-500');
     expect(connIndicator.className).toContain('mr-2.5');
 
     const tableData: BrowserTreeNode = {
@@ -191,6 +191,6 @@ describe('ConnectionTreeNode Badges', () => {
 
     const tableIndicator = screen.getByTestId('indicator-active-table');
     expect(tableIndicator).toBeInTheDocument();
-    expect(tableIndicator.className).toContain('bg-blue-500');
+    expect(tableIndicator.className).toContain('bg-emerald-500');
   });
 });

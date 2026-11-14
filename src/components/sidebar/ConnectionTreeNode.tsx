@@ -426,10 +426,10 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
           {data.name}
         </span>
 
-        {/* Active Indicator Symbol for Table/View or Connection */}
+        {/* Active Indicator Symbol for Table/View or Connection (Luminous Green Dot) */}
         {isTargetActiveTable && (
           <span
-            className="ml-auto mr-1.5 flex h-2 w-2 shrink-0 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.85)] ring-2 ring-blue-500/20"
+            className="ml-auto mr-1.5 flex h-2 w-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.85)] ring-2 ring-emerald-500/20"
             title="Active tab"
             data-testid="indicator-active-table"
           />
@@ -437,7 +437,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
 
         {isTargetActiveConnection && (
           <span
-            className="ml-auto mr-2.5 flex h-2 w-2 shrink-0 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.85)] ring-2 ring-blue-500/20"
+            className="ml-auto mr-2.5 flex h-2 w-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.85)] ring-2 ring-emerald-500/20"
             title="Active connection"
             data-testid="indicator-active-connection"
           />
