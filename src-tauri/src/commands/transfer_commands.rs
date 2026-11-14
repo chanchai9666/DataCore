@@ -16,7 +16,11 @@ use crate::services::table_list::get_table_list_metadata_impl;
 use crate::services::duplicate_table::duplicate_table_impl;
 use crate::services::sql_transfer::{export_sql_impl, import_sql_impl};
 use crate::services::cross_db_transfer::copy_table_cross_db_impl;
+use crate::services::path_guard::validate_safe_transfer_path;
 use crate::session::SessionManager;
+
+const ALLOWED_DATA_EXTS: &[&str] = &["csv", "tsv", "json", "ndjson", "jsonl", "txt"];
+const ALLOWED_SQL_EXTS: &[&str] = &["sql", "txt"];
 
 #[tauri::command]
 pub async fn get_table_list_metadata(
@@ -43,7 +47,9 @@ pub async fn preview_import_file(
     file_path: String,
     delimiter: Option<char>,
 ) -> Result<ImportPreview, String> {
-    preview_import_file_impl(&file_path, delimiter).map_err(|e| e.to_string())
+    let safe_path = validate_safe_transfer_path(&file_path, ALLOWED_DATA_EXTS)?;
+    let safe_str = safe_path.to_string_lossy().to_string();
+    preview_import_file_impl(&safe_str, delimiter).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -54,6 +60,9 @@ pub async fn export_data(
     file_path: String,
     options: ExportOptions,
 ) -> Result<ExportResult, String> {
+    let safe_path = validate_safe_transfer_path(&file_path, ALLOWED_DATA_EXTS)?;
+    let safe_str = safe_path.to_string_lossy().to_string();
+
     if let Some(ref jid) = options.job_id {
         register_cancellation_token(jid);
     }
@@ -67,7 +76,7 @@ pub async fn export_data(
         .await
         .map_err(|e| e.to_string())?;
 
-    export_data_impl(conn.as_ref(), &sql, &file_path, &options)
+    export_data_impl(conn.as_ref(), &sql, &safe_str, &options)
         .await
         .map_err(|e| e.to_string())
 }
@@ -80,6 +89,10 @@ pub async fn import_data(
     table: String,
     options: ImportOptions,
 ) -> Result<ImportResult, String> {
+    let safe_path = validate_safe_transfer_path(&options.file_path, ALLOWED_DATA_EXTS)?;
+    let mut options = options;
+    options.file_path = safe_path.to_string_lossy().to_string();
+
     let config = store
         .get(&connection_id)
         .map_err(|e| e.to_string())?
@@ -138,6 +151,10 @@ pub async fn export_sql(
     store: State<'_, ConnectionStore>,
     options: SqlExportOptions,
 ) -> Result<SqlExportResult, String> {
+    let safe_path = validate_safe_transfer_path(&options.file_path, ALLOWED_SQL_EXTS)?;
+    let mut options = options;
+    options.file_path = safe_path.to_string_lossy().to_string();
+
     if let Some(ref jid) = options.job_id {
         register_cancellation_token(jid);
     }
@@ -162,6 +179,10 @@ pub async fn import_sql(
     store: State<'_, ConnectionStore>,
     options: SqlImportOptions,
 ) -> Result<SqlImportResult, String> {
+    let safe_path = validate_safe_transfer_path(&options.file_path, ALLOWED_SQL_EXTS)?;
+    let mut options = options;
+    options.file_path = safe_path.to_string_lossy().to_string();
+
     let config = store
         .get(&options.connection_id)
         .map_err(|e| e.to_string())?

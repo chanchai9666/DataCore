@@ -20,6 +20,9 @@ pub enum AppError {
     #[error("Cancelled: {0}")]
     Cancelled(String),
 
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
     #[error("{0}")]
     Other(String),
 }

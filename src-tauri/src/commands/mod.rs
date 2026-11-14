@@ -3,6 +3,8 @@ pub mod transfer_commands;
 
 #[cfg(test)]
 mod db_test;
+#[cfg(test)]
+mod transfer_commands_test;
 
 pub use db::*;
 pub use transfer_commands::*;

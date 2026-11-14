@@ -66,3 +66,44 @@ pub trait DatabaseConnection: Send + Sync {
         Ok(())
     }
 }
+
+/// Validates a user-supplied table filter clause to prevent SQL injection,
+/// stacked queries, comments, and destructive SQL statements.
+pub fn validate_table_filter(filter: &str) -> Result<(), AppError> {
+    // Disallow comments and statement terminators / stacked queries
+    if filter.contains("--") || filter.contains("/*") || filter.contains("*/") || filter.contains(';') {
+        return Err(AppError::InvalidInput(
+            "Invalid or insecure filter clause detected".to_string(),
+        ));
+    }
+
+    const FORBIDDEN_KEYWORDS: &[&str] = &[
+        "UNION", "DROP", "INSERT", "UPDATE", "DELETE", "EXEC", "EXECUTE", "ALTER", "TRUNCATE",
+    ];
+
+    let mut current_token = String::new();
+    for ch in filter.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            current_token.push(ch);
+        } else if !current_token.is_empty() {
+            let upper = current_token.to_ascii_uppercase();
+            if FORBIDDEN_KEYWORDS.contains(&upper.as_str()) {
+                return Err(AppError::InvalidInput(
+                    "Invalid or insecure filter clause detected".to_string(),
+                ));
+            }
+            current_token.clear();
+        }
+    }
+
+    if !current_token.is_empty() {
+        let upper = current_token.to_ascii_uppercase();
+        if FORBIDDEN_KEYWORDS.contains(&upper.as_str()) {
+            return Err(AppError::InvalidInput(
+                "Invalid or insecure filter clause detected".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}

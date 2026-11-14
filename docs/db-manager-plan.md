@@ -561,7 +561,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 #### 🟠 Phase 1: Core UX Polish & Feedback
 - **Issue #86:** `fix(theme): บันทึกการตั้งค่า Theme, ขนาด Panel และแก้ไข Hardcoded Dark Mode ในโมดอล` — รองรับ Light Mode 100% และจำขนาดเลย์เอาต์
-- **Issue #87:** `feat(editor): SQL Error Positioning ใน CodeMirror และแสดงรายละเอียด Error Callout Panel` — ชี้ตำแหน่งบรรทัดที่ผิดพร้อม Error Callout เต็มรูปแบบ
+- **Issue #87:** `feat(editor): SQL Error Positioning ใน CodeMirror และแสดงรายละเอียด Error Callout Panel` — ชี้ตำแหน่งบรรทัดที่ผิดพร้อม Error Callout เต็มรูปแบบ (แยกแยะ Error Code, Error Type, Driver, คำนวณ Line/Column/Offset และไฮไลต์บรรทัดผิดใน CodeMirror พร้อมปุ่ม 1-click Copy Error) *(เสร็จสมบูรณ์)*
 - **Issue #88:** `feat(connection): Auto-connect และเปิด Query Tab อัตโนมัติหลังบันทึก Connection ใหม่สำเร็จ` — ลดจำนวนคลิกในการเริ่มต้นใช้งานครั้งแรก
 - **Issue #89:** `feat(query): Safe Default LIMIT Guard สำหรับ Custom Query Execution ใน Query Editor` — ป้องกัน RAM เต็มเมื่อรัน custom `SELECT *` ตารางขนาดใหญ่
 
@@ -588,7 +588,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 | Issue | หัวข้อ | ระดับความสำคัญ | ขอบเขตงานหลัก |
 |---|---|:---:|---|
 | **#99** | `security(ssh): เข้ารหัส SSH Passphrase ใน Local Encrypted Vault และล้างสคริปต์ Askpass ใน /tmp ทันทีหลังเชื่อมต่อ` | 🔴 Critical | เข้ารหัส SSH passphrase ใน `vault.enc` ป้องกัน Plaintext ใน `connections.json` และลบไฟล์ askpass ทันทีที่เชื่อมต่อสำเร็จ |
-| **#100** | `security(web): กำหนด Content Security Policy (CSP) และเปลี่ยน Table Filter เป็น Parameterized Query ป้องกัน SQL Injection` | 🔴 Critical | กำหนด CSP ใน `tauri.conf.json` และปรับปรุง `fetch_table_data` ให้ bind parameter แทนการต่อสตริง `WHERE` ดิบ |
+| **#100** | `security(web): กำหนด Content Security Policy (CSP) และเปลี่ยน Table Filter เป็น Parameterized Query ป้องกัน SQL Injection` | 🔴 Critical | กำหนด CSP ใน `tauri.conf.json` และเพิ่มการตรวจสอบ/Sanitize `filter` ใน `fetch_table_data` (บล็อก SQL comment `--`, `/*`, statement termination `;`, stacked queries, และคำสั่งอันตราย `UNION`, `DROP`, `INSERT`, `UPDATE`, `DELETE`, `EXEC`, `ALTER`, `TRUNCATE`) |
 | **#101** | `security(guardrail): ปรับปรุง Dangerous Query Detector ให้ตรวจจับ Tautology (WHERE 1=1) และตัด String Literals ก่อนตรวจจับ` | 🟠 High | ตัด string literals ก่อนสแกนคีย์เวิร์ด และตรวจจับ Tautology clauses ที่เทียบเท่าคำสั่งลบ/แก้ทั้งตาราง |
 | **#102** | `security(privacy): Redact รหัสผ่านใน SQL History/Audit Log และเพิ่มระบบ PII Data Masking บน Data Grid` | 🟠 High | ซ่อนรหัสผ่านในประวัติคำสั่ง (เช่น `CREATE USER ... IDENTIFIED BY`) และเพิ่มปุ่ม Mask ข้อมูลอ่อนไหวบน DataGrid |
 | **#103** | `security(audit): ย้าย Audit Log จาก localStorage ไปยัง Rust Backend พร้อม Tamper-Evident Hashing` | 🟠 High | ย้าย Audit Trail ไปบันทึกฝั่ง Rust (`~/.datacore/audit.jsonl` สิทธิ์ 0600) แบบ Append-Only พร้อม Hash Chaining |

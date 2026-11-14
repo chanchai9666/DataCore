@@ -93,6 +93,17 @@ describe('EditorToolbar', () => {
     expect(screen.getByText(/10 rows/i)).toBeInTheDocument();
     expect(screen.getByText(/2 affected/i)).toBeInTheDocument();
   });
+
+  it('displays full error message without truncating to 50 characters', () => {
+    const longError =
+      'syntax error at or near "SELCT": this is a very long error message that exceeds fifty characters easily';
+    render(<EditorToolbar {...defaultProps} errorMessage={longError} />);
+
+    const errorEl = screen.getByTestId('toolbar-error-message');
+    expect(errorEl).toBeInTheDocument();
+    expect(errorEl.textContent).toBe(`Error: ${longError}`);
+    expect(errorEl.textContent?.length).toBeGreaterThan(50);
+  });
 });
 
 describe('SqlEditor', () => {
@@ -509,5 +520,155 @@ describe('SqlEditor', () => {
     // Modal closes without executing
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(dbApi.executeQuery).not.toHaveBeenCalled();
+  });
+
+  it('displays Error Callout Panel with full message and error code when query fails', async () => {
+    const errorStr =
+      'Database error: ERROR: 42601: syntax error at or near "FROMM" at character 10';
+    vi.spyOn(dbApi, 'executeQuery').mockRejectedValue(new Error(errorStr));
+
+    render(<SqlEditor />);
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    // Error callout should appear
+    const callout = await screen.findByTestId('sql-error-callout');
+    expect(callout).toBeInTheDocument();
+
+    // Check Error Type title
+    expect(screen.getByText('Syntax Error')).toBeInTheDocument();
+
+    // Check Error Code badge
+    const codeBadge = screen.getByTestId('error-code-badge');
+    expect(codeBadge).toHaveTextContent('Code: 42601');
+
+    // Check Clean Message display
+    const msgEl = screen.getByTestId('error-callout-message');
+    expect(msgEl).toHaveTextContent('syntax error at or near "FROMM" at character 10');
+  });
+
+  it('allows copying full error to clipboard and dismissing error callout panel', async () => {
+    const errorStr =
+      'Database error: syntax error at or near "SELCT"';
+    vi.spyOn(dbApi, 'executeQuery').mockRejectedValue(new Error(errorStr));
+
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    });
+
+    render(<SqlEditor />);
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    expect(await screen.findByTestId('sql-error-callout')).toBeInTheDocument();
+
+    // Copy button
+    const copyBtn = screen.getByTestId('copy-error-btn');
+    await act(async () => {
+      fireEvent.click(copyBtn);
+    });
+
+    expect(writeTextMock).toHaveBeenCalledWith(errorStr);
+    expect(screen.getByText('Copied!')).toBeInTheDocument();
+
+    // Dismiss button
+    const dismissBtn = screen.getByTestId('dismiss-error-btn');
+    act(() => {
+      fireEvent.click(dismissBtn);
+    });
+
+    expect(screen.queryByTestId('sql-error-callout')).not.toBeInTheDocument();
+  });
+
+  it('highlights error line and jumps cursor when line badge is clicked', async () => {
+    const query = 'SELECT *\nFROMM users\nWHERE id = 1;';
+    const testTab: Tab = {
+      ...sampleTab,
+      id: 'tab-line-err',
+      queryContent: query,
+    };
+    useTabStore.setState({
+      tabs: [testTab],
+      activeTabId: 'tab-line-err',
+    });
+
+    let viewInstance: EditorView | null = null;
+    const errorStr =
+      'Database error: ERROR: syntax error at or near "FROMM" at character 11';
+    vi.spyOn(dbApi, 'executeQuery').mockRejectedValue(new Error(errorStr));
+
+    render(
+      <SqlEditor
+        tabId="tab-line-err"
+        onEditorCreated={(v) => {
+          viewInstance = v;
+        }}
+      />
+    );
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    const callout = await screen.findByTestId('sql-error-callout');
+    expect(callout).toBeInTheDocument();
+
+    const lineBadge = screen.getByTestId('error-line-badge');
+    expect(lineBadge).toHaveTextContent(/Line 2/);
+
+    // Clicking line badge focuses and dispatches jump
+    await act(async () => {
+      fireEvent.click(lineBadge);
+    });
+
+    expect(viewInstance).not.toBeNull();
+    // Selection should be placed on line 2
+    expect(viewInstance!.state.selection.main.anchor).toBeGreaterThanOrEqual(9);
+  });
+
+  it('clears error callout panel when active tab changes', async () => {
+    const errorStr = 'Database error: relation "users" does not exist';
+    vi.spyOn(dbApi, 'executeQuery').mockRejectedValue(new Error(errorStr));
+
+    render(<SqlEditor />);
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    expect(await screen.findByTestId('sql-error-callout')).toBeInTheDocument();
+
+    // Switch tab
+    act(() => {
+      useTabStore.setState({
+        tabs: [
+          sampleTab,
+          {
+            id: 'tab-test-2',
+            title: 'Tab 2',
+            type: 'query',
+            connectionId: 'conn-1',
+            queryContent: 'SELECT 1;',
+            autoCommit: true,
+          },
+        ],
+        activeTabId: 'tab-test-2',
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('sql-error-callout')).not.toBeInTheDocument();
+    });
   });
 });

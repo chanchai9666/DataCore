@@ -6,6 +6,7 @@ pub mod duplicate_table;
 pub mod sql_transfer;
 pub mod cross_db_transfer;
 pub mod ssh_tunnel;
+pub mod path_guard;
 
 pub use connection_store::*;
 pub use data_transfer::*;
@@ -15,6 +16,7 @@ pub use duplicate_table::*;
 pub use sql_transfer::*;
 pub use cross_db_transfer::*;
 pub use ssh_tunnel::*;
+pub use path_guard::*;
 
 #[cfg(test)]
 mod connection_store_test;

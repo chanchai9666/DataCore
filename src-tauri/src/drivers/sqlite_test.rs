@@ -180,3 +180,74 @@ async fn test_sqlite_multi_statement_script_execution() {
     assert_eq!(result.rows[0][1], CellValue::Text("First".to_string()));
     assert_eq!(result.rows[1][1], CellValue::Text("Second".to_string()));
 }
+
+#[tokio::test]
+async fn test_sqlite_table_filter_sanitization() {
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite in memory");
+    conn.execute_query("CREATE TABLE test_filter (id INTEGER PRIMARY KEY, name TEXT, updated_at TEXT);")
+        .await
+        .expect("create test table");
+    conn.execute_query("INSERT INTO test_filter (id, name, updated_at) VALUES (1, 'Alice', '2026-01-01');")
+        .await
+        .expect("insert row 1");
+    conn.execute_query("INSERT INTO test_filter (id, name, updated_at) VALUES (2, 'Bob', '2026-01-02');")
+        .await
+        .expect("insert row 2");
+
+    // 1. Valid filters with identifiers containing keywords as substrings (e.g. updated_at contains UPDATE)
+    let valid_res = conn
+        .fetch_table_data(None, "test_filter", 10, 0, Some("updated_at IS NOT NULL"), None, None)
+        .await;
+    assert!(valid_res.is_ok(), "valid filter on updated_at should succeed");
+    assert_eq!(valid_res.unwrap().rows.len(), 2);
+
+    let valid_res2 = conn
+        .fetch_table_data(None, "test_filter", 10, 0, Some("name = 'Alice' AND id = 1"), None, None)
+        .await;
+    assert!(valid_res2.is_ok(), "valid standard filter should succeed");
+    assert_eq!(valid_res2.unwrap().rows.len(), 1);
+
+    // 2. Dangerous SQL injection and stacked query patterns
+    let dangerous_filters = vec![
+        "id = 1; DROP TABLE test_filter",
+        "id = 1; SELECT 1",
+        "id = 1 -- comment",
+        "id = 1 /* block comment */",
+        "id = 1 */",
+        "id = 1 UNION SELECT 1, 2, 3",
+        "id = 1 union select null, null, null",
+        "1=1 DROP TABLE test_filter",
+        "1=1 drop table test_filter",
+        "1=1 INSERT INTO test_filter VALUES (3, 'Eve', '2026-01-03')",
+        "1=1 insert into test_filter VALUES (3, 'Eve', '2026-01-03')",
+        "1=1 UPDATE test_filter SET name = 'Mallory'",
+        "1=1 update test_filter SET name = 'Mallory'",
+        "1=1 DELETE FROM test_filter",
+        "1=1 delete from test_filter",
+        "1=1 ALTER TABLE test_filter ADD COLUMN evil TEXT",
+        "1=1 alter table test_filter ADD COLUMN evil TEXT",
+        "1=1 TRUNCATE TABLE test_filter",
+        "1=1 truncate table test_filter",
+        "1=1 EXEC sp_executesql",
+        "1=1 exec sp_executesql",
+    ];
+
+    for dangerous in dangerous_filters {
+        let res = conn
+            .fetch_table_data(None, "test_filter", 10, 0, Some(dangerous), None, None)
+            .await;
+        assert!(
+            res.is_err(),
+            "filter '{}' should be rejected as insecure",
+            dangerous
+        );
+        let err = res.unwrap_err();
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("Invalid or insecure filter clause detected"),
+            "error for '{}' should contain expected message, got: {}",
+            dangerous,
+            err_msg
+        );
+    }
+}

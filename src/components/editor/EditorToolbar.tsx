@@ -543,8 +543,19 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         )}
 
         {errorMessage && (
-          <div style={{ color: '#ef4444', fontWeight: 500 }} title={errorMessage}>
-            Error: {errorMessage.slice(0, 50)}
+          <div
+            data-testid="toolbar-error-message"
+            style={{
+              color: '#ef4444',
+              fontWeight: 500,
+              maxWidth: '400px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={errorMessage}
+          >
+            Error: {errorMessage}
           </div>
         )}
       </div>

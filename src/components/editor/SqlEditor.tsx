@@ -1,8 +1,17 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
-import { EditorView, keymap } from '@codemirror/view';
-import { Prec } from '@codemirror/state';
+import { EditorView, Decoration, keymap, type DecorationSet } from '@codemirror/view';
+import { Prec, StateField, StateEffect } from '@codemirror/state';
 import { sql, SQLite, PostgreSQL, MySQL, StandardSQL } from '@codemirror/lang-sql';
+import {
+  AlertCircle,
+  Copy,
+  Check,
+  X,
+  CornerDownRight,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { EditorToolbar } from './EditorToolbar';
 import { applySafeLimit, type SafeLimitOption } from '../../utils/sqlLimitHelper';
@@ -22,7 +31,293 @@ import { useAuditLogStore } from '../../stores/auditLogStore';
 import { dbApi } from '../../api/db';
 import { buildExplainSql } from '../../api/queryBuilder';
 import { buildSetIsolationLevelSql, type IsolationLevel } from '../../api/transactionHelpers';
+import { parseSqlError, type ParsedSqlError } from '../../utils/sqlErrorParser';
 import type { QueryResult } from '../../types/db';
+
+export const setErrorLineEffect = StateEffect.define<number | null>();
+
+export const errorLineTheme = EditorView.baseTheme({
+  '.cm-error-line': {
+    backgroundColor: 'rgba(239, 68, 68, 0.15) !important',
+    borderLeft: '4px solid #ef4444 !important',
+  },
+  '&.cm-editor.cm-focused .cm-error-line': {
+    backgroundColor: 'rgba(239, 68, 68, 0.22) !important',
+  },
+});
+
+export const errorLineField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setErrorLineEffect)) {
+        if (!effect.value) {
+          return Decoration.none;
+        }
+        const lineNum = effect.value;
+        if (lineNum >= 1 && lineNum <= tr.state.doc.lines) {
+          const line = tr.state.doc.line(lineNum);
+          return Decoration.set([
+            Decoration.line({
+              attributes: { class: 'cm-error-line' },
+            }).range(line.from),
+          ]);
+        }
+        return Decoration.none;
+      }
+    }
+    return decorations.map(tr.changes);
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+export interface SqlErrorCalloutProps {
+  error: ParsedSqlError;
+  theme: 'light' | 'dark';
+  onDismiss: () => void;
+  onJumpToLine?: (line: number, column?: number) => void;
+}
+
+export const SqlErrorCallout: React.FC<SqlErrorCalloutProps> = ({
+  error,
+  theme,
+  onDismiss,
+  onJumpToLine,
+}) => {
+  const [copied, setCopied] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(error.originalMessage);
+      }
+      setCopied(true);
+      toast.success('Error copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy to clipboard');
+    }
+  };
+
+  const isDark = theme === 'dark';
+  const bgColor = isDark ? '#2b1517' : '#fef2f2';
+  const borderColor = isDark ? '#7f1d1d' : '#fecaca';
+  const textColor = isDark ? '#fecaca' : '#991b1b';
+  const badgeBg = isDark ? '#450a0a' : '#fee2e2';
+  const badgeBorder = isDark ? '#991b1b' : '#f87171';
+
+  const hasExtraDetails =
+    Boolean(error.originalMessage) &&
+    error.originalMessage.trim() !== error.cleanMessage.trim() &&
+    error.originalMessage.length > error.cleanMessage.length;
+
+  return (
+    <div
+      data-testid="sql-error-callout"
+      role="alert"
+      style={{
+        backgroundColor: bgColor,
+        borderBottom: `1px solid ${borderColor}`,
+        borderLeft: '4px solid #ef4444',
+        padding: '10px 14px',
+        color: textColor,
+        fontSize: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        flexShrink: 0,
+        zIndex: 10,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <AlertCircle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
+          <span
+            style={{
+              fontWeight: 600,
+              fontSize: '13px',
+              color: isDark ? '#f87171' : '#b91c1c',
+            }}
+          >
+            {error.errorType}
+          </span>
+
+          {error.errorCode && (
+            <span
+              data-testid="error-code-badge"
+              style={{
+                fontSize: '11px',
+                padding: '1px 6px',
+                borderRadius: '4px',
+                backgroundColor: badgeBg,
+                border: `1px solid ${badgeBorder}`,
+                fontWeight: 500,
+              }}
+            >
+              Code: {error.errorCode}
+            </span>
+          )}
+
+          {error.driver && error.driver !== 'unknown' && (
+            <span
+              data-testid="error-driver-badge"
+              style={{
+                fontSize: '10px',
+                padding: '1px 5px',
+                borderRadius: '4px',
+                backgroundColor: isDark ? '#374151' : '#e5e7eb',
+                color: isDark ? '#d1d5db' : '#374151',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+              }}
+            >
+              {error.driver}
+            </span>
+          )}
+
+          {error.line !== undefined && (
+            <button
+              type="button"
+              data-testid="error-line-badge"
+              onClick={() => onJumpToLine?.(error.line!, error.column)}
+              title="Jump to error line in editor"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '11px',
+                padding: '2px 7px',
+                borderRadius: '4px',
+                backgroundColor: isDark ? '#991b1b' : '#dc2626',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              <span>Line {error.line}{error.column ? `:${error.column}` : ''}</span>
+              <CornerDownRight size={11} />
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button
+            type="button"
+            data-testid="copy-error-btn"
+            onClick={handleCopy}
+            title="Copy full error message to clipboard"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '3px 8px',
+              borderRadius: '4px',
+              border: `1px solid ${borderColor}`,
+              backgroundColor: isDark ? '#3b1215' : '#ffffff',
+              color: isDark ? '#fca5a5' : '#7f1d1d',
+              fontSize: '11px',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            {copied ? <Check size={12} style={{ color: '#16a34a' }} /> : <Copy size={12} />}
+            <span>{copied ? 'Copied!' : 'Copy Error'}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="dismiss-error-btn"
+            onClick={onDismiss}
+            aria-label="Dismiss error"
+            title="Dismiss error callout"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '22px',
+              height: '22px',
+              borderRadius: '4px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              color: isDark ? '#9ca3af' : '#6b7280',
+              cursor: 'pointer',
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+
+      <div
+        data-testid="error-callout-message"
+        style={{
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          fontSize: '12px',
+          lineHeight: '1.45',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          marginTop: '2px',
+          color: isDark ? '#fecaca' : '#7f1d1d',
+        }}
+      >
+        {error.cleanMessage || error.originalMessage}
+      </div>
+
+      {hasExtraDetails && (
+        <div style={{ marginTop: '2px' }}>
+          <button
+            type="button"
+            onClick={() => setShowRaw(!showRaw)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'none',
+              border: 'none',
+              color: isDark ? '#f87171' : '#dc2626',
+              fontSize: '11px',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            {showRaw ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <span>{showRaw ? 'Hide full details' : 'Show full details'}</span>
+          </button>
+          {showRaw && (
+            <pre
+              data-testid="error-callout-raw"
+              style={{
+                marginTop: '4px',
+                padding: '6px 8px',
+                backgroundColor: isDark ? '#1a0b0d' : '#fee2e2',
+                borderRadius: '4px',
+                fontSize: '11px',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                maxHeight: '120px',
+                overflowY: 'auto',
+              }}
+            >
+              {error.originalMessage}
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export interface SqlEditorProps {
   tabId?: string;
@@ -57,6 +352,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const [rowCount, setRowCount] = useState<number | null>(null);
   const [rowsAffected, setRowsAffected] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [parsedError, setParsedError] = useState<ParsedSqlError | null>(null);
   const [isHistorySnippetsOpen, setIsHistorySnippetsOpen] = useState(false);
   const [historySnippetsTab, setHistorySnippetsTab] = useState<'history' | 'snippets'>('history');
   const [isPlanOpen, setIsPlanOpen] = useState(false);
@@ -97,6 +393,16 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);
   }, []);
+
+  // Reset errors when active tab changes
+  useEffect(() => {
+    setErrorMessage(null);
+    setParsedError(null);
+    const view = editorViewRef.current ?? editorRef.current?.view;
+    if (view) {
+      view.dispatch({ effects: setErrorLineEffect.of(null) });
+    }
+  }, [targetTabId]);
 
   const activeTheme = themeProp ?? (systemDark ? 'dark' : 'light');
 
@@ -142,6 +448,13 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       const executeSql = async (sqlToRun: string, isLim: boolean) => {
         setIsRunning(true);
         setErrorMessage(null);
+        setParsedError(null);
+
+        // Clear previous error line highlights
+        const activeView = editorViewRef.current ?? editorRef.current?.view;
+        if (activeView) {
+          activeView.dispatch({ effects: setErrorLineEffect.of(null) });
+        }
 
         try {
           const result = await dbApi.executeQuery(targetTabId, sqlToRun);
@@ -184,11 +497,29 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           onQueryResult?.(result);
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
+          const parsed = parseSqlError(msg, sqlToRun, connection?.driver);
           setErrorMessage(msg);
+          setParsedError(parsed);
           useStatusStore.getState().setTabStatus(targetTabId, {
             lastQuery: sqlToRun,
-            statusMessage: `Error: ${msg}`,
+            statusMessage: `Error: ${parsed.cleanMessage || msg}`,
           });
+
+          // Highlight error line in CodeMirror if line is parsed
+          const currentView = editorViewRef.current ?? editorRef.current?.view;
+          if (currentView && parsed.line) {
+            const lineNum = Math.min(Math.max(1, parsed.line), currentView.state.doc.lines);
+            const line = currentView.state.doc.line(lineNum);
+            const col = parsed.column ? Math.min(Math.max(1, parsed.column), line.length + 1) : 1;
+            const targetPos = line.from + col - 1;
+            currentView.dispatch({
+              effects: [
+                setErrorLineEffect.of(lineNum),
+                EditorView.scrollIntoView(targetPos, { y: 'center' }),
+              ],
+              selection: { anchor: targetPos },
+            });
+          }
 
           // Record failed query to query history
           const conn = useConnectionStore.getState().connections.find((c) => c.id === currentTab?.connectionId);
@@ -235,7 +566,36 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
 
       await executeSql(modifiedSql, isLimited);
     },
-    [targetTabId, tab, onQueryResult, onError, safeLimit]
+    [targetTabId, tab, onQueryResult, onError, safeLimit, connection?.driver]
+  );
+
+  const handleDismissError = useCallback(() => {
+    setErrorMessage(null);
+    setParsedError(null);
+    const view = editorViewRef.current ?? editorRef.current?.view;
+    if (view) {
+      view.dispatch({ effects: setErrorLineEffect.of(null) });
+    }
+  }, []);
+
+  const handleJumpToErrorLine = useCallback(
+    (lineNum: number, columnNum?: number) => {
+      const view = editorViewRef.current ?? editorRef.current?.view;
+      if (!view) return;
+      const safeLineNum = Math.min(Math.max(1, lineNum), view.state.doc.lines);
+      const line = view.state.doc.line(safeLineNum);
+      const col = columnNum ? Math.min(Math.max(1, columnNum), line.length + 1) : 1;
+      const targetPos = line.from + col - 1;
+      view.dispatch({
+        effects: [
+          setErrorLineEffect.of(safeLineNum),
+          EditorView.scrollIntoView(targetPos, { y: 'center' }),
+        ],
+        selection: { anchor: targetPos },
+      });
+      view.focus();
+    },
+    []
   );
 
   // Keymap extension for Cmd+Enter / Ctrl+Enter
@@ -484,13 +844,22 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         onExplain={handleExplain}
       />
 
+      {parsedError && (
+        <SqlErrorCallout
+          error={parsedError}
+          theme={activeTheme}
+          onDismiss={handleDismissError}
+          onJumpToLine={handleJumpToErrorLine}
+        />
+      )}
+
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         <CodeMirror
           ref={editorRef}
           value={tab.queryContent}
           theme={activeTheme}
           height="100%"
-          extensions={[sqlExtension, runKeymap]}
+          extensions={[sqlExtension, runKeymap, errorLineField, errorLineTheme]}
           onChange={handleEditorChange}
           onCreateEditor={(view) => {
             editorViewRef.current = view;

@@ -4,7 +4,7 @@ use tokio::sync::Mutex;
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
-use crate::drivers::traits::{DatabaseConnection, SchemaNode, SchemaNodeType};
+use crate::drivers::traits::{validate_table_filter, DatabaseConnection, SchemaNode, SchemaNodeType};
 
 #[derive(Clone)]
 pub struct SqliteConnection {
@@ -171,7 +171,10 @@ impl DatabaseConnection for SqliteConnection {
         };
 
         let where_clause = match filter {
-            Some(f) if !f.trim().is_empty() => format!(" WHERE {}", f.trim()),
+            Some(f) if !f.trim().is_empty() => {
+                validate_table_filter(f)?;
+                format!(" WHERE {}", f.trim())
+            }
             _ => String::new(),
         };
 
