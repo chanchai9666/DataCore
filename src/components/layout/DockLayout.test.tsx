@@ -830,6 +830,10 @@ describe('DockLayout', () => {
   });
 
   it('records table fetch query and execution time in status store', async () => {
+    useConnectionStore.setState({
+      connectedConnectionIds: ['conn-1', 'c1'],
+    });
+
     (dbApi.fetchTableData as any).mockResolvedValueOnce({
       columns: [{ name: 'id', data_type: 'INTEGER', nullable: false }],
       rows: [[{ Integer: 1 }]],
@@ -980,5 +984,68 @@ describe('DockLayout', () => {
     render(<DockLayout />);
 
     expect(await screen.findByTestId('visual-query-builder-tab')).toBeInTheDocument();
+  });
+
+  it('shows DisconnectedTableScreen when restored table tab is disconnected and does not auto-fetch data', async () => {
+    useConnectionStore.setState({
+      connectedConnectionIds: [], // 'conn-1' is disconnected
+    });
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-restored-disconnected',
+          title: 'categories',
+          type: 'table',
+          connectionId: 'conn-1',
+          tableName: 'categories',
+          schemaName: 'public',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 'tab-restored-disconnected',
+    });
+
+    render(<DockLayout />);
+
+    expect(screen.getByTestId('disconnected-table-screen')).toBeInTheDocument();
+    expect(screen.getByText('Connection is Disconnected')).toBeInTheDocument();
+    expect(screen.getAllByText('categories').length).toBeGreaterThanOrEqual(1);
+    // fetchTableData should NOT have been called
+    expect(dbApi.fetchTableData).not.toHaveBeenCalled();
+  });
+
+  it('connects and fetches table data when Connect & Load button is clicked on disconnected screen', async () => {
+    useConnectionStore.setState({
+      connectedConnectionIds: [], // disconnected initially
+    });
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-connect-action',
+          title: 'categories',
+          type: 'table',
+          connectionId: 'conn-1',
+          tableName: 'categories',
+          schemaName: 'public',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 'tab-connect-action',
+    });
+
+    render(<DockLayout />);
+
+    const connectBtn = screen.getByTestId('btn-connect-and-load');
+    fireEvent.click(connectBtn);
+
+    await waitFor(() => {
+      expect(dbApi.openSession).toHaveBeenCalledWith('conn-1', 'tab-connect-action');
+      expect(useConnectionStore.getState().connectedConnectionIds).toContain('conn-1');
+      expect(dbApi.fetchTableData).toHaveBeenCalledWith('tab-connect-action', 'categories', 'public', 100, 0);
+    });
   });
 });

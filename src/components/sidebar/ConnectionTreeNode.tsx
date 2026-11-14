@@ -92,6 +92,9 @@ export interface ObjectBrowserContextType {
   onDisconnectConnection?: (connectionId: string) => void;
   onLoadTableColumns?: (node: BrowserTreeNode) => void;
   onInsertColumnToEditor?: (colName: string) => void;
+  activeConnectionId?: string | null;
+  activeTableName?: string | null;
+  activeSchemaName?: string | null;
 }
 
 export const ObjectBrowserContext = createContext<ObjectBrowserContextType>({});
@@ -348,6 +351,18 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
     }
   };
 
+  const isTargetActiveTable =
+    (data.nodeType === 'table' || data.nodeType === 'view') &&
+    context.activeConnectionId === data.connectionId &&
+    Boolean(context.activeTableName) &&
+    (data.tableName === context.activeTableName || data.name === context.activeTableName) &&
+    (!context.activeSchemaName || !data.schemaName || data.schemaName === context.activeSchemaName);
+
+  const isTargetActiveConnection =
+    data.nodeType === 'connection' &&
+    Boolean(context.activeConnectionId) &&
+    context.activeConnectionId === data.connectionId;
+
   return (
     <div
       ref={dragHandle}
@@ -360,14 +375,17 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         }
       }}
       className={`group flex items-center h-6 px-1.5 rounded cursor-pointer select-none text-xs transition-colors ${
-        node.isSelected
+        isTargetActiveTable
+          ? 'bg-blue-600/25 text-blue-900 dark:text-blue-100 ring-1 ring-blue-500 font-semibold shadow-xs'
+          : node.isSelected
           ? 'bg-blue-600/20 text-blue-800 dark:bg-blue-600/30 dark:text-white font-medium'
           : 'text-gray-700 dark:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-gray-800'
-      }`}
+      } ${isTargetActiveConnection ? 'border-l-2 border-blue-500 pl-1' : ''}`}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
       data-testid={`tree-node-${data.name}`}
+      data-active-table={isTargetActiveTable ? 'true' : undefined}
     >
       {/* Expander Arrow */}
       <span
@@ -398,6 +416,16 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       <span className={`truncate flex-1 ${data.nodeType === 'column' ? 'font-mono text-[11px]' : ''}`} title={data.name}>
         {data.name}
       </span>
+
+      {/* Active Tab Badge for Table/View */}
+      {isTargetActiveTable && (
+        <span
+          className="ml-1 px-1 py-0.2 text-[8px] rounded font-sans uppercase font-bold bg-blue-600 text-white leading-none shrink-0"
+          title="Active tab"
+        >
+          active
+        </span>
+      )}
 
       {/* Column Data Type & PK/FK Badges */}
       {data.nodeType === 'column' && (

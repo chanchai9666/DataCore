@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ObjectBrowser } from './ObjectBrowser';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -642,6 +642,32 @@ describe('ObjectBrowser', () => {
       fireEvent.doubleClick(colNode);
 
       expect(useTabStore.getState().tabs[0].queryContent).toBe('SELECT user_id');
+    });
+
+    it('actively highlights the table node corresponding to the active tab', async () => {
+      render(<ObjectBrowser />);
+      await expandToTables();
+
+      act(() => {
+        useTabStore.setState({
+          tabs: [
+            {
+              id: 'tab-users',
+              connectionId: 'conn-1',
+              type: 'table',
+              title: 'users',
+              tableName: 'users',
+              autoCommit: true,
+              queryContent: '',
+            },
+          ],
+          activeTabId: 'tab-users',
+        });
+      });
+
+      const usersTable = await screen.findByTestId('tree-node-users');
+      expect(usersTable).toHaveAttribute('data-active-table', 'true');
+      expect(usersTable.className).toContain('ring-blue-500');
     });
   });
 });

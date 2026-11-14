@@ -402,6 +402,37 @@ interface ContextMenuState {
   node: BrowserTreeNode;
 }
 
+export function findNodeInTree(
+  nodes: BrowserTreeNode[],
+  predicate: (node: BrowserTreeNode) => boolean
+): BrowserTreeNode | null {
+  for (const node of nodes) {
+    if (predicate(node)) return node;
+    if (node.children && node.children.length > 0) {
+      const found = findNodeInTree(node.children, predicate);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+export function getAncestorNodeIds(
+  nodes: BrowserTreeNode[],
+  targetId: string,
+  ancestors: string[] = []
+): string[] | null {
+  for (const node of nodes) {
+    if (node.id === targetId) {
+      return ancestors;
+    }
+    if (node.children && node.children.length > 0) {
+      const res = getAncestorNodeIds(node.children, targetId, [...ancestors, node.id]);
+      if (res) return res;
+    }
+  }
+  return null;
+}
+
 export interface ObjectBrowserProps {
   theme?: 'dark' | 'light';
   onEditConnection?: (connection: ConnectionConfig) => void;
@@ -776,6 +807,44 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
     return [...folderNodes, ...rootConns];
   }, [connections, schemas, loadingMap, errorMap, connectedConnectionIds, allFolderNames, folderMetadata, tableColumnsMap]);
+
+  const activeTabId = useTabStore((s) => s.activeTabId);
+  const activeTab = useTabStore((s) => s.tabs.find((t) => t.id === activeTabId));
+
+  // Auto-reveal and scroll into view when active tab changes
+  useEffect(() => {
+    if (!activeTab || !activeTab.connectionId || !treeRef.current) return;
+
+    const connId = activeTab.connectionId;
+    const targetTableName = activeTab.tableName;
+    const targetSchemaName = activeTab.schemaName;
+
+    const targetNode = findNodeInTree(treeData, (node) => {
+      if (node.connectionId !== connId) return false;
+      if (targetTableName) {
+        const matchesTable =
+          (node.nodeType === 'table' || node.nodeType === 'view') &&
+          (node.tableName === targetTableName || node.name === targetTableName);
+        if (matchesTable) {
+          if (!targetSchemaName || !node.schemaName || node.schemaName === targetSchemaName) {
+            return true;
+          }
+        }
+        return false;
+      }
+      return node.nodeType === 'connection' && node.connectionId === connId;
+    });
+
+    if (targetNode) {
+      const ancestors = getAncestorNodeIds(treeData, targetNode.id);
+      if (ancestors) {
+        for (const ancestorId of ancestors) {
+          treeRef.current.open(ancestorId);
+        }
+      }
+      treeRef.current.scrollTo(targetNode.id);
+    }
+  }, [activeTabId, activeTab?.tableName, activeTab?.connectionId, activeTab?.schemaName, treeData]);
 
   const handleOpenTable = useCallback((node: BrowserTreeNode) => {
     openTableTab({
@@ -1224,6 +1293,9 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               onDisconnectConnection: handleDisconnect,
               onLoadTableColumns: handleLoadTableColumns,
               onInsertColumnToEditor: handleInsertColumnToEditor,
+              activeConnectionId: activeTab?.connectionId,
+              activeTableName: activeTab?.tableName,
+              activeSchemaName: activeTab?.schemaName,
             }}
           >
             <Tree

@@ -29,6 +29,7 @@ import { buildSqlWhereClause, filterInMemoryRows } from '../grid/filterUtils';
 import { sortInMemoryRows } from '../grid/sortUtils';
 import { InsertRowModal } from '../grid/InsertRowModal';
 import { TableStructureEditor } from '../structure/TableStructureEditor';
+import { DisconnectedTableScreen } from '../table/DisconnectedTableScreen';
 import { TableListTab } from '../tablelist/TableListTab';
 import { ERDiagramTab } from '../diagram/ERDiagramTab';
 import { VisualQueryBuilderTab } from '../querybuilder/VisualQueryBuilderTab';
@@ -61,7 +62,16 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 }) => {
   const { t } = useTranslation();
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab } = useTabStore();
-  const { connections, activeConnectionId, connectedConnectionIds } = useConnectionStore();
+  const {
+    connections,
+    activeConnectionId,
+    connectedConnectionIds,
+    markConnected,
+    setActiveConnection,
+  } = useConnectionStore();
+
+  // Tab connection loading state for disconnected table tabs
+  const [connectingTabIds, setConnectingTabIds] = useState<Record<string, boolean>>({});
   const hasConnectedDatabase = (connectedConnectionIds?.length ?? 0) > 0;
 
   // Sidebar collapse & resize state with localStorage persistence
@@ -216,15 +226,15 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     useStatusStore.getState().setActiveTabId(activeTabId);
   }, [activeTabId]);
 
-  // Ensure active tab session is opened in backend
+  // Ensure active tab session is opened in backend only if connection is active
   useEffect(() => {
-    if (activeTab) {
+    if (activeTab && connectedConnectionIds.includes(activeTab.connectionId)) {
       dbApi.openSession(activeTab.connectionId, activeTab.id).catch((err) => {
         // Ignored or logged; session might already be open
         console.debug('openSession check:', err);
       });
     }
-  }, [activeTab]);
+  }, [activeTab, connectedConnectionIds]);
 
   // Function to load table data for a table tab
   const loadTableData = useCallback(
@@ -369,14 +379,33 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     []
   );
 
-  // Load table data when active tab is a table and has not been loaded yet
+  // Load table data when active tab is a table, connection is active, and has not been loaded yet
   useEffect(() => {
     if (activeTab && activeTab.type === 'table') {
-      if (!tableStates[activeTab.id]) {
+      const isConnected = connectedConnectionIds.includes(activeTab.connectionId);
+      if (isConnected && !tableStates[activeTab.id]) {
         loadTableData(activeTab, 1, 100);
       }
     }
-  }, [activeTab, tableStates, loadTableData]);
+  }, [activeTab, tableStates, loadTableData, connectedConnectionIds]);
+
+  // Connect and load table data for a disconnected table tab
+  const handleConnectTableTab = useCallback(
+    async (tab: Tab) => {
+      setConnectingTabIds((prev) => ({ ...prev, [tab.id]: true }));
+      try {
+        await dbApi.openSession(tab.connectionId, tab.id);
+        markConnected(tab.connectionId);
+        setActiveConnection(tab.connectionId);
+        await loadTableData(tab, 1, 100);
+      } catch (err) {
+        console.error(`Failed to connect table tab ${tab.id}:`, err);
+      } finally {
+        setConnectingTabIds((prev) => ({ ...prev, [tab.id]: false }));
+      }
+    },
+    [markConnected, setActiveConnection, loadTableData]
+  );
 
   // Handle cell edit in table tab
   const handleCellEdited = useCallback(
@@ -1018,10 +1047,15 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           <div className="flex items-center flex-1 overflow-x-auto min-w-0">
             {tabs.map((tab) => {
               const isActive = tab.id === activeTabId;
+              const tabConn = connections.find((c) => c.id === tab.connectionId);
+              const isTabConnected = connectedConnectionIds.includes(tab.connectionId);
+              const tooltip = `${tab.title} • ${tabConn?.name || 'Server'} (${tab.schemaName || tabConn?.database || 'default'})${tabConn?.driver ? ` [${tabConn.driver.toUpperCase()}]` : ''}${!isTabConnected ? ' (Disconnected)' : ''}`;
+
               return (
                 <div
                   key={tab.id}
                   role="tab"
+                  title={tooltip}
                   aria-selected={isActive}
                   onClick={() => setActiveTab(tab.id)}
                   className={`group flex items-center space-x-2 px-3 py-2 border-r text-xs cursor-pointer max-w-[200px] min-w-[120px] transition-colors ${
@@ -1046,6 +1080,12 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                     <FileCode className="w-3.5 h-3.5 flex-shrink-0 text-blue-400" />
                   )}
                   <span className="truncate flex-1">{tab.title}</span>
+                  {!isTabConnected && (
+                    <span
+                      title="Disconnected"
+                      className="w-1.5 h-1.5 rounded-full bg-amber-500/80 shrink-0"
+                    />
+                  )}
                   <button
                     type="button"
                     aria-label="Close tab"
@@ -1447,8 +1487,33 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           ) : (
             /* Table Tab: Data vs Structure view */
             (() => {
+              const isTabConnected = connectedConnectionIds.includes(activeTab.connectionId);
+              if (!isTabConnected) {
+                const conn = connections.find((c) => c.id === activeTab.connectionId);
+                return (
+                  <DisconnectedTableScreen
+                    tableName={activeTab.tableName || activeTab.title}
+                    connectionId={activeTab.connectionId}
+                    connectionName={conn?.name}
+                    schemaName={activeTab.schemaName}
+                    driver={conn?.driver}
+                    environment={conn?.environment}
+                    host={conn?.host}
+                    port={conn?.port}
+                    filepath={conn?.driver === 'sqlite' ? conn?.database : undefined}
+                    database={conn?.database}
+                    theme={theme}
+                    isConnecting={Boolean(connectingTabIds[activeTab.id])}
+                    onConnect={() => handleConnectTableTab(activeTab)}
+                    onClose={() => closeTab(activeTab.id)}
+                  />
+                );
+              }
+
               const currentMode =
                 tableTabModes[activeTab.id] ?? activeTab.viewMode ?? 'data';
+
+              const activeConn = connections.find((c) => c.id === activeTab.connectionId);
 
               return (
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -1501,11 +1566,24 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                         </button>
                       </div>
 
-                      <div className="text-gray-500 text-[11px] font-mono">
-                        {activeTab.schemaName ? `${activeTab.schemaName}.` : ''}
-                        <span className="font-semibold text-gray-700 dark:text-gray-300">
+                      <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                        <Database className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                        <span className="font-semibold text-gray-800 dark:text-gray-200">
+                          {activeConn?.name || 'Server'}
+                        </span>
+                        <span className="text-gray-400">›</span>
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {activeTab.schemaName || activeConn?.database || 'default'}
+                        </span>
+                        <span className="text-gray-400">›</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">
                           {activeTab.tableName}
                         </span>
+                        {activeConn?.driver && (
+                          <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] uppercase font-sans font-semibold bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                            {activeConn.driver}
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}

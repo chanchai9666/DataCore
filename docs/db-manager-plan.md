@@ -777,6 +777,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Sub-tab Real-time Filter & Accessibility:** รองรับการค้นหาและกรองแบบเรียลไทม์ใน Columns, Indexes, Foreign Keys, และ Constraints พร้อมทั้งใส่ `aria-label` สำหรับ Screen Readers และ automated testing
     - **Dual-Theme Contrast & Modern Empty States:** แก้ไขปัญหาตัวหนังสือจาง `text-gray-300` บนพื้นขาวใน Light Mode สำหรับ Indexed Columns, Foreign Key References, และ Constraint Expressions; ปรับปรุง Empty States ให้เป็นการ์ดโมเดิร์นพร้อมไอคอนที่ประณีตและคำอธิบายชัดเจน
 
+20. **Issue #128: Table View & Explorer Synchronization, Auto-Reveal/Scroll Highlight, and Safe Disconnected State (`DisconnectedTableScreen.tsx`, `DockLayout.tsx`, `ObjectBrowser.tsx`, `ConnectionTreeNode.tsx`)**
+    - **Safe Disconnected State (Zero Auto-Fetch):** ยับยั้งการแอบส่งคำสั่งดึงข้อมูลตารางอัตโนมัติเมื่อเปิดแท็บค้างไว้ข้ามเซสชัน หากการเชื่อมต่อยังไม่ได้เปิดใช้งาน (`!connectedConnectionIds.includes(...)`) โดยแสดงหน้าจอ `DisconnectedTableScreen` แจ้งเตือนสถานะ พร้อมสรุปบริบทของตาราง (Table, Connection Name, Driver, Environment, Database/Schema, Host) และ 2 ปุ่มคำสั่งชัดเจน: "Connect & Load Data" (เชื่อมต่อจริง ซิงค์ Explorer และโหลดข้อมูล) และ "Close Tab" (ปิดแท็บ)
+    - **Full Breadcrumb Context:** ปรับปรุง Sub-header ของ Table Data View ให้แสดงเส้นทางเต็มชัดเจน: `[Icon] Server Name › Database/Schema › Table Name` พร้อม Driver & Environment Badges ป้องกันความสับสนกรณีมีตารางชื่อซ้ำกันในหลายฐานข้อมูล พร้อมเพิ่ม Tooltip ละเอียดและ Disconnected Dot บน Tab Bar
+    - **Auto-Reveal / Scroll into View & Active Highlight in Explorer:** เมื่อเปิดหรือสลับแท็บไปยังตารางใด Explorer จะทำการคลี่ (Auto-expand) โหนดบรรพบุรุษที่เกี่ยวข้อง, เลื่อนตำแหน่ง (Auto-scroll into view) ไปยังโหนดตารางนั้นทันที, และแสดง Active Tab Highlight (`ring-1 ring-blue-500` พร้อมป้าย `active`) รวมทั้งแถบระบุสถานะ Active Connection ด้านซ้ายอย่างสมบูรณ์แบบ
+
+
 
 
 
