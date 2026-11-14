@@ -485,6 +485,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
   const [errorMap, setErrorMap] = useState<Record<string, string>>({});
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   const [createTableTarget, setCreateTableTarget] = useState<{
     connectionId: string;
@@ -625,18 +626,28 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
   // Close context menu on outside click or Escape
   useEffect(() => {
-    const handleOutsideClick = () => setContextMenu(null);
+    if (!contextMenu) return;
+
+    const handlePointerDown = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setContextMenu(null);
     };
 
-    window.addEventListener('click', handleOutsideClick);
+    // Use capture phase so stopPropagation inside tree nodes or child elements cannot block dismissal
+    window.addEventListener('mousedown', handlePointerDown, true);
+    window.addEventListener('contextmenu', handlePointerDown, true);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('mousedown', handlePointerDown, true);
+      window.removeEventListener('contextmenu', handlePointerDown, true);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [contextMenu]);
 
   // Initial connection loading on mount
   const hasLoadedRef = useRef(false);
@@ -1423,6 +1434,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               onDisconnectConnection: handleDisconnect,
               onLoadTableColumns: handleLoadTableColumns,
               onInsertColumnToEditor: handleInsertColumnToEditor,
+              onCloseContextMenu: () => setContextMenu(null),
               activeConnectionId: activeTab?.connectionId,
               activeTableName: activeTab?.tableName,
               activeSchemaName: activeTab?.schemaName,
@@ -1453,6 +1465,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       {/* Context Menu */}
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           role="menu"
           className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-xl py-1 text-xs text-gray-800 dark:text-gray-200 min-w-[160px]"
           style={{ top: contextMenu.mouseY, left: contextMenu.mouseX }}

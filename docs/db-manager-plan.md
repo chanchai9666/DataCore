@@ -857,6 +857,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
       - **Retry:** ลองเชื่อมต่อและดึงข้อมูลใหม่อีกครั้ง
     - **Stale Cached Data Banner in Data View:** ในมุมมอง Data View (Grid) หากการโหลดข้อมูลล้มเหลวเนื่องจากตารางไม่มีอยู่ในฐานข้อมูลแล้ว ระบบจะแสดงแถบแจ้งเตือน Warning สีอำพันด้านบนของ DataGrid ระบุชัดเจนว่าข้อมูลที่เห็นเป็น Snapshot เก่าที่แคชไว้ และมีปุ่มให้กดปิดแท็บหรือรีเฟรชได้ทันที
 
+33. **Issue #141: Capture-Phase Outside Click Context Menu Dismissal (`ObjectBrowser.tsx`, `ConnectionTreeNode.tsx`, `TableListTab.tsx`)**
+    - **Capture-Phase Pointerdown Dismissal:** ปรับเปลี่ยนการดักจับการคลิกนอกพื้นที่ Context Menu จาก `window.addEventListener('click', ...)` แบบ Bubble Phase เดิม มาเป็นการใช้ `mousedown` / `contextmenu` ในช่วง Capture Phase (`capture: true`) ป้องกันปัญหา `e.stopPropagation()` ภายใน Tree Node บล็อกสัญญาณไม่ให้ถึง `window`
+    - **Seamless Multi-Node Switching:** เมื่อผู้ใช้เปิด Context Menu ที่ตารางหนึ่ง (เช่น `customers`) แล้วคลิกซ้ายหรือคลิกขวาที่ตารางอื่น (เช่น `categories` หรือ `sale_items`) Context Menu เดิมจะถูก Dismiss ปิดตัวเองทันทีอย่างราบรื่นตามมาตรฐาน Desktop GUI (macOS/Windows)
+    - **Defensive Direct Callback:** เพิ่ม `onCloseContextMenu` ลงใน `ObjectBrowserContext` และเรียกใช้ใน `handleClick` บนโหนดของ Tree เพื่อรับประกันการปิดเมนู 100% ควบคู่กับ Capture Listener
+
+
 
 
 

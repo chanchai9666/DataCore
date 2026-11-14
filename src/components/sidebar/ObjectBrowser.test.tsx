@@ -698,5 +698,46 @@ describe('ObjectBrowser', () => {
       expect(locateBtn).toBeInTheDocument();
       fireEvent.click(locateBtn);
     });
+
+    it('dismisses context menu when clicking on another node or outside', async () => {
+      render(<ObjectBrowser />);
+      await expandToTables();
+
+      const userTableNode = await screen.findByText('users');
+      fireEvent.contextMenu(userTableNode);
+
+      // Context menu should appear
+      const menu = await screen.findByRole('menu');
+      expect(menu).toBeInTheDocument();
+      expect(screen.getByTestId('edit-structure-btn')).toBeInTheDocument();
+
+      // Click on another table or node in the tree
+      const ordersTableNode = screen.getByText('orders');
+      // Simulate left click (mousedown then click)
+      fireEvent.mouseDown(ordersTableNode);
+      fireEvent.click(ordersTableNode);
+
+      // Context menu should be dismissed immediately
+      await waitFor(() => {
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+      });
+    });
+
+    it('dismisses context menu when pressing Escape key', async () => {
+      render(<ObjectBrowser />);
+      await expandToTables();
+
+      const userTableNode = await screen.findByText('users');
+      fireEvent.contextMenu(userTableNode);
+
+      expect(await screen.findByRole('menu')).toBeInTheDocument();
+
+      // Press Escape
+      fireEvent.keyDown(window, { key: 'Escape' });
+
+      await waitFor(() => {
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+      });
+    });
   });
 });

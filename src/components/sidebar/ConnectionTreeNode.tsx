@@ -92,6 +92,7 @@ export interface ObjectBrowserContextType {
   onDisconnectConnection?: (connectionId: string) => void;
   onLoadTableColumns?: (node: BrowserTreeNode) => void;
   onInsertColumnToEditor?: (colName: string) => void;
+  onCloseContextMenu?: () => void;
   activeConnectionId?: string | null;
   activeTableName?: string | null;
   activeSchemaName?: string | null;
@@ -303,6 +304,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    context.onCloseContextMenu?.();
     node.select();
 
     if (data.nodeType === 'connection') {

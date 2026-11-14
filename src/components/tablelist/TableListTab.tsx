@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search,
   RefreshCw,
@@ -113,22 +113,33 @@ export const TableListTab: React.FC<TableListTabProps> = ({
     tableName: string;
     columns: { name: string; dataType: string }[];
   } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const [activeRenameTable, setActiveRenameTable] = useState<string | null>(null);
   const [activeMaintenanceTable, setActiveMaintenanceTable] = useState<string | null>(null);
   const [activeDropTable, setActiveDropTable] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleOutsideClick = () => setContextMenu(null);
+    if (!contextMenu) return;
+
+    const handlePointerDown = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setContextMenu(null);
     };
-    window.addEventListener('click', handleOutsideClick);
+
+    window.addEventListener('mousedown', handlePointerDown, true);
+    window.addEventListener('contextmenu', handlePointerDown, true);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('mousedown', handlePointerDown, true);
+      window.removeEventListener('contextmenu', handlePointerDown, true);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [contextMenu]);
 
   const handleOpenData = (tableName: string) => {
     if (onOpenTable) {
@@ -552,6 +563,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
       {/* Table Context Menu */}
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           role="menu"
           data-testid="table-list-context-menu"
           className={`fixed z-50 rounded-md shadow-2xl py-1 text-xs min-w-[190px] select-none animate-in fade-in duration-100 border ${
