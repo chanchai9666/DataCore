@@ -841,6 +841,14 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Cross-Dialect Data Type Mapping:** เพิ่มการแปลง Data Type สำหรับ Migration DDL ข้าม Driver (PostgreSQL $\leftrightarrow$ MySQL $\leftrightarrow$ SQLite) เช่น แปลง `uuid`, `jsonb`, `character varying`, `timestamptz` เป็น `TEXT` เมื่อ Target เป็น SQLite
     - **Clean SQL Execution & Accurate Error Reporting:** กรอง statement ที่เป็น comment ล้วนๆ (เช่น `-- [SQLITE REBUILD REQUIRED]...`) ออกจากการ execute และแสดง error message จริงจาก Database Driver แทนการแสดง `Execution failed: Unknown error`
 
+31. **Issue #139: Support Index/FK/PK Comparison for Existing Tables, Driver Capability Skip Engine, Button Layout, and High-Contrast Text Color (`schemaDiff.ts`, `schemaDiffApi.ts`, `SchemaDiffModal.tsx`)**
+    - **Comprehensive Existing Table Diff (PK, FK, Indexes):** ขยายการเปรียบเทียบตารางเดิมที่มีอยู่แล้วให้ครอบคลุม Primary Keys, Foreign Keys, และ Indexes ควบคู่กับ Columns ช่วยให้ตรวจพบความต่างของโครงสร้างตารางได้อย่างแม่นยำ
+    - **Target Capability Check & Safe Skip Engine:** ตรวจสอบความสามารถของ Driver ปลายทาง: สำหรับ SQLite ที่ไม่สามารถทำ `ALTER TABLE ADD PRIMARY KEY` หรือ `ADD CONSTRAINT FOREIGN KEY` หรือแก้ `NOT NULL` บนตารางเดิมได้ ระบบจะทำการ "ข้าม (Skip)" คำสั่งที่ไม่รองรับเหล่านี้ออกจากการ Execute จริงโดยอัตโนมัติ เพื่อไม่ให้สคริปต์ล้มเหลว ส่วนคำสั่งที่ SQLite รองรับ (เช่น `CREATE INDEX IF NOT EXISTS`) จะถูกนำมาสร้างเป็นสคริปต์ที่รันได้จริง พร้อมบันทึก Skipped Changes Report แสดงรายละเอียดและเหตุผลทางเทคนิคอย่างชัดเจน
+    - **Driver Limitations & Skipped UI Warnings:** เพิ่มแถบแจ้งเตือน Skipped Banner และรายละเอียดข้อจำกัดของฐานข้อมูลในแท็บ Diff Details และในส่วนหัวของ Migration Script
+    - **Button Toolbar Layout Refinement:** แก้ไขปัญหากลุ่มปุ่ม Action (เช่น Execute on Target) โดนบีบหรือล้นขอบขวา โดยกำหนด `shrink-0` และปรับ responsive spacing ให้สวยงาม สะอาดตา
+    - **High-Contrast Text Color:** ปรับปรุงโทนสีของกล่องแสดงโค้ด SQL จากสีเขียวอ่อนเดิมที่กลืนกับพื้นหลัง เป็น High-Contrast Theme (`text-slate-900 dark:text-slate-100` บน `bg-slate-50 dark:bg-slate-950/80`) ทำให้อ่านสคริปต์และคอมเมนต์ได้อย่างชัดเจนทั้งในโหมดสว่างและโหมดมืด
+
+
 
 
 

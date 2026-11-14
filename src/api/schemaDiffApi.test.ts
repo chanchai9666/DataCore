@@ -324,4 +324,205 @@ CREATE TABLE "users" (
       expect(branchCols[0].isNullable).toBe(true);
     });
   });
+
+  describe('existing table diff with indexes, foreign keys, and capability skip engine', () => {
+    it('accurately detects missing PK, missing indexes, and missing FKs on existing table', () => {
+      const sourceTable: ERTable = {
+        id: 'sale_items',
+        name: 'sale_items',
+        x: 0,
+        y: 0,
+        columns: [
+          { name: 'id', dataType: 'varchar', isPrimaryKey: true, isNullable: false },
+          { name: 'sale_id', dataType: 'varchar', isPrimaryKey: false, isNullable: false },
+          { name: 'product_id', dataType: 'varchar', isPrimaryKey: false, isNullable: false },
+        ],
+      };
+
+      const targetTable: ERTable = {
+        id: 'sale_items',
+        name: 'sale_items',
+        x: 0,
+        y: 0,
+        columns: [
+          { name: 'id', dataType: 'TEXT', isPrimaryKey: false, isNullable: true }, // Missing PK, Nullable YES
+          { name: 'sale_id', dataType: 'TEXT', isPrimaryKey: false, isNullable: true },
+          { name: 'product_id', dataType: 'TEXT', isPrimaryKey: false, isNullable: true },
+        ],
+      };
+
+      const sourceMeta = [
+        {
+          tableName: 'sale_items',
+          columns: [],
+          indexes: [
+            { name: 'idx_sale_items_product_id', columns: ['product_id'], isUnique: false },
+            { name: 'idx_sale_items_sale_id', columns: ['sale_id'], isUnique: false },
+          ],
+          foreignKeys: [
+            {
+              name: 'fk_sale_items_sale_id',
+              columnNames: ['sale_id'],
+              foreignTableName: 'sales',
+              foreignColumnNames: ['id'],
+            },
+          ],
+        },
+      ];
+
+      const targetMeta = [
+        {
+          tableName: 'sale_items',
+          columns: [],
+          indexes: [],
+          foreignKeys: [],
+        },
+      ];
+
+      const diff = compareSchemas(
+        { connectionId: 'pg1', tables: [sourceTable], metadata: sourceMeta, driver: 'postgres' },
+        { connectionId: 'sq1', tables: [targetTable], metadata: targetMeta, driver: 'sqlite' }
+      );
+
+      const tableDiff = diff.tables.find((t) => t.tableName === 'sale_items')!;
+      expect(tableDiff).toBeDefined();
+      expect(tableDiff.status).toBe('different');
+
+      // PK Diff check
+      expect(tableDiff.primaryKeyDiff).toBeDefined();
+      expect(tableDiff.primaryKeyDiff?.status).toBe('mismatch');
+      expect(tableDiff.primaryKeyDiff?.sourceColumns).toEqual(['id']);
+      expect(tableDiff.primaryKeyDiff?.targetColumns).toEqual([]);
+
+      // Index Diff check
+      expect(tableDiff.indexDiffs).toBeDefined();
+      expect(tableDiff.indexDiffs).toHaveLength(2);
+      expect(tableDiff.indexDiffs?.map((i) => i.name)).toContain('idx_sale_items_product_id');
+
+      // FK Diff check
+      expect(tableDiff.foreignKeyDiffs).toBeDefined();
+      expect(tableDiff.foreignKeyDiffs).toHaveLength(1);
+      expect(tableDiff.foreignKeyDiffs?.[0].name).toBe('fk_sale_items_sale_id');
+    });
+
+    it('generates executable indexes on SQLite and safely skips unsupported PK/FK/nullability on existing tables with clear explanations', () => {
+      const sourceTable: ERTable = {
+        id: 'sale_items',
+        name: 'sale_items',
+        x: 0,
+        y: 0,
+        columns: [
+          { name: 'id', dataType: 'varchar', isPrimaryKey: true, isNullable: false },
+          { name: 'sale_id', dataType: 'varchar', isPrimaryKey: false, isNullable: false },
+          { name: 'product_id', dataType: 'varchar', isPrimaryKey: false, isNullable: false },
+        ],
+      };
+
+      const targetTable: ERTable = {
+        id: 'sale_items',
+        name: 'sale_items',
+        x: 0,
+        y: 0,
+        columns: [
+          { name: 'id', dataType: 'TEXT', isPrimaryKey: false, isNullable: true },
+          { name: 'sale_id', dataType: 'TEXT', isPrimaryKey: false, isNullable: true },
+          { name: 'product_id', dataType: 'TEXT', isPrimaryKey: false, isNullable: true },
+        ],
+      };
+
+      const sourceMeta = [
+        {
+          tableName: 'sale_items',
+          columns: [],
+          indexes: [
+            { name: 'idx_sale_items_product_id', columns: ['product_id'], isUnique: false },
+          ],
+          foreignKeys: [
+            {
+              name: 'fk_sale_items_sale_id',
+              columnNames: ['sale_id'],
+              foreignTableName: 'sales',
+              foreignColumnNames: ['id'],
+            },
+          ],
+        },
+      ];
+
+      const diff = compareSchemas(
+        { connectionId: 'pg1', tables: [sourceTable], metadata: sourceMeta, driver: 'postgres' },
+        { connectionId: 'sq1', tables: [targetTable], metadata: [], driver: 'sqlite' }
+      );
+
+      const migration = generateMigrationSql(diff, 'sqlite');
+
+      // 1. Executable part must contain CREATE INDEX for SQLite
+      expect(migration.up).toContain('CREATE INDEX IF NOT EXISTS "idx_sale_items_product_id" ON "sale_items" ("product_id");');
+
+      // 2. Must NOT contain unsupported ALTER statements that fail in SQLite
+      expect(migration.up).not.toContain('ALTER TABLE "sale_items" ADD PRIMARY KEY');
+      expect(migration.up).not.toContain('ALTER TABLE "sale_items" ADD CONSTRAINT');
+
+      // 3. Skipped items must record technical reasons
+      expect(migration.skippedItems).toBeDefined();
+      expect(migration.skippedItems!.length).toBeGreaterThan(0);
+      expect(migration.skippedItems!.some((s) => s.itemType === 'primary_key')).toBe(true);
+      expect(migration.skippedItems!.some((s) => s.itemType === 'foreign_key')).toBe(true);
+
+      // 4. Must output a clear Skipped Changes Report in SQL comments
+      expect(migration.up).toContain('SKIPPED CHANGES REPORT');
+      expect(migration.up).toContain('[sale_items]');
+    });
+
+    it('generates ALTER TABLE ADD CONSTRAINT for PostgreSQL target when adding FKs and PKs', () => {
+      const sourceTable: ERTable = {
+        id: 'sale_items',
+        name: 'sale_items',
+        x: 0,
+        y: 0,
+        columns: [
+          { name: 'id', dataType: 'varchar', isPrimaryKey: true, isNullable: false },
+          { name: 'sale_id', dataType: 'varchar', isPrimaryKey: false, isNullable: false },
+        ],
+      };
+
+      const targetTable: ERTable = {
+        id: 'sale_items',
+        name: 'sale_items',
+        x: 0,
+        y: 0,
+        columns: [
+          { name: 'id', dataType: 'varchar', isPrimaryKey: false, isNullable: false },
+          { name: 'sale_id', dataType: 'varchar', isPrimaryKey: false, isNullable: false },
+        ],
+      };
+
+      const sourceMeta = [
+        {
+          tableName: 'sale_items',
+          columns: [],
+          indexes: [{ name: 'idx_sale_id', columns: ['sale_id'], isUnique: false }],
+          foreignKeys: [
+            {
+              name: 'fk_sale_id',
+              columnNames: ['sale_id'],
+              foreignTableName: 'sales',
+              foreignColumnNames: ['id'],
+            },
+          ],
+        },
+      ];
+
+      const diff = compareSchemas(
+        { connectionId: 'c1', tables: [sourceTable], metadata: sourceMeta, driver: 'postgres' },
+        { connectionId: 'c2', tables: [targetTable], metadata: [], driver: 'postgres' }
+      );
+
+      const migration = generateMigrationSql(diff, 'postgres');
+
+      // In Postgres, PK, FK, and Index can all be added to existing table!
+      expect(migration.up).toContain('ALTER TABLE "sale_items" ADD PRIMARY KEY ("id");');
+      expect(migration.up).toContain('ALTER TABLE "sale_items" ADD CONSTRAINT "fk_sale_id" FOREIGN KEY ("sale_id") REFERENCES "sales" ("id");');
+      expect(migration.up).toContain('CREATE INDEX IF NOT EXISTS "idx_sale_id" ON "sale_items" ("sale_id");');
+    });
+  });
 });

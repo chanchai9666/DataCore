@@ -20,12 +20,73 @@ export interface ColumnDiff {
   targetPk?: boolean;
 }
 
+export interface SkippedItem {
+  tableName: string;
+  itemType: 'primary_key' | 'foreign_key' | 'index' | 'column_type' | 'nullability';
+  description: string;
+  reason: string;
+}
+
+export interface IndexDiff {
+  name: string;
+  tableName: string;
+  columns: string[];
+  isUnique: boolean;
+  status: 'added' | 'removed' | 'identical';
+  canApplyToTarget: boolean;
+  skipReason?: string;
+}
+
+export interface ForeignKeyDiff {
+  name: string;
+  tableName: string;
+  columnNames: string[];
+  foreignTableName: string;
+  foreignColumnNames: string[];
+  status: 'added' | 'removed' | 'identical';
+  canApplyToTarget: boolean;
+  skipReason?: string;
+}
+
+export interface PrimaryKeyDiff {
+  tableName: string;
+  sourceColumns: string[];
+  targetColumns: string[];
+  status: 'identical' | 'mismatch' | 'added' | 'removed';
+  canApplyToTarget: boolean;
+  skipReason?: string;
+}
+
 export interface TableDiff {
   tableName: string;
   status: TableDiffStatus;
   columnDiffs: ColumnDiff[];
-  indexDiffs?: string[];
-  foreignKeyDiffs?: string[];
+  indexDiffs?: IndexDiff[];
+  foreignKeyDiffs?: ForeignKeyDiff[];
+  primaryKeyDiff?: PrimaryKeyDiff;
+  skippedItems?: SkippedItem[];
+}
+
+export interface SchemaTableMetadata {
+  tableName: string;
+  columns: {
+    name: string;
+    dataType: string;
+    isNullable: boolean;
+    isPrimaryKey: boolean;
+  }[];
+  indexes?: {
+    name: string;
+    columns: string[];
+    isUnique: boolean;
+    isPrimary?: boolean;
+  }[];
+  foreignKeys?: {
+    name: string;
+    columnNames: string[];
+    foreignTableName: string;
+    foreignColumnNames: string[];
+  }[];
 }
 
 export interface SchemaDiffTarget {
@@ -33,6 +94,7 @@ export interface SchemaDiffTarget {
   schemaName?: string;
   driver?: string;
   tables: ERTable[];
+  metadata?: SchemaTableMetadata[];
 }
 
 export interface SchemaDiffSummary {
@@ -40,6 +102,7 @@ export interface SchemaDiffSummary {
   differentCount: number;
   onlyInSourceCount: number;
   onlyInTargetCount: number;
+  skippedCount?: number;
 }
 
 export interface SchemaDiffResult {
@@ -52,4 +115,6 @@ export interface SchemaDiffResult {
 export interface MigrationScript {
   up: string;
   down: string;
+  executableStatementCount?: number;
+  skippedItems?: SkippedItem[];
 }

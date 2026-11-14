@@ -193,4 +193,71 @@ describe('SchemaDiffModal', () => {
       );
     });
   });
+
+  it('displays Target Driver Limitations Notice banner when migration script has skipped items', async () => {
+    vi.mocked(schemaDiffApi.fetchSchemaForDiff).mockImplementation(async (connId) => {
+      if (connId === 'conn_source') {
+        return {
+          connectionId: 'conn_source',
+          driver: 'postgres',
+          tables: [
+            {
+              id: 'orders',
+              name: 'orders',
+              x: 0,
+              y: 0,
+              columns: [{ name: 'id', dataType: 'int', isPrimaryKey: true, isNullable: false }],
+            },
+          ],
+          metadata: [
+            {
+              tableName: 'orders',
+              columns: [],
+              indexes: [{ name: 'idx_orders_id', columns: ['id'], isUnique: false }],
+              foreignKeys: [],
+            },
+          ],
+        };
+      }
+      return {
+        connectionId: 'conn_target',
+        driver: 'sqlite',
+        tables: [
+          {
+            id: 'orders',
+            name: 'orders',
+            x: 0,
+            y: 0,
+            columns: [{ name: 'id', dataType: 'INTEGER', isPrimaryKey: false, isNullable: true }],
+          },
+        ],
+        metadata: [],
+      };
+    });
+
+    render(
+      <SchemaDiffModal
+        isOpen={true}
+        onClose={vi.fn()}
+        initialConnectionId="conn_source"
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('diff-compare-btn'));
+    await waitFor(() => {
+      expect(screen.getByText('orders')).toBeInTheDocument();
+    });
+
+    // In Diff Details tab, should show limitation warnings and indexes
+    expect(screen.getByText(/Driver Limitations on Existing Table/i)).toBeInTheDocument();
+    expect(screen.getByText(/Indexes \(1\)/i)).toBeInTheDocument();
+
+    // Switch to Migration UP tab
+    fireEvent.click(screen.getByTestId('diff-tab-migration'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Target Driver Limitations Notice/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/Limitations Skipped/i).length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });
