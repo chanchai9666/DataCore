@@ -782,6 +782,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Full Breadcrumb Context:** ปรับปรุง Sub-header ของ Table Data View ให้แสดงเส้นทางเต็มชัดเจน: `[Icon] Server Name › Database/Schema › Table Name` พร้อม Driver & Environment Badges ป้องกันความสับสนกรณีมีตารางชื่อซ้ำกันในหลายฐานข้อมูล พร้อมเพิ่ม Tooltip ละเอียดและ Disconnected Dot บน Tab Bar
     - **Auto-Reveal / Scroll into View & Active Highlight in Explorer:** เมื่อเปิดหรือสลับแท็บไปยังตารางใด Explorer จะทำการคลี่ (Auto-expand) โหนดบรรพบุรุษที่เกี่ยวข้อง, เลื่อนตำแหน่ง (Auto-scroll into view) ไปยังโหนดตารางนั้นทันที, และแสดง Active Tab Highlight (`ring-1 ring-blue-500` พร้อมป้าย `active`) รวมทั้งแถบระบุสถานะ Active Connection ด้านซ้ายอย่างสมบูรณ์แบบ
 
+21. **Issue #129: Connection Schema Tree Expansion Fix, Strict On-Demand Table Data Loading, and Refined Tree Highlights (`ConnectionTreeNode.tsx`, `ObjectBrowser.tsx`, `DockLayout.tsx`, `tabStore.ts`)**
+    - **Connection Schema Expansion & Loading Status:** แก้ไขปัญหาการคลิกเปิดหรือเชื่อมต่อ Connection แล้วขึ้น `(No tables or views found)` ขณะที่กำลังโหลด schema หรือยังไม่ได้ดึง schema โดยแสดงโหนด `Loading schema...` พร้อม trigger การดึงโครงสร้างอัตโนมัติเมื่อตรวจพบการเชื่อมต่อ และปรับปรุงการ Auto-Reveal ให้คลี่และเลื่อนไปยังโหนดของแท็บประเภท `table-list` ด้วย
+    - **Explicit On-Demand Per-Tab Data Loading:** จัดการสถานะ `isLoaded` แยกอิสระในระดับแท็บ และ strip ออกจาก localStorage เพื่อไม่ให้แท็บที่กู้คืนข้ามเซสชันแอบดึงข้อมูลเบื้องหลังอัตโนมัติ แม้ว่าการเชื่อมต่อของเซิร์ฟเวอร์นั้นจะเชื่อมต่อแล้วก็ตาม โดยแสดงหน้าจอ "Table Data Not Loaded" พร้อมปุ่ม "Load Table Data" ให้ผู้ใช้เลือกโหลดเมื่อต้องการจริง
+    - **Refined Explorer Tree Highlights:** ปรับปรุง Active Connection Highlight ให้เป็นกรอบโค้งมนที่สมบูรณ์สวยงาม (`border border-blue-500/50` พร้อม badge `ACTIVE`) โดยตัดขอบเส้น `border-l-4` ที่เคยยื่นลอยแปลกๆ ออก และปรับขอบ Active Table Node ให้เป็นกล่องมนครบ 360 องศา ไม่ถูกตัดขอบจาก Virtual List container
+
+
 
 
 

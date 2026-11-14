@@ -29,8 +29,10 @@ export const useTabStore = create<TabStoreState>()(
           set({ activeTabId: tab.id });
           useStatusStore.getState().setActiveTabId(tab.id);
         } else {
+          const isTableType = tab.type === 'table' || tab.type === 'table-list';
+          const tabToOpen: Tab = isTableType ? { ...tab, isLoaded: tab.isLoaded ?? true } : tab;
           set({
-            tabs: [...tabs, tab],
+            tabs: [...tabs, tabToOpen],
             activeTabId: tab.id,
           });
           useStatusStore.getState().setActiveTabId(tab.id);
@@ -117,7 +119,7 @@ export const useTabStore = create<TabStoreState>()(
       name: 'datacore_tabs',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        tabs: state.tabs,
+        tabs: state.tabs.map(({ isLoaded: _isLoaded, ...rest }) => rest),
         activeTabId: state.activeTabId,
       }),
     }

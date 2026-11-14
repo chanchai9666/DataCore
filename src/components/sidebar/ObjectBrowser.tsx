@@ -688,6 +688,15 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     }
   }, [lastSavedConnectionId, connections, fetchSchema, connectedConnectionIds]);
 
+  // Automatically fetch schema for any connection that is marked connected but lacks schema tree in state
+  useEffect(() => {
+    connectedConnectionIds.forEach((connId) => {
+      if (!schemas[connId] && !loadingMap[connId] && !errorMap[connId]) {
+        fetchSchema(connId);
+      }
+    });
+  }, [connectedConnectionIds, schemas, loadingMap, errorMap, fetchSchema]);
+
   const allFolderNames = useMemo(() => {
     const set = new Set<string>();
     customFolders.forEach((f) => set.add(f));
@@ -724,7 +733,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             errorMessage: errorMsg,
           },
         ];
-      } else if (isLoading && connSchema.length === 0) {
+      } else if (isLoading || (isConnected && schemas[conn.id] === undefined)) {
         children = [
           {
             id: `${conn.id}-loading`,
@@ -831,6 +840,13 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           }
         }
         return false;
+      }
+      if (activeTab.type === 'table-list') {
+        const isTableFolder =
+          node.nodeType === 'folder' &&
+          (node.name.startsWith('Tables') || node.id.includes('tables')) &&
+          (!targetSchemaName || !node.schemaName || node.schemaName === targetSchemaName);
+        if (isTableFolder) return true;
       }
       return node.nodeType === 'connection' && node.connectionId === connId;
     });

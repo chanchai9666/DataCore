@@ -174,4 +174,27 @@ describe('tabStore', () => {
     expect(parsed.state.tabs[0].queryContent).toBe('SELECT * FROM persistent_table;');
     expect(parsed.state.activeTabId).toBe('tab-persist-1');
   });
+
+  it('sets isLoaded true for opened table tab and strips isLoaded in localStorage persistence', () => {
+    const tableTab: Tab = {
+      id: 'tab-table-persist',
+      connectionId: 'conn-1',
+      type: 'table',
+      title: 'Products',
+      tableName: 'products',
+      schemaName: 'public',
+      autoCommit: true,
+      queryContent: '',
+    };
+
+    useTabStore.getState().openTab(tableTab);
+    expect(useTabStore.getState().tabs.find((t) => t.id === 'tab-table-persist')?.isLoaded).toBe(true);
+
+    const storedRaw = localStorage.getItem('datacore_tabs');
+    expect(storedRaw).not.toBeNull();
+    const parsed = JSON.parse(storedRaw!);
+    const savedTab = parsed.state.tabs.find((t: Tab) => t.id === 'tab-table-persist');
+    expect(savedTab).toBeDefined();
+    expect(savedTab.isLoaded).toBeUndefined();
+  });
 });

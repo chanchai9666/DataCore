@@ -379,17 +379,18 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     []
   );
 
-  // Load table data when active tab is a table, connection is active, and has not been loaded yet
+  // Load table data when active tab is a table, connection is active, user explicitly requested load, and has not been loaded yet
   useEffect(() => {
     if (activeTab && activeTab.type === 'table') {
       const isConnected = connectedConnectionIds.includes(activeTab.connectionId);
-      if (isConnected && !tableStates[activeTab.id]) {
+      const isLoaded = Boolean(activeTab.isLoaded);
+      if (isConnected && isLoaded && !tableStates[activeTab.id]) {
         loadTableData(activeTab, 1, 100);
       }
     }
   }, [activeTab, tableStates, loadTableData, connectedConnectionIds]);
 
-  // Connect and load table data for a disconnected table tab
+  // Connect and load table data for a table tab
   const handleConnectTableTab = useCallback(
     async (tab: Tab) => {
       setConnectingTabIds((prev) => ({ ...prev, [tab.id]: true }));
@@ -397,6 +398,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         await dbApi.openSession(tab.connectionId, tab.id);
         markConnected(tab.connectionId);
         setActiveConnection(tab.connectionId);
+        useTabStore.getState().updateTab(tab.id, { isLoaded: true });
         await loadTableData(tab, 1, 100);
       } catch (err) {
         console.error(`Failed to connect table tab ${tab.id}:`, err);
@@ -1049,7 +1051,9 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
               const isActive = tab.id === activeTabId;
               const tabConn = connections.find((c) => c.id === tab.connectionId);
               const isTabConnected = connectedConnectionIds.includes(tab.connectionId);
-              const tooltip = `${tab.title} • ${tabConn?.name || 'Server'} (${tab.schemaName || tabConn?.database || 'default'})${tabConn?.driver ? ` [${tabConn.driver.toUpperCase()}]` : ''}${!isTabConnected ? ' (Disconnected)' : ''}`;
+              const isTabLoaded = Boolean(tab.isLoaded);
+              const isTabUnloaded = !isTabConnected || !isTabLoaded;
+              const tooltip = `${tab.title} • ${tabConn?.name || 'Server'} (${tab.schemaName || tabConn?.database || 'default'})${tabConn?.driver ? ` [${tabConn.driver.toUpperCase()}]` : ''}${!isTabConnected ? ' (Disconnected)' : !isTabLoaded ? ' (Not Loaded)' : ''}`;
 
               return (
                 <div
@@ -1080,9 +1084,9 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                     <FileCode className="w-3.5 h-3.5 flex-shrink-0 text-blue-400" />
                   )}
                   <span className="truncate flex-1">{tab.title}</span>
-                  {!isTabConnected && (
+                  {isTabUnloaded && (
                     <span
-                      title="Disconnected"
+                      title={!isTabConnected ? 'Disconnected' : 'Not Loaded'}
                       className="w-1.5 h-1.5 rounded-full bg-amber-500/80 shrink-0"
                     />
                   )}
@@ -1182,35 +1186,65 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
             </div>
           ) : activeTab.type === 'table-list' ? (
             /* Table List View Tab */
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              <TableListTab
-                connectionId={activeTab.connectionId}
-                schemaName={activeTab.schemaName}
-                theme={theme}
-                onOpenTable={(tableName: string) => {
-                  openTableTab({
-                    connectionId: activeTab.connectionId,
-                    tableName,
-                    schemaName: activeTab.schemaName,
-                  });
-                }}
-                onOpenStructure={(tableName: string) => {
-                  openTableTab({
-                    connectionId: activeTab.connectionId,
-                    tableName,
-                    schemaName: activeTab.schemaName,
-                    viewMode: 'structure',
-                  });
-                }}
-                onDuplicateTable={(tableName: string) => {
-                  setDuplicateModalTarget({
-                    connectionId: activeTab.connectionId,
-                    sourceTableName: tableName,
-                    schemaName: activeTab.schemaName,
-                  });
-                }}
-              />
-            </div>
+            (() => {
+              const isConnConnected = connectedConnectionIds.includes(activeTab.connectionId);
+              const isTabLoaded = Boolean(activeTab.isLoaded);
+
+              if (!isConnConnected || !isTabLoaded) {
+                const conn = connections.find((c) => c.id === activeTab.connectionId);
+                return (
+                  <DisconnectedTableScreen
+                    tableName={activeTab.schemaName ? `Tables (${activeTab.schemaName})` : 'Tables'}
+                    connectionId={activeTab.connectionId}
+                    connectionName={conn?.name}
+                    schemaName={activeTab.schemaName}
+                    driver={conn?.driver}
+                    environment={conn?.environment}
+                    host={conn?.host}
+                    port={conn?.port}
+                    filepath={conn?.driver === 'sqlite' ? conn?.database : undefined}
+                    database={conn?.database}
+                    theme={theme}
+                    isConnecting={Boolean(connectingTabIds[activeTab.id])}
+                    isConnectionActive={isConnConnected}
+                    onConnect={() => handleConnectTableTab(activeTab)}
+                    onClose={() => closeTab(activeTab.id)}
+                  />
+                );
+              }
+
+              return (
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                  <TableListTab
+                    connectionId={activeTab.connectionId}
+                    schemaName={activeTab.schemaName}
+                    theme={theme}
+                    onOpenTable={(tableName: string) => {
+                      openTableTab({
+                        connectionId: activeTab.connectionId,
+                        tableName,
+                        schemaName: activeTab.schemaName,
+                      });
+                    }}
+                    onOpenStructure={(tableName: string) => {
+                      openTableTab({
+                        connectionId: activeTab.connectionId,
+                        tableName,
+                        schemaName: activeTab.schemaName,
+                        viewMode: 'structure',
+                      });
+                    }}
+                    onDuplicateTable={(tableName: string) => {
+                      setDuplicateModalTarget({
+                        connectionId: activeTab.connectionId,
+                        sourceTableName: tableName,
+                        schemaName: activeTab.schemaName,
+                      });
+                    }}
+                  />
+                </div>
+              );
+            })()
           ) : activeTab.type === 'query' ? (
             /* Query Tab: Split view (Editor and DataGrid with vertical or horizontal resizer) */
             <div
@@ -1488,7 +1522,9 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
             /* Table Tab: Data vs Structure view */
             (() => {
               const isTabConnected = connectedConnectionIds.includes(activeTab.connectionId);
-              if (!isTabConnected) {
+              const isTabLoaded = Boolean(activeTab.isLoaded);
+
+              if (!isTabConnected || !isTabLoaded) {
                 const conn = connections.find((c) => c.id === activeTab.connectionId);
                 return (
                   <DisconnectedTableScreen
@@ -1504,6 +1540,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                     database={conn?.database}
                     theme={theme}
                     isConnecting={Boolean(connectingTabIds[activeTab.id])}
+                    isConnectionActive={isTabConnected}
                     onConnect={() => handleConnectTableTab(activeTab)}
                     onClose={() => closeTab(activeTab.id)}
                   />

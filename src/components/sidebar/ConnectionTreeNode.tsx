@@ -364,68 +364,88 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
     context.activeConnectionId === data.connectionId;
 
   return (
-    <div
-      ref={dragHandle}
-      style={style}
-      draggable={data.nodeType === 'column'}
-      onDragStart={(e) => {
-        if (data.nodeType === 'column') {
-          e.dataTransfer.setData('text/plain', data.name);
-          e.dataTransfer.setData('application/datacore-column', data.name);
-        }
-      }}
-      className={`group flex items-center h-6 px-1.5 rounded cursor-pointer select-none text-xs transition-colors ${
-        isTargetActiveTable
-          ? 'bg-blue-600/25 text-blue-900 dark:text-blue-100 ring-1 ring-blue-500 font-semibold shadow-xs'
-          : node.isSelected
-          ? 'bg-blue-600/20 text-blue-800 dark:bg-blue-600/30 dark:text-white font-medium'
-          : 'text-gray-700 dark:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-gray-800'
-      } ${isTargetActiveConnection ? 'border-l-2 border-blue-500 pl-1' : ''}`}
-      onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
-      onContextMenu={handleContextMenu}
-      data-testid={`tree-node-${data.name}`}
-      data-active-table={isTargetActiveTable ? 'true' : undefined}
-    >
-      {/* Expander Arrow */}
-      <span
-        className="w-4 h-4 flex items-center justify-center shrink-0 mr-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (isTable && !node.isOpen && context.onLoadTableColumns) {
-            context.onLoadTableColumns(data);
+    <div style={style} className="w-full flex items-center pr-1 overflow-visible">
+      <div
+        ref={dragHandle}
+        draggable={data.nodeType === 'column'}
+        onDragStart={(e) => {
+          if (data.nodeType === 'column') {
+            e.dataTransfer.setData('text/plain', data.name);
+            e.dataTransfer.setData('application/datacore-column', data.name);
           }
-          if (showArrow) node.toggle();
         }}
+        className={`group flex items-center h-6 mx-1 px-1.5 w-full rounded-md cursor-pointer select-none text-xs transition-colors ${
+          isTargetActiveTable
+            ? 'bg-blue-600/20 text-blue-900 dark:text-blue-100 border border-blue-500 ring-1 ring-blue-500/30 font-semibold shadow-xs'
+            : node.isSelected
+            ? 'bg-blue-600/20 text-blue-800 dark:bg-blue-600/30 dark:text-white font-medium'
+            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-gray-800'
+        } ${
+          isTargetActiveConnection
+            ? 'bg-blue-500/15 dark:bg-blue-600/25 text-blue-900 dark:text-blue-100 font-bold border border-blue-500/50 dark:border-blue-400/50 shadow-xs'
+            : ''
+        }`}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        onContextMenu={handleContextMenu}
+        data-testid={`tree-node-${data.name}`}
+        data-active-table={isTargetActiveTable ? 'true' : undefined}
       >
-        {showArrow ? (
-          node.isOpen ? (
-            <ChevronDown className="w-3.5 h-3.5" data-testid="chevron-down" />
-          ) : (
-            <ChevronRight className="w-3.5 h-3.5" data-testid="chevron-right" />
-          )
-        ) : (
-          <span className="w-3.5" data-testid="arrow-spacer" />
-        )}
-      </span>
-
-      {/* Node Icon */}
-      <span className="mr-1.5 flex items-center">{getNodeIcon()}</span>
-
-      {/* Node Name */}
-      <span className={`truncate flex-1 ${data.nodeType === 'column' ? 'font-mono text-[11px]' : ''}`} title={data.name}>
-        {data.name}
-      </span>
-
-      {/* Active Tab Badge for Table/View */}
-      {isTargetActiveTable && (
+        {/* Expander Arrow */}
         <span
-          className="ml-1 px-1 py-0.2 text-[8px] rounded font-sans uppercase font-bold bg-blue-600 text-white leading-none shrink-0"
-          title="Active tab"
+          className="w-4 h-4 flex items-center justify-center shrink-0 mr-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (data.nodeType === 'connection') {
+              const status = getConnectionStatus(data);
+              if (status !== 'connected' && context.onConnectConnection) {
+                context.onConnectConnection(data.connectionId);
+                return;
+              }
+            }
+            if (isTable && !node.isOpen && context.onLoadTableColumns) {
+              context.onLoadTableColumns(data);
+            }
+            if (showArrow) node.toggle();
+          }}
         >
-          active
+          {showArrow ? (
+            node.isOpen ? (
+              <ChevronDown className="w-3.5 h-3.5" data-testid="chevron-down" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5" data-testid="chevron-right" />
+            )
+          ) : (
+            <span className="w-3.5" data-testid="arrow-spacer" />
+          )}
         </span>
-      )}
+
+        {/* Node Icon */}
+        <span className="mr-1.5 flex items-center">{getNodeIcon()}</span>
+
+        {/* Node Name */}
+        <span className={`truncate flex-1 ${data.nodeType === 'column' ? 'font-mono text-[11px]' : ''}`} title={data.name}>
+          {data.name}
+        </span>
+
+        {/* Active Badge for Table/View or Connection */}
+        {isTargetActiveTable && (
+          <span
+            className="ml-1 px-1 py-0.2 text-[8px] rounded font-sans uppercase font-bold bg-blue-600 text-white leading-none shrink-0"
+            title="Active tab"
+          >
+            active
+          </span>
+        )}
+
+        {isTargetActiveConnection && (
+          <span
+            className="ml-1 px-1 py-0.2 text-[8px] rounded font-sans uppercase font-bold bg-blue-600 text-white leading-none shrink-0"
+            title="Active connection"
+          >
+            active
+          </span>
+        )}
 
       {/* Column Data Type & PK/FK Badges */}
       {data.nodeType === 'column' && (
@@ -571,5 +591,6 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         )}
       </div>
     </div>
-  );
+  </div>
+);
 };

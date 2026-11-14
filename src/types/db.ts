@@ -134,6 +134,7 @@ export interface Tab {
   filterState?: TableFilterState;
   sortState?: TableSortState;
   columnWidths?: Record<string, number>;
+  isLoaded?: boolean;
 }
 
 export interface ERColumn {

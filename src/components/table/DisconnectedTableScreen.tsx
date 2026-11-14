@@ -14,6 +14,7 @@ export interface DisconnectedTableScreenProps {
   database?: string;
   theme?: 'dark' | 'light';
   isConnecting?: boolean;
+  isConnectionActive?: boolean;
   onConnect: () => void;
   onClose: () => void;
 }
@@ -31,6 +32,7 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
   database,
   theme = 'dark',
   isConnecting = false,
+  isConnectionActive = false,
   onConnect,
   onClose,
 }) => {
@@ -65,18 +67,26 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
         {/* Visual Icon Badge */}
         <div
           className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-transform hover:scale-105 ${
-            isLight ? 'bg-amber-50 text-amber-600 ring-8 ring-amber-50/50' : 'bg-amber-500/10 text-amber-400 ring-8 ring-amber-500/5'
+            isConnectionActive
+              ? isLight
+                ? 'bg-blue-50 text-blue-600 ring-8 ring-blue-50/50'
+                : 'bg-blue-500/10 text-blue-400 ring-8 ring-blue-500/5'
+              : isLight
+              ? 'bg-amber-50 text-amber-600 ring-8 ring-amber-50/50'
+              : 'bg-amber-500/10 text-amber-400 ring-8 ring-amber-500/5'
           }`}
         >
-          <Unplug className="w-7 h-7" />
+          {isConnectionActive ? <Database className="w-7 h-7" /> : <Unplug className="w-7 h-7" />}
         </div>
 
         {/* Title & Description */}
         <h2 className={`text-lg font-semibold tracking-tight mb-1.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-          Connection is Disconnected
+          {isConnectionActive ? 'Table Data Not Loaded' : 'Connection is Disconnected'}
         </h2>
         <p className={`text-xs mb-5 max-w-sm leading-relaxed ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-          This table tab was restored from a previous session. To protect system resources and avoid unintended locks, data is not fetched automatically until connected.
+          {isConnectionActive
+            ? 'This table tab was restored from a previous session. To protect database performance and avoid unexpected locks, data is loaded on demand.'
+            : 'This table tab was restored from a previous session. To protect system resources and avoid unintended locks, data is not fetched automatically until connected.'}
         </p>
 
         {/* Target Context Summary Card */}
@@ -165,7 +175,7 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
             ) : (
               <>
                 <Database className="w-3.5 h-3.5" />
-                Connect & Load
+                {isConnectionActive ? 'Load Table Data' : 'Connect & Load'}
               </>
             )}
           </button>
