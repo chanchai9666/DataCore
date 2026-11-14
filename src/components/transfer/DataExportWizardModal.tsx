@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportData, pickExportFile, cancelTransfer } from '../../api/dataTransferApi';
+import { useConnectionStore } from '../../stores/connectionStore';
 import type {
   ExportOptions,
   TransferFormat,
@@ -38,6 +39,8 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
   initialQuery,
   totalRows,
 }) => {
+  const connections = useConnectionStore((s) => s.connections);
+  const sourceConn = connections.find((c) => c.id === connectionId);
   const [currentStep, setCurrentStep] = useState<number>(1);
 
   // Step 1: Scope & Format
@@ -201,6 +204,28 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
             {currentStep === 1 && (
               <div className="space-y-5 max-w-lg mx-auto">
                 <h3 className="text-sm font-semibold text-text">Step 1: Export Scope & Format</h3>
+
+                {/* Source Context Header */}
+                <div className="p-3 rounded-lg border border-blue-500/30 bg-blue-500/10 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-md bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs uppercase">
+                      {sourceConn?.driver?.slice(0, 2) || 'DB'}
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                        Source Target
+                      </div>
+                      <div className="text-xs font-semibold text-text flex items-center gap-1.5">
+                        <span>{sourceConn?.name || connectionId}</span>
+                        <span className="text-muted">›</span>
+                        <span className="font-mono text-blue-600 dark:text-blue-400 font-semibold">{tableName}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-muted font-medium">
+                    {sourceConn?.database || 'Source Database'}
+                  </div>
+                </div>
 
                 {/* Scope Selection */}
                 <div className="space-y-2">

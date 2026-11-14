@@ -792,6 +792,13 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Interactive Click-to-Locate Navigation:** ผู้ใช้สามารถคลิกที่แต่ละ segment ใน Breadcrumb เพื่อเลื่อน Virtual Tree กลับไปหาโหนด Connection, Database, Schema หรือ Table ได้ทันที พร้อมปุ่มไอคอน "Locate Active Node" (Focus/Target) สำหรับคลิกเดียวกลับมาที่ตารางปัจจุบัน
     - **Dynamic State Synchronization:** แถบ Breadcrumb จะแสดงผลอย่างชาญฉลาดเมื่อมีการเชื่อมต่อหรือมีแท็บที่กำลังทำงานอยู่ และซิงค์เปลี่ยนตามการสลับแท็บโดยอัตโนมัติ
 
+23. **Issue #131: Source/Destination Connection Selectors in Backup/Import/Export and Categorized Tools Menu Redesign (`MainToolbar.tsx`, `ExportSqlModal.tsx`, `ImportSqlModal.tsx`, `DataImportWizardModal.tsx`, `DataExportWizardModal.tsx`)**
+    - **Source Server & Database Context in Backup / SQL Dump (`ExportSqlModal.tsx`):** เพิ่มแถบ Context Card สรุปและเลือก Connection / Server และ Schema ต้นทางได้โดยตรงใน Modal พร้อม Driver Badge เพื่อความชัดเจนและป้องกันการ Export ข้อมูลผิดเซิร์ฟเวอร์
+    - **Destination Server & Database Context in Execute SQL Script (`ImportSqlModal.tsx`):** เพิ่มแถบ Destination Target Context Card พร้อม Dropdown ให้เลือก Connection และ Schema ปลายทางที่จะ Execute คำสั่ง SQL ได้จากหน้าต่าง เพื่อความปลอดภัยในการนำเข้าข้อมูล
+    - **Data Import & Export Wizards Context Headers (`DataImportWizardModal.tsx`, `DataExportWizardModal.tsx`):** เพิ่ม Destination Context Banner ใน Step 1 ของ Data Import Wizard และ Source Target Banner ใน Data Export Wizard ระบุเซิร์ฟเวอร์และตารางที่เกี่ยวข้องอย่างโปร่งใส
+    - **Categorized 2-Line Tools Menu Redesign (`MainToolbar.tsx`):** ปรับขนาดเมนู Tools ให้กว้างขึ้น (`min-w-[340px]`) พร้อมจัดหมวดหมู่ 4 กลุ่มชัดเจน (Performance & Monitoring, Design & Modeling, Security & Administration, Productivity) และแสดงข้อความ 2 บรรทัด (ชื่อเครื่องมือตัวหนา + คำอธิบายประโยชน์และการใช้งานสั้นๆ 1 บรรทัด) ป้องกันปัญหาข้อความโดนตัดและช่วยให้ผู้ใช้งานเข้าใจหน้าที่ของเครื่องมือแต่ละตัวทันที
+
+
 
 
 

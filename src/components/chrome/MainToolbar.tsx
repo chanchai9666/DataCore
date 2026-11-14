@@ -369,8 +369,12 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
             {id === 'tools' && activeDropdown === 'tools' && (
               <div
                 data-testid="toolbar-tools-dropdown"
-                className="absolute top-full left-0 mt-1 min-w-[230px] bg-panel border border-line rounded shadow-lg z-50 py-1 text-xs animate-in fade-in zoom-in-95 duration-100"
+                className="absolute top-full left-0 mt-1 min-w-[340px] max-w-[380px] bg-panel border border-line rounded-lg shadow-xl z-50 p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100 max-h-[85vh] overflow-y-auto"
               >
+                {/* Category 1: Performance & Monitoring */}
+                <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted uppercase tracking-wider">
+                  {t('toolbar.categoryPerformance', 'Performance & Monitoring')}
+                </div>
                 {onOpenMetrics && (
                   <button
                     type="button"
@@ -379,52 +383,13 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                       setActiveDropdown(null);
                       onOpenMetrics();
                     }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
                   >
-                    <Cpu className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                    <span>{t('toolbar.metrics', 'Performance & Metrics...')}</span>
-                  </button>
-                )}
-                {onOpenERDiagram && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-er-diagram-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenERDiagram();
-                    }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
-                  >
-                    <Network className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>{t('toolbar.erDiagram', 'Visual ER Diagram...')}</span>
-                  </button>
-                )}
-                {onOpenQueryBuilder && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-query-builder-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenQueryBuilder();
-                    }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
-                  >
-                    <Wand2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>{t('toolbar.queryBuilder', 'Visual Query Builder...')}</span>
-                  </button>
-                )}
-                {onOpenSchemaDiff && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-schema-diff-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenSchemaDiff();
-                    }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
-                  >
-                    <GitCompare className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <span>{t('toolbar.schemaDiff', 'Schema Diff & Sync...')}</span>
+                    <Cpu className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.metrics', 'Database Metrics & Health')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">CPU, Memory, Cache Hit & Slow Queries</span>
+                    </div>
                   </button>
                 )}
                 {onOpenActivityMonitor && (
@@ -435,10 +400,13 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                       setActiveDropdown(null);
                       onOpenActivityMonitor();
                     }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
                   >
-                    <Activity className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                    <span>{t('toolbar.activityMonitor', 'Server Activity & Process List...')}</span>
+                    <Activity className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.activityMonitor', 'Activity & Process Monitor')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">Live sessions, running queries & kill process</span>
+                    </div>
                   </button>
                 )}
                 {onOpenLocks && (
@@ -449,12 +417,80 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                       setActiveDropdown(null);
                       onOpenLocks();
                     }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
                   >
-                    <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>{t('toolbar.locks', 'Lock Inspector & Concurrency...')}</span>
+                    <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.locks', 'Lock Inspector & Deadlocks')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">Detect blocking transactions & lock chains</span>
+                    </div>
                   </button>
                 )}
+
+                <div className="h-px bg-line my-1 mx-2" />
+
+                {/* Category 2: Design & Schema Modeling */}
+                <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted uppercase tracking-wider">
+                  {t('toolbar.categoryModeling', 'Design & Modeling')}
+                </div>
+                {onOpenERDiagram && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-er-diagram-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenERDiagram();
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                  >
+                    <Network className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.erDiagram', 'Visual ER Diagram')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">Entity relationship graphs & schema relations</span>
+                    </div>
+                  </button>
+                )}
+                {onOpenQueryBuilder && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-query-builder-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenQueryBuilder();
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                  >
+                    <Wand2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.queryBuilder', 'Visual Query Builder')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">Build SELECT queries visually without code</span>
+                    </div>
+                  </button>
+                )}
+                {onOpenSchemaDiff && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-schema-diff-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenSchemaDiff();
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                  >
+                    <GitCompare className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.schemaDiff', 'Schema Compare & Diff')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">Compare structures & generate migration SQL</span>
+                    </div>
+                  </button>
+                )}
+
+                <div className="h-px bg-line my-1 mx-2" />
+
+                {/* Category 3: Security & Governance */}
+                <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted uppercase tracking-wider">
+                  {t('toolbar.categorySecurity', 'Security & Administration')}
+                </div>
                 {onOpenAuditLog && (
                   <button
                     type="button"
@@ -463,10 +499,13 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                       setActiveDropdown(null);
                       onOpenAuditLog();
                     }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
                   >
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>{t('toolbar.auditLog', 'Security & Audit Log...')}</span>
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.auditLog', 'Security Audit Log')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">Tamper-evident logs of mutations & queries</span>
+                    </div>
                   </button>
                 )}
                 {onOpenSecurity && (
@@ -477,10 +516,13 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                       setActiveDropdown(null);
                       onOpenSecurity();
                     }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
                   >
-                    <Key className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                    <span>{t('toolbar.connectionSecurity', 'Connection Security (TLS / At-Rest)...')}</span>
+                    <Key className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.connectionSecurity', 'Connection SSL & Security')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">TLS certificates, encrypted vault & key lock</span>
+                    </div>
                   </button>
                 )}
                 {onOpenUserManager && (
@@ -491,12 +533,22 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                       setActiveDropdown(null);
                       onOpenUserManager();
                     }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
                   >
-                    <Users className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                    <span>{t('toolbar.userManagement', 'User & Privilege Manager...')}</span>
+                    <Users className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.userManagement', 'User & Privilege Manager')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">Database users, roles and table permissions</span>
+                    </div>
                   </button>
                 )}
+
+                <div className="h-px bg-line my-1 mx-2" />
+
+                {/* Category 4: Productivity */}
+                <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted uppercase tracking-wider">
+                  {t('toolbar.categoryProductivity', 'Productivity')}
+                </div>
                 {(onOpenHistory || onOpenSnippets) && (
                   <button
                     type="button"
@@ -505,10 +557,13 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                       setActiveDropdown(null);
                       (onOpenHistory || onOpenSnippets)?.();
                     }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
                   >
-                    <History className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span>{t('toolbar.queryHistory', 'Query History & Snippets...')}</span>
+                    <History className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.queryHistory', 'Query History & Snippets')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">Executed statements history & reusable code snippets</span>
+                    </div>
                   </button>
                 )}
               </div>

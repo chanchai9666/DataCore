@@ -1,8 +1,10 @@
-import React, { useState, useRef } from 'react';
-import { Download, X, Loader2, FileCode } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Download, X, Loader2, FileCode, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
 import { pickSqlExportFile, cancelTransfer } from '../../api/dataTransferApi';
+import { useConnectionStore } from '../../stores/connectionStore';
+import { DbBadge } from '../sidebar/DbBadge';
 import type { SqlExportResult } from '../../types/dataTransfer';
 
 export interface ExportSqlModalProps {
@@ -24,15 +26,34 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const connections = useConnectionStore((s) => s.connections);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string>(connectionId);
+  const [selectedSchemaName, setSelectedSchemaName] = useState<string>(schemaName || '');
   const [mode, setMode] = useState<SqlDumpMode>('both');
   const [includeDropTable, setIncludeDropTable] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedConnectionId(connectionId);
+      setSelectedSchemaName(schemaName || '');
+      setMode('both');
+      setIncludeDropTable(true);
+      setLoading(false);
+      setError(null);
+    }
+  }, [isOpen, connectionId, schemaName]);
+
   if (!isOpen) return null;
 
-  const targetName = tableName || (schemaName ? `${schemaName}_dump` : 'database_dump');
+  const targetName = tableName || (selectedSchemaName ? `${selectedSchemaName}_dump` : 'database_dump');
+
+  const activeConn = connections.find((c) => c.id === selectedConnectionId);
+  const connOptions = connections.some((c) => c.id === selectedConnectionId)
+    ? connections
+    : [{ id: selectedConnectionId, name: selectedConnectionId, driver: 'sqlite' as const, database: '' }, ...connections];
 
   const handleCancelExport = async () => {
     if (loading && activeJobIdRef.current) {
@@ -61,7 +82,10 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
       let tables = tableName ? [tableName] : [];
       if (tables.length === 0) {
         try {
-          const allMeta = await dbApi.getTableListMetadata(connectionId, schemaName);
+          const allMeta = await dbApi.getTableListMetadata(
+            selectedConnectionId,
+            selectedSchemaName.trim() || undefined
+          );
           tables = allMeta.map((t) => t.name);
         } catch {
           // Fallback handled automatically by backend if tables array is empty
@@ -69,8 +93,8 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
       }
 
       const result = await dbApi.exportSql({
-        connectionId,
-        schema: schemaName,
+        connectionId: selectedConnectionId,
+        schema: selectedSchemaName.trim() || undefined,
         tables,
         filePath,
         includeDropTable,
@@ -132,15 +156,70 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
             </div>
           )}
 
+          {/* Source Connection Context Card */}
+          <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/50 rounded-lg space-y-2.5">
+            <div className="flex items-center justify-between text-xs font-semibold text-blue-700 dark:text-blue-300">
+              <div className="flex items-center space-x-1.5">
+                <Database className="w-3.5 h-3.5" />
+                <span>Source Server & Database</span>
+              </div>
+              {activeConn && <DbBadge driver={activeConn.driver} />}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div>
+                <label
+                  htmlFor="source-connection-select"
+                  className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1"
+                >
+                  Connection:
+                </label>
+                <select
+                  id="source-connection-select"
+                  data-testid="source-connection-select"
+                  value={selectedConnectionId}
+                  onChange={(e) => setSelectedConnectionId(e.target.value)}
+                  disabled={loading}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-[#141414] border border-gray-300 dark:border-[#333333] rounded text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 truncate"
+                >
+                  {connOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.driver})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="source-schema-input"
+                  className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1"
+                >
+                  Schema (optional):
+                </label>
+                <input
+                  id="source-schema-input"
+                  data-testid="source-schema-input"
+                  type="text"
+                  value={selectedSchemaName}
+                  onChange={(e) => setSelectedSchemaName(e.target.value)}
+                  placeholder="e.g. public"
+                  disabled={loading}
+                  className="w-full px-2.5 py-1.5 text-xs font-mono bg-white dark:bg-[#141414] border border-gray-300 dark:border-[#333333] rounded text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
               Target Scope
             </label>
             <div className="px-3 py-2 text-xs font-mono bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded text-gray-700 dark:text-gray-300">
               {tableName
-                ? `${schemaName ? schemaName + '.' : ''}${tableName}`
-                : schemaName
-                ? `All tables in schema '${schemaName}'`
+                ? `${selectedSchemaName ? selectedSchemaName + '.' : ''}${tableName}`
+                : selectedSchemaName
+                ? `All tables in schema '${selectedSchemaName}'`
                 : 'All database tables'}
             </div>
           </div>

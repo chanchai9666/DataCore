@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ImportSqlModal } from './ImportSqlModal';
 import { dbApi } from '../../api/db';
 import * as dataTransferApi from '../../api/dataTransferApi';
+import { useConnectionStore } from '../../stores/connectionStore';
 
 vi.mock('../../api/db', () => ({
   dbApi: {
@@ -129,5 +130,61 @@ describe('ImportSqlModal', () => {
     });
 
     resolveImport({ totalStatements: 0, successfulStatements: 0, failedStatements: 0 });
+  });
+
+  it('allows switching destination connection and schema', async () => {
+    useConnectionStore.setState({
+      connections: [
+        { id: 'conn-1', name: 'Primary DB', driver: 'postgres', database: 'postgres' },
+        { id: 'conn-dest', name: 'Staging DB', driver: 'postgres', database: 'staging' },
+      ],
+    });
+
+    vi.mocked(dataTransferApi.pickSqlImportFile).mockResolvedValueOnce('/dump/staging.sql');
+    vi.mocked(dbApi.importSql).mockResolvedValueOnce({
+      totalStatements: 5,
+      successfulStatements: 5,
+      failedStatements: 0,
+    });
+
+    render(
+      <ImportSqlModal
+        isOpen={true}
+        connectionId="conn-1"
+        schemaName="public"
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Destination Server & Database')).toBeInTheDocument();
+
+    // Select conn-dest
+    const connSelect = screen.getByTestId('destination-connection-select');
+    fireEvent.change(connSelect, { target: { value: 'conn-dest' } });
+
+    // Change schema to staging_schema
+    const schemaInput = screen.getByTestId('destination-schema-input');
+    fireEvent.change(schemaInput, { target: { value: 'staging_schema' } });
+
+    // Pick file
+    fireEvent.click(screen.getByRole('button', { name: /Browse.../i }));
+    await waitFor(() => {
+      expect(
+        (screen.getByPlaceholderText('Select or enter path to .sql file') as HTMLInputElement).value
+      ).toBe('/dump/staging.sql');
+    });
+
+    // Submit
+    fireEvent.click(screen.getByRole('button', { name: /Execute SQL Script/i }));
+
+    await waitFor(() => {
+      expect(dbApi.importSql).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionId: 'conn-dest',
+          schema: 'staging_schema',
+          filePath: '/dump/staging.sql',
+        })
+      );
+    });
   });
 });

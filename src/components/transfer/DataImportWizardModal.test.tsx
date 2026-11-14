@@ -77,6 +77,7 @@ describe('DataImportWizardModal', () => {
 
     expect(screen.getByText(/data import wizard/i)).toBeInTheDocument();
     expect(screen.getByText(/step 1: source file/i)).toBeInTheDocument();
+    expect(screen.getByText(/destination target/i)).toBeInTheDocument();
 
     const browseBtn = screen.getByRole('button', { name: /browse file/i });
     fireEvent.click(browseBtn);

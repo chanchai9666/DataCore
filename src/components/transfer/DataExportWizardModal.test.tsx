@@ -37,6 +37,7 @@ describe('DataExportWizardModal', () => {
 
     expect(screen.getByText(/data export wizard/i)).toBeInTheDocument();
     expect(screen.getByText(/step 1: export scope & format/i)).toBeInTheDocument();
+    expect(screen.getByText(/source target/i)).toBeInTheDocument();
 
     // Step 1 -> Step 2
     const nextBtn = screen.getByRole('button', { name: /next/i });

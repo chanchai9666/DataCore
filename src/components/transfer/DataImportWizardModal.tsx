@@ -22,6 +22,7 @@ import {
 import { dbApi } from '../../api/db';
 import { formatCellValue } from '../../utils/cellFormatter';
 import { formatSqlLiteral } from '../../api/queryBuilder';
+import { useConnectionStore } from '../../stores/connectionStore';
 import type {
   ColumnMapping,
   ImportErrorPolicy,
@@ -51,6 +52,8 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
   initialSchemaName,
   onImportSuccess,
 }) => {
+  const connections = useConnectionStore((s) => s.connections);
+  const targetConn = connections.find((c) => c.id === connectionId);
   const [currentStep, setCurrentStep] = useState<number>(1);
 
   // Step 1: File & Format
@@ -395,6 +398,38 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
             {currentStep === 1 && (
               <div className="space-y-5 max-w-xl mx-auto">
                 <h3 className="text-sm font-semibold text-text">Step 1: Source File & Format</h3>
+
+                {/* Destination Context Header */}
+                <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs uppercase">
+                      {targetConn?.driver?.slice(0, 2) || driver.slice(0, 2) || 'DB'}
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                        Destination Target
+                      </div>
+                      <div className="text-xs font-semibold text-text flex items-center gap-1.5">
+                        <span>{targetConn?.name || connectionId}</span>
+                        {initialSchemaName && (
+                          <>
+                            <span className="text-muted">›</span>
+                            <span className="font-mono text-muted">{initialSchemaName}</span>
+                          </>
+                        )}
+                        {initialTableName && (
+                          <>
+                            <span className="text-muted">›</span>
+                            <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{initialTableName}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-muted font-medium">
+                    {targetConn?.database || 'Target Database'}
+                  </div>
+                </div>
 
                 {/* File picker */}
                 <div className="p-4 rounded-lg border border-line bg-black/5 dark:bg-white/5 space-y-3">

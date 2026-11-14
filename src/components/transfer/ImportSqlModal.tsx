@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, X, Loader2 } from 'lucide-react';
+import { Upload, X, Loader2, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
 import { pickSqlImportFile, onTransferProgress, cancelTransfer } from '../../api/dataTransferApi';
+import { useConnectionStore } from '../../stores/connectionStore';
+import { DbBadge } from '../sidebar/DbBadge';
 import type { SqlImportResult, TransferProgress } from '../../types/dataTransfer';
 
 export interface ImportSqlModalProps {
@@ -20,6 +22,9 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const connections = useConnectionStore((s) => s.connections);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string>(connectionId);
+  const [selectedSchemaName, setSelectedSchemaName] = useState<string>(schemaName || '');
   const [filePath, setFilePath] = useState<string>('');
   const [errorPolicy, setErrorPolicy] = useState<'abort' | 'continue'>('abort');
   const [loading, setLoading] = useState<boolean>(false);
@@ -29,6 +34,8 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setSelectedConnectionId(connectionId);
+      setSelectedSchemaName(schemaName || '');
       setFilePath('');
       setErrorPolicy('abort');
       setLoading(false);
@@ -36,7 +43,7 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
       setError(null);
       activeJobIdRef.current = null;
     }
-  }, [isOpen]);
+  }, [isOpen, connectionId, schemaName]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -53,6 +60,11 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
   }, [isOpen, loading]);
 
   if (!isOpen) return null;
+
+  const destConn = connections.find((c) => c.id === selectedConnectionId);
+  const connOptions = connections.some((c) => c.id === selectedConnectionId)
+    ? connections
+    : [{ id: selectedConnectionId, name: selectedConnectionId, driver: 'sqlite' as const, database: '' }, ...connections];
 
   const handleCancelOrClose = async () => {
     if (loading && activeJobIdRef.current) {
@@ -93,8 +105,8 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
 
     try {
       const result = await dbApi.importSql({
-        connectionId,
-        schema: schemaName,
+        connectionId: selectedConnectionId,
+        schema: selectedSchemaName.trim() || undefined,
         filePath: filePath.trim(),
         errorPolicy,
         job_id: jobId,
@@ -156,12 +168,67 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
             </div>
           )}
 
+          {/* Destination Connection Context Card */}
+          <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/50 rounded-lg space-y-2.5">
+            <div className="flex items-center justify-between text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+              <div className="flex items-center space-x-1.5">
+                <Database className="w-3.5 h-3.5" />
+                <span>Destination Server & Database</span>
+              </div>
+              {destConn && <DbBadge driver={destConn.driver} />}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div>
+                <label
+                  htmlFor="destination-connection-select"
+                  className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1"
+                >
+                  Connection:
+                </label>
+                <select
+                  id="destination-connection-select"
+                  data-testid="destination-connection-select"
+                  value={selectedConnectionId}
+                  onChange={(e) => setSelectedConnectionId(e.target.value)}
+                  disabled={loading}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-[#141414] border border-gray-300 dark:border-[#333333] rounded text-gray-900 dark:text-gray-100 focus:outline-none focus:border-emerald-500 truncate"
+                >
+                  {connOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.driver})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="destination-schema-input"
+                  className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1"
+                >
+                  Schema (optional):
+                </label>
+                <input
+                  id="destination-schema-input"
+                  data-testid="destination-schema-input"
+                  type="text"
+                  value={selectedSchemaName}
+                  onChange={(e) => setSelectedSchemaName(e.target.value)}
+                  placeholder="e.g. public"
+                  disabled={loading}
+                  className="w-full px-2.5 py-1.5 text-xs font-mono bg-white dark:bg-[#141414] border border-gray-300 dark:border-[#333333] rounded text-gray-900 dark:text-gray-100 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
               Target Database / Schema
             </label>
             <div className="px-3 py-2 text-xs font-mono bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded text-gray-700 dark:text-gray-300">
-              {schemaName ? schemaName : 'Default Database'}
+              {selectedSchemaName ? selectedSchemaName : 'Default Database'}
             </div>
           </div>
 
