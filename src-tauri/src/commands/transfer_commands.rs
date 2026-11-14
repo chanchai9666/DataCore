@@ -7,6 +7,7 @@ use crate::models::transfer::{
     CrossDbCopyResult, CrossDbCopyTableOptions, DuplicateTableOptions, SqlExportOptions,
     SqlExportResult, SqlImportOptions, SqlImportResult,
 };
+use crate::services::audit_logger::{AuditLogEntryInput, AuditLogger};
 use crate::services::connection_store::ConnectionStore;
 use crate::services::data_transfer::{
     export_data_impl, import_data_impl, preview_import_file_impl,
@@ -76,9 +77,27 @@ pub async fn export_data(
         .await
         .map_err(|e| e.to_string())?;
 
-    export_data_impl(conn.as_ref(), &sql, &safe_str, &options)
+    let res = export_data_impl(conn.as_ref(), &sql, &safe_str, &options)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+
+    let (status, rows, err) = match &res {
+        Ok(r) => ("SUCCESS", Some(r.total_rows as u64), None),
+        Err(e) => ("FAILURE", None, Some(e.clone())),
+    };
+    let _ = AuditLogger::global().log(AuditLogEntryInput {
+        action: "EXPORT".to_string(),
+        connection_id: Some(connection_id),
+        connection_name: Some(config.name),
+        query: Some(sql),
+        rows_affected: rows,
+        status: status.to_string(),
+        error_message: err,
+        details: Some(format!("file={}", safe_str)),
+        ..Default::default()
+    });
+
+    res
 }
 
 #[tauri::command]
@@ -116,7 +135,8 @@ pub async fn import_data(
         register_cancellation_token(jid);
     }
 
-    import_data_impl(
+    let file_str = options.file_path.clone();
+    let res = import_data_impl(
         conn.as_ref(),
         &table,
         &options,
@@ -124,7 +144,25 @@ pub async fn import_data(
         Some(on_progress),
     )
     .await
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string());
+
+    let (status, rows, err) = match &res {
+        Ok(r) => ("SUCCESS", Some(r.imported_rows as u64), None),
+        Err(e) => ("FAILURE", None, Some(e.clone())),
+    };
+    let _ = AuditLogger::global().log(AuditLogEntryInput {
+        action: "IMPORT".to_string(),
+        connection_id: Some(connection_id),
+        connection_name: Some(config.name),
+        database: Some(table),
+        rows_affected: rows,
+        status: status.to_string(),
+        error_message: err,
+        details: Some(format!("file={}", file_str)),
+        ..Default::default()
+    });
+
+    res
 }
 
 #[tauri::command]
@@ -141,9 +179,28 @@ pub async fn duplicate_table(
         .await
         .map_err(|e| e.to_string())?;
 
-    duplicate_table_impl(conn.as_ref(), config.driver, &options)
+    let res = duplicate_table_impl(conn.as_ref(), config.driver, &options)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+
+    let (status, err) = match &res {
+        Ok(_) => ("SUCCESS", None),
+        Err(e) => ("FAILURE", Some(e.clone())),
+    };
+    let _ = AuditLogger::global().log(AuditLogEntryInput {
+        action: "DDL".to_string(),
+        connection_id: Some(options.connection_id.clone()),
+        connection_name: Some(config.name),
+        status: status.to_string(),
+        error_message: err,
+        details: Some(format!(
+            "duplicate source={} target={}",
+            options.source_table, options.new_table_name
+        )),
+        ..Default::default()
+    });
+
+    res
 }
 
 #[tauri::command]
@@ -168,9 +225,26 @@ pub async fn export_sql(
         .await
         .map_err(|e| e.to_string())?;
 
-    export_sql_impl(conn.as_ref(), config.driver, &options)
+    let file_str = options.file_path.clone();
+    let res = export_sql_impl(conn.as_ref(), config.driver, &options)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+
+    let (status, err) = match &res {
+        Ok(_) => ("SUCCESS", None),
+        Err(e) => ("FAILURE", Some(e.clone())),
+    };
+    let _ = AuditLogger::global().log(AuditLogEntryInput {
+        action: "EXPORT".to_string(),
+        connection_id: Some(options.connection_id.clone()),
+        connection_name: Some(config.name),
+        status: status.to_string(),
+        error_message: err,
+        details: Some(format!("sql_file={}", file_str)),
+        ..Default::default()
+    });
+
+    res
 }
 
 #[tauri::command]
@@ -200,9 +274,27 @@ pub async fn import_sql(
         register_cancellation_token(jid);
     }
 
-    import_sql_impl(conn.as_ref(), &options, Some(on_progress))
+    let file_str = options.file_path.clone();
+    let res = import_sql_impl(conn.as_ref(), &options, Some(on_progress))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+
+    let (status, rows, err) = match &res {
+        Ok(r) => ("SUCCESS", Some(r.successful_statements as u64), None),
+        Err(e) => ("FAILURE", None, Some(e.clone())),
+    };
+    let _ = AuditLogger::global().log(AuditLogEntryInput {
+        action: "IMPORT".to_string(),
+        connection_id: Some(options.connection_id.clone()),
+        connection_name: Some(config.name),
+        rows_affected: rows,
+        status: status.to_string(),
+        error_message: err,
+        details: Some(format!("sql_file={}", file_str)),
+        ..Default::default()
+    });
+
+    res
 }
 
 #[tauri::command]

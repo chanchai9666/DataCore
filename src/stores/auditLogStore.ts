@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { redactSensitiveSql } from '../utils/sqlSanitizer';
+import {
+  getAuditLogs,
+  verifyAuditLogIntegrity,
+  clearAuditLogs as clearBackendAuditLogs,
+  recordAuditLog,
+} from '../api/auditApi';
 
 export type AuditActionType =
   | 'QUERY'
@@ -29,6 +35,17 @@ export interface AuditLogEntry {
   rowsAffected?: number;
   status: AuditStatus;
   errorMessage?: string;
+  details?: string;
+  prevHash?: string;
+  entryHash?: string;
+}
+
+export interface AuditIntegrityResult {
+  isValid: boolean;
+  totalEntries: number;
+  verifiedAt: string;
+  error?: string | null;
+  tamperedEntryId?: string | null;
 }
 
 export interface AuditFilterOptions {
@@ -40,6 +57,10 @@ export interface AuditFilterOptions {
 
 interface AuditLogState {
   logs: AuditLogEntry[];
+  isLoading: boolean;
+  integrity: AuditIntegrityResult | null;
+  loadLogs: (limit?: number, offset?: number) => Promise<AuditLogEntry[]>;
+  verifyIntegrity: () => Promise<AuditIntegrityResult>;
   addLog: (entry: Omit<AuditLogEntry, 'id' | 'timestamp'>) => void;
   clearLogs: () => void;
   filterLogs: (options: AuditFilterOptions) => AuditLogEntry[];
@@ -49,17 +70,72 @@ interface AuditLogState {
 
 const MAX_LOGS = 1000;
 
+const isTauri = (): boolean =>
+  typeof window !== 'undefined' &&
+  Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown; __TAURI__?: unknown }).__TAURI_INTERNALS__ ||
+    (window as unknown as { __TAURI_INTERNALS__?: unknown; __TAURI__?: unknown }).__TAURI__);
+
 export const useAuditLogStore = create<AuditLogState>()(
   persist(
     (set, get) => ({
       logs: [],
+      isLoading: false,
+      integrity: null,
+
+      loadLogs: async (limit = 1000, offset = 0) => {
+        if (!isTauri()) {
+          return get().logs;
+        }
+        set({ isLoading: true });
+        try {
+          const backendLogs = await getAuditLogs(limit, offset);
+          if (Array.isArray(backendLogs)) {
+            set({ logs: backendLogs, isLoading: false });
+            return backendLogs;
+          }
+        } catch (err) {
+          console.debug('Failed to load audit logs from backend IPC:', err);
+        }
+        set({ isLoading: false });
+        return get().logs;
+      },
+
+      verifyIntegrity: async () => {
+        if (!isTauri()) {
+          const fallback: AuditIntegrityResult = {
+            isValid: true,
+            totalEntries: get().logs.length,
+            verifiedAt: new Date().toISOString(),
+          };
+          set({ integrity: fallback });
+          return fallback;
+        }
+        try {
+          const res = await verifyAuditLogIntegrity();
+          set({ integrity: res });
+          return res;
+        } catch (err) {
+          const fallback: AuditIntegrityResult = {
+            isValid: false,
+            totalEntries: get().logs.length,
+            verifiedAt: new Date().toISOString(),
+            error: String(err),
+          };
+          set({ integrity: fallback });
+          return fallback;
+        }
+      },
 
       addLog: (entry) => {
+        const id = `audit-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const timestamp = new Date().toISOString();
+        const query = entry.query ? redactSensitiveSql(entry.query) : entry.query;
+
         const newEntry: AuditLogEntry = {
           ...entry,
-          id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-          timestamp: new Date().toISOString(),
-          query: entry.query ? redactSensitiveSql(entry.query) : entry.query,
+          id,
+          timestamp,
+          query,
         };
 
         set((state) => {
@@ -69,10 +145,38 @@ export const useAuditLogStore = create<AuditLogState>()(
           }
           return { logs: updated };
         });
+
+        // Asynchronously persist to backend Rust audit logger if in Tauri
+        if (isTauri()) {
+          recordAuditLog(newEntry)
+            .then((backendEntry) => {
+              if (backendEntry && (backendEntry.entryHash || backendEntry.prevHash)) {
+                set((state) => ({
+                  logs: state.logs.map((item) =>
+                    item.id === id
+                      ? {
+                          ...item,
+                          prevHash: backendEntry.prevHash,
+                          entryHash: backendEntry.entryHash,
+                        }
+                      : item
+                  ),
+                }));
+              }
+            })
+            .catch((err) => {
+              console.debug('Failed to sync audit log to backend IPC:', err);
+            });
+        }
       },
 
       clearLogs: () => {
-        set({ logs: [] });
+        set({ logs: [], integrity: null });
+        if (isTauri()) {
+          clearBackendAuditLogs().catch((err) => {
+            console.debug('Failed to clear audit logs on backend IPC:', err);
+          });
+        }
       },
 
       filterLogs: (options) => {
@@ -116,6 +220,8 @@ export const useAuditLogStore = create<AuditLogState>()(
           'Rows Affected',
           'Status',
           'Error',
+          'Prev Hash',
+          'Entry Hash',
         ];
 
         const escapeCsv = (str?: string | number | null) => {
@@ -137,6 +243,8 @@ export const useAuditLogStore = create<AuditLogState>()(
             escapeCsv(log.rowsAffected ?? ''),
             escapeCsv(log.status),
             escapeCsv(log.errorMessage || ''),
+            escapeCsv(log.prevHash || ''),
+            escapeCsv(log.entryHash || ''),
           ].join(',')
         );
 

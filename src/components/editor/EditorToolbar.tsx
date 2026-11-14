@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Play,
   Square,
@@ -13,9 +13,11 @@ import {
   Cpu,
   ShieldCheck,
   Flag,
+  Eye,
 } from 'lucide-react';
 import type { IsolationLevel } from '../../api/transactionHelpers';
 import type { SafeLimitOption } from '../../utils/sqlLimitHelper';
+import { ImpactPreviewModal } from './ImpactPreviewModal';
 
 export interface EditorToolbarProps {
   isRunning: boolean;
@@ -41,6 +43,9 @@ export interface EditorToolbarProps {
   onOpenHistory?: () => void;
   onOpenSnippets?: () => void;
   onExplain?: (analyze: boolean) => void;
+  onImpactPreview?: () => void;
+  connectionId?: string;
+  sql?: string;
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
@@ -67,7 +72,20 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onOpenHistory,
   onOpenSnippets,
   onExplain,
+  onImpactPreview,
+  connectionId,
+  sql,
 }) => {
+  const [isImpactModalOpen, setIsImpactModalOpen] = useState(false);
+
+  const handleImpactPreviewClick = () => {
+    if (onImpactPreview) {
+      onImpactPreview();
+    } else {
+      setIsImpactModalOpen(true);
+    }
+  };
+
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   const shortcutHint = isMac ? '⌘Enter' : 'Ctrl+Enter';
 
@@ -187,6 +205,30 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             </button>
           </div>
         )}
+
+        {/* Impact Preview Button */}
+        <button
+          type="button"
+          onClick={handleImpactPreviewClick}
+          disabled={isRunning}
+          aria-label="Impact Preview"
+          title="Simulate query impact and affected rows without committing"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
+            color: isRunning ? '#9ca3af' : '#2563eb',
+            border: '1px solid #d1d5db',
+            borderRadius: '4px',
+            padding: '5px 8px',
+            fontWeight: 500,
+            cursor: isRunning ? 'not-allowed' : 'pointer',
+          }}
+        >
+          <Eye size={13} className="text-blue-500" />
+          <span>Impact Preview</span>
+        </button>
 
         {/* Separator */}
         <div style={{ width: '1px', height: '18px', backgroundColor: '#d1d5db', margin: '0 4px' }} />
@@ -559,6 +601,14 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           </div>
         )}
       </div>
+
+      <ImpactPreviewModal
+        isOpen={isImpactModalOpen}
+        onClose={() => setIsImpactModalOpen(false)}
+        onConfirm={onRun}
+        connectionId={connectionId}
+        sql={sql}
+      />
     </div>
   );
 };

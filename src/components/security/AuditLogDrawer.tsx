@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShieldCheck,
+  ShieldAlert,
   X,
   Search,
   Download,
@@ -12,6 +13,7 @@ import {
   User,
   ChevronDown,
   ChevronRight,
+  Hash,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -27,11 +29,27 @@ export interface AuditLogDrawerProps {
 }
 
 export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose }) => {
-  const { logs, clearLogs, filterLogs, exportToCsv, exportToJson } = useAuditLogStore();
+  const {
+    logs,
+    clearLogs,
+    filterLogs,
+    exportToCsv,
+    exportToJson,
+    loadLogs,
+    verifyIntegrity,
+    integrity,
+  } = useAuditLogStore();
   const [search, setSearch] = useState('');
   const [selectedAction, setSelectedAction] = useState<AuditActionType | 'ALL'>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<AuditStatus | 'ALL'>('ALL');
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadLogs();
+    }
+  }, [isOpen, loadLogs]);
 
   const filteredLogs = useMemo(() => {
     return filterLogs({
@@ -42,6 +60,22 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
   }, [logs, search, selectedAction, selectedStatus, filterLogs]);
 
   if (!isOpen) return null;
+
+  const handleVerifyIntegrity = async () => {
+    setVerifying(true);
+    try {
+      const res = await verifyIntegrity();
+      if (res.isValid) {
+        toast.success(`Audit log chain verified (${res.totalEntries} entries checked)`);
+      } else {
+        toast.error(`Integrity check failed: ${res.error || 'Tampered log entries detected'}`);
+      }
+    } catch {
+      toast.error('Failed to verify audit log integrity');
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const handleExportCsv = () => {
     try {
@@ -198,17 +232,50 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                 <Download className="h-3.5 w-3.5 text-slate-500" />
                 Export JSON
               </button>
+              <button
+                type="button"
+                onClick={handleVerifyIntegrity}
+                disabled={verifying}
+                aria-label="Verify Chain Integrity"
+                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50/50 px-2.5 py-1 text-emerald-700 shadow-2xs hover:bg-emerald-100/60 disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                {verifying ? 'Verifying...' : 'Verify Chain'}
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleClearLogs}
-              disabled={logs.length === 0}
-              className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 disabled:opacity-40 dark:text-rose-400"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Clear All Logs
-            </button>
+            <div className="flex items-center gap-2">
+              {integrity && (
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
+                    integrity.isValid
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                      : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300'
+                  }`}
+                >
+                  {integrity.isValid ? (
+                    <>
+                      <CheckCircle2 className="h-3 w-3" />
+                      Tamper-evident chain verified
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="h-3 w-3" />
+                      Tamper detected
+                    </>
+                  )}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleClearLogs}
+                disabled={logs.length === 0}
+                className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 disabled:opacity-40 dark:text-rose-400"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Clear All Logs
+              </button>
+            </div>
           </div>
         </div>
 
@@ -304,6 +371,27 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                       {log.errorMessage && (
                         <div className="rounded bg-rose-100/70 p-2 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300 text-[11px] font-mono">
                           Error: {log.errorMessage}
+                        </div>
+                      )}
+
+                      {(log.prevHash || log.entryHash) && (
+                        <div className="border-t border-slate-200/60 pt-2 dark:border-slate-800 text-[10px] font-mono space-y-1 text-slate-500 dark:text-slate-400">
+                          {log.prevHash && (
+                            <div className="flex items-center gap-1.5 truncate">
+                              <Hash className="h-3 w-3 shrink-0 text-slate-400" />
+                              <span className="text-slate-400">Prev:</span>
+                              <span className="truncate">{log.prevHash}</span>
+                            </div>
+                          )}
+                          {log.entryHash && (
+                            <div className="flex items-center gap-1.5 truncate">
+                              <Hash className="h-3 w-3 shrink-0 text-emerald-500" />
+                              <span className="text-slate-400">Hash:</span>
+                              <span className="truncate text-emerald-600 dark:text-emerald-400 font-semibold">
+                                {log.entryHash}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

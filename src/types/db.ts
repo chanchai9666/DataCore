@@ -92,6 +92,19 @@ export interface QueryResult {
   rows_affected?: number | null;
 }
 
+export interface ImpactSimulationResult {
+  is_mutation: boolean;
+  table_name?: string | null;
+  affected_rows: number;
+  execution_time_ms: number;
+  preview_warning?: string | null;
+  isMutation?: boolean;
+  tableName?: string | null;
+  affectedRows?: number;
+  executionTimeMs?: number;
+  previewWarning?: string | null;
+}
+
 export interface TableSortState {
   column: string;
   direction: 'ASC' | 'DESC';

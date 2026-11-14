@@ -566,7 +566,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Issue #89:** `feat(query): Safe Default LIMIT Guard สำหรับ Custom Query Execution ใน Query Editor` — ป้องกัน RAM เต็มเมื่อรัน custom `SELECT *` ตารางขนาดใหญ่
 
 #### 🟡 Phase 2: Power User Features & Customization
-- **Issue #90:** `feat(ux): Command Palette (⌘K) ค้นหาคำสั่ง สลับฐานข้อมูล และเปิดตารางอย่างรวดเร็ว` — ศูนย์กลางสั่งการด้วยคีย์บอร์ดระดับสากล
+- **Issue #90:** `feat(ux): Command Palette (⌘K) ค้นหาคำสั่ง สลับฐานข้อมูล และเปิดตารางอย่างรวดเร็ว` — ศูนย์กลางสั่งการด้วยคีย์บอร์ดระดับสากล รองรับ ⌘K / ⌘P, จัดหมวดหมู่ Actions, Tables & Views, Connections, ค้นหาแบบ Fuzzy/Prefix (`>`, `@`, `/`), และคีย์ลัดนำทาง Arrow Keys + Enter *(เสร็จสมบูรณ์)*
 - **Issue #91:** `feat(editor): Schema-Aware Autocomplete สำหรับ Table, View และ Column ใน SQL Editor` — แนะนำตารางและคอลัมน์จาก schema จริง
 - **Issue #92:** `feat(editor): SQL Formatter (⌘⇧F) และ Multi-Result Tabs สำหรับ Batch Script Execution` — จัดรูปแบบ SQL และแสดงผลลัพธ์แยกแท็บย่อย
 - **Issue #93:** `feat(navigation): ขยาย Object Browser Tree ให้แสดง Columns ใน Sidebar และเพิ่ม Keyboard Splitter Navigation` — คลี่ดูโครงสร้างคอลัมน์ในแถบด้านข้าง
@@ -576,7 +576,16 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Issue #95:** `feat(i18n): เพิ่มระบบ Internationalization (i18n) รองรับ UI ภาษาไทยและภาษาอังกฤษ` — สลับภาษาของอินเตอร์เฟซได้สมบูรณ์
 - **Issue #96:** `feat(query): Visual Query Builder (No-Code UI) สำหรับสร้าง SELECT Query` — เครื่องมือช่วยสร้างคำสั่งสำหรับผู้เริ่มต้น
 - **Issue #97:** `feat(layout): Horizontal Split Layout (Editor ซ้าย / Data Grid ขวา) สำหรับ Ultrawide Monitors` — เพิ่มความยืดหยุ่นในการจัดวางหน้าจอ
-- **Issue #98:** `feat(safety): Impact Preview (Affected Rows Simulation) ก่อนรัน DELETE/UPDATE` — พรีวิวจำนวนแถวที่กระทบก่อนดำเนินการจริง
+- **Issue #98:** `feat(safety): Impact Preview (Affected Rows Simulation) ก่อนรัน DELETE/UPDATE` — ระบบพรีวิวผลกระทบก่อนรันคำสั่งแก้ไขข้อมูล (Simulation Mode)
+  - **Backend IPC:** คำสั่ง `simulate_query_impact(connection_id, sql)` ใน `src-tauri/src/commands/db.rs`
+    - ตรวจจับคำสั่งประเภท Mutation (`DELETE` และ `UPDATE`) และชื่อตารางเป้าหมาย
+    - รันคำสั่งจำลองภายใต้ Transaction ชั่วคราว (`BEGIN` หรือ `SAVEPOINT`) และการันตีทำการ `ROLLBACK` 100% เสมอ ข้อมูลในฐานข้อมูลจริงไม่เปลี่ยนแปลง
+    - ส่งคืนข้อมูล `ImpactSimulationResult` (`is_mutation`, `table_name`, `affected_rows`, `execution_time_ms`, `preview_warning`)
+  - **Frontend UI & Safety Guard:**
+    - เพิ่มปุ่ม "Impact Preview" (ไอคอน `Eye`) บน `EditorToolbar.tsx`
+    - หน้าต่าง `ImpactPreviewModal.tsx` แสดงป้ายเตือนผลกระทบ (เช่น "⚠️ 1,420 rows will be affected")
+    - แจ้งเตือนระดับความเสี่ยง (Critical Warning หากไม่มี `WHERE` clause ซึ่งจะลบ/แก้ทั้งตาราง, High Risk หากกระทบเกิน 100 แถว)
+    - ปุ่มยืนยัน "Proceed with Run" / "Execute Anyway" หรือ "Cancel" เพื่อความปลอดภัยสูงสุด
 
 ---
 
@@ -598,6 +607,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ### 6.2 การขยายขอบเขตและอัปเดต Issues เดิมที่เกี่ยวข้อง
 - **Issue #84 (Read-Only Mode):** [COMPLETED] เพิ่มฟีเจอร์ Environment Color Badges (`development` = สีเขียว Emerald, `staging` = สีส้ม Amber, `production` = สีแดง Red) และ Read-Only Mode พร้อมการบังคับใช้ระดับ **Database Session & Driver (Backend)**: SQLite `PRAGMA query_only = ON;`, PostgreSQL `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;`, MySQL `SET SESSION transaction_read_only = 1;` และการป้องกันบน UI (SqlEditor ปฏิเสธ DML/DDL write queries พร้อมแจ้งเตือน Read-Only banner, DataGrid ปิดการแก้ไขเซลล์/เพิ่มแถว/ลบแถว) เพื่อความปลอดภัยสูงสุด
+- **Issue #103 (Tamper-Evident Rust Audit Log):** [COMPLETED] ย้ายการจัดเก็บ Audit Trail จาก `localStorage` ใน Frontend ไปยัง Rust Backend อย่างสมบูรณ์:
+  - **Secure Storage (`~/.datacore/audit.jsonl`):** บันทึกประวัติกิจกรรมแบบ Append-Only บนดิสก์ด้วยสิทธิ์ 0600 (Unix) ป้องกันการเข้าถึงจาก process อื่น
+  - **Tamper-Evident Cryptographic Hash Chain:** ทุกรายการ audit entry มี `prev_hash` และ `entry_hash` คำนวณด้วย SHA-256 เชื่อมโยงกับประวัติก่อนหน้า หากมีการแก้ไข ลบ หรือแทรกข้อมูล ฟังก์ชัน `verify_audit_log_integrity()` จะตรวจจับและระบุ ID รายการที่ถูกแก้ไขทันที
+  - **Automatic Log Rotation:** หมุนเวียนไฟล์อัตโนมัติเมื่อขนาดไฟล์เกิน 10MB ไปยัง `audit.<timestamp>.jsonl` โดยยังคงรักษาความต่อเนื่องของ Hash Chain ไว้อย่างสมบูรณ์
+  - **IPC Commands & Backend Integration:** เพิ่ม IPC endpoints (`get_audit_logs`, `verify_audit_log_integrity`, `clear_audit_logs`, `record_audit_log`) พร้อมผูกการบันทึก Audit Log เข้ากับ Backend commands โดยตรง (`execute_query`, `open_session`, `close_session`, `export_data`, `import_data`, `duplicate_table`, `export_sql`, `import_sql`)
+  - **UI & Store Integration:** อัปเดต `useAuditLogStore` ให้โหลดและซิงค์ข้อมูลกับ Rust Backend พร้อมปุ่ม "Verify Chain" ใน `AuditLogDrawer` เพื่อตรวจสอบความถูกต้องของสาย Hash ได้ทันที
 - **Issue #91 (Schema-Aware Autocomplete):** อัปเดตระบุการผสานรวมกับ CodeMirror 6 `sql({ schema: schemaMap })` และการจัดการ Cache Invalidation
 - **Issue #92 (Multi-Statement & Formatter):** อัปเดตระบุการนำ Quote-aware SQL Splitter ไปใช้ใน Rust Driver เพื่อรองรับ Multi-Statement Execution ที่มีหลาย `SELECT`
 - **Issue #93 (Object Browser Deep Tree):** อัปเดตขยายประเภท `SchemaNodeType` ใน Rust & TS ให้ครอบคลุม Indexes, Foreign Keys, Triggers, Functions/Procedures ร่วมกับกลยุทธ์ Lazy Loading

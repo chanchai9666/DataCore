@@ -17,9 +17,10 @@ import { UserPrivilegeManagerModal } from './components/security/UserPrivilegeMa
 import { DataImportWizardModal } from './components/transfer/DataImportWizardModal';
 import { DataExportWizardModal } from './components/transfer/DataExportWizardModal';
 import { KeyboardShortcutsModal } from './components/dialogs/KeyboardShortcutsModal';
+import { CommandPaletteModal } from './components/palette/CommandPaletteModal';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
-import { openQueryTab, openTableListTab, openERDiagramTab } from './components/sidebar/tabHelpers';
+import { openQueryTab, openTableListTab, openERDiagramTab, openTableTab } from './components/sidebar/tabHelpers';
 import { useShortcuts } from './hooks/useShortcuts';
 import type { ConnectionConfig } from './types/db';
 
@@ -47,6 +48,7 @@ export function App() {
   const [isActivityMonitorModalOpen, setIsActivityMonitorModalOpen] = useState(false);
   const [isUserManagerModalOpen, setIsUserManagerModalOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
@@ -206,13 +208,16 @@ export function App() {
     }
   };
 
-  // Keyboard shortcuts integration: ⌘N, ⌘T, ⌘W, ⌘/, ⌘B, ⌘[/⌘], ⌘D, Escape
+  // Keyboard shortcuts integration: ⌘N, ⌘T, ⌘W, ⌘/, ⌘K, ⌘B, ⌘[/⌘], ⌘D, Escape
   useShortcuts({
     onNewConnection: handleOpenNewConnection,
     onToggleTheme: handleToggleTheme,
     onOpenShortcuts: () => setIsShortcutsModalOpen((prev) => !prev),
+    onOpenCommandPalette: () => setIsCommandPaletteOpen((prev) => !prev),
     onEscape: () => {
-      if (isShortcutsModalOpen) {
+      if (isCommandPaletteOpen) {
+        setIsCommandPaletteOpen(false);
+      } else if (isShortcutsModalOpen) {
         setIsShortcutsModalOpen(false);
       }
     },
@@ -432,6 +437,75 @@ export function App() {
       <KeyboardShortcutsModal
         isOpen={isShortcutsModalOpen}
         onClose={() => setIsShortcutsModalOpen(false)}
+      />
+
+      {/* Global Command Palette (⌘K / ⌘P) */}
+      <CommandPaletteModal
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onNewConnection={handleOpenNewConnection}
+        onNewQuery={handleNewQuery}
+        onOpenTable={(tableName, schemaName) => {
+          if (resolvedConnectionId) {
+            openTableTab({
+              connectionId: resolvedConnectionId,
+              tableName,
+              schemaName,
+            });
+          }
+        }}
+        onOpenTableList={handleOpenTable}
+        onOpenERDiagram={() => {
+          if (resolvedConnectionId) {
+            openERDiagramTab({
+              connectionId: resolvedConnectionId,
+              schemaName: activeTab?.schemaName,
+            });
+          }
+        }}
+        onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
+        onToggleTheme={handleToggleTheme}
+        onToggleSidebar={() => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('datacore:toggle-sidebar'));
+          }
+        }}
+        onDuplicateTab={() => {
+          const { tabs: currentTabs, activeTabId: currentActiveId, openTab } = useTabStore.getState();
+          if (currentActiveId) {
+            const tabToCopy = currentTabs.find((t) => t.id === currentActiveId);
+            if (tabToCopy) {
+              openTab({
+                ...tabToCopy,
+                id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                title: `${tabToCopy.title} (Copy)`,
+              });
+            }
+          }
+        }}
+        onExportData={handleExportData}
+        onImportData={handleImportData}
+        onExportSql={handleExportSql}
+        onImportSql={handleImportSql}
+        onOpenMetrics={() => {
+          if (resolvedConnectionId) setIsMetricsModalOpen(true);
+        }}
+        onOpenLocks={() => {
+          if (resolvedConnectionId) setIsLocksModalOpen(true);
+        }}
+        onOpenAuditLog={() => setIsAuditLogDrawerOpen(true)}
+        onOpenSecurity={() => {
+          if (resolvedConnectionId) setIsSecurityModalOpen(true);
+        }}
+        onOpenHistory={() => setIsHistoryDrawerOpen(true)}
+        onOpenSchemaDiff={() => setIsSchemaDiffModalOpen(true)}
+        onOpenActivityMonitor={() => {
+          if (resolvedConnectionId) setIsActivityMonitorModalOpen(true);
+        }}
+        onOpenUserManager={() => setIsUserManagerModalOpen(true)}
+        onSelectConnection={(connId) => {
+          setActiveConnection(connId);
+        }}
       />
 
       {/* Global Toast Notifications */}

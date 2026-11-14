@@ -225,3 +225,41 @@ impl QueryResult {
         }
     }
 }
+
+/// Simulation result for impact preview before running DELETE or UPDATE queries.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ImpactSimulationResult {
+    pub is_mutation: bool,
+    pub table_name: Option<String>,
+    pub affected_rows: u64,
+    pub execution_time_ms: u64,
+    pub preview_warning: Option<String>,
+}
+
+impl ImpactSimulationResult {
+    pub fn new(
+        is_mutation: bool,
+        table_name: Option<String>,
+        affected_rows: u64,
+        execution_time_ms: u64,
+        preview_warning: Option<String>,
+    ) -> Self {
+        Self {
+            is_mutation,
+            table_name,
+            affected_rows,
+            execution_time_ms,
+            preview_warning,
+        }
+    }
+
+    pub fn non_mutation(warning: Option<String>) -> Self {
+        Self {
+            is_mutation: false,
+            table_name: None,
+            affected_rows: 0,
+            execution_time_ms: 0,
+            preview_warning: warning,
+        }
+    }
+}

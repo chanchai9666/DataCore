@@ -635,3 +635,186 @@ async fn test_session_ssh_passphrase_lifecycle_in_memory_and_vault() {
         "RAM session SSH passphrase must be cleared on disconnect"
     );
 }
+
+#[test]
+fn test_parse_mutation_info_detection() {
+    // 1. Non-mutations
+    assert_eq!(parse_mutation_info("SELECT * FROM users;"), (false, None, false));
+    assert_eq!(parse_mutation_info("INSERT INTO users VALUES (1, 'alice');"), (false, None, false));
+    assert_eq!(parse_mutation_info("CREATE TABLE test (id INT);"), (false, None, false));
+    assert_eq!(parse_mutation_info(""), (false, None, false));
+
+    // 2. DELETE queries
+    assert_eq!(
+        parse_mutation_info("DELETE FROM users WHERE id = 1;"),
+        (true, Some("users".to_string()), true)
+    );
+    assert_eq!(
+        parse_mutation_info("DELETE FROM \"app_users\" WHERE status = 'inactive';"),
+        (true, Some("app_users".to_string()), true)
+    );
+    assert_eq!(
+        parse_mutation_info("-- comment\nDELETE FROM `orders`;"),
+        (true, Some("orders".to_string()), false)
+    );
+
+    // 3. UPDATE queries
+    assert_eq!(
+        parse_mutation_info("UPDATE products SET price = 10 WHERE category = 'book';"),
+        (true, Some("products".to_string()), true)
+    );
+    assert_eq!(
+        parse_mutation_info("/* multi-line comment */ UPDATE accounts SET active = true;"),
+        (true, Some("accounts".to_string()), false)
+    );
+
+    // 4. WHERE clause inside string literal should NOT be treated as a WHERE clause
+    assert_eq!(
+        parse_mutation_info("UPDATE logs SET message = 'WHERE is my error';"),
+        (true, Some("logs".to_string()), false)
+    );
+}
+
+#[tokio::test]
+async fn test_simulate_query_impact_delete_and_update() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("sim_test.db");
+    let store_file = dir.path().join("connections.json");
+    let store = ConnectionStore::new(&store_file);
+    let session_mgr = SessionManager::new();
+
+    let config = ConnectionConfig {
+        id: "conn-sim-test".to_string(),
+        name: "Impact Simulation Test".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: db_path.to_str().unwrap().to_string(),
+        user: None,
+        folder: None,
+        ssl_mode: None,
+        ssl_certs: None,
+        ssh_tunnel: None,
+        timeout_seconds: None,
+        auto_reconnect: None,
+        environment: None,
+        read_only: None,
+    };
+    save_connection_impl(&store, &config, None).expect("save connection");
+
+    // Initialize table with 120 test rows
+    open_session_impl(&store, &session_mgr, "conn-sim-test", "tab-init")
+        .await
+        .expect("open init session");
+
+    execute_query_impl(
+        &session_mgr,
+        "tab-init",
+        "CREATE TABLE test_items (id INTEGER PRIMARY KEY, status TEXT, val INT);",
+    )
+    .await
+    .expect("create table");
+
+    for i in 1..=120 {
+        let status = if i <= 30 { "archived" } else { "active" };
+        execute_query_impl(
+            &session_mgr,
+            "tab-init",
+            &format!("INSERT INTO test_items (id, status, val) VALUES ({}, '{}', {});", i, status, i * 10),
+        )
+        .await
+        .expect("insert row");
+    }
+
+    // 1. Non-mutation query
+    let non_mut = simulate_query_impact_impl(
+        &store,
+        &session_mgr,
+        "conn-sim-test",
+        "SELECT * FROM test_items WHERE id > 10;",
+    )
+    .await
+    .expect("sim non-mutation");
+    assert!(!non_mut.is_mutation);
+    assert_eq!(non_mut.affected_rows, 0);
+
+    // 2. DELETE with WHERE clause affecting 30 rows
+    let del_res = simulate_query_impact_impl(
+        &store,
+        &session_mgr,
+        "conn-sim-test",
+        "DELETE FROM test_items WHERE status = 'archived';",
+    )
+    .await
+    .expect("sim delete");
+    assert!(del_res.is_mutation);
+    assert_eq!(del_res.table_name.as_deref(), Some("test_items"));
+    assert_eq!(del_res.affected_rows, 30);
+    assert!(del_res.preview_warning.is_none() || !del_res.preview_warning.as_ref().unwrap().contains("HIGH RISK"));
+
+    // Verify rows were NOT deleted (rollback verified)
+    let count_after_del = execute_query_impl(
+        &session_mgr,
+        "tab-init",
+        "SELECT COUNT(*) FROM test_items;",
+    )
+    .await
+    .expect("count items");
+    assert_eq!(
+        count_after_del.rows[0][0],
+        CellValue::Integer(120),
+        "Rows must remain intact after simulation rollback"
+    );
+
+    // 3. DELETE without WHERE clause (Entire Table - High Risk)
+    let del_all_res = simulate_query_impact_impl(
+        &store,
+        &session_mgr,
+        "conn-sim-test",
+        "DELETE FROM test_items;",
+    )
+    .await
+    .expect("sim delete all");
+    assert!(del_all_res.is_mutation);
+    assert_eq!(del_all_res.affected_rows, 120);
+    assert!(
+        del_all_res.preview_warning.as_ref().unwrap().contains("HIGH RISK"),
+        "Should warn about high risk when no WHERE clause is present"
+    );
+
+    // Verify still 120 rows
+    let count_after_del_all = execute_query_impl(
+        &session_mgr,
+        "tab-init",
+        "SELECT COUNT(*) FROM test_items;",
+    )
+    .await
+    .expect("count items");
+    assert_eq!(count_after_del_all.rows[0][0], CellValue::Integer(120));
+
+    // 4. UPDATE with WHERE clause affecting > 100 rows (90 rows <= 100, so let's update > 100)
+    let update_res = simulate_query_impact_impl(
+        &store,
+        &session_mgr,
+        "conn-sim-test",
+        "UPDATE test_items SET val = 999 WHERE id > 5;",
+    )
+    .await
+    .expect("sim update");
+    assert!(update_res.is_mutation);
+    assert_eq!(update_res.affected_rows, 115);
+    assert!(
+        update_res.preview_warning.as_ref().unwrap().contains("100"),
+        "Should warn when affected rows exceed 100 threshold"
+    );
+
+    // 5. Query with syntax error fails gracefully
+    let err_res = simulate_query_impact_impl(
+        &store,
+        &session_mgr,
+        "conn-sim-test",
+        "DELETE FROM non_existing_table_12345 WHERE x = 1;",
+    )
+    .await;
+    assert!(err_res.is_err(), "Simulation of invalid query must return error");
+}

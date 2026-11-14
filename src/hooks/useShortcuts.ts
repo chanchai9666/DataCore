@@ -8,6 +8,7 @@ export interface ShortcutHandlers {
   onNewConnection?: () => void;
   onToggleTheme?: () => void;
   onOpenShortcuts?: () => void;
+  onOpenCommandPalette?: () => void;
   onToggleSidebar?: () => void;
   onPreviousTab?: () => void;
   onNextTab?: () => void;
@@ -19,6 +20,7 @@ export function useShortcuts({
   onNewConnection,
   onToggleTheme,
   onOpenShortcuts,
+  onOpenCommandPalette,
   onToggleSidebar,
   onPreviousTab,
   onNextTab,
@@ -77,6 +79,17 @@ export function useShortcuts({
       if (e.key === '/' || e.key === '?') {
         e.preventDefault();
         onOpenShortcuts?.();
+        return;
+      }
+
+      // Cmd+K / Ctrl+K or Cmd+P / Ctrl+P: Command Palette / Quick Open
+      if (
+        (e.key.toLowerCase() === 'k' || e.key.toLowerCase() === 'p') &&
+        !e.shiftKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        onOpenCommandPalette?.();
         return;
       }
 
@@ -199,6 +212,7 @@ export function useShortcuts({
     onNewConnection,
     onToggleTheme,
     onOpenShortcuts,
+    onOpenCommandPalette,
     onToggleSidebar,
     onPreviousTab,
     onNextTab,

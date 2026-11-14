@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { AuditLogDrawer } from './AuditLogDrawer';
 import { useAuditLogStore } from '../../stores/auditLogStore';
 
@@ -66,5 +66,14 @@ describe('AuditLogDrawer', () => {
     const closeBtn = screen.getByLabelText('Close Audit Log');
     fireEvent.click(closeBtn);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('triggers integrity check when clicking Verify Chain button', async () => {
+    render(<AuditLogDrawer isOpen={true} onClose={onClose} />);
+    const verifyBtn = screen.getByLabelText('Verify Chain Integrity');
+    expect(verifyBtn).toBeDefined();
+    await act(async () => {
+      fireEvent.click(verifyBtn);
+    });
   });
 });

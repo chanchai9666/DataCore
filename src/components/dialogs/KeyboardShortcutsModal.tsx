@@ -25,6 +25,14 @@ export interface ShortcutItem {
 export const SHORTCUTS_LIST: ShortcutItem[] = [
   // General
   {
+    id: 'general-command-palette',
+    title: 'Open Command Palette / Quick Open',
+    category: 'General',
+    macKeys: ['⌘', 'K'],
+    winKeys: ['Ctrl', 'K'],
+    description: 'Search commands, tables, and switch databases (or ⌘P)',
+  },
+  {
     id: 'general-shortcuts',
     title: 'Show Keyboard Shortcuts Cheat Sheet',
     category: 'General',

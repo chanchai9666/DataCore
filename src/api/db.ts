@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ConnectionConfig, QueryResult, SchemaNode } from '../types/db';
+import type { ConnectionConfig, ImpactSimulationResult, QueryResult, SchemaNode } from '../types/db';
 import type {
   TableMetadata,
   DuplicateTableOptions,
@@ -259,6 +259,24 @@ export const cancelTransfer = async (
   });
 };
 
+export const simulateQueryImpact = async (
+  connectionId: string,
+  sql: string
+): Promise<ImpactSimulationResult> => {
+  return invoke<ImpactSimulationResult>('simulate_query_impact', {
+    connectionId,
+    connection_id: connectionId,
+    sql,
+  });
+};
+
+export {
+  getAuditLogs,
+  verifyAuditLogIntegrity,
+  clearAuditLogs,
+  recordAuditLog,
+} from './auditApi';
+
 export const dbApi = {
   testConnection,
   getConnections,
@@ -285,4 +303,5 @@ export const dbApi = {
   importSql,
   copyTableCrossDb,
   cancelTransfer,
+  simulateQueryImpact,
 };

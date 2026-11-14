@@ -107,4 +107,34 @@ describe('auditLogStore', () => {
     expect(logs[0].query).toBe("ALTER USER postgres WITH PASSWORD '***REDACTED***';");
     expect(logs[0].query).not.toContain('superSecretPostgresPwd');
   });
+
+  it('exports prevHash and entryHash in CSV when present', () => {
+    useAuditLogStore.setState({
+      logs: [
+        {
+          id: 'audit-chain-1',
+          timestamp: '2026-11-14T09:00:00Z',
+          action: 'QUERY',
+          status: 'SUCCESS',
+          prevHash: '0000000000000000000000000000000000000000000000000000000000000000',
+          entryHash: 'deadbeef1234567890abcdef',
+        },
+      ],
+    });
+
+    const csv = useAuditLogStore.getState().exportToCsv();
+    expect(csv).toContain('Prev Hash');
+    expect(csv).toContain('Entry Hash');
+    expect(csv).toContain('deadbeef1234567890abcdef');
+  });
+
+  it('manages loading state and error resilience in loadLogs and verifyIntegrity', async () => {
+    // Should safely fallback if IPC is unavailable in testing environment
+    const result = await useAuditLogStore.getState().loadLogs();
+    expect(Array.isArray(result)).toBe(true);
+
+    const integrity = await useAuditLogStore.getState().verifyIntegrity();
+    expect(integrity).toBeDefined();
+    expect(typeof integrity.isValid).toBe('boolean');
+  });
 });

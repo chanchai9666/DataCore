@@ -136,6 +136,26 @@ describe('useShortcuts Hook', () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
+  it('triggers onOpenCommandPalette when Cmd+K or Cmd+P is pressed', () => {
+    const onOpenCommandPalette = vi.fn();
+    renderHook(() => useShortcuts({ onOpenCommandPalette }));
+
+    const cmdKEvent = new KeyboardEvent('keydown', { key: 'k', metaKey: true, cancelable: true });
+    window.dispatchEvent(cmdKEvent);
+    expect(onOpenCommandPalette).toHaveBeenCalledTimes(1);
+    expect(cmdKEvent.defaultPrevented).toBe(true);
+
+    const cmdPEvent = new KeyboardEvent('keydown', { key: 'p', metaKey: true, cancelable: true });
+    window.dispatchEvent(cmdPEvent);
+    expect(onOpenCommandPalette).toHaveBeenCalledTimes(2);
+    expect(cmdPEvent.defaultPrevented).toBe(true);
+
+    const ctrlKEvent = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, cancelable: true });
+    window.dispatchEvent(ctrlKEvent);
+    expect(onOpenCommandPalette).toHaveBeenCalledTimes(3);
+    expect(ctrlKEvent.defaultPrevented).toBe(true);
+  });
+
   it('triggers onEscape when Escape key is pressed', () => {
     const onEscape = vi.fn();
     renderHook(() => useShortcuts({ onEscape }));

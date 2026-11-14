@@ -25,6 +25,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(ConnectionStore::default())
         .manage(SessionManager::default())
+        .manage(AuditLogger::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             test_connection,
@@ -54,6 +55,11 @@ pub fn run() {
             import_sql,
             copy_table_cross_db,
             cancel_transfer,
+            simulate_query_impact,
+            get_audit_logs,
+            verify_audit_log_integrity,
+            clear_audit_logs,
+            record_audit_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
