@@ -114,11 +114,11 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
     return (
       <div
         style={style}
-        className="flex items-center space-x-1.5 px-2 py-0.5 text-xs text-red-400 bg-red-950/30 border-l-2 border-red-500 rounded my-0.5 select-none"
+        className="flex items-center space-x-1.5 px-2 py-0.5 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-l-2 border-red-500 rounded my-0.5 select-none"
         title={data.errorMessage || data.name}
       >
-        <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
-        <span className="truncate flex-1 text-[11px] text-red-300 font-mono">
+        <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
+        <span className="truncate flex-1 text-[11px] text-red-700 dark:text-red-300 font-mono">
           {data.name}
         </span>
         <button
@@ -127,7 +127,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
             e.stopPropagation();
             context.onEditConnection?.(data.connectionId);
           }}
-          className="px-1.5 py-0.5 text-[10px] bg-red-900/60 hover:bg-red-800 text-red-200 rounded font-medium flex items-center space-x-1 shrink-0"
+          className="px-1.5 py-0.5 text-[10px] bg-red-100 dark:bg-red-900/60 hover:bg-red-200 dark:hover:bg-red-800 text-red-800 dark:text-red-200 rounded font-medium flex items-center space-x-1 shrink-0"
           title="Edit Connection Settings"
         >
           <Wrench className="w-2.5 h-2.5" />
@@ -139,7 +139,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
             e.stopPropagation();
             context.onRefreshConnection?.(data.connectionId);
           }}
-          className="p-1 hover:bg-red-800/50 text-red-300 rounded shrink-0"
+          className="p-1 hover:bg-red-100 dark:hover:bg-red-800/50 text-red-700 dark:text-red-300 rounded shrink-0"
           title="Retry Loading Schema"
         >
           <RefreshCw className="w-3 h-3" />
@@ -359,8 +359,10 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
           e.dataTransfer.setData('application/datacore-column', data.name);
         }
       }}
-      className={`group flex items-center h-6 px-1.5 rounded cursor-pointer select-none text-xs text-gray-200 hover:bg-gray-800 transition-colors ${
-        node.isSelected ? 'bg-blue-600/30 text-white font-medium' : ''
+      className={`group flex items-center h-6 px-1.5 rounded cursor-pointer select-none text-xs transition-colors ${
+        node.isSelected
+          ? 'bg-blue-600/20 text-blue-800 dark:bg-blue-600/30 dark:text-white font-medium'
+          : 'text-gray-700 dark:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-gray-800'
       }`}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
@@ -369,7 +371,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
     >
       {/* Expander Arrow */}
       <span
-        className="w-4 h-4 flex items-center justify-center shrink-0 mr-0.5 text-gray-400 hover:text-gray-200"
+        className="w-4 h-4 flex items-center justify-center shrink-0 mr-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
         onClick={(e) => {
           e.stopPropagation();
           if (isTable && !node.isOpen && context.onLoadTableColumns) {
@@ -402,7 +404,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         <div className="flex items-center space-x-1 ml-1.5 shrink-0 select-none">
           {data.isPrimaryKey && (
             <span
-              className="text-[9px] px-1 py-0.2 bg-amber-500/20 text-amber-300 rounded font-semibold border border-amber-500/30"
+              className="text-[9px] px-1 py-0.2 bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 rounded font-semibold border border-amber-300 dark:border-amber-500/30"
               title="Primary Key"
               data-testid="badge-pk"
             >
@@ -411,7 +413,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
           )}
           {data.isForeignKey && (
             <span
-              className="text-[9px] px-1 py-0.2 bg-blue-500/20 text-blue-300 rounded font-semibold border border-blue-500/30"
+              className="text-[9px] px-1 py-0.2 bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300 rounded font-semibold border border-blue-300 dark:border-blue-500/30"
               title="Foreign Key"
               data-testid="badge-fk"
             >
@@ -419,7 +421,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
             </span>
           )}
           {data.dataType && (
-            <span className="text-[10px] text-gray-400 font-mono" data-testid="column-datatype">
+            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-mono" data-testid="column-datatype">
               {data.dataType}
             </span>
           )}
@@ -510,7 +512,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
             <button
               type="button"
               title="New Query"
-              className="p-0.5 text-gray-400 hover:text-white rounded hover:bg-gray-700"
+              className="p-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               onClick={handleNewQueryTab}
             >
               <Plus className="w-3.5 h-3.5" />
@@ -518,7 +520,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
             <button
               type="button"
               title="Refresh Schema"
-              className="p-0.5 text-gray-400 hover:text-white rounded hover:bg-gray-700"
+              className="p-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 context.onRefreshConnection?.(data.connectionId);
@@ -533,10 +535,10 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
           <button
             type="button"
             title="Query Table"
-            className="p-0.5 text-gray-400 hover:text-white rounded hover:bg-gray-700"
+            className="p-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             onClick={handleNewQueryTab}
           >
-            <Play className="w-3 h-3 text-emerald-400" />
+            <Play className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
           </button>
         )}
       </div>

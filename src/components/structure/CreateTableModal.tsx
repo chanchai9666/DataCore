@@ -331,8 +331,8 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
           {/* Table & Schema Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">
-                Table Name <span className="text-red-400">*</span>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Table Name <span className="text-red-500 dark:text-red-400">*</span>
               </label>
               <input
                 type="text"
@@ -342,13 +342,13 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                 onChange={(e) => setTableName(e.target.value)}
                 placeholder="e.g. orders, users, products"
                 data-testid="create-table-name-input"
-                className="w-full bg-gray-950 border border-gray-700 rounded px-3 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono"
+                className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-3 py-1.5 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
 
             {isPostgres && (
               <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Schema
                 </label>
                 <input
@@ -357,22 +357,22 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                   onChange={(e) => setTargetSchema(e.target.value)}
                   placeholder="public"
                   data-testid="create-table-schema-input"
-                  className="w-full bg-gray-950 border border-gray-700 rounded px-3 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-3 py-1.5 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
             )}
           </div>
 
           {/* Tab Selection */}
-          <div className="flex border-b border-gray-800 space-x-6">
+          <div className="flex border-b border-gray-200 dark:border-gray-800 space-x-6">
             <button
               type="button"
               data-testid="tab-columns-btn"
               onClick={() => setActiveTab('columns')}
               className={`pb-2 text-xs font-semibold flex items-center space-x-2 border-b-2 transition-colors ${
                 activeTab === 'columns'
-                  ? 'border-emerald-500 text-emerald-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
+                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
               }`}
             >
               <span>Columns ({columns.length})</span>
@@ -383,8 +383,8 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
               onClick={() => setActiveTab('indexes')}
               className={`pb-2 text-xs font-semibold flex items-center space-x-2 border-b-2 transition-colors ${
                 activeTab === 'indexes'
-                  ? 'border-emerald-500 text-emerald-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
+                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
@@ -396,23 +396,23 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
           {activeTab === 'columns' && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
                   Columns Configuration
                 </span>
                 <div className="flex items-center space-x-2">
                   <button
                     type="button"
                     onClick={handleAddTimestamps}
-                    className="px-2.5 py-1 text-[11px] rounded bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center space-x-1 border border-gray-700 transition-colors"
+                    className="px-2.5 py-1 text-[11px] rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center space-x-1 border border-gray-300 dark:border-gray-700 transition-colors"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                     <span>+ Timestamps</span>
                   </button>
                   <button
                     type="button"
                     onClick={handleAddColumn}
                     data-testid="add-column-row-btn"
-                    className="px-2.5 py-1 text-[11px] rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 flex items-center space-x-1 border border-emerald-500/30 transition-colors"
+                    className="px-2.5 py-1 text-[11px] rounded bg-emerald-50 dark:bg-emerald-600/20 hover:bg-emerald-100 dark:hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 flex items-center space-x-1 border border-emerald-300 dark:border-emerald-500/30 transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Column</span>
@@ -421,9 +421,9 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
               </div>
 
               {/* Columns Table */}
-              <div className="border border-gray-800 rounded overflow-hidden">
+              <div className="border border-gray-200 dark:border-gray-800 rounded overflow-hidden">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-gray-950/60 border-b border-gray-800 text-[11px] uppercase tracking-wider text-gray-400 select-none">
+                  <thead className="bg-gray-100 dark:bg-gray-950/60 border-b border-gray-200 dark:border-gray-800 text-[11px] uppercase tracking-wider text-gray-600 dark:text-gray-400 select-none">
                     <tr>
                       <th className="px-3 py-2 w-1/4">Name</th>
                       <th className="px-3 py-2 w-1/5">Type</th>
@@ -434,11 +434,11 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                       <th className="px-2 py-2 text-center w-10"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-800 bg-gray-900/50 font-mono">
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900/50 font-mono">
                     {columns.map((col, idx) => {
                       const spec = getDataTypeSpec(col.baseType);
                       return (
-                        <tr key={col.id} className="hover:bg-gray-800/40">
+                        <tr key={col.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                           {/* Name */}
                           <td className="px-2 py-1.5">
                             <input
@@ -448,7 +448,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                               value={col.name}
                               onChange={(e) => handleUpdateColumn(col.id, { name: e.target.value })}
                               data-testid={`column-name-input-${idx}`}
-                              className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                              className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-blue-500"
                             />
                           </td>
 
@@ -458,7 +458,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                               value={col.baseType}
                               onChange={(e) => handleUpdateColumn(col.id, { baseType: e.target.value })}
                               data-testid={`column-type-select-${idx}`}
-                              className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-500"
+                              className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500"
                             >
                               {COMMON_TYPES.map((t) => (
                                 <option key={t} value={t}>
@@ -477,7 +477,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                               onChange={(e) => handleUpdateColumn(col.id, { length: e.target.value })}
                               placeholder={spec.lengthPlaceholder || 'N/A'}
                               data-testid={`column-length-input-${idx}`}
-                              className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 disabled:opacity-40 disabled:bg-gray-900"
+                              className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-blue-500 disabled:opacity-40 disabled:bg-gray-100 dark:disabled:bg-gray-900"
                             />
                           </td>
 
@@ -490,7 +490,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                                 handleUpdateColumn(col.id, { isPrimaryKey: e.target.checked })
                               }
                               data-testid={`column-pk-checkbox-${idx}`}
-                              className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-0"
+                              className="rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-blue-500 focus:ring-0"
                             />
                           </td>
 
@@ -504,7 +504,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                                 handleUpdateColumn(col.id, { nullable: e.target.checked })
                               }
                               data-testid={`column-nullable-checkbox-${idx}`}
-                              className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-0 disabled:opacity-40"
+                              className="rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-blue-500 focus:ring-0 disabled:opacity-40"
                             />
                           </td>
 
@@ -518,7 +518,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                               }
                               placeholder={spec.defaultPlaceholder || 'NULL'}
                               data-testid={`column-default-input-${idx}`}
-                              className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                              className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-blue-500"
                             />
                           </td>
 
@@ -529,7 +529,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                               disabled={columns.length <= 1}
                               onClick={() => handleRemoveColumn(col.id)}
                               aria-label={`Remove column ${col.name || idx + 1}`}
-                              className="p-1 text-gray-400 hover:text-red-400 disabled:opacity-20 disabled:hover:text-gray-400 transition-colors"
+                              className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 disabled:opacity-20 disabled:hover:text-gray-400 transition-colors"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -548,7 +548,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
                     Indexes Configuration
                   </span>
                   <p className="text-[11px] text-gray-500">
@@ -559,7 +559,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                   type="button"
                   onClick={handleAddIndex}
                   data-testid="add-index-btn"
-                  className="px-2.5 py-1 text-[11px] rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 flex items-center space-x-1 border border-emerald-500/30 transition-colors"
+                  className="px-2.5 py-1 text-[11px] rounded bg-emerald-50 dark:bg-emerald-600/20 hover:bg-emerald-100 dark:hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 flex items-center space-x-1 border border-emerald-300 dark:border-emerald-500/30 transition-colors"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Add Index</span>
@@ -567,17 +567,17 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
               </div>
 
               {indexes.length === 0 ? (
-                <div className="border border-dashed border-gray-800 rounded-lg p-6 text-center text-xs text-gray-500 bg-gray-950/30">
-                  <Layers className="w-8 h-8 text-gray-600 mx-auto mb-2 opacity-60" />
+                <div className="border border-dashed border-gray-300 dark:border-gray-800 rounded-lg p-6 text-center text-xs text-gray-500 bg-gray-50 dark:bg-gray-950/30">
+                  <Layers className="w-8 h-8 text-gray-400 dark:text-gray-600 mx-auto mb-2 opacity-60" />
                   <p>No custom indexes configured yet.</p>
-                  <p className="text-[11px] text-gray-600 mt-1">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-600 mt-1">
                     Primary key index is created automatically. Click "+ Add Index" to add secondary indexes.
                   </p>
                 </div>
               ) : (
-                <div className="border border-gray-800 rounded overflow-hidden">
+                <div className="border border-gray-200 dark:border-gray-800 rounded overflow-hidden">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-gray-950/60 border-b border-gray-800 text-[11px] uppercase tracking-wider text-gray-400 select-none">
+                    <thead className="bg-gray-100 dark:bg-gray-950/60 border-b border-gray-200 dark:border-gray-800 text-[11px] uppercase tracking-wider text-gray-600 dark:text-gray-400 select-none">
                       <tr>
                         <th className="px-3 py-2 w-1/3">Index Name</th>
                         <th className="px-3 py-2">Indexed Columns</th>
@@ -585,9 +585,9 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                         <th className="px-2 py-2 text-center w-10"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-800 bg-gray-900/50">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900/50">
                       {indexes.map((idxItem, idxIndex) => (
-                        <tr key={idxItem.id} className="hover:bg-gray-800/40">
+                        <tr key={idxItem.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                           {/* Index Name */}
                           <td className="px-2 py-2 font-mono">
                             <input
@@ -599,7 +599,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                                 handleUpdateIndex(idxItem.id, { name: e.target.value })
                               }
                               data-testid={`index-name-input-${idxIndex}`}
-                              className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500 font-mono"
+                              className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-blue-500 font-mono"
                             />
                           </td>
 
@@ -618,8 +618,8 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                                       key={colName}
                                       className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] cursor-pointer transition-colors border ${
                                         isSelected
-                                          ? 'bg-blue-950/80 text-blue-300 border-blue-600/60 font-semibold'
-                                          : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700'
+                                          ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border-blue-400 dark:border-blue-600/60 font-semibold'
+                                          : 'bg-gray-100 dark:bg-gray-950 text-gray-700 dark:text-gray-400 border-gray-300 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-700'
                                       }`}
                                     >
                                       <input
@@ -651,7 +651,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                                 handleUpdateIndex(idxItem.id, { isUnique: e.target.checked })
                               }
                               data-testid={`index-unique-checkbox-${idxIndex}`}
-                              className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-0"
+                              className="rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-blue-500 focus:ring-0"
                             />
                           </td>
 
@@ -662,7 +662,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                               onClick={() => handleRemoveIndex(idxItem.id)}
                               aria-label={`Remove index ${idxItem.name || idxIndex + 1}`}
                               data-testid={`remove-index-btn-${idxIndex}`}
-                              className="p-1 text-gray-400 hover:text-red-400 transition-colors"
+                              className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -678,13 +678,13 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
 
           {/* SQL Preview */}
           <div className="space-y-1">
-            <div className="flex items-center space-x-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-              <Code2 className="w-3.5 h-3.5 text-blue-400" />
+            <div className="flex items-center space-x-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
+              <Code2 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
               <span>Live SQL Statement Preview</span>
             </div>
             <pre
               data-testid="create-table-sql-preview"
-              className="p-3 bg-gray-950 border border-gray-800 rounded font-mono text-xs text-emerald-300 overflow-x-auto max-h-36 whitespace-pre-wrap select-all"
+              className="p-3 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded font-mono text-xs text-emerald-700 dark:text-emerald-300 overflow-x-auto max-h-36 whitespace-pre-wrap select-all"
             >
               {sqlPreview || '-- Enter table name and columns to preview SQL --'}
             </pre>
@@ -694,7 +694,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
           {error && (
             <div
               role="alert"
-              className="p-3 bg-red-950/50 border border-red-500/40 rounded text-xs text-red-300 font-mono flex items-start space-x-2"
+              className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-500/40 rounded text-xs text-red-600 dark:text-red-300 font-mono flex items-start space-x-2"
             >
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span>{error}</span>
@@ -702,13 +702,13 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
           )}
 
           {/* Footer */}
-          <div className="flex justify-end space-x-3 pt-3 border-t border-gray-800">
+          <div className="flex justify-end space-x-3 pt-3 border-t border-gray-200 dark:border-gray-800">
             <Dialog.Close asChild>
               <button
                 type="button"
                 onClick={onClose}
                 disabled={loading}
-                className="px-4 py-2 text-xs font-medium text-gray-400 hover:text-white transition-colors"
+                className="px-4 py-2 text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
               >
                 Cancel
               </button>

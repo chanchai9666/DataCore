@@ -763,5 +763,13 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 17. **Issue #125 (Medium): Dual-Theme Modals (`DropTableModal.tsx`, `DangerousQueryConfirmModal.tsx`)**
     - ปรับปรุงคอนเทนเนอร์, หัวข้อ, กรอบข้อความ และปุ่มกดยืนยันใน DropTableModal และ DangerousQueryConfirmModal ให้แสดงผลถูกต้องสวยงามทั้งในโหมด Light และ Dark Mode
 
+18. **Issue #126: Complete Light Mode & Dark Mode Consistency across Sidebar, Tables, and Management Modals (`DockLayout.tsx`, `ObjectBrowser.tsx`, `ConnectionTreeNode.tsx`, `TableListTab.tsx`, `TableMaintenanceModal.tsx`, `CreateTableModal.tsx`, `DuplicateTableModal.tsx`, `RenameTableModal.tsx`, `CrossDbCopyModal.tsx`, `ImportSqlModal.tsx`, `ExportSqlModal.tsx`, `DataGrid.tsx`)**
+    - **ObjectBrowser & Sidebar:** ปรับเปลี่ยนสีคอนเทนเนอร์หลักจาก `#181818` เป็น `bg-sidebar border-r border-line text-text` เชื่อมโยงกับ CSS tokens อย่างถูกต้อง พร้อมปรับ Header, Search Box, Context Menus, Action Buttons, TreeNode selection และ PK/FK badges ให้รองรับ Adaptive Dual-Theme
+    - **TableListTab:** ปรับ Top toolbar (`bg-gray-50 border-gray-200` ใน Light mode), Table Count badge, Search Input, Refresh button, `<thead>`, `<tbody>` และ Table Context Menus ไม่ให้หลงเหลือสีดำฮาร์ดโค้ดเมื่ออยู่ใน Light Mode
+    - **DockLayout Sub-Headers & Tabs:** ปรับแท็บ Table Sub-header (`Data` / `Structure` toggle bar), Explorer label, collapse buttons, tab close buttons ให้ใช้สีตาม theme ที่กำลังเปิดใช้งานอย่างแท้จริง
+    - **Database Modals & Forms:** ปรับปรุง TableMaintenanceModal, CreateTableModal, RenameTableModal, DuplicateTableModal, CrossDbCopyModal, ImportSqlModal และ ExportSqlModal ให้ใช้ดีไซน์ Dual-Theme ไม่แสดงพื้นหลังสีดำหรือข้อความสีมืดกลืนกับพื้นหลังใน Light Mode
+    - **DataGrid Context Menu:** ปรับเมนูคลิกขวาในตารางข้อมูลให้รองรับ Light Mode (`bg-white text-gray-800 border-gray-200 hover:bg-blue-50`) และ Dark Mode (`bg-[#252526] text-white border-[#3e3e42] hover:bg-[#094771]`)
+
+
 
 

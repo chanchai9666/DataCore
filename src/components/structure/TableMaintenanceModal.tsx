@@ -142,17 +142,17 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
       aria-labelledby="maintenance-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
     >
-      <div className="bg-[#1e1e1e] border border-[#333333] rounded-lg shadow-2xl w-full max-w-xl overflow-hidden text-gray-200">
+      <div className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#333333] rounded-lg shadow-2xl w-full max-w-xl overflow-hidden text-gray-800 dark:text-gray-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#2d2d2d] bg-[#252526]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 dark:border-[#2d2d2d] bg-gray-50 dark:bg-[#252526]">
           <div className="flex items-center space-x-2.5">
-            <Wrench className="w-4 h-4 text-emerald-400" />
+            <Wrench className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <div>
-              <h2 id="maintenance-modal-title" className="text-sm font-semibold text-white">
+              <h2 id="maintenance-modal-title" className="text-sm font-semibold text-gray-900 dark:text-white">
                 Table Maintenance & Diagnostics
               </h2>
-              <div className="text-[11px] text-gray-400 font-mono">
-                {fullDisplay} <span className="text-gray-500">({driver.toUpperCase()})</span>
+              <div className="text-[11px] text-gray-500 dark:text-gray-400 font-mono">
+                {fullDisplay} <span className="text-gray-400 dark:text-gray-500">({driver.toUpperCase()})</span>
               </div>
             </div>
           </div>
@@ -161,7 +161,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
             onClick={onClose}
             disabled={loading}
             aria-label="Close dialog"
-            className="text-gray-400 hover:text-white p-1 rounded hover:bg-[#333333] transition-colors"
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 rounded hover:bg-gray-200 dark:hover:bg-[#333333] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -170,15 +170,15 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
         {/* Modal Body */}
         <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
           {error && (
-            <div className="p-3 text-xs text-red-300 bg-red-950/40 border border-red-800 rounded flex items-start space-x-2">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" />
+            <div className="p-3 text-xs text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded flex items-start space-x-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-500 dark:text-red-400" />
               <span>{error}</span>
             </div>
           )}
 
           {/* Operation Selector Tabs */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2">
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
               Select Operation
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -194,49 +194,49 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
                     disabled={loading}
                     className={`flex items-start text-left p-2.5 rounded-lg border transition-all ${
                       isSelected
-                        ? 'border-emerald-500 bg-emerald-950/30 text-white'
-                        : 'border-[#333333] bg-[#141414] hover:bg-[#252526] text-gray-300'
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-white'
+                        : 'border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#141414] hover:bg-gray-100 dark:hover:bg-[#252526] text-gray-700 dark:text-gray-300'
                     }`}
                   >
                     <Icon
                       className={`w-4 h-4 mt-0.5 mr-2 flex-shrink-0 ${
-                        isSelected ? 'text-emerald-400' : 'text-gray-400'
+                        isSelected ? 'text-emerald-500 dark:text-emerald-400' : 'text-gray-400'
                       }`}
                     />
                     <div>
                       <div className="text-xs font-semibold">{item.name}</div>
-                      <div className="text-[10px] text-gray-400">{item.nameTh}</div>
+                      <div className="text-[10px] text-gray-500 dark:text-gray-400">{item.nameTh}</div>
                     </div>
                   </button>
                 );
               })}
             </div>
-            <p className="text-[11px] text-gray-400 mt-2 px-1">
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 px-1">
               {OPERATIONS.find((o) => o.op === selectedOp)?.description}
             </p>
           </div>
 
           {/* SQL Preview */}
           <div>
-            <div className="flex items-center space-x-1.5 text-xs text-gray-400 mb-1">
-              <Code2 className="w-3.5 h-3.5 text-blue-400" />
+            <div className="flex items-center space-x-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1">
+              <Code2 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
               <span>SQL Command</span>
             </div>
-            <pre className="p-2.5 text-xs font-mono bg-[#141414] border border-[#2d2d2d] rounded text-emerald-300 overflow-x-auto whitespace-pre-wrap break-all select-all">
+            <pre className="p-2.5 text-xs font-mono bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#2d2d2d] rounded text-emerald-700 dark:text-emerald-300 overflow-x-auto whitespace-pre-wrap break-all select-all">
               {currentSql}
             </pre>
           </div>
 
           {/* Diagnostic Result Section */}
           {executionResult && (
-            <div className="p-3 bg-[#141414] border border-[#2d2d2d] rounded-lg space-y-2">
+            <div className="p-3 bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#2d2d2d] rounded-lg space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center space-x-1.5 text-emerald-400 font-medium">
+                <div className="flex items-center space-x-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Execution Complete ({lastExecutedOp?.toUpperCase()})</span>
                 </div>
-                <div className="flex items-center space-x-1 text-gray-400 font-mono text-[11px]">
-                  <Clock className="w-3 h-3 text-blue-400" />
+                <div className="flex items-center space-x-1 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
+                  <Clock className="w-3 h-3 text-blue-500 dark:text-blue-400" />
                   <span data-testid="maintenance-exec-time">
                     {executionResult.executionTimeMs} ms
                   </span>
@@ -244,9 +244,9 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
               </div>
 
               {executionResult.rows.length > 0 ? (
-                <div className="overflow-x-auto max-h-36 border border-[#2d2d2d] rounded">
-                  <table className="w-full text-[11px] text-left text-gray-300">
-                    <thead className="bg-[#252526] text-gray-400 font-mono border-b border-[#2d2d2d]">
+                <div className="overflow-x-auto max-h-36 border border-gray-200 dark:border-[#2d2d2d] rounded">
+                  <table className="w-full text-[11px] text-left text-gray-700 dark:text-gray-300">
+                    <thead className="bg-gray-100 dark:bg-[#252526] text-gray-600 dark:text-gray-400 font-mono border-b border-gray-200 dark:border-[#2d2d2d]">
                       <tr>
                         {executionResult.columns.map((c, i) => (
                           <th key={i} className="px-2 py-1 font-medium">
@@ -255,9 +255,9 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#2d2d2d]">
+                    <tbody className="divide-y divide-gray-200 dark:divide-[#2d2d2d]">
                       {executionResult.rows.map((row, rIdx) => (
-                        <tr key={rIdx} className="hover:bg-[#1a1a1a]">
+                        <tr key={rIdx} className="hover:bg-gray-100 dark:hover:bg-[#1a1a1a]">
                           {row.map((val, cIdx) => (
                             <td key={cIdx} className="px-2 py-1 font-mono">
                               {val}
@@ -269,7 +269,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
                   </table>
                 </div>
               ) : (
-                <p className="text-[11px] text-gray-400 italic">
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 italic">
                   Command completed successfully with 0 diagnostic warning rows returned.
                 </p>
               )}
@@ -278,16 +278,16 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-[#2d2d2d] bg-[#252526]">
-          <span className="text-[11px] text-gray-400">
-            Engine: <span className="font-mono text-gray-300">{driver}</span>
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 dark:border-[#2d2d2d] bg-gray-50 dark:bg-[#252526]">
+          <span className="text-[11px] text-gray-500 dark:text-gray-400">
+            Engine: <span className="font-mono text-gray-700 dark:text-gray-300">{driver}</span>
           </span>
           <div className="flex items-center space-x-2">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-300 hover:text-white bg-[#2d2d2d] hover:bg-[#383838] transition-colors"
+              className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-200 dark:bg-[#2d2d2d] hover:bg-gray-300 dark:hover:bg-[#383838] transition-colors"
             >
               Close
             </button>

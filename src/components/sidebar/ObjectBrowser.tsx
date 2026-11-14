@@ -403,12 +403,14 @@ interface ContextMenuState {
 }
 
 export interface ObjectBrowserProps {
+  theme?: 'dark' | 'light';
   onEditConnection?: (connection: ConnectionConfig) => void;
   onNewConnection?: () => void;
   lastSavedConnectionId?: string | null;
 }
 
 export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
+  theme: _theme,
   onEditConnection,
   onNewConnection,
   lastSavedConnectionId,
@@ -1139,10 +1141,10 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   );
 
   return (
-    <div className="flex flex-col h-full w-full bg-gray-900 border-r border-gray-800 text-gray-200 select-none">
+    <div className="flex flex-col h-full w-full bg-sidebar border-r border-line text-text select-none transition-colors">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-800">
-        <span className="text-xs font-semibold text-gray-300">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-line">
+        <span className="text-xs font-semibold text-text">
           Connections
         </span>
         <div className="flex items-center space-x-1">
@@ -1151,7 +1153,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               type="button"
               title="Add New Connection"
               aria-label="Add Connection"
-              className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              className="p-1 rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
               onClick={onNewConnection}
             >
               <Plus className="w-3.5 h-3.5" />
@@ -1162,7 +1164,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             title="New Folder"
             aria-label="New Folder"
             data-testid="sidebar-new-folder-btn"
-            className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            className="p-1 rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             onClick={() => handleOpenFolderModal('create')}
           >
             <FolderPlus className="w-3.5 h-3.5" />
@@ -1171,7 +1173,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             type="button"
             title="Refresh All"
             aria-label="Refresh All"
-            className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            className="p-1 rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             onClick={() => (connections || []).forEach((c) => fetchSchema(c.id))}
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -1180,15 +1182,15 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       </div>
 
       {/* Search Input */}
-      <div className="p-2 border-b border-gray-800">
+      <div className="p-2 border-b border-line">
         <div className="relative flex items-center">
-          <Search className="w-3.5 h-3.5 absolute left-2 text-gray-500 pointer-events-none" />
+          <Search className="w-3.5 h-3.5 absolute left-2 text-muted pointer-events-none" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search tables/views..."
-            className="w-full pl-7 pr-2 py-1 text-xs bg-gray-800 text-gray-200 placeholder-gray-500 rounded border border-gray-700 focus:outline-none focus:border-blue-500"
+            className="w-full pl-7 pr-2 py-1 text-xs bg-white dark:bg-gray-800/80 text-text placeholder-muted rounded border border-line focus:outline-none focus:border-accent"
           />
         </div>
       </div>
@@ -1250,7 +1252,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       {contextMenu && (
         <div
           role="menu"
-          className="fixed z-50 bg-gray-800 border border-gray-700 rounded-md shadow-xl py-1 text-xs text-gray-200 min-w-[160px]"
+          className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-xl py-1 text-xs text-gray-800 dark:text-gray-200 min-w-[160px]"
           style={{ top: contextMenu.mouseY, left: contextMenu.mouseX }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1261,78 +1263,78 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 <button
                   type="button"
                   data-testid="connect-connection-btn"
-                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-emerald-400 font-medium"
+                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-emerald-600 dark:text-emerald-400 font-medium"
                   onClick={() => handleConnect(contextMenu.node.connectionId)}
                 >
-                  <Plug className="w-3.5 h-3.5 text-emerald-400" />
+                  <Plug className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span>Connect</span>
                 </button>
               ) : (
                 <button
                   type="button"
                   data-testid="disconnect-connection-btn"
-                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-orange-400"
+                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-orange-600 dark:text-orange-400"
                   onClick={() => handleDisconnect(contextMenu.node.connectionId)}
                 >
-                  <Unplug className="w-3.5 h-3.5 text-orange-400" />
+                  <Unplug className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                   <span>Disconnect</span>
                 </button>
               )}
 
               <button
                 type="button"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleEditConnection(contextMenu.node.connectionId)}
               >
-                <Edit className="w-3.5 h-3.5 text-amber-400" />
+                <Edit className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                 <span>Edit Connection</span>
               </button>
 
               <button
                 type="button"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleNewQuery(contextMenu.node)}
               >
-                <FileCode className="w-3.5 h-3.5 text-blue-400" />
+                <FileCode className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                 <span>New Query</span>
               </button>
 
               <button
                 type="button"
                 data-testid="schema-run-sql-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleImportSql(contextMenu.node)}
               >
-                <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <Upload className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                 <span>Run SQL Script...</span>
               </button>
 
               <button
                 type="button"
                 data-testid="schema-export-sql-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleExportSql(contextMenu.node)}
               >
-                <Download className="w-3.5 h-3.5 text-indigo-400" />
+                <Download className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                 <span>Export as SQL Dump...</span>
               </button>
 
               <button
                 type="button"
                 data-testid="connection-run-sql-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleImportSql(contextMenu.node)}
               >
-                <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <Upload className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                 <span>Run SQL Script...</span>
               </button>
 
               <button
                 type="button"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleRefresh(contextMenu.node.connectionId)}
               >
-                <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                 <span>Refresh Schema</span>
               </button>
 
@@ -1340,7 +1342,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 <button
                   type="button"
                   data-testid="connection-move-folder-btn"
-                  className="w-full text-left px-3 py-1.5 flex items-center justify-between hover:bg-gray-700 text-gray-200"
+                  className="w-full text-left px-3 py-1.5 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 >
                   <div className="flex items-center space-x-2">
                     <Folder className="w-3.5 h-3.5 text-yellow-500" />
@@ -1348,10 +1350,10 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                   </div>
                   <ChevronRight className="w-3 h-3 text-gray-400" />
                 </button>
-                <div className="hidden group-hover/folder:block absolute left-full top-0 ml-0.5 w-44 bg-gray-800 border border-gray-700 rounded shadow-xl py-1 z-50">
+                <div className="hidden group-hover/folder:block absolute left-full top-0 ml-0.5 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-xl py-1 z-50">
                   <button
                     type="button"
-                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 text-gray-300 flex items-center gap-1.5"
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-1.5"
                     onClick={() => handleMoveConnection(contextMenu.node.connectionId, undefined)}
                   >
                     <span>None (Root)</span>
@@ -1360,17 +1362,17 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                     <button
                       key={folder}
                       type="button"
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 text-gray-200 flex items-center gap-1.5 truncate"
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 flex items-center gap-1.5 truncate"
                       onClick={() => handleMoveConnection(contextMenu.node.connectionId, folder)}
                     >
                       <Folder style={{ color: folderMetadata[folder]?.color || '#eab308' }} className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">{folder}</span>
                     </button>
                   ))}
-                  <div className="border-t border-gray-700 my-1" />
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                   <button
                     type="button"
-                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-600 text-blue-300 hover:text-white flex items-center gap-1.5"
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-600 text-blue-600 dark:text-blue-300 hover:text-white flex items-center gap-1.5"
                     onClick={() => {
                       setPendingMoveConnId(contextMenu.node.connectionId);
                       handleOpenFolderModal('create');
@@ -1382,14 +1384,14 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 </div>
               </div>
 
-              <div className="border-t border-gray-700 my-1" />
+              <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
 
               <button
                 type="button"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-900/40 text-red-400"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-50 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400"
                 onClick={() => handleDeleteConnection(contextMenu.node.connectionId)}
               >
-                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                <Trash2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
                 <span>Delete Connection</span>
               </button>
             </>
@@ -1401,49 +1403,49 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               <button
                 type="button"
                 data-testid="folder-new-conn-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => {
                   if (onNewConnection) onNewConnection();
                   setContextMenu(null);
                 }}
               >
-                <Plus className="w-3.5 h-3.5 text-blue-400" />
+                <Plus className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                 <span>New Connection</span>
               </button>
 
               <button
                 type="button"
                 data-testid="folder-rename-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => {
                   handleOpenFolderModal('rename', contextMenu.node.name);
                 }}
               >
-                <Edit className="w-3.5 h-3.5 text-amber-400" />
+                <Edit className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                 <span>Rename Folder...</span>
               </button>
 
               <button
                 type="button"
                 data-testid="folder-change-color-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => {
                   handleOpenFolderModal('color', contextMenu.node.name);
                 }}
               >
-                <Palette className="w-3.5 h-3.5 text-purple-400" />
+                <Palette className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
                 <span>Change Color...</span>
               </button>
 
-              <div className="border-t border-gray-700 my-1" />
+              <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
 
               <button
                 type="button"
                 data-testid="folder-delete-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-900/40 text-red-400"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-50 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400"
                 onClick={() => handleDeleteFolder(contextMenu.node.name)}
               >
-                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                <Trash2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
                 <span>Delete Folder</span>
               </button>
             </>
@@ -1455,10 +1457,10 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             <>
               <button
                 type="button"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleOpenTable(contextMenu.node)}
               >
-                <Table className="w-3.5 h-3.5 text-emerald-400" />
+                <Table className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                 <span>Open Table</span>
               </button>
 
@@ -1467,60 +1469,60 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                   <button
                     type="button"
                     data-testid="edit-structure-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                     onClick={() => handleEditStructure(contextMenu.node)}
                   >
-                    <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                    <Wrench className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                     <span>Edit Structure</span>
                   </button>
 
                   <button
                     type="button"
                     data-testid="import-data-table-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                     onClick={() => handleImportTable(contextMenu.node)}
                   >
-                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <Upload className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                     <span>Import Data...</span>
                   </button>
 
                   <button
                     type="button"
                     data-testid="export-data-table-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                     onClick={() => handleExportTable(contextMenu.node)}
                   >
-                    <Download className="w-3.5 h-3.5 text-blue-400" />
+                    <Download className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                     <span>Export Table Data...</span>
                   </button>
 
                   <button
                     type="button"
                     data-testid="duplicate-table-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                     onClick={() => handleDuplicateTable(contextMenu.node)}
                   >
-                    <Copy className="w-3.5 h-3.5 text-purple-400" />
+                    <Copy className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
                     <span>Duplicate Table...</span>
                   </button>
 
                   <button
                     type="button"
                     data-testid="copy-table-cross-db-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                     onClick={() => handleCopyTableCrossDb(contextMenu.node)}
                   >
-                    <ArrowRightLeft className="w-3.5 h-3.5 text-blue-400" />
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                     <span>Copy Table to Database...</span>
                   </button>
 
                   <button
                     type="button"
                     data-testid="export-sql-table-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                     onClick={() => handleExportSql(contextMenu.node)}
                   >
-                    <Download className="w-3.5 h-3.5 text-indigo-400" />
+                    <Download className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                     <span>Export as SQL Dump...</span>
                   </button>
                 </>
@@ -1528,26 +1530,26 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
               <button
                 type="button"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleNewQuery(contextMenu.node)}
               >
-                <FileCode className="w-3.5 h-3.5 text-blue-400" />
+                <FileCode className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                 <span>Query Table</span>
               </button>
 
               <button
                 type="button"
                 data-testid="open-query-builder-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-amber-400 font-medium"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-amber-600 dark:text-amber-400 font-medium"
                 onClick={() => handleOpenQueryBuilder(contextMenu.node)}
               >
-                <Wand2 className="w-3.5 h-3.5 text-amber-400" />
+                <Wand2 className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                 <span>Visual Query Builder</span>
               </button>
 
               <button
                 type="button"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleCopyName(contextMenu.node.tableName || contextMenu.node.name)}
               >
                 <Copy className="w-3.5 h-3.5 text-gray-400" />
@@ -1559,10 +1561,10 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                   <button
                     type="button"
                     data-testid="show-view-ddl-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                     onClick={() => handleShowViewDdl(contextMenu.node)}
                   >
-                    <FileCode className="w-3.5 h-3.5 text-blue-400" />
+                    <FileCode className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                     <span>View Definition SQL</span>
                   </button>
 
@@ -1570,10 +1572,10 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                     <button
                       type="button"
                       data-testid="refresh-matview-btn"
-                      className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                      className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                       onClick={() => handleRefreshMaterializedView(contextMenu.node)}
                     >
-                      <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                      <RefreshCw className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                       <span>Refresh Materialized View</span>
                     </button>
                   )}
@@ -1582,32 +1584,32 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
               {contextMenu.node.nodeType === 'table' && (
                 <>
-                  <div className="border-t border-gray-700 my-1" />
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                   <button
                     type="button"
                     data-testid="rename-table-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                     onClick={() => handleRenameTable(contextMenu.node)}
                   >
-                    <Pencil className="w-3.5 h-3.5 text-blue-400" />
+                    <Pencil className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                     <span>Rename Table...</span>
                   </button>
                   <button
                     type="button"
                     data-testid="maintenance-table-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                     onClick={() => handleMaintenanceTable(contextMenu.node)}
                   >
-                    <Wrench className="w-3.5 h-3.5 text-emerald-400" />
+                    <Wrench className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                     <span>Maintenance & Diagnostics...</span>
                   </button>
                   <button
                     type="button"
                     data-testid="drop-table-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-900/40 text-red-400"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-50 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400"
                     onClick={() => handleDropTable(contextMenu.node)}
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                    <Trash2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
                     <span>Drop Table</span>
                   </button>
                 </>
@@ -1628,30 +1630,30 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                   <button
                     type="button"
                     data-testid="view-table-list-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-purple-400 font-medium"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-purple-600 dark:text-purple-400 font-medium"
                     onClick={() => handleOpenTableList(contextMenu.node)}
                   >
-                    <Table className="w-3.5 h-3.5 text-purple-400" />
+                    <Table className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
                     <span>View Tables (Details)</span>
                   </button>
 
                   <button
                     type="button"
                     data-testid="view-er-diagram-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-emerald-400 font-medium"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-emerald-600 dark:text-emerald-400 font-medium"
                     onClick={() => handleOpenERDiagram(contextMenu.node)}
                   >
-                    <Network className="w-3.5 h-3.5 text-emerald-400" />
+                    <Network className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                     <span>View ER Diagram</span>
                   </button>
 
                   <button
                     type="button"
                     data-testid="schema-query-builder-btn"
-                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-amber-400 font-medium"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-amber-600 dark:text-amber-400 font-medium"
                     onClick={() => handleOpenQueryBuilder(contextMenu.node)}
                   >
-                    <Wand2 className="w-3.5 h-3.5 text-amber-400" />
+                    <Wand2 className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                     <span>Visual Query Builder</span>
                   </button>
                 </>
@@ -1660,64 +1662,64 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               <button
                 type="button"
                 data-testid="new-table-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-emerald-400"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-emerald-600 dark:text-emerald-400"
                 onClick={() => handleNewTable(contextMenu.node)}
               >
-                <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                <Plus className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                 <span>New Table...</span>
               </button>
 
               <button
                 type="button"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleNewQuery(contextMenu.node)}
               >
-                <FileCode className="w-3.5 h-3.5 text-blue-400" />
+                <FileCode className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                 <span>New Query</span>
               </button>
 
               <button
                 type="button"
                 data-testid="schema-run-sql-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleImportSql(contextMenu.node)}
               >
-                <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <Upload className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                 <span>Run SQL Script...</span>
               </button>
 
               <button
                 type="button"
                 data-testid="schema-export-sql-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleExportSql(contextMenu.node)}
               >
-                <Download className="w-3.5 h-3.5 text-indigo-400" />
+                <Download className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                 <span>Export as SQL Dump...</span>
               </button>
 
               <button
                 type="button"
                 data-testid="connection-run-sql-btn"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleImportSql(contextMenu.node)}
               >
-                <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <Upload className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                 <span>Run SQL Script...</span>
               </button>
 
               <button
                 type="button"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleRefresh(contextMenu.node.connectionId)}
               >
-                <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                 <span>Refresh</span>
               </button>
 
               <button
                 type="button"
-                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleCopyName(contextMenu.node.name)}
               >
                 <Copy className="w-3.5 h-3.5 text-gray-400" />

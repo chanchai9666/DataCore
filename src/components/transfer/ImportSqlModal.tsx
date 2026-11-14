@@ -130,19 +130,19 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
       aria-labelledby="import-sql-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
     >
-      <div className="bg-[#1e1e1e] border border-[#333333] rounded-lg shadow-2xl w-full max-w-md overflow-hidden text-gray-200">
+      <div className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#333333] rounded-lg shadow-2xl w-full max-w-md overflow-hidden text-gray-800 dark:text-gray-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#2d2d2d] bg-[#252526]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 dark:border-[#2d2d2d] bg-gray-50 dark:bg-[#252526]">
           <div className="flex items-center space-x-2">
-            <Upload className="w-4 h-4 text-emerald-400" />
-            <h2 id="import-sql-title" className="text-sm font-semibold text-white">
+            <Upload className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <h2 id="import-sql-title" className="text-sm font-semibold text-gray-900 dark:text-white">
               Execute SQL Script (Import)
             </h2>
           </div>
           <button
             type="button"
             onClick={handleCancelOrClose}
-            className="text-gray-400 hover:text-white p-1 rounded hover:bg-[#333333] transition-colors"
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 rounded hover:bg-gray-200 dark:hover:bg-[#333333] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -151,23 +151,23 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleImport} className="p-5 space-y-4">
           {error && (
-            <div className="p-3 text-xs text-red-300 bg-red-950/40 border border-red-800 rounded">
+            <div className="p-3 text-xs text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
               Target Database / Schema
             </label>
-            <div className="px-3 py-2 text-xs font-mono bg-[#141414] border border-[#333333] rounded text-gray-300">
+            <div className="px-3 py-2 text-xs font-mono bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded text-gray-700 dark:text-gray-300">
               {schemaName ? schemaName : 'Default Database'}
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">
-              SQL File <span className="text-red-400">*</span>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              SQL File <span className="text-red-500 dark:text-red-400">*</span>
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -176,13 +176,13 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
                 onChange={(e) => setFilePath(e.target.value)}
                 placeholder="Select or enter path to .sql file"
                 disabled={loading}
-                className="flex-1 px-3 py-1.5 text-xs font-mono bg-[#141414] border border-[#333333] rounded text-white focus:outline-none focus:border-emerald-500 truncate"
+                className="flex-1 px-3 py-1.5 text-xs font-mono bg-white dark:bg-[#141414] border border-gray-300 dark:border-[#333333] rounded text-gray-900 dark:text-white focus:outline-none focus:border-emerald-500 truncate"
               />
               <button
                 type="button"
                 onClick={handlePickFile}
                 disabled={loading}
-                className="px-3 py-1.5 text-xs font-medium bg-[#2d2d2d] hover:bg-[#383838] text-gray-200 rounded border border-[#444444] transition-colors shrink-0"
+                className="px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-[#2d2d2d] dark:hover:bg-[#383838] text-gray-700 dark:text-gray-200 rounded border border-gray-300 dark:border-[#444444] transition-colors shrink-0"
               >
                 Browse...
               </button>
@@ -190,7 +190,7 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
               Error Handling Policy
             </label>
             <div className="flex items-center gap-4 text-xs">
@@ -202,9 +202,9 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
                   checked={errorPolicy === 'abort'}
                   onChange={() => setErrorPolicy('abort')}
                   disabled={loading}
-                  className="text-emerald-500 focus:ring-emerald-500 bg-gray-700 border-gray-600"
+                  className="text-emerald-500 focus:ring-emerald-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600"
                 />
-                <span className="text-gray-300">Abort on error (Rollback)</span>
+                <span className="text-gray-700 dark:text-gray-300">Abort on error (Rollback)</span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -215,25 +215,25 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
                   checked={errorPolicy === 'continue'}
                   onChange={() => setErrorPolicy('continue')}
                   disabled={loading}
-                  className="text-emerald-500 focus:ring-emerald-500 bg-gray-700 border-gray-600"
+                  className="text-emerald-500 focus:ring-emerald-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600"
                 />
-                <span className="text-gray-300">Continue on error</span>
+                <span className="text-gray-700 dark:text-gray-300">Continue on error</span>
               </label>
             </div>
           </div>
 
           {/* Progress display */}
           {loading && (
-            <div className="p-3 bg-[#141414] border border-[#333333] rounded space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-300">
+            <div className="p-3 bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded space-y-2">
+              <div className="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
                 <span>{progress?.status || 'Executing statements...'}</span>
                 {progress?.total_rows && (
-                  <span className="font-mono text-[11px] text-gray-400">
+                  <span className="font-mono text-[11px] text-gray-500 dark:text-gray-400">
                     {progress.current_row} / {progress.total_rows}
                   </span>
                 )}
               </div>
-              <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
+              <div className="w-full bg-gray-200 dark:bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-emerald-500 h-full transition-all duration-150"
                   style={{
@@ -247,11 +247,11 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
           )}
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end space-x-2 pt-3 border-t border-[#2d2d2d]">
+          <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-200 dark:border-[#2d2d2d]">
             <button
               type="button"
               onClick={handleCancelOrClose}
-              className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-300 hover:text-white bg-[#2d2d2d] hover:bg-[#383838] transition-colors"
+              className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 hover:bg-gray-200 dark:bg-[#2d2d2d] dark:hover:bg-[#383838] transition-colors"
             >
               Cancel
             </button>

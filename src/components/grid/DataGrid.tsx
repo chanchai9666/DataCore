@@ -858,11 +858,11 @@ export const DataGrid: React.FC<DataGridProps> = ({
             <ContextMenu.Portal>
               <ContextMenu.Content
                 data-testid="grid-context-menu"
-                className="z-50 min-w-[180px] bg-[#252526] text-white border border-[#3e3e42] rounded-md shadow-xl py-1 px-1 text-xs select-none"
+                className="z-50 min-w-[180px] bg-white dark:bg-[#252526] text-gray-800 dark:text-white border border-gray-200 dark:border-[#3e3e42] rounded-md shadow-xl py-1 px-1 text-xs select-none"
               >
                 <ContextMenu.Item
                   data-testid="ctx-menu-copy"
-                  className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-[#094771] cursor-pointer outline-none"
+                  className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-blue-50 dark:hover:bg-[#094771] hover:text-blue-600 dark:hover:text-white cursor-pointer outline-none"
                   onSelect={() => handleCopy(false)}
                 >
                   <span>Copy</span>
@@ -870,16 +870,16 @@ export const DataGrid: React.FC<DataGridProps> = ({
                 </ContextMenu.Item>
                 <ContextMenu.Item
                   data-testid="ctx-menu-copy-headers"
-                  className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-[#094771] cursor-pointer outline-none"
+                  className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-blue-50 dark:hover:bg-[#094771] hover:text-blue-600 dark:hover:text-white cursor-pointer outline-none"
                   onSelect={() => handleCopy(true)}
                 >
                   <span>Copy with Headers</span>
                   <span className="text-gray-400 text-[10px]">⇧⌘C</span>
                 </ContextMenu.Item>
-                <ContextMenu.Separator className="h-px bg-[#3e3e42] my-1" />
+                <ContextMenu.Separator className="h-px bg-gray-200 dark:bg-[#3e3e42] my-1" />
                 <ContextMenu.Item
                   data-testid="ctx-menu-select-all"
-                  className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-[#094771] cursor-pointer outline-none"
+                  className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-blue-50 dark:hover:bg-[#094771] hover:text-blue-600 dark:hover:text-white cursor-pointer outline-none"
                   onSelect={handleSelectAll}
                 >
                   <span>Select All</span>
@@ -887,7 +887,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                 </ContextMenu.Item>
                 <ContextMenu.Item
                   data-testid="ctx-menu-find"
-                  className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-[#094771] cursor-pointer outline-none"
+                  className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-blue-50 dark:hover:bg-[#094771] hover:text-blue-600 dark:hover:text-white cursor-pointer outline-none"
                   onSelect={() => setShowSearch(true)}
                 >
                   <span>Find in Table</span>

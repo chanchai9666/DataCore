@@ -71,7 +71,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
   connectionId,
   schemaName,
   driver,
-  theme = 'dark',
+  theme: propTheme,
   onOpenTable,
   onOpenStructure,
   onDuplicateTable,
@@ -82,6 +82,13 @@ export const TableListTab: React.FC<TableListTabProps> = ({
   onImportData,
   onDropTable,
 }) => {
+  const isDark = propTheme
+    ? propTheme === 'dark'
+    : typeof document !== 'undefined'
+    ? document.documentElement.classList.contains('dark')
+    : true;
+  const theme = isDark ? 'dark' : 'light';
+
   const [tables, setTables] = useState<TableMetadata[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -300,13 +307,17 @@ export const TableListTab: React.FC<TableListTabProps> = ({
       }`}
     >
       {/* Top Action & Search Bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-[#333333] gap-4">
+      <div className={`flex items-center justify-between px-4 py-2 border-b gap-4 transition-colors ${
+        theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-[#252526] border-[#333333]'
+      }`}>
         <div className="flex items-center gap-2">
-          <Database className="w-4 h-4 text-blue-400" />
-          <span className="font-semibold text-xs text-white">
+          <Database className="w-4 h-4 text-blue-500" />
+          <span className={`font-semibold text-xs ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
             {schemaName ? `${schemaName} Tables` : 'Tables'}
           </span>
-          <span className="text-[11px] px-1.5 py-0.5 rounded bg-[#333333] text-gray-300">
+          <span className={`text-[11px] px-1.5 py-0.5 rounded ${
+            theme === 'light' ? 'bg-gray-200 text-gray-700 font-medium' : 'bg-[#333333] text-gray-300'
+          }`}>
             {filteredAndSortedTables.length} {filteredAndSortedTables.length === 1 ? 'table' : 'tables'}
           </span>
         </div>
@@ -319,7 +330,11 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               placeholder="Search tables..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-[#1e1e1e] text-xs text-white pl-8 pr-3 py-1 rounded border border-[#3c3c3c] focus:outline-none focus:border-blue-500 w-52 placeholder-gray-500"
+              className={`text-xs pl-8 pr-3 py-1 rounded border focus:outline-none focus:border-blue-500 w-52 transition-colors ${
+                theme === 'light'
+                  ? 'bg-white text-gray-900 border-gray-300 placeholder-gray-400'
+                  : 'bg-[#1e1e1e] text-white border-[#3c3c3c] placeholder-gray-500'
+              }`}
             />
           </div>
 
@@ -327,7 +342,11 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={fetchTables}
             disabled={loading}
             title="Refresh tables metadata"
-            className="p-1 rounded hover:bg-[#333333] text-gray-300 hover:text-white transition-colors disabled:opacity-50"
+            className={`p-1 rounded transition-colors disabled:opacity-50 ${
+              theme === 'light'
+                ? 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'
+                : 'hover:bg-[#333333] text-gray-300 hover:text-white'
+            }`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -358,51 +377,55 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           </div>
         ) : (
           <table className="w-full text-left border-collapse text-xs">
-            <thead className="bg-[#252526] sticky top-0 z-10 text-gray-400 border-b border-[#333333]">
+            <thead className={`sticky top-0 z-10 border-b transition-colors ${
+              theme === 'light'
+                ? 'bg-gray-100 text-gray-600 border-gray-200'
+                : 'bg-[#252526] text-gray-400 border-[#333333]'
+            }`}>
               <tr>
                 <th
                   onClick={() => handleSort('name')}
-                  className="py-2 px-3 font-medium cursor-pointer hover:text-white select-none"
+                  className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none`}
                 >
                   <div className="flex items-center gap-1">
                     <span>Name</span>
-                    <ArrowUpDown className="w-3 h-3 text-gray-500" />
+                    <ArrowUpDown className="w-3 h-3 text-gray-400" />
                   </div>
                 </th>
                 <th
                   onClick={() => handleSort('approxRowCount')}
-                  className="py-2 px-3 font-medium cursor-pointer hover:text-white select-none text-right"
+                  className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none text-right`}
                 >
                   <div className="flex items-center justify-end gap-1">
                     <span>Approx Rows</span>
-                    <ArrowUpDown className="w-3 h-3 text-gray-500" />
+                    <ArrowUpDown className="w-3 h-3 text-gray-400" />
                   </div>
                 </th>
                 <th
                   onClick={() => handleSort('totalSizeBytes')}
-                  className="py-2 px-3 font-medium cursor-pointer hover:text-white select-none text-right"
+                  className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none text-right`}
                 >
                   <div className="flex items-center justify-end gap-1">
                     <span>Total Size</span>
-                    <ArrowUpDown className="w-3 h-3 text-gray-500" />
+                    <ArrowUpDown className="w-3 h-3 text-gray-400" />
                   </div>
                 </th>
                 <th className="py-2 px-3 font-medium text-right">Data Size</th>
                 <th className="py-2 px-3 font-medium text-right">Index Size</th>
                 <th
                   onClick={() => handleSort('engine')}
-                  className="py-2 px-3 font-medium cursor-pointer hover:text-white select-none"
+                  className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none`}
                 >
                   <div className="flex items-center gap-1">
                     <span>Engine</span>
-                    <ArrowUpDown className="w-3 h-3 text-gray-500" />
+                    <ArrowUpDown className="w-3 h-3 text-gray-400" />
                   </div>
                 </th>
                 <th className="py-2 px-3 font-medium">Collation</th>
                 <th className="py-2 px-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#2a2a2a]">
+            <tbody className={`divide-y ${theme === 'light' ? 'divide-gray-100' : 'divide-[#2a2a2a]'}`}>
               {filteredAndSortedTables.map((table) => (
                 <tr
                   key={table.name}
@@ -412,33 +435,37 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                     e.stopPropagation();
                     setContextMenu({ mouseX: e.clientX, mouseY: e.clientY, table });
                   }}
-                  className="hover:bg-[#2a2d2e] transition-colors group cursor-pointer"
+                  className={`transition-colors group cursor-pointer ${
+                    theme === 'light' ? 'hover:bg-gray-50' : 'hover:bg-[#2a2d2e]'
+                  }`}
                 >
-                  <td className="py-2 px-3 flex items-center gap-2 font-mono text-white">
-                    <TableIcon className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <td className={`py-2 px-3 flex items-center gap-2 font-mono ${
+                    theme === 'light' ? 'text-gray-900 font-medium' : 'text-white'
+                  }`}>
+                    <TableIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                     <span className="truncate max-w-[200px]" title={table.name}>
                       {table.name}
                     </span>
                   </td>
                   <td
-                    className="py-2 px-3 text-right font-mono text-gray-300"
+                    className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-700' : 'text-gray-300'}`}
                     title="Approximate row count from database catalog"
                   >
                     {formatApproxRows(table.approxRowCount)}
                   </td>
-                  <td className="py-2 px-3 text-right font-mono text-gray-300">
+                  <td className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-700' : 'text-gray-300'}`}>
                     {formatBytes(table.totalSizeBytes)}
                   </td>
-                  <td className="py-2 px-3 text-right font-mono text-gray-400">
+                  <td className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
                     {formatBytes(table.dataSizeBytes)}
                   </td>
-                  <td className="py-2 px-3 text-right font-mono text-gray-400">
+                  <td className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
                     {formatBytes(table.indexSizeBytes)}
                   </td>
-                  <td className="py-2 px-3 text-gray-400">
+                  <td className={`py-2 px-3 ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
                     {table.engine || '-'}
                   </td>
-                  <td className="py-2 px-3 text-gray-400 truncate max-w-[120px]" title={table.collation}>
+                  <td className={`py-2 px-3 truncate max-w-[120px] ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`} title={table.collation}>
                     {table.collation || '-'}
                   </td>
                   <td className="py-2 px-3 text-right">
@@ -449,7 +476,11 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           handleOpenData(table.name);
                         }}
                         title="Open Table Data"
-                        className="p-1 rounded hover:bg-[#383838] text-gray-400 hover:text-white"
+                        className={`p-1 rounded transition-colors ${
+                          theme === 'light'
+                            ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                            : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                        }`}
                       >
                         <ExternalLink className="w-3 h-3" />
                       </button>
@@ -459,7 +490,11 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           handleOpenStructure(table.name);
                         }}
                         title="Design Table Structure"
-                        className="p-1 rounded hover:bg-[#383838] text-gray-400 hover:text-white"
+                        className={`p-1 rounded transition-colors ${
+                          theme === 'light'
+                            ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                            : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                        }`}
                       >
                         <Wrench className="w-3 h-3" />
                       </button>
@@ -469,7 +504,11 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           handleTriggerDuplicate(table.name);
                         }}
                         title="Duplicate Table"
-                        className="p-1 rounded hover:bg-[#383838] text-gray-400 hover:text-white"
+                        className={`p-1 rounded transition-colors ${
+                          theme === 'light'
+                            ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                            : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                        }`}
                       >
                         <Copy className="w-3 h-3" />
                       </button>
@@ -479,9 +518,13 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           handleTriggerRenameTable(table.name);
                         }}
                         title="Rename Table"
-                        className="p-1 rounded hover:bg-[#383838] text-gray-400 hover:text-white"
+                        className={`p-1 rounded transition-colors ${
+                          theme === 'light'
+                            ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                            : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                        }`}
                       >
-                        <Pencil className="w-3 h-3 text-blue-400" />
+                        <Pencil className="w-3 h-3 text-blue-500" />
                       </button>
                       <button
                         onClick={(e) => {
@@ -489,9 +532,13 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           handleTriggerMaintenance(table.name);
                         }}
                         title="Table Maintenance & Diagnostics"
-                        className="p-1 rounded hover:bg-[#383838] text-gray-400 hover:text-white"
+                        className={`p-1 rounded transition-colors ${
+                          theme === 'light'
+                            ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                            : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                        }`}
                       >
-                        <Wrench className="w-3 h-3 text-emerald-400" />
+                        <Wrench className="w-3.5 h-3.5 text-emerald-500" />
                       </button>
                     </div>
                   </td>
@@ -507,109 +554,135 @@ export const TableListTab: React.FC<TableListTabProps> = ({
         <div
           role="menu"
           data-testid="table-list-context-menu"
-          className="fixed z-50 bg-[#1e1e1e] border border-[#333333] rounded-md shadow-2xl py-1 text-xs text-gray-200 min-w-[190px] select-none animate-in fade-in duration-100"
+          className={`fixed z-50 rounded-md shadow-2xl py-1 text-xs min-w-[190px] select-none animate-in fade-in duration-100 border ${
+            theme === 'light'
+              ? 'bg-white border-gray-200 text-gray-800'
+              : 'bg-[#1e1e1e] border-[#333333] text-gray-200'
+          }`}
           style={{ top: contextMenu.mouseY, left: contextMenu.mouseX }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-3 py-1.5 text-[11px] font-mono text-gray-400 border-b border-[#2d2d2d] flex items-center gap-1.5 truncate">
-            <TableIcon className="w-3 h-3 text-blue-400 shrink-0" />
-            <span className="truncate font-semibold text-white">{contextMenu.table.name}</span>
+          <div className={`px-3 py-1.5 text-[11px] font-mono border-b flex items-center gap-1.5 truncate ${
+            theme === 'light' ? 'text-gray-500 border-gray-100' : 'text-gray-400 border-[#2d2d2d]'
+          }`}>
+            <TableIcon className="w-3 h-3 text-blue-500 shrink-0" />
+            <span className={`truncate font-semibold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+              {contextMenu.table.name}
+            </span>
           </div>
 
           <button
             type="button"
             data-testid="ctx-open-table"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
             onClick={() => {
               handleOpenData(contextMenu.table.name);
               setContextMenu(null);
             }}
           >
-            <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+            <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
             <span>Open Table Data</span>
           </button>
 
           <button
             type="button"
             data-testid="ctx-design-table"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
             onClick={() => {
               handleOpenStructure(contextMenu.table.name);
               setContextMenu(null);
             }}
           >
-            <Wrench className="w-3.5 h-3.5 text-amber-400" />
+            <Wrench className="w-3.5 h-3.5 text-amber-500" />
             <span>Design Table Structure</span>
           </button>
 
-          <div className="border-t border-[#2d2d2d] my-1" />
+          <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
 
           <button
             type="button"
             data-testid="ctx-duplicate-table"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
             onClick={() => handleTriggerDuplicate(contextMenu.table.name)}
           >
-            <Copy className="w-3.5 h-3.5 text-purple-400" />
+            <Copy className="w-3.5 h-3.5 text-purple-500" />
             <span>Duplicate Table...</span>
           </button>
 
           <button
             type="button"
             data-testid="ctx-copy-to-db"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
             onClick={() => handleTriggerCopyTableToDb(contextMenu.table.name)}
           >
-            <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+            <Share2 className="w-3.5 h-3.5 text-indigo-500" />
             <span>Copy Table to Database...</span>
           </button>
 
-          <div className="border-t border-[#2d2d2d] my-1" />
+          <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
 
           <button
             type="button"
             data-testid="ctx-export-sql"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
             onClick={() => handleTriggerExportSql(contextMenu.table.name)}
           >
-            <Download className="w-3.5 h-3.5 text-blue-400" />
+            <Download className="w-3.5 h-3.5 text-blue-500" />
             <span>Export as SQL Dump...</span>
           </button>
 
           <button
             type="button"
             data-testid="ctx-export-data"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
             onClick={() => handleTriggerExportData(contextMenu.table.name)}
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
             <span>Export Table Data...</span>
           </button>
 
           <button
             type="button"
             data-testid="ctx-import-sql"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
             onClick={() => handleTriggerImportSql(contextMenu.table.name)}
           >
-            <FileCode className="w-3.5 h-3.5 text-blue-400" />
+            <FileCode className="w-3.5 h-3.5 text-blue-500" />
             <span>Import as SQL Dump...</span>
           </button>
 
           <button
             type="button"
             data-testid="ctx-import-data"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
             onClick={() => handleTriggerImportData(contextMenu.table.name)}
           >
-            <Upload className="w-3.5 h-3.5 text-emerald-400" />
+            <Upload className="w-3.5 h-3.5 text-emerald-500" />
             <span>Import Table Data...</span>
           </button>
 
           <button
             type="button"
             data-testid="ctx-copy-name"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
             onClick={() => handleCopyName(contextMenu.table.name)}
           >
             <Copy className="w-3.5 h-3.5 text-gray-400" />
@@ -619,32 +692,38 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-rename-table"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
             onClick={() => handleTriggerRenameTable(contextMenu.table.name)}
           >
-            <Pencil className="w-3.5 h-3.5 text-blue-400" />
+            <Pencil className="w-3.5 h-3.5 text-blue-500" />
             <span>Rename Table...</span>
           </button>
 
           <button
             type="button"
             data-testid="ctx-maintenance-table"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-[#2d2d2d] text-gray-200"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
             onClick={() => handleTriggerMaintenance(contextMenu.table.name)}
           >
-            <Wrench className="w-3.5 h-3.5 text-emerald-400" />
+            <Wrench className="w-3.5 h-3.5 text-emerald-500" />
             <span>Table Maintenance...</span>
           </button>
 
-          <div className="border-t border-[#2d2d2d] my-1" />
+          <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
 
           <button
             type="button"
             data-testid="ctx-drop-table"
-            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-red-950/40 text-red-400"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-red-50 text-red-600' : 'hover:bg-red-950/40 text-red-400'
+            }`}
             onClick={() => handleTriggerDropTable(contextMenu.table.name)}
           >
-            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+            <Trash2 className="w-3.5 h-3.5 text-red-500" />
             <span>Drop Table</span>
           </button>
         </div>

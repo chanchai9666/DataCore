@@ -77,10 +77,14 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   tableName,
   schemaName,
   driver = 'postgres',
-  theme = 'dark',
+  theme: propTheme,
   onStructureChanged,
 }) => {
-  const isDark = theme === 'dark';
+  const isDark = propTheme
+    ? propTheme === 'dark'
+    : typeof document !== 'undefined'
+    ? document.documentElement.classList.contains('dark')
+    : true;
 
   // Core table state
   const [columns, setColumns] = useState<TableColumnStructure[]>([]);

@@ -83,12 +83,12 @@ export const DuplicateTableModal: React.FC<DuplicateTableModalProps> = ({
       aria-labelledby="duplicate-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
     >
-      <div className="bg-[#1e1e1e] border border-[#333333] rounded-lg shadow-2xl w-full max-w-md overflow-hidden text-gray-200">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-2xl w-full max-w-md overflow-hidden text-zinc-900 dark:text-zinc-100">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#2d2d2d] bg-[#252526]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60">
           <div className="flex items-center space-x-2">
-            <Copy className="w-4 h-4 text-purple-400" />
-            <h2 id="duplicate-modal-title" className="text-sm font-semibold text-white">
+            <Copy className="w-4 h-4 text-purple-500" />
+            <h2 id="duplicate-modal-title" className="text-sm font-semibold text-zinc-900 dark:text-white">
               Duplicate Table
             </h2>
           </div>
@@ -96,7 +96,7 @@ export const DuplicateTableModal: React.FC<DuplicateTableModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="text-gray-400 hover:text-white p-1 rounded hover:bg-[#333333] transition-colors"
+            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-white p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -105,16 +105,16 @@ export const DuplicateTableModal: React.FC<DuplicateTableModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {error && (
-            <div className="p-3 text-xs text-red-300 bg-red-950/40 border border-red-800 rounded">
+            <div className="p-3 text-xs text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">
+            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
               Source Table
             </label>
-            <div className="px-3 py-2 text-xs font-mono bg-[#141414] border border-[#333333] rounded text-gray-300 select-all">
+            <div className="px-3 py-2 text-xs font-mono bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-800 dark:text-zinc-300 select-all">
               {schemaName ? `${schemaName}.${sourceTableName}` : sourceTableName}
             </div>
           </div>
@@ -122,9 +122,9 @@ export const DuplicateTableModal: React.FC<DuplicateTableModalProps> = ({
           <div>
             <label
               htmlFor="target-table-name"
-              className="block text-xs font-medium text-gray-400 mb-1"
+              className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1"
             >
-              New Table Name <span className="text-red-400">*</span>
+              New Table Name <span className="text-red-500">*</span>
             </label>
             <input
               id="target-table-name"
@@ -133,7 +133,7 @@ export const DuplicateTableModal: React.FC<DuplicateTableModalProps> = ({
               onChange={(e) => setNewTableName(e.target.value)}
               disabled={loading}
               autoFocus
-              className="w-full px-3 py-2 text-xs font-mono bg-[#141414] border border-[#333333] rounded focus:outline-none focus:border-purple-500 text-white placeholder-gray-500"
+              className="w-full px-3 py-2 text-xs font-mono bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-purple-500 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500"
               placeholder="e.g. users_backup"
             />
           </div>
@@ -145,24 +145,24 @@ export const DuplicateTableModal: React.FC<DuplicateTableModalProps> = ({
                 checked={copyData}
                 onChange={(e) => setCopyData(e.target.checked)}
                 disabled={loading}
-                className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-purple-600 focus:ring-purple-500 focus:ring-offset-gray-900"
+                className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-purple-600 focus:ring-purple-500"
               />
-              <span className="text-xs text-gray-300">
+              <span className="text-xs text-zinc-700 dark:text-zinc-300">
                 Copy table data (records)
               </span>
             </label>
-            <p className="text-[11px] text-gray-500 mt-1 pl-6">
+            <p className="text-[11px] text-zinc-500 mt-1 pl-6">
               If unchecked, only the table structure and indexes will be cloned.
             </p>
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end space-x-2 pt-3 border-t border-[#2d2d2d]">
+          <div className="flex items-center justify-end space-x-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-300 hover:text-white bg-[#2d2d2d] hover:bg-[#383838] transition-colors"
+              className="px-3.5 py-1.5 text-xs font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 transition-colors"
             >
               Cancel
             </button>

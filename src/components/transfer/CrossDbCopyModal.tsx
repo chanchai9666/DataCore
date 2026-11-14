@@ -173,19 +173,19 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
       aria-labelledby="cross-db-copy-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
     >
-      <div className="bg-[#1e1e1e] border border-[#333333] rounded-lg shadow-2xl w-full max-w-lg overflow-hidden text-gray-200">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-2xl w-full max-w-lg overflow-hidden text-zinc-900 dark:text-zinc-100">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#2d2d2d] bg-[#252526]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60">
           <div className="flex items-center space-x-2">
-            <ArrowRightLeft className="w-4 h-4 text-blue-400" />
-            <h2 id="cross-db-copy-title" className="text-sm font-semibold text-white">
+            <ArrowRightLeft className="w-4 h-4 text-blue-500" />
+            <h2 id="cross-db-copy-title" className="text-sm font-semibold text-zinc-900 dark:text-white">
               Copy Table to Database (Cross-DB Transfer)
             </h2>
           </div>
           <button
             type="button"
             onClick={handleCancelOrClose}
-            className="text-gray-400 hover:text-white p-1 rounded hover:bg-[#333333] transition-colors"
+            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-white p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -194,7 +194,7 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {error && (
-            <div className="p-3 text-xs text-red-300 bg-red-950/40 border border-red-800/60 rounded">
+            <div className="p-3 text-xs text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded">
               {error}
             </div>
           )}
@@ -202,40 +202,40 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
           {/* Source & Target Comparison Grid */}
           <div className="grid grid-cols-2 gap-3 items-stretch relative">
             {/* Source Box */}
-            <div className="p-3 bg-[#181818] border border-[#2e2e2e] rounded-md space-y-2">
-              <div className="flex items-center space-x-1.5 text-xs font-semibold text-blue-400 pb-1 border-b border-[#2a2a2a]">
+            <div className="p-3 bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800 rounded-md space-y-2">
+              <div className="flex items-center space-x-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 pb-1 border-b border-zinc-200 dark:border-zinc-800">
                 <Database className="w-3.5 h-3.5" />
                 <span>Source</span>
               </div>
               <div className="space-y-1 text-xs">
-                <div className="text-gray-400">Connection:</div>
-                <div className="font-medium text-white truncate" title={sourceConn?.name || sourceConnectionId}>
+                <div className="text-zinc-500 dark:text-zinc-400">Connection:</div>
+                <div className="font-medium text-zinc-900 dark:text-white truncate" title={sourceConn?.name || sourceConnectionId}>
                   {sourceConn?.name || sourceConnectionId} ({sourceConn?.driver || 'db'})
                 </div>
               </div>
               {sourceSchemaName && (
                 <div className="space-y-1 text-xs">
-                  <div className="text-gray-400">Schema:</div>
-                  <div className="font-mono text-gray-300 truncate">{sourceSchemaName}</div>
+                  <div className="text-zinc-500 dark:text-zinc-400">Schema:</div>
+                  <div className="font-mono text-zinc-700 dark:text-zinc-300 truncate">{sourceSchemaName}</div>
                 </div>
               )}
               <div className="space-y-1 text-xs">
-                <div className="text-gray-400">Table:</div>
-                <div className="flex items-center space-x-1 font-mono text-white truncate font-medium">
-                  <Table className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <div className="text-zinc-500 dark:text-zinc-400">Table:</div>
+                <div className="flex items-center space-x-1 font-mono text-zinc-900 dark:text-white truncate font-medium">
+                  <Table className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                   <span className="truncate">{sourceTableName}</span>
                 </div>
               </div>
             </div>
 
             {/* Target Box */}
-            <div className="p-3 bg-[#181818] border border-[#2e2e2e] rounded-md space-y-2">
-              <div className="flex items-center space-x-1.5 text-xs font-semibold text-emerald-400 pb-1 border-b border-[#2a2a2a]">
+            <div className="p-3 bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800 rounded-md space-y-2">
+              <div className="flex items-center space-x-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 pb-1 border-b border-zinc-200 dark:border-zinc-800">
                 <Layers className="w-3.5 h-3.5" />
                 <span>Target</span>
               </div>
               <div className="space-y-1 text-xs">
-                <label htmlFor="target-connection-select" className="text-gray-400 block">
+                <label htmlFor="target-connection-select" className="text-zinc-500 dark:text-zinc-400 block">
                   Connection:
                 </label>
                 <select
@@ -244,7 +244,7 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
                   value={targetConnectionId}
                   onChange={(e) => handleTargetConnectionChange(e.target.value)}
                   disabled={loading}
-                  className="w-full px-2 py-1 text-xs bg-[#121212] border border-[#333333] rounded text-white focus:outline-none focus:border-blue-500 truncate"
+                  className="w-full px-2 py-1 text-xs bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 truncate"
                 >
                   {connections.map((conn) => (
                     <option key={conn.id} value={conn.id}>
@@ -256,7 +256,7 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
 
               {/* Target Schema */}
               <div className="space-y-1 text-xs">
-                <label htmlFor="target-schema-input" className="text-gray-400 block">
+                <label htmlFor="target-schema-input" className="text-zinc-500 dark:text-zinc-400 block">
                   Schema (optional):
                 </label>
                 <input
@@ -267,13 +267,13 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
                   onChange={(e) => setTargetSchemaName(e.target.value)}
                   disabled={loading}
                   placeholder={targetConn?.driver === 'postgres' ? 'public' : 'default'}
-                  className="w-full px-2 py-1 text-xs bg-[#121212] border border-[#333333] rounded text-white focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full px-2 py-1 text-xs bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
 
               {/* Target Table Name */}
               <div className="space-y-1 text-xs">
-                <label htmlFor="target-table-input" className="text-gray-400 block">
+                <label htmlFor="target-table-input" className="text-zinc-500 dark:text-zinc-400 block">
                   Table Name:
                 </label>
                 <input
@@ -284,48 +284,48 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
                   onChange={(e) => setTargetTableName(e.target.value)}
                   disabled={loading}
                   required
-                  className="w-full px-2 py-1 text-xs bg-[#121212] border border-[#333333] rounded text-white focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full px-2 py-1 text-xs bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
             </div>
           </div>
 
           {/* Transfer Options */}
-          <div className="p-3 bg-[#181818] border border-[#2e2e2e] rounded-md space-y-2.5">
-            <div className="text-xs font-semibold text-gray-300">Transfer Options</div>
+          <div className="p-3 bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800 rounded-md space-y-2.5">
+            <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Transfer Options</div>
 
-            <label className="flex items-center space-x-2 text-xs text-gray-300 cursor-pointer">
+            <label className="flex items-center space-x-2 text-xs text-zinc-700 dark:text-zinc-300 cursor-pointer">
               <input
                 type="checkbox"
                 data-testid="copy-structure-checkbox"
                 checked={copyStructure}
                 onChange={(e) => setCopyStructure(e.target.checked)}
                 disabled={loading}
-                className="rounded border-[#444444] bg-[#141414] text-blue-500 focus:ring-0"
+                className="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-blue-500 focus:ring-0"
               />
               <span>Copy Table Structure (DDL creation)</span>
             </label>
 
-            <label className="flex items-center space-x-2 text-xs text-gray-300 cursor-pointer">
+            <label className="flex items-center space-x-2 text-xs text-zinc-700 dark:text-zinc-300 cursor-pointer">
               <input
                 type="checkbox"
                 data-testid="drop-target-checkbox"
                 checked={dropTargetIfExists}
                 onChange={(e) => setDropTargetIfExists(e.target.checked)}
                 disabled={loading}
-                className="rounded border-[#444444] bg-[#141414] text-blue-500 focus:ring-0"
+                className="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-blue-500 focus:ring-0"
               />
               <span>Drop target table if already exists</span>
             </label>
 
-            <label className="flex items-center space-x-2 text-xs text-gray-300 cursor-pointer">
+            <label className="flex items-center space-x-2 text-xs text-zinc-700 dark:text-zinc-300 cursor-pointer">
               <input
                 type="checkbox"
                 data-testid="copy-data-checkbox"
                 checked={copyData}
                 onChange={(e) => setCopyData(e.target.checked)}
                 disabled={loading}
-                className="rounded border-[#444444] bg-[#141414] text-blue-500 focus:ring-0"
+                className="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-blue-500 focus:ring-0"
               />
               <span>Copy Table Data (Records / Rows)</span>
             </label>
@@ -333,19 +333,19 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
 
           {/* Progress Indicator */}
           {loading && (
-            <div className="p-3 bg-[#141414] border border-[#333333] rounded space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-300">
+            <div className="p-3 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded space-y-2">
+              <div className="flex items-center justify-between text-xs text-zinc-800 dark:text-zinc-300">
                 <span className="flex items-center space-x-1.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
                   <span>{progress?.status || 'Transferring table...'}</span>
                 </span>
                 {progress?.total_rows && progress.total_rows > 0 && (
-                  <span className="font-mono text-[11px] text-gray-400">
+                  <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
                     {progress.current_row.toLocaleString()} / {progress.total_rows.toLocaleString()}
                   </span>
                 )}
               </div>
-              <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
+              <div className="w-full bg-zinc-200 dark:bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-blue-500 h-full transition-all duration-150"
                   style={{
@@ -360,11 +360,11 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
           )}
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#2d2d2d]">
+          <div className="flex items-center justify-end space-x-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
             <button
               type="button"
               onClick={handleCancelOrClose}
-              className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-300 hover:text-white bg-[#2d2d2d] hover:bg-[#383838] transition-colors"
+              className="px-3.5 py-1.5 text-xs font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 transition-colors"
             >
               Cancel
             </button>

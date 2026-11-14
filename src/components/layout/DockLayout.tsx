@@ -930,12 +930,12 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                 : 'border-gray-200 text-gray-600'
             }`}
           >
-            <span className="font-semibold text-gray-300">Explorer</span>
+            <span className="font-semibold text-gray-700 dark:text-gray-300">Explorer</span>
             <button
               type="button"
               onClick={() => setSidebarCollapsed(true)}
               aria-label="Collapse sidebar"
-              className="p-1 rounded hover:bg-gray-700/50 transition-colors"
+              className="p-1 rounded text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
             >
               <PanelLeftClose className="w-3.5 h-3.5" />
             </button>
@@ -943,6 +943,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
           <div className="flex-1 overflow-hidden">
             <ObjectBrowser
+              theme={theme}
               onEditConnection={onEditConnection}
               onNewConnection={onNewConnection}
               lastSavedConnectionId={lastSavedConnectionId}
@@ -1053,7 +1054,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                       e.stopPropagation();
                       closeTab(tab.id);
                     }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-700/60 transition-opacity"
+                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700/60 transition-colors transition-opacity"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -1459,7 +1460,11 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                         : 'bg-gray-100 border-gray-200'
                     }`}
                   >
-                    <div className="flex items-center space-x-1 bg-black/20 p-0.5 rounded border border-gray-700/40">
+                    <div className={`flex items-center space-x-1 p-0.5 rounded border ${
+                      theme === 'dark'
+                        ? 'bg-black/20 border-gray-700/40'
+                        : 'bg-gray-200/60 border-gray-300'
+                    }`}>
                       <button
                         type="button"
                         data-testid="table-mode-data-btn"
@@ -1505,7 +1510,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
                     <div className="text-gray-500 text-[11px] font-mono">
                       {activeTab.schemaName ? `${activeTab.schemaName}.` : ''}
-                      <span className="font-semibold text-gray-300">
+                      <span className="font-semibold text-gray-700 dark:text-gray-300">
                         {activeTab.tableName}
                       </span>
                     </div>
