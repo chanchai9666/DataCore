@@ -132,6 +132,27 @@ describe('erDiagramApi', () => {
         { name: 'description', dataType: 'text', isPrimaryKey: false, isNullable: true },
       ]);
     });
+
+    it('deduplicates columns when Postgres returns multiple rows for multi-constraint columns', () => {
+      const queryResult: QueryResult = {
+        columns: [
+          { name: 'column_name', data_type: 'varchar', nullable: false },
+          { name: 'data_type', data_type: 'varchar', nullable: false },
+          { name: 'is_nullable', data_type: 'varchar', nullable: false },
+          { name: 'is_pk', data_type: 'integer', nullable: false },
+        ],
+        rows: [
+          [{ Text: 'id' }, { Text: 'uuid' }, { Text: 'NO' }, { Integer: 1 }],
+          [{ Text: 'branch_id' }, { Text: 'uuid' }, { Text: 'YES' }, { Integer: 0 }],
+          [{ Text: 'branch_id' }, { Text: 'uuid' }, { Text: 'YES' }, { Integer: 0 }], // duplicate row from multiple FKs
+        ],
+        execution_time_ms: 1,
+      };
+
+      const columns = parsePostgresColumns(queryResult);
+      expect(columns).toHaveLength(2);
+      expect(columns.map((c) => c.name)).toEqual(['id', 'branch_id']);
+    });
   });
 
   describe('buildERRelationships', () => {

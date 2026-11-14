@@ -22,6 +22,7 @@ import {
   fetchSchemaForDiff,
   compareSchemas,
   generateMigrationSql,
+  extractRunnableStatements,
 } from '../../api/schemaDiffApi';
 import { dbApi } from '../../api/db';
 import { showConfirmDialog } from '../../utils/dialog';
@@ -140,6 +141,13 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
   const handleExecuteMigration = async () => {
     if (!migrationScript?.up || !targetConnId) return;
 
+    const tgtConn = connections.find((c) => c.id === targetConnId);
+    const runnableStatements = extractRunnableStatements(migrationScript.up, tgtConn?.driver);
+    if (runnableStatements.length === 0) {
+      toast.info('No executable statements found in migration script.');
+      return;
+    }
+
     if (allowDestructiveDrop && migrationScript.up.includes('DROP TABLE IF EXISTS')) {
       const dangerConfirmed = await showConfirmDialog(
         'Warning: Destructive DROP TABLE is enabled. Existing tables in the target database will be permanently deleted. Are you sure you want to proceed?',
@@ -153,7 +161,7 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
     }
 
     const confirmed = await showConfirmDialog(
-      'Are you sure you want to apply the UP migration script to the target database? This may modify or drop schema objects.',
+      `Are you sure you want to apply the UP migration script (${runnableStatements.length} statement${runnableStatements.length > 1 ? 's' : ''}) to the target database? This may modify or drop schema objects.`,
       {
         title: 'Apply Schema Migration',
         okLabel: 'Apply Migration',
@@ -165,13 +173,20 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
 
     setIsExecuting(true);
     try {
-      await dbApi.executeDirectQuery(targetConnId, migrationScript.up);
-      toast.success('Migration executed successfully on target.');
+      // Execute runnable statements sequentially
+      for (let i = 0; i < runnableStatements.length; i++) {
+        const stmt = runnableStatements[i];
+        await dbApi.executeDirectQuery(targetConnId, `${stmt};`);
+      }
+      toast.success(
+        `Migration executed successfully (${runnableStatements.length} statement${runnableStatements.length > 1 ? 's' : ''}).`
+      );
       // Re-run compare to reflect updated schema
       await handleCompare();
     } catch (err: any) {
       console.error('Migration execution failed:', err);
-      toast.error(`Execution failed: ${err?.message || 'Unknown error'}`);
+      const rawError = typeof err === 'string' ? err : err?.message || JSON.stringify(err);
+      toast.error(`Execution failed: ${rawError || 'Unknown error'}`);
     } finally {
       setIsExecuting(false);
     }

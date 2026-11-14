@@ -203,19 +203,35 @@ export function parsePostgresColumns(result: QueryResult): ERColumn[] {
     return s === 'NULL' ? '' : s;
   };
 
-  return result.rows.map((row) => {
+  const seen = new Set<string>();
+  const cols: ERColumn[] = [];
+
+  for (const row of result.rows) {
     const name = getStr(row[0]);
+    if (!name) continue;
+    const lower = name.toLowerCase();
     const dataType = getStr(row[1]);
     const isNullable = getStr(row[2]).toUpperCase() === 'YES';
-    const isPk = getStr(row[3]) === '1';
+    const isPk = getStr(row[3]) === '1' || Number(getStr(row[3])) > 0;
 
-    return {
+    if (seen.has(lower)) {
+      if (isPk) {
+        const existing = cols.find((c) => c.name.toLowerCase() === lower);
+        if (existing) existing.isPrimaryKey = true;
+      }
+      continue;
+    }
+
+    seen.add(lower);
+    cols.push({
       name,
       dataType,
       isPrimaryKey: isPk,
       isNullable,
-    };
-  });
+    });
+  }
+
+  return cols;
 }
 
 /**
@@ -316,12 +332,18 @@ export async function fetchERDiagramData(
           c.column_name, 
           c.data_type, 
           c.is_nullable, 
-          (CASE WHEN tc.constraint_type = 'PRIMARY KEY' THEN 1 ELSE 0 END) AS is_pk 
+          CASE WHEN pk.column_name IS NOT NULL THEN 1 ELSE 0 END AS is_pk 
         FROM information_schema.columns c 
-        LEFT JOIN information_schema.key_column_usage kcu 
-          ON c.table_name = kcu.table_name AND c.column_name = kcu.column_name AND c.table_schema = kcu.table_schema 
-        LEFT JOIN information_schema.table_constraints tc 
-          ON kcu.constraint_name = tc.constraint_name AND tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = c.table_schema 
+        LEFT JOIN (
+          SELECT kcu.table_schema, kcu.table_name, kcu.column_name 
+          FROM information_schema.table_constraints tc 
+          JOIN information_schema.key_column_usage kcu 
+            ON tc.constraint_name = kcu.constraint_name 
+            AND tc.table_schema = kcu.table_schema 
+          WHERE tc.constraint_type = 'PRIMARY KEY'
+        ) pk ON c.table_schema = pk.table_schema 
+            AND c.table_name = pk.table_name 
+            AND c.column_name = pk.column_name 
         WHERE c.table_name = ${formatSqlLiteral(tName, 'postgres')} AND c.table_schema = ${formatSqlLiteral(s, 'postgres')} 
         ORDER BY c.ordinal_position;`
       );
