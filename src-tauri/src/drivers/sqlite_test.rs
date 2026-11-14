@@ -291,3 +291,32 @@ async fn test_sqlite_read_only_mode_blocks_writes() {
         err_str
     );
 }
+
+#[tokio::test]
+async fn test_sqlite_quote_aware_splitting_and_multi_select() {
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+
+    // 1. Semicolons inside quotes or comments should not be split
+    let script = r#"
+        CREATE TABLE sample_texts (id INTEGER PRIMARY KEY, content TEXT);
+        INSERT INTO sample_texts VALUES (1, 'hello; world; test'); -- trailing comment; with semicolon
+        /* block comment; with; semicolons; */
+        INSERT INTO sample_texts VALUES (2, 'second; line');
+    "#;
+    conn.execute_query(script).await.expect("execute script with semicolons inside strings and comments");
+
+    let rows_res = conn.execute_query("SELECT id, content FROM sample_texts ORDER BY id;").await.expect("select sample texts");
+    assert_eq!(rows_res.rows.len(), 2);
+    assert_eq!(rows_res.rows[0][1], CellValue::Text("hello; world; test".to_string()));
+    assert_eq!(rows_res.rows[1][1], CellValue::Text("second; line".to_string()));
+
+    // 2. Multi-select statements should execute in sequence and return the last statement's query result
+    let multi_select = "SELECT 10 AS a; SELECT 20 AS b, 'ok' AS status;";
+    let res = conn.execute_query(multi_select).await.expect("execute multi-select");
+    assert_eq!(res.columns.len(), 2);
+    assert_eq!(res.columns[0].name, "b");
+    assert_eq!(res.columns[1].name, "status");
+    assert_eq!(res.rows.len(), 1);
+    assert_eq!(res.rows[0][0], CellValue::Integer(20));
+    assert_eq!(res.rows[0][1], CellValue::Text("ok".to_string()));
+}

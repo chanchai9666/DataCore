@@ -4,6 +4,7 @@ import type { EditorView } from '@codemirror/view';
 import { SqlEditor } from './SqlEditor';
 import { EditorToolbar } from './EditorToolbar';
 import { useTabStore } from '../../stores/tabStore';
+import { useConnectionStore } from '../../stores/connectionStore';
 import { dbApi } from '../../api/db';
 import type { QueryResult, Tab } from '../../types/db';
 
@@ -744,6 +745,219 @@ describe('SqlEditor', () => {
 
       expect(execSpy).toHaveBeenCalledWith('tab-ro-select', expect.stringContaining('SELECT * FROM users'));
       expect(screen.queryByTestId('sql-error-callout')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Schema-Aware Autocomplete (Issue #91)', () => {
+    it('fetches schema on mount and invalidates on DDL query execution', async () => {
+      const fetchSpy = vi.fn().mockResolvedValue({
+        users: ['id', 'email', 'name'],
+        orders: ['id', 'user_id', 'amount'],
+      });
+      const invalidateSpy = vi.fn();
+
+      const { useSchemaStore } = await import('../../stores/schemaStore');
+      useSchemaStore.setState({
+        fetchSchema: fetchSpy,
+        invalidateSchema: invalidateSpy,
+        schemas: {
+          'conn-1': {
+            users: ['id', 'email', 'name'],
+            orders: ['id', 'user_id', 'amount'],
+          },
+        },
+      });
+
+      const ddlResult: QueryResult = {
+        columns: [],
+        rows: [],
+        execution_time_ms: 12,
+        rows_affected: 0,
+      };
+      vi.spyOn(dbApi, 'executeQuery').mockResolvedValue(ddlResult);
+
+      useConnectionStore.setState({
+        connections: [
+          {
+            id: 'conn-1',
+            name: 'Postgres DB',
+            driver: 'postgres',
+            database: 'test_db',
+          },
+        ],
+      });
+
+      useTabStore.setState({
+        tabs: [
+          {
+            id: 'tab-ddl',
+            title: 'DDL Tab',
+            type: 'query',
+            connectionId: 'conn-1',
+            queryContent: 'CREATE TABLE products (id INTEGER, name TEXT);',
+            autoCommit: true,
+          },
+        ],
+        activeTabId: 'tab-ddl',
+      });
+
+      render(<SqlEditor tabId="tab-ddl" />);
+
+      expect(fetchSpy).toHaveBeenCalledWith('conn-1', 'postgres', undefined);
+
+      const runBtn = screen.getByRole('button', { name: /run/i });
+      await act(async () => {
+        fireEvent.click(runBtn);
+      });
+
+      expect(invalidateSpy).toHaveBeenCalledWith('conn-1');
+    });
+  });
+
+  describe('SQL Formatter (Issue #92)', () => {
+    it('formats SQL when clicking Format button in toolbar', async () => {
+      useTabStore.setState({
+        tabs: [
+          {
+            id: 'tab-fmt',
+            title: 'Format Tab',
+            type: 'query',
+            connectionId: 'conn-1',
+            queryContent: 'select id,name from users where id=1;',
+            autoCommit: true,
+          },
+        ],
+        activeTabId: 'tab-fmt',
+      });
+
+      render(<SqlEditor tabId="tab-fmt" />);
+
+      const formatBtn = screen.getByTestId('format-sql-btn');
+      expect(formatBtn).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(formatBtn);
+      });
+
+      const updated = useTabStore.getState().tabs.find((t) => t.id === 'tab-fmt');
+      expect(updated?.queryContent).toContain('SELECT');
+      expect(updated?.queryContent).toContain('FROM');
+      expect(updated?.queryContent).toContain('WHERE');
+    });
+
+    it('formats SQL on ⌘⇧F / Ctrl+Shift+F key press', async () => {
+      useTabStore.setState({
+        tabs: [
+          {
+            id: 'tab-fmt-key',
+            title: 'Format Key Tab',
+            type: 'query',
+            connectionId: 'conn-1',
+            queryContent: 'select * from products;',
+            autoCommit: true,
+          },
+        ],
+        activeTabId: 'tab-fmt-key',
+      });
+
+      const { container } = render(<SqlEditor tabId="tab-fmt-key" />);
+
+      const editorContainer = container.querySelector('.sql-editor-container')!;
+      fireEvent.keyDown(editorContainer, {
+        key: 'f',
+        shiftKey: true,
+        metaKey: true,
+      });
+
+      const updated = useTabStore.getState().tabs.find((t) => t.id === 'tab-fmt-key');
+      expect(updated?.queryContent).toContain('SELECT');
+      expect(updated?.queryContent).toContain('FROM');
+    });
+  });
+
+  describe('Multi-Statement Execution (Issue #92)', () => {
+    it('executes multiple statements sequentially and reports allResults to onQueryResult', async () => {
+      const res1: QueryResult = {
+        columns: [{ name: 'id', data_type: 'integer', nullable: false }],
+        rows: [[1]],
+        execution_time_ms: 10,
+        rows_affected: null,
+      };
+      const res2: QueryResult = {
+        columns: [{ name: 'val', data_type: 'text', nullable: false }],
+        rows: [['test']],
+        execution_time_ms: 15,
+        rows_affected: null,
+      };
+
+      const execSpy = vi.spyOn(dbApi, 'executeQuery')
+        .mockResolvedValueOnce(res1)
+        .mockResolvedValueOnce(res2);
+
+      const handleResult = vi.fn();
+
+      useTabStore.setState({
+        tabs: [
+          {
+            id: 'tab-multi',
+            title: 'Multi Tab',
+            type: 'query',
+            connectionId: 'conn-1',
+            queryContent: 'SELECT 1; SELECT "test" as val;',
+            autoCommit: true,
+          },
+        ],
+        activeTabId: 'tab-multi',
+      });
+
+      render(<SqlEditor tabId="tab-multi" onQueryResult={handleResult} />);
+
+      const runBtn = screen.getByRole('button', { name: /run/i });
+      await act(async () => {
+        fireEvent.click(runBtn);
+      });
+
+      expect(execSpy).toHaveBeenCalledTimes(2);
+      expect(handleResult).toHaveBeenCalledWith(
+        expect.objectContaining({ execution_time_ms: 25 }),
+        expect.arrayContaining([
+          expect.objectContaining({ statement: 'SELECT 1' }),
+          expect.objectContaining({ statement: expect.stringContaining('SELECT "test" as val') }),
+        ])
+      );
+    });
+  });
+
+  describe('Horizontal Split Layout (Issue #97)', () => {
+    it('renders toggle split direction button and toggles direction', async () => {
+      localStorage.removeItem('datacore-split-direction');
+
+      useTabStore.setState({
+        tabs: [
+          {
+            id: 'tab-split',
+            title: 'Split Tab',
+            type: 'query',
+            connectionId: 'conn-1',
+            queryContent: 'SELECT 1;',
+            autoCommit: true,
+          },
+        ],
+        activeTabId: 'tab-split',
+      });
+
+      render(<SqlEditor tabId="tab-split" />);
+
+      const splitBtn = screen.getByTestId('toggle-split-btn');
+      expect(splitBtn).toBeInTheDocument();
+      expect(splitBtn).toHaveTextContent('Horizontal');
+
+      await act(async () => {
+        fireEvent.click(splitBtn);
+      });
+
+      expect(localStorage.getItem('datacore-split-direction')).toBe('horizontal');
+      expect(splitBtn).toHaveTextContent('Vertical');
     });
   });
 });

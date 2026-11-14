@@ -12,7 +12,7 @@ import {
   buildBufferCacheStatsSql,
   type BufferCacheMetrics,
 } from '../../api/performanceHelpers';
-import { formatCellValue } from '../../types/db';
+import { formatCellValue } from '../../utils/cellFormatter';
 
 export interface DatabaseMetricsModalProps {
   isOpen: boolean;

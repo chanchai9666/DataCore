@@ -1,4 +1,5 @@
-import { QueryResult, CellValue, ColumnMeta, formatCellValue } from '../../types/db';
+import { QueryResult, CellValue, ColumnMeta } from '../../types/db';
+import { formatCellValue } from '../../utils/cellFormatter';
 import type { TableForeignKeyStructure } from '../../api/queryBuilder';
 
 export interface TableColumnStructure {

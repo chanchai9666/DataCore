@@ -6,7 +6,7 @@ import type {
   QueryResult,
   CellValue,
 } from '../types/db';
-import { formatCellValue } from '../types/db';
+import { formatCellValue } from '../utils/cellFormatter';
 import { formatSqlLiteral } from './queryBuilder';
 import { dbApi } from './db';
 import {

@@ -33,6 +33,9 @@ import { dbApi } from '../../api/db';
 import { buildExplainSql } from '../../api/queryBuilder';
 import { buildSetIsolationLevelSql, type IsolationLevel } from '../../api/transactionHelpers';
 import { parseSqlError, type ParsedSqlError } from '../../utils/sqlErrorParser';
+import { useSchemaStore } from '../../stores/schemaStore';
+import { formatSql } from '../../utils/sqlFormatterHelper';
+import { splitSqlStatements } from '../../api/sqlSplitter';
 import type { QueryResult } from '../../types/db';
 
 export function isWriteQuery(sql: string): boolean {
@@ -339,11 +342,13 @@ export const SqlErrorCallout: React.FC<SqlErrorCalloutProps> = ({
 
 export interface SqlEditorProps {
   tabId?: string;
-  onQueryResult?: (result: QueryResult) => void;
+  onQueryResult?: (result: QueryResult, allResults?: QueryResult[]) => void;
   onError?: (error: unknown) => void;
   theme?: 'light' | 'dark';
   onEditorCreated?: (view: EditorView) => void;
   isReadOnly?: boolean;
+  splitDirection?: 'vertical' | 'horizontal';
+  onToggleSplit?: (direction: 'vertical' | 'horizontal') => void;
 }
 
 export const SqlEditor: React.FC<SqlEditorProps> = ({
@@ -353,6 +358,8 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   theme: themeProp,
   onEditorCreated,
   isReadOnly: isReadOnlyProp,
+  splitDirection: splitDirectionProp,
+  onToggleSplit: onToggleSplitProp,
 }) => {
   const activeTabId = useTabStore((s) => s.activeTabId);
   const targetTabId = tabId ?? activeTabId;
@@ -428,7 +435,39 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
 
   const activeTheme = themeProp ?? (systemDark ? 'dark' : 'light');
 
-  // SQL Dialect based on active connection driver
+  // Split Direction state (persisted in localStorage)
+  const [internalSplit, setInternalSplit] = useState<'vertical' | 'horizontal'>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('datacore-split-direction');
+      if (saved === 'horizontal' || saved === 'vertical') return saved;
+    }
+    return 'vertical';
+  });
+
+  const currentSplitDirection = splitDirectionProp ?? internalSplit;
+
+  const handleToggleSplitDirection = useCallback(() => {
+    const nextDir = currentSplitDirection === 'vertical' ? 'horizontal' : 'vertical';
+    if (onToggleSplitProp) {
+      onToggleSplitProp(nextDir);
+    } else {
+      setInternalSplit(nextDir);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('datacore-split-direction', nextDir);
+      }
+    }
+  }, [currentSplitDirection, onToggleSplitProp]);
+
+  // Schema-Aware Autocomplete
+  const schemaMap = useSchemaStore((s) => (tab?.connectionId ? s.schemas[tab.connectionId] : undefined)) || {};
+
+  useEffect(() => {
+    if (tab?.connectionId) {
+      useSchemaStore.getState().fetchSchema(tab.connectionId, connection?.driver, tab.schemaName);
+    }
+  }, [tab?.connectionId, connection?.driver, tab?.schemaName]);
+
+  // SQL Dialect based on active connection driver with schema autocompletion
   const sqlExtension = useMemo(() => {
     let dialect = StandardSQL;
     if (connection?.driver === 'sqlite') {
@@ -438,8 +477,8 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     } else if (connection?.driver === 'mysql') {
       dialect = MySQL;
     }
-    return sql({ dialect });
-  }, [connection?.driver]);
+    return sql({ dialect, schema: schemaMap, upperCaseKeywords: true });
+  }, [connection?.driver, schemaMap]);
 
   // Execute query handler
   const handleRunQuery = useCallback(
@@ -493,44 +532,116 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         }
 
         try {
-          const result = await dbApi.executeQuery(targetTabId, sqlToRun);
-          setExecutionTimeMs(result.execution_time_ms);
-          setRowCount(result.rows ? result.rows.length : 0);
-          setRowsAffected(result.rows_affected ?? null);
-          useStatusStore.getState().setTabStatus(targetTabId, {
-            lastQuery: sqlToRun,
-            executionTimeMs: result.execution_time_ms,
-            rowCount: result.rows ? result.rows.length : (result.rows_affected ?? 0),
-            statusMessage: isLim ? `Safe Limit: Results capped at ${safeLimit} rows` : null,
-          });
+          const statements = splitSqlStatements(sqlToRun);
+          if (statements.length > 1) {
+            const allResults: QueryResult[] = [];
+            let totalElapsed = 0;
+            let totalRows = 0;
+            let totalAffected = 0;
+            const conn = useConnectionStore.getState().connections.find((c) => c.id === currentTab?.connectionId);
 
-          // Record successful query to query history
-          const conn = useConnectionStore.getState().connections.find((c) => c.id === currentTab?.connectionId);
-          useQueryHistoryStore.getState().addHistoryItem({
-            sql: sqlToRun,
-            executionTimeMs: result.execution_time_ms,
-            rowCount: result.rows ? result.rows.length : undefined,
-            rowsAffected: result.rows_affected ?? null,
-            status: 'success',
-            connectionId: currentTab?.connectionId,
-            connectionName: conn?.name,
-            database: conn?.database,
-          });
+            for (const stmt of statements) {
+              const res = await dbApi.executeQuery(targetTabId, stmt);
+              (res as any).statement = stmt;
+              allResults.push(res);
+              totalElapsed += res.execution_time_ms;
+              if (res.rows) totalRows += res.rows.length;
+              if (res.rows_affected) totalAffected += res.rows_affected;
 
-          // Record to security audit log
-          useAuditLogStore.getState().addLog({
-            action: /^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sqlToRun) ? 'DDL' : 'QUERY',
-            user: conn?.user || 'default',
-            connectionId: currentTab?.connectionId,
-            connectionName: conn?.name,
-            database: conn?.database,
-            query: sqlToRun,
-            executionTimeMs: result.execution_time_ms,
-            rowsAffected: result.rows_affected ?? (result.rows ? result.rows.length : 0),
-            status: 'SUCCESS',
-          });
+              // Record each query to audit log
+              useAuditLogStore.getState().addLog({
+                action: /^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(stmt) ? 'DDL' : 'QUERY',
+                user: conn?.user || 'default',
+                connectionId: currentTab?.connectionId,
+                connectionName: conn?.name,
+                database: conn?.database,
+                query: stmt,
+                executionTimeMs: res.execution_time_ms,
+                rowsAffected: res.rows_affected ?? (res.rows ? res.rows.length : 0),
+                status: 'SUCCESS',
+              });
 
-          onQueryResult?.(result);
+              // Check schema cache invalidation on DDL
+              if (/^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(stmt) && currentTab?.connectionId) {
+                useSchemaStore.getState().invalidateSchema(currentTab.connectionId);
+                useSchemaStore.getState().fetchSchema(currentTab.connectionId, connection?.driver, currentTab.schemaName);
+              }
+            }
+
+            const primaryResult = {
+              ...allResults[0],
+              execution_time_ms: totalElapsed,
+            };
+
+            setExecutionTimeMs(totalElapsed);
+            setRowCount(totalRows);
+            setRowsAffected(totalAffected > 0 ? totalAffected : null);
+            useStatusStore.getState().setTabStatus(targetTabId, {
+              lastQuery: sqlToRun,
+              executionTimeMs: totalElapsed,
+              rowCount: totalRows,
+              statusMessage: isLim ? `Safe Limit: Results capped at ${safeLimit} rows` : null,
+            });
+
+            useQueryHistoryStore.getState().addHistoryItem({
+              sql: sqlToRun,
+              executionTimeMs: totalElapsed,
+              rowCount: totalRows,
+              rowsAffected: totalAffected > 0 ? totalAffected : null,
+              status: 'success',
+              connectionId: currentTab?.connectionId,
+              connectionName: conn?.name,
+              database: conn?.database,
+            });
+
+            onQueryResult?.(primaryResult, allResults);
+          } else {
+            const result = await dbApi.executeQuery(targetTabId, sqlToRun);
+            (result as any).statement = sqlToRun;
+            setExecutionTimeMs(result.execution_time_ms);
+            setRowCount(result.rows ? result.rows.length : 0);
+            setRowsAffected(result.rows_affected ?? null);
+            useStatusStore.getState().setTabStatus(targetTabId, {
+              lastQuery: sqlToRun,
+              executionTimeMs: result.execution_time_ms,
+              rowCount: result.rows ? result.rows.length : (result.rows_affected ?? 0),
+              statusMessage: isLim ? `Safe Limit: Results capped at ${safeLimit} rows` : null,
+            });
+
+            // Record successful query to query history
+            const conn = useConnectionStore.getState().connections.find((c) => c.id === currentTab?.connectionId);
+            useQueryHistoryStore.getState().addHistoryItem({
+              sql: sqlToRun,
+              executionTimeMs: result.execution_time_ms,
+              rowCount: result.rows ? result.rows.length : undefined,
+              rowsAffected: result.rows_affected ?? null,
+              status: 'success',
+              connectionId: currentTab?.connectionId,
+              connectionName: conn?.name,
+              database: conn?.database,
+            });
+
+            // Record to security audit log
+            useAuditLogStore.getState().addLog({
+              action: /^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sqlToRun) ? 'DDL' : 'QUERY',
+              user: conn?.user || 'default',
+              connectionId: currentTab?.connectionId,
+              connectionName: conn?.name,
+              database: conn?.database,
+              query: sqlToRun,
+              executionTimeMs: result.execution_time_ms,
+              rowsAffected: result.rows_affected ?? (result.rows ? result.rows.length : 0),
+              status: 'SUCCESS',
+            });
+
+            // Invalidate schema cache on DDL
+            if (/^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sqlToRun) && currentTab?.connectionId) {
+              useSchemaStore.getState().invalidateSchema(currentTab.connectionId);
+              useSchemaStore.getState().fetchSchema(currentTab.connectionId, connection?.driver, currentTab.schemaName);
+            }
+
+            onQueryResult?.(result);
+          }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           const parsed = parseSqlError(msg, sqlToRun, connection?.driver);
@@ -634,7 +745,30 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     []
   );
 
-  // Keymap extension for Cmd+Enter / Ctrl+Enter
+  // Format SQL with sql-formatter
+  const handleFormatSql = useCallback(() => {
+    if (!targetTabId) return;
+    const currentTab = useTabStore.getState().tabs.find((t) => t.id === targetTabId) ?? tab;
+    const view = editorViewRef.current ?? editorRef.current?.view;
+    const rawSql = (currentTab ? currentTab.queryContent : '') || (view ? view.state.doc.toString() : '');
+    if (!rawSql.trim()) return;
+
+    try {
+      const formatted = formatSql(rawSql, connection?.driver);
+      setQueryContent(targetTabId, formatted);
+      if (view) {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: formatted },
+        });
+      }
+      toast.success('SQL formatted');
+    } catch (err) {
+      console.error('Format SQL error:', err);
+      toast.error('Failed to format SQL');
+    }
+  }, [targetTabId, tab, connection?.driver, setQueryContent]);
+
+  // Keymap extension for Cmd+Enter / Ctrl+Enter and Cmd+Shift+F / Ctrl+Shift+F
   const runKeymap = useMemo(() => {
     return Prec.highest(
       keymap.of([
@@ -645,9 +779,16 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
             return true;
           },
         },
+        {
+          key: 'Mod-Shift-f',
+          run: () => {
+            handleFormatSql();
+            return true;
+          },
+        },
       ])
     );
-  }, [handleRunQuery]);
+  }, [handleRunQuery, handleFormatSql]);
 
   // Cancel query handler
   const handleCancel = useCallback(async () => {
@@ -842,7 +983,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         backgroundColor: activeTheme === 'dark' ? '#1e1e1e' : '#ffffff',
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+          e.preventDefault();
+          handleFormatSql();
+        } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
           e.preventDefault();
           handleRunQuery();
         }
@@ -878,6 +1022,9 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           setIsHistorySnippetsOpen(true);
         }}
         onExplain={handleExplain}
+        onFormat={handleFormatSql}
+        splitDirection={currentSplitDirection}
+        onToggleSplit={handleToggleSplitDirection}
       />
 
       {isReadOnly && (

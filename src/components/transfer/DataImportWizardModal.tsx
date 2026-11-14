@@ -20,7 +20,7 @@ import {
   cancelTransfer,
 } from '../../api/dataTransferApi';
 import { dbApi } from '../../api/db';
-import { formatCellValue } from '../../types/db';
+import { formatCellValue } from '../../utils/cellFormatter';
 import { formatSqlLiteral } from '../../api/queryBuilder';
 import type {
   ColumnMapping,

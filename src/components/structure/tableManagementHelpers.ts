@@ -1,5 +1,5 @@
 import type { QueryResult, CellValue } from '../../types/db';
-import { formatCellValue } from '../../types/db';
+import { formatCellValue } from '../../utils/cellFormatter';
 import type {
   TableIndexStructure,
   TableForeignKeyStructure,

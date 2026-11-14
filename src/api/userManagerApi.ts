@@ -1,6 +1,6 @@
 import type { DbUser, CreateUserOptions } from '../types/userManager';
 import type { QueryResult, CellValue } from '../types/db';
-import { formatCellValue } from '../types/db';
+import { formatCellValue } from '../utils/cellFormatter';
 import { dbApi } from './db';
 
 export const SUPPORTED_PRIVILEGES = [

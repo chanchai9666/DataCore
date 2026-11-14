@@ -19,7 +19,7 @@ import {
   type TlsStatusInfo,
   type AtRestEncryptionInfo,
 } from '../../api/securityHelpers';
-import { formatCellValue } from '../../types/db';
+import { formatCellValue } from '../../utils/cellFormatter';
 
 export interface ConnectionSecurityModalProps {
   isOpen: boolean;

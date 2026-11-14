@@ -11,6 +11,13 @@ pub enum SchemaNodeType {
     Schema,
     Table,
     View,
+    Column,
+    Index,
+    #[serde(rename = "foreign_key", alias = "foreignkey")]
+    ForeignKey,
+    Trigger,
+    Function,
+    Procedure,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

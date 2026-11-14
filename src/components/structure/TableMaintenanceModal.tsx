@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
-import { formatCellValue } from '../../types/db';
+import { formatCellValue } from '../../utils/cellFormatter';
 import {
   buildTableMaintenanceSql,
   type TableMaintenanceOp,

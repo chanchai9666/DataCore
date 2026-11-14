@@ -39,7 +39,6 @@ export const saveConnection = async (
 export const deleteConnection = async (connectionId: string): Promise<void> => {
   return invoke<void>('delete_connection', {
     connectionId,
-    connection_id: connectionId,
   });
 };
 
@@ -49,23 +48,19 @@ export const openSession = async (
 ): Promise<void> => {
   return invoke<void>('open_session', {
     connectionId,
-    connection_id: connectionId,
     tabId,
-    tab_id: tabId,
   });
 };
 
 export const closeSession = async (tabId: string): Promise<void> => {
   return invoke<void>('close_session', {
     tabId,
-    tab_id: tabId,
   });
 };
 
 export const disconnectConnection = async (connectionId: string): Promise<number> => {
   return invoke<number>('disconnect_connection', {
     connectionId,
-    connection_id: connectionId,
   });
 };
 
@@ -75,7 +70,6 @@ export const executeQuery = async (
 ): Promise<QueryResult> => {
   return invoke<QueryResult>('execute_query', {
     tabId,
-    tab_id: tabId,
     sql,
   });
 };
@@ -115,23 +109,19 @@ export const fetchTableData = async (
 ): Promise<QueryResult> => {
   return invoke<QueryResult>('fetch_table_data', {
     tabId,
-    tab_id: tabId,
     schema: schema ?? null,
     table,
     limit,
     offset,
     filter: filter ?? null,
     sortCol: sortCol ?? null,
-    sort_col: sortCol ?? null,
     sortDir: sortDir ?? null,
-    sort_dir: sortDir ?? null,
   });
 };
 
 export const cancelQuery = async (tabId: string): Promise<void> => {
   return invoke<void>('cancel_query', {
     tabId,
-    tab_id: tabId,
   });
 };
 
@@ -141,7 +131,6 @@ export const setAutocommit = async (
 ): Promise<void> => {
   return invoke<void>('set_autocommit', {
     tabId,
-    tab_id: tabId,
     enabled,
   });
 };
@@ -149,14 +138,12 @@ export const setAutocommit = async (
 export const commitTransaction = async (tabId: string): Promise<void> => {
   return invoke<void>('commit_transaction', {
     tabId,
-    tab_id: tabId,
   });
 };
 
 export const rollbackTransaction = async (tabId: string): Promise<void> => {
   return invoke<void>('rollback_transaction', {
     tabId,
-    tab_id: tabId,
   });
 };
 
@@ -165,7 +152,6 @@ export const getSchemaTree = async (
 ): Promise<SchemaNode[]> => {
   return invoke<SchemaNode[]>('get_schema_tree', {
     connectionId,
-    connection_id: connectionId,
   });
 };
 
@@ -174,7 +160,6 @@ export const getStoredPassword = async (
 ): Promise<string | null> => {
   return invoke<string | null>('get_stored_password', {
     connectionId,
-    connection_id: connectionId,
   });
 };
 
@@ -183,7 +168,6 @@ export const deleteStoredPassword = async (
 ): Promise<void> => {
   return invoke<void>('delete_stored_password', {
     connectionId,
-    connection_id: connectionId,
   });
 };
 
@@ -193,7 +177,6 @@ export const setSessionPassword = async (
 ): Promise<void> => {
   return invoke<void>('set_session_password', {
     connectionId,
-    connection_id: connectionId,
     password,
   });
 };
@@ -203,7 +186,6 @@ export const clearSessionPassword = async (
 ): Promise<void> => {
   return invoke<void>('clear_session_password', {
     connectionId,
-    connection_id: connectionId,
   });
 };
 
@@ -213,7 +195,6 @@ export const getTableListMetadata = async (
 ): Promise<TableMetadata[]> => {
   return invoke<TableMetadata[]>('get_table_list_metadata', {
     connectionId,
-    connection_id: connectionId,
     schema: schema ?? null,
   });
 };
@@ -255,7 +236,6 @@ export const cancelTransfer = async (
 ): Promise<boolean> => {
   return invoke<boolean>('cancel_transfer', {
     jobId,
-    job_id: jobId,
   });
 };
 
@@ -265,7 +245,6 @@ export const simulateQueryImpact = async (
 ): Promise<ImpactSimulationResult> => {
   return invoke<ImpactSimulationResult>('simulate_query_impact', {
     connectionId,
-    connection_id: connectionId,
     sql,
   });
 };

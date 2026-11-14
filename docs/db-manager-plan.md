@@ -567,8 +567,15 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 #### 🟡 Phase 2: Power User Features & Customization
 - **Issue #90:** `feat(ux): Command Palette (⌘K) ค้นหาคำสั่ง สลับฐานข้อมูล และเปิดตารางอย่างรวดเร็ว` — ศูนย์กลางสั่งการด้วยคีย์บอร์ดระดับสากล รองรับ ⌘K / ⌘P, จัดหมวดหมู่ Actions, Tables & Views, Connections, ค้นหาแบบ Fuzzy/Prefix (`>`, `@`, `/`), และคีย์ลัดนำทาง Arrow Keys + Enter *(เสร็จสมบูรณ์)*
-- **Issue #91:** `feat(editor): Schema-Aware Autocomplete สำหรับ Table, View และ Column ใน SQL Editor` — แนะนำตารางและคอลัมน์จาก schema จริง
-- **Issue #92:** `feat(editor): SQL Formatter (⌘⇧F) และ Multi-Result Tabs สำหรับ Batch Script Execution` — จัดรูปแบบ SQL และแสดงผลลัพธ์แยกแท็บย่อย
+- **Issue #91:** `feat(editor): Schema-Aware Autocomplete สำหรับ Table, View และ Column ใน SQL Editor` — [COMPLETED]
+  - ส่งโครงสร้าง schema dictionary เข้า CodeMirror 6 `sql({ dialect, schema: schemaMap, upperCaseKeywords: true })` ใน `src/components/editor/SqlEditor.tsx`
+  - พัฒนา `useSchemaStore` ใน `src/stores/schemaStore.ts` ดึง Metadata ตารางและคอลัมน์ของฐานข้อมูลแบบครบถ้วนในรูปแบบ `Record<string, string[]>`
+  - ทำ Cache Invalidation และดึงโครงสร้าง Schema ใหม่แบบอัตโนมัติเมื่อมีการรันคำสั่ง DDL (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`)
+- **Issue #92:** `feat(editor): SQL Formatter (⌘⇧F) และ Multi-Result Tabs สำหรับ Batch Script Execution` — [COMPLETED]
+  - ผสานรวมไลบรารี `sql-formatter` ใน `src/utils/sqlFormatterHelper.ts` รองรับ dialect ของ PostgreSQL, MySQL และ SQLite
+  - เพิ่มปุ่ม Format บน `EditorToolbar.tsx` และคีย์ลัด ⌘⇧F (macOS) / Ctrl+Shift+F (Windows/Linux)
+  - พัฒนา Quote-aware SQL Statement Splitter ทั้งใน Rust (`split_sql_statements` ใน `sqlite.rs`) และ Frontend (`sqlSplitter.ts`) ป้องกันปัญหาเครื่องหมาย `;` ใน string literals และ comments
+  - รองรับ Multi-Result Tabs บน `DockLayout.tsx` เมื่อรันสคริปต์ที่มีหลาย query statements: แสดงผลลัพธ์แยกแท็บย่อย `Result 1 (users)`, `Result 2 (orders)`, และแท็บ `Messages` สำหรับสรุปผลการรัน
 - **Issue #93:** `feat(navigation): ขยาย Object Browser Tree ให้แสดง Columns ใน Sidebar และเพิ่ม Keyboard Splitter Navigation` — คลี่ดูโครงสร้างคอลัมน์ในแถบด้านข้าง
 - **Issue #94:** `feat(shortcuts): Keyboard Shortcuts Expansion และ Keybinding Cheat Sheet Modal (⌘/)` — เพิ่มคีย์ลัดครอบคลุมและหน้าต่างสรุปคีย์ลัด
 
@@ -587,7 +594,10 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - รองรับการจัดเรียง (ORDER BY ASC/DESC) และการจำกัดจำนวนแถว (LIMIT / OFFSET) รวมทั้งตัวเลือก DISTINCT
   - แสดงผล Live SQL Preview คู่ขนานแบบ Real-time พร้อมปุ่มคัดลอก SQL ("Copy SQL"), ปุ่มเปิดใน SQL Editor ("Open in SQL Editor"), และปุ่มรัน Query ทันที ("Run Query") แสดงผลลัพธ์ผ่าน DataGrid
   - เชื่อมโยงระบบแท็บผ่าน `openQueryBuilderTab` ใน `src/components/sidebar/tabHelpers.ts`, `src/types/db.ts` และรองรับการเปิดจาก Context Menu ใน Object Browser, Main Toolbar และ Command Palette
-- **Issue #97:** `feat(layout): Horizontal Split Layout (Editor ซ้าย / Data Grid ขวา) สำหรับ Ultrawide Monitors` — เพิ่มความยืดหยุ่นในการจัดวางหน้าจอ
+- **Issue #97:** `feat(layout): Horizontal Split Layout (Editor ซ้าย / Data Grid ขวา) สำหรับ Ultrawide Monitors` — [COMPLETED]
+  - เพิ่มปุ่มสลับ Split Direction บน `EditorToolbar.tsx` รองรับการสลับระหว่าง Vertical Split (บน/ล่าง) และ Horizontal Split (ซ้าย/ขวา)
+  - ปรับปรุง Splitter ใน `DockLayout.tsx` และ `SqlEditor.tsx` ให้รองรับการจัดวาง Editor ซ้าย / Data Grid ขวา พร้อมลากปรับสัดส่วนความกว้างได้
+  - จดจำการตั้งค่า Split Direction (`datacore-split-direction`) และความกว้าง Editor (`datacore-editor-width`) ลงใน `localStorage` ข้าม session อย่างถาวร
 - **Issue #98:** `feat(safety): Impact Preview (Affected Rows Simulation) ก่อนรัน DELETE/UPDATE` — ระบบพรีวิวผลกระทบก่อนรันคำสั่งแก้ไขข้อมูล (Simulation Mode)
   - **Backend IPC:** คำสั่ง `simulate_query_impact(connection_id, sql)` ใน `src-tauri/src/commands/db.rs`
     - ตรวจจับคำสั่งประเภท Mutation (`DELETE` และ `UPDATE`) และชื่อตารางเป้าหมาย

@@ -14,7 +14,7 @@ import {
   buildKillSessionSql,
   type LockProcessInfo,
 } from '../../api/transactionHelpers';
-import { formatCellValue } from '../../types/db';
+import { formatCellValue } from '../../utils/cellFormatter';
 import { useAuditLogStore } from '../../stores/auditLogStore';
 import { showConfirmDialog } from '../../utils/dialog';
 

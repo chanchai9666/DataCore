@@ -5,7 +5,7 @@ import {
   buildGetTablePartitionsSql,
   type TablePartitionInfo,
 } from '../../api/performanceHelpers';
-import { formatCellValue } from '../../types/db';
+import { formatCellValue } from '../../utils/cellFormatter';
 
 export interface TablePartitionsModalProps {
   isOpen: boolean;

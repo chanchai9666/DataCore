@@ -14,6 +14,9 @@ import {
   ShieldCheck,
   Flag,
   Eye,
+  AlignLeft,
+  Columns2,
+  Rows2,
 } from 'lucide-react';
 import type { IsolationLevel } from '../../api/transactionHelpers';
 import type { SafeLimitOption } from '../../utils/sqlLimitHelper';
@@ -43,6 +46,9 @@ export interface EditorToolbarProps {
   onOpenHistory?: () => void;
   onOpenSnippets?: () => void;
   onExplain?: (analyze: boolean) => void;
+  onFormat?: () => void;
+  splitDirection?: 'vertical' | 'horizontal';
+  onToggleSplit?: () => void;
   onImpactPreview?: () => void;
   connectionId?: string;
   sql?: string;
@@ -72,6 +78,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onOpenHistory,
   onOpenSnippets,
   onExplain,
+  onFormat,
+  splitDirection = 'vertical',
+  onToggleSplit,
   onImpactPreview,
   connectionId,
   sql,
@@ -229,6 +238,33 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           <Eye size={13} className="text-blue-500" />
           <span>Impact Preview</span>
         </button>
+
+        {/* Format SQL Button */}
+        {onFormat && (
+          <button
+            type="button"
+            data-testid="format-sql-btn"
+            onClick={onFormat}
+            disabled={isRunning}
+            aria-label="Format SQL"
+            title={isMac ? 'Format SQL (⌘⇧F)' : 'Format SQL (Ctrl+Shift+F)'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
+              color: isRunning ? '#9ca3af' : '#7c3aed',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '5px 8px',
+              fontWeight: 500,
+              cursor: isRunning ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <AlignLeft size={13} className="text-purple-600" />
+            <span>Format</span>
+          </button>
+        )}
 
         {/* Separator */}
         <div style={{ width: '1px', height: '18px', backgroundColor: '#d1d5db', margin: '0 4px' }} />
@@ -529,6 +565,37 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               <option value="none">No Limit</option>
             </select>
           </div>
+        )}
+
+        {/* Split Layout Toggle Button */}
+        {onToggleSplit && (
+          <button
+            type="button"
+            data-testid="toggle-split-btn"
+            onClick={onToggleSplit}
+            aria-label="Toggle Split Direction"
+            title={`Switch to ${splitDirection === 'vertical' ? 'Horizontal (Left/Right)' : 'Vertical (Top/Bottom)'} Split`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '4px 8px',
+              fontWeight: 500,
+              fontSize: '11px',
+              cursor: 'pointer',
+            }}
+          >
+            {splitDirection === 'vertical' ? (
+              <Columns2 size={13} className="text-blue-600" />
+            ) : (
+              <Rows2 size={13} className="text-blue-600" />
+            )}
+            <span>{splitDirection === 'vertical' ? 'Horizontal' : 'Vertical'}</span>
+          </button>
         )}
       </div>
 

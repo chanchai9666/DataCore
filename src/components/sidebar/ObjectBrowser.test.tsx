@@ -16,6 +16,7 @@ vi.mock('../../api/db', () => ({
     getConnections: vi.fn(),
     getSchemaTree: vi.fn(),
     deleteConnection: vi.fn(),
+    executeDirectQuery: vi.fn(),
   },
 }));
 
@@ -552,6 +553,95 @@ describe('ObjectBrowser', () => {
         expect(freshNode.querySelector('[data-testid="chevron-right"]')).toBeNull();
         expect(freshNode.querySelector('[data-testid="chevron-down"]')).toBeNull();
       });
+    });
+  });
+
+  describe('Deep Tree Table Columns', () => {
+    it('lazy-loads and displays columns when clicking expand arrow on a table node', async () => {
+      vi.mocked(dbApi.executeDirectQuery).mockResolvedValueOnce({
+        columns: [
+          { name: 'cid', data_type: 'INTEGER', nullable: false },
+          { name: 'name', data_type: 'TEXT', nullable: false },
+          { name: 'type', data_type: 'TEXT', nullable: false },
+          { name: 'notnull', data_type: 'INTEGER', nullable: false },
+          { name: 'dflt_value', data_type: 'TEXT', nullable: true },
+          { name: 'pk', data_type: 'INTEGER', nullable: false },
+        ],
+        rows: [
+          [{ Integer: 0 }, { Text: 'id' }, { Text: 'INTEGER' }, { Integer: 1 }, null, { Integer: 1 }],
+          [{ Integer: 1 }, { Text: 'email' }, { Text: 'TEXT' }, { Integer: 0 }, null, { Integer: 0 }],
+        ],
+        execution_time_ms: 2,
+      });
+
+      render(<ObjectBrowser />);
+      await expandToTables();
+
+      const usersTable = await screen.findByTestId('tree-node-users');
+      expect(usersTable).toBeInTheDocument();
+
+      // Table has chevron arrow for columns
+      const tableChevron = usersTable.querySelector('[data-testid="chevron-right"]');
+      expect(tableChevron).toBeInTheDocument();
+
+      // Click arrow to expand columns
+      fireEvent.click(tableChevron!);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('tree-node-id')).toBeInTheDocument();
+        expect(screen.getByTestId('tree-node-email')).toBeInTheDocument();
+      });
+
+      // Check PK badge and column data types
+      const idNode = screen.getByTestId('tree-node-id');
+      expect(idNode.querySelector('[data-testid="badge-pk"]')).toBeInTheDocument();
+      expect(idNode.querySelector('[data-testid="column-datatype"]')?.textContent).toBe('INTEGER');
+
+      // Check draggable
+      expect(idNode).toHaveAttribute('draggable', 'true');
+    });
+
+    it('inserts column name into active query tab when double-clicked', async () => {
+      useTabStore.setState({
+        tabs: [
+          {
+            id: 'tab-q1',
+            connectionId: 'conn-1',
+            type: 'query',
+            title: 'Query 1',
+            autoCommit: true,
+            queryContent: 'SELECT',
+          },
+        ],
+        activeTabId: 'tab-q1',
+      });
+
+      vi.mocked(dbApi.executeDirectQuery).mockResolvedValueOnce({
+        columns: [
+          { name: 'cid', data_type: 'INTEGER', nullable: false },
+          { name: 'name', data_type: 'TEXT', nullable: false },
+          { name: 'type', data_type: 'TEXT', nullable: false },
+          { name: 'notnull', data_type: 'INTEGER', nullable: false },
+          { name: 'dflt_value', data_type: 'TEXT', nullable: true },
+          { name: 'pk', data_type: 'INTEGER', nullable: false },
+        ],
+        rows: [
+          [{ Integer: 0 }, { Text: 'user_id' }, { Text: 'INTEGER' }, { Integer: 1 }, null, { Integer: 1 }],
+        ],
+        execution_time_ms: 2,
+      });
+
+      render(<ObjectBrowser />);
+      await expandToTables();
+
+      const usersTable = await screen.findByTestId('tree-node-users');
+      const tableChevron = usersTable.querySelector('[data-testid="chevron-right"]');
+      fireEvent.click(tableChevron!);
+
+      const colNode = await screen.findByTestId('tree-node-user_id');
+      fireEvent.doubleClick(colNode);
+
+      expect(useTabStore.getState().tabs[0].queryContent).toBe('SELECT user_id');
     });
   });
 });

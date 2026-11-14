@@ -17,6 +17,163 @@ pub struct SqliteConnection {
     autocommit: Arc<Mutex<bool>>,
 }
 
+/// Splits a SQL string into individual statements while respecting single quotes,
+/// double quotes, backticks, line comments (--), and block comments (/* ... */).
+pub fn split_sql_statements(sql: &str) -> Vec<String> {
+    let mut statements = Vec::new();
+    let mut current = String::new();
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut in_backtick = false;
+    let mut in_line_comment = false;
+    let mut block_comment_depth = 0;
+
+    let chars: Vec<char> = sql.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+
+    while i < len {
+        let ch = chars[i];
+        let next = if i + 1 < len { Some(chars[i + 1]) } else { None };
+
+        // 1. Single-line comment (-- ...)
+        if in_line_comment {
+            current.push(ch);
+            if ch == '\n' {
+                in_line_comment = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        // 2. Block comment (/* ... */)
+        if block_comment_depth > 0 {
+            if ch == '/' && next == Some('*') {
+                block_comment_depth += 1;
+                current.push_str("/*");
+                i += 2;
+                continue;
+            }
+            if ch == '*' && next == Some('/') {
+                block_comment_depth -= 1;
+                current.push_str("*/");
+                i += 2;
+                continue;
+            }
+            current.push(ch);
+            i += 1;
+            continue;
+        }
+
+        // 3. Single-quoted string ('...')
+        if in_single_quote {
+            current.push(ch);
+            if ch == '\\' && next.is_some() {
+                current.push(next.unwrap());
+                i += 2;
+                continue;
+            }
+            if ch == '\'' {
+                if next == Some('\'') {
+                    current.push('\'');
+                    i += 2;
+                    continue;
+                } else {
+                    in_single_quote = false;
+                }
+            }
+            i += 1;
+            continue;
+        }
+
+        // 4. Double-quoted identifier ("...")
+        if in_double_quote {
+            current.push(ch);
+            if ch == '\\' && next.is_some() {
+                current.push(next.unwrap());
+                i += 2;
+                continue;
+            }
+            if ch == '"' {
+                if next == Some('"') {
+                    current.push('"');
+                    i += 2;
+                    continue;
+                } else {
+                    in_double_quote = false;
+                }
+            }
+            i += 1;
+            continue;
+        }
+
+        // 5. Backtick identifier (`...`)
+        if in_backtick {
+            current.push(ch);
+            if ch == '`' {
+                in_backtick = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        // 6. Check for start of comments
+        if ch == '-' && next == Some('-') {
+            in_line_comment = true;
+            current.push_str("--");
+            i += 2;
+            continue;
+        }
+        if ch == '/' && next == Some('*') {
+            block_comment_depth = 1;
+            current.push_str("/*");
+            i += 2;
+            continue;
+        }
+
+        // 7. Check for start of quotes
+        if ch == '\'' {
+            in_single_quote = true;
+            current.push('\'');
+            i += 1;
+            continue;
+        }
+        if ch == '"' {
+            in_double_quote = true;
+            current.push('"');
+            i += 1;
+            continue;
+        }
+        if ch == '`' {
+            in_backtick = true;
+            current.push('`');
+            i += 1;
+            continue;
+        }
+
+        // 8. Statement separator
+        if ch == ';' {
+            let trimmed = current.trim();
+            if !trimmed.is_empty() {
+                statements.push(trimmed.to_string());
+            }
+            current.clear();
+            i += 1;
+            continue;
+        }
+
+        current.push(ch);
+        i += 1;
+    }
+
+    let trimmed = current.trim();
+    if !trimmed.is_empty() {
+        statements.push(trimmed.to_string());
+    }
+
+    statements
+}
+
 impl SqliteConnection {
     pub fn open_in_memory() -> Result<Self, AppError> {
         let conn = rusqlite::Connection::open_in_memory()?;
@@ -66,25 +223,10 @@ impl SqliteConnection {
         Ok(instance)
     }
 
-    fn execute_on_conn(
+    fn execute_single_stmt(
         conn: &rusqlite::Connection,
         sql: &str,
-        start: std::time::Instant,
     ) -> Result<QueryResult, rusqlite::Error> {
-        let trimmed_sql = sql.trim();
-        if trimmed_sql.contains(';') && !trimmed_sql.to_uppercase().starts_with("SELECT") {
-            let statements: Vec<&str> = trimmed_sql
-                .split(';')
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-                .collect();
-            if statements.len() > 1 {
-                conn.execute_batch(sql)?;
-                let elapsed = start.elapsed().as_millis() as u64;
-                return Ok(QueryResult::new(Vec::new(), Vec::new(), elapsed, Some(0)));
-            }
-        }
-
         let mut stmt = conn.prepare(sql)?;
         let col_count = stmt.column_count();
 
@@ -125,13 +267,48 @@ impl SqliteConnection {
                 rows_out.push(row_values);
             }
 
-            let elapsed = start.elapsed().as_millis() as u64;
-            Ok(QueryResult::new(columns, rows_out, elapsed, None))
+            Ok(QueryResult::new(columns, rows_out, 0, None))
         } else {
             let rows_affected = stmt.execute([])? as u64;
-            let elapsed = start.elapsed().as_millis() as u64;
-            Ok(QueryResult::new(Vec::new(), Vec::new(), elapsed, Some(rows_affected)))
+            Ok(QueryResult::new(Vec::new(), Vec::new(), 0, Some(rows_affected)))
         }
+    }
+
+    fn execute_on_conn(
+        conn: &rusqlite::Connection,
+        sql: &str,
+        start: std::time::Instant,
+    ) -> Result<QueryResult, rusqlite::Error> {
+        let statements = split_sql_statements(sql);
+        if statements.is_empty() {
+            let elapsed = start.elapsed().as_millis() as u64;
+            return Ok(QueryResult::new(Vec::new(), Vec::new(), elapsed, Some(0)));
+        }
+
+        if statements.len() > 1 {
+            let has_select = statements.iter().any(|s| {
+                let up = s.trim().to_uppercase();
+                up.starts_with("SELECT") || up.starts_with("WITH") || up.starts_with("PRAGMA")
+            });
+
+            if !has_select {
+                conn.execute_batch(sql)?;
+                let elapsed = start.elapsed().as_millis() as u64;
+                return Ok(QueryResult::new(Vec::new(), Vec::new(), elapsed, Some(0)));
+            }
+
+            let mut last_result = QueryResult::new(Vec::new(), Vec::new(), 0, Some(0));
+            for stmt_sql in statements {
+                last_result = Self::execute_single_stmt(conn, &stmt_sql)?;
+            }
+            let elapsed = start.elapsed().as_millis() as u64;
+            last_result.execution_time_ms = elapsed;
+            return Ok(last_result);
+        }
+
+        let mut res = Self::execute_single_stmt(conn, &statements[0])?;
+        res.execution_time_ms = start.elapsed().as_millis() as u64;
+        Ok(res)
     }
 }
 

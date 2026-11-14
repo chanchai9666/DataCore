@@ -1,6 +1,6 @@
 import type { ServerProcess, ActivitySummary } from '../types/activityMonitor';
 import type { QueryResult, CellValue } from '../types/db';
-import { formatCellValue } from '../types/db';
+import { formatCellValue } from '../utils/cellFormatter';
 import { dbApi } from './db';
 
 /**
