@@ -23,6 +23,7 @@ pub struct SshTunnelConfig {
     pub auth_type: Option<String>, // "password" | "key"
     #[serde(alias = "private_key_path")]
     pub private_key_path: Option<String>,
+    #[serde(skip_serializing)]
     pub passphrase: Option<String>,
 }
 

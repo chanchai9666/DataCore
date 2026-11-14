@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { QueryHistoryItem } from '../types/queryHistory';
+import { redactSensitiveSql } from '../utils/sqlSanitizer';
 
 export const MAX_QUERY_HISTORY_ITEMS = 200;
 const STORAGE_KEY = 'datacore_query_history_v1';
@@ -45,9 +46,10 @@ export const useQueryHistoryStore = create<QueryHistoryStoreState>((set, get) =>
 
   addHistoryItem: (item) => {
     const newItem: QueryHistoryItem = {
+      ...item,
       id: item.id || `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       executedAt: item.executedAt || Date.now(),
-      ...item,
+      sql: redactSensitiveSql(item.sql),
     };
 
     const nextHistory = [newItem, ...get().history.filter((h) => h.id !== newItem.id)].slice(

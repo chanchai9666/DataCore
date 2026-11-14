@@ -553,3 +553,65 @@ async fn test_session_password_in_memory_lifecycle_without_vault() {
         "RAM session password must be cleared on disconnect"
     );
 }
+
+#[tokio::test]
+async fn test_session_ssh_passphrase_lifecycle_in_memory_and_vault() {
+    use crate::models::connection::SshTunnelConfig;
+
+    let dir = tempdir().expect("create temp dir");
+    let store_file = dir.path().join("connections.json");
+    let store = ConnectionStore::new(&store_file);
+    let session_mgr = SessionManager::new();
+
+    let config = ConnectionConfig {
+        id: "conn-ssh-test-ram".to_string(),
+        name: "SSH RAM Test".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: ":memory:".to_string(),
+        user: None,
+        folder: None,
+        ssl_mode: None,
+        ssl_certs: None,
+        ssh_tunnel: Some(SshTunnelConfig {
+            enabled: false,
+            host: Some("jumpbox.example.com".to_string()),
+            port: Some(22),
+            user: Some("ubuntu".to_string()),
+            auth_type: Some("key".to_string()),
+            private_key_path: Some("~/.ssh/id_rsa".to_string()),
+            passphrase: None,
+        }),
+        timeout_seconds: None,
+        auto_reconnect: None,
+    };
+
+    store.save_connection(&config, None).expect("save connection");
+
+    // 1. In-memory SSH passphrase store
+    session_mgr
+        .set_session_ssh_passphrase("conn-ssh-test-ram", "temporary_ssh_pass")
+        .await;
+
+    assert_eq!(
+        session_mgr.get_session_ssh_passphrase("conn-ssh-test-ram").await,
+        Some("temporary_ssh_pass".to_string())
+    );
+
+    // 2. Open session pulls in-memory SSH passphrase if needed
+    open_session_impl(&store, &session_mgr, "conn-ssh-test-ram", "tab-ssh-1")
+        .await
+        .expect("open session");
+
+    // 3. Disconnect clears RAM SSH passphrase
+    disconnect_connection_impl(&session_mgr, "conn-ssh-test-ram")
+        .await
+        .expect("disconnect");
+
+    assert_eq!(
+        session_mgr.get_session_ssh_passphrase("conn-ssh-test-ram").await,
+        None,
+        "RAM session SSH passphrase must be cleared on disconnect"
+    );
+}

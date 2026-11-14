@@ -14,11 +14,17 @@ pub async fn test_connection_impl(
     config: &ConnectionConfig,
     password: Option<&str>,
 ) -> Result<u64, AppError> {
+    let mut resolved_config = config.clone();
+    if let Some(ref mut ssh) = resolved_config.ssh_tunnel {
+        if ssh.enabled && (ssh.passphrase.is_none() || ssh.passphrase.as_deref() == Some("")) {
+            ssh.passphrase = store.get_ssh_passphrase(&config.id).ok().flatten();
+        }
+    }
     let resolved_password = match password {
         Some(p) if !p.is_empty() => Some(p.to_string()),
         _ => store.get_password(&config.id).ok().flatten(),
     };
-    let conn = SessionManager::create_connection(config, resolved_password.as_deref()).await?;
+    let conn = SessionManager::create_connection(&resolved_config, resolved_password.as_deref()).await?;
     conn.test_connection().await
 }
 
@@ -47,9 +53,17 @@ pub async fn open_session_impl(
     connection_id: &str,
     tab_id: &str,
 ) -> Result<(), AppError> {
-    let config = store
+    let mut config = store
         .get(connection_id)?
         .ok_or_else(|| AppError::NotFound(format!("Connection '{}' not found", connection_id)))?;
+    if let Some(ref mut ssh) = config.ssh_tunnel {
+        if ssh.enabled {
+            ssh.passphrase = match session_mgr.get_session_ssh_passphrase(connection_id).await {
+                Some(p) => Some(p),
+                None => store.get_ssh_passphrase(connection_id).ok().flatten(),
+            };
+        }
+    }
     let password = match session_mgr.get_session_password(connection_id).await {
         Some(p) => Some(p),
         None => store.get_password(connection_id).ok().flatten(),
@@ -155,9 +169,14 @@ pub async fn get_schema_tree_impl(
     store: &ConnectionStore,
     connection_id: &str,
 ) -> Result<Vec<SchemaNode>, AppError> {
-    let config = store
+    let mut config = store
         .get(connection_id)?
         .ok_or_else(|| AppError::NotFound(format!("Connection '{}' not found", connection_id)))?;
+    if let Some(ref mut ssh) = config.ssh_tunnel {
+        if ssh.enabled {
+            ssh.passphrase = store.get_ssh_passphrase(connection_id).ok().flatten();
+        }
+    }
     let password = store.get_password(connection_id)?;
     let conn = SessionManager::create_connection(&config, password.as_deref()).await?;
     conn.fetch_schema_tree().await
@@ -215,7 +234,8 @@ pub async fn delete_stored_password(
     store: State<'_, ConnectionStore>,
     connection_id: String,
 ) -> Result<(), String> {
-    store.delete_password(&connection_id).map_err(|e| e.to_string())
+    store.delete_password(&connection_id).map_err(|e| e.to_string())?;
+    store.delete_ssh_passphrase(&connection_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

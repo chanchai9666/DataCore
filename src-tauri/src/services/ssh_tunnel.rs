@@ -204,6 +204,10 @@ impl SshTunnelHandle {
                 .await
                 .is_ok()
             {
+                // Immediately delete the askpass helper script once connection succeeds
+                if let Some(script) = askpass_script.take() {
+                    let _ = fs::remove_file(script);
+                }
                 break;
             }
 

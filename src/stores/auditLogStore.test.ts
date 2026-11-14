@@ -93,4 +93,18 @@ describe('auditLogStore', () => {
 
     expect(useAuditLogStore.getState().logs.length).toBe(1000);
   });
+
+  it('redacts sensitive passwords from query before saving to audit log', () => {
+    useAuditLogStore.getState().addLog({
+      action: 'DDL',
+      user: 'admin',
+      query: "ALTER USER postgres WITH PASSWORD 'superSecretPostgresPwd';",
+      status: 'SUCCESS',
+    });
+
+    const logs = useAuditLogStore.getState().logs;
+    expect(logs.length).toBe(1);
+    expect(logs[0].query).toBe("ALTER USER postgres WITH PASSWORD '***REDACTED***';");
+    expect(logs[0].query).not.toContain('superSecretPostgresPwd');
+  });
 });

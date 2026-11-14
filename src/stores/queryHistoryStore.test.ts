@@ -107,4 +107,17 @@ describe('useQueryHistoryStore', () => {
     expect(parsed.length).toBe(1);
     expect(parsed[0].sql).toBe('SELECT * FROM products;');
   });
+
+  it('redacts sensitive passwords from sql before saving to history', () => {
+    useQueryHistoryStore.getState().addHistoryItem({
+      sql: "CREATE USER 'db_admin'@'%' IDENTIFIED BY 'TopSecretPass123!';",
+      executionTimeMs: 15,
+      status: 'success',
+    });
+
+    const { history } = useQueryHistoryStore.getState();
+    expect(history.length).toBe(1);
+    expect(history[0].sql).toBe("CREATE USER 'db_admin'@'%' IDENTIFIED BY '***REDACTED***';");
+    expect(history[0].sql).not.toContain('TopSecretPass123!');
+  });
 });

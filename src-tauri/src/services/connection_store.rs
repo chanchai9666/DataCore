@@ -62,7 +62,7 @@ impl ConnectionStore {
         Ok(connections.into_iter().find(|c| c.id == id))
     }
 
-    /// Save or update a connection configuration, and securely store the password in vault if provided
+    /// Save or update a connection configuration, and securely store the password and SSH passphrase in vault if provided
     pub fn save_connection(
         &self,
         config: &ConnectionConfig,
@@ -70,28 +70,43 @@ impl ConnectionStore {
     ) -> Result<(), AppError> {
         let mut connections = self.list()?;
 
-        if let Some(pos) = connections.iter().position(|c| c.id == config.id) {
-            connections[pos] = config.clone();
+        // Clean ssh_tunnel passphrase so it never gets persisted to connections.json
+        let mut sanitized_config = config.clone();
+        let ssh_passphrase = if let Some(ref mut ssh) = sanitized_config.ssh_tunnel {
+            ssh.passphrase.take()
         } else {
-            connections.push(config.clone());
+            None
+        };
+
+        if let Some(pos) = connections.iter().position(|c| c.id == sanitized_config.id) {
+            connections[pos] = sanitized_config.clone();
+        } else {
+            connections.push(sanitized_config.clone());
         }
 
         self.persist_connections(&connections)?;
 
         if let Some(pwd) = password {
-            self.vault.save_password(&config.id, pwd)?;
+            self.vault.save_password(&sanitized_config.id, pwd)?;
+        }
+
+        if let Some(ref ssh_pass) = ssh_passphrase {
+            if !ssh_pass.is_empty() {
+                self.vault.save_password(&format!("{}:ssh", sanitized_config.id), ssh_pass)?;
+            }
         }
 
         Ok(())
     }
 
-    /// Delete a connection configuration and its associated password from the vault
+    /// Delete a connection configuration and its associated password & SSH passphrase from the vault
     pub fn delete_connection(&self, id: &str) -> Result<(), AppError> {
         let mut connections = self.list()?;
         connections.retain(|c| c.id != id);
 
         self.persist_connections(&connections)?;
         let _ = self.vault.delete_password(id);
+        let _ = self.vault.delete_password(&format!("{}:ssh", id));
 
         Ok(())
     }
@@ -101,14 +116,29 @@ impl ConnectionStore {
         self.vault.get_password(id)
     }
 
+    /// Retrieve SSH passphrase for a given connection id from the vault
+    pub fn get_ssh_passphrase(&self, id: &str) -> Result<Option<String>, AppError> {
+        self.vault.get_password(&format!("{}:ssh", id))
+    }
+
     /// Delete password for a given connection id from the vault
     pub fn delete_password(&self, id: &str) -> Result<(), AppError> {
         self.vault.delete_password(id)
     }
 
+    /// Delete SSH passphrase for a given connection id from the vault
+    pub fn delete_ssh_passphrase(&self, id: &str) -> Result<(), AppError> {
+        self.vault.delete_password(&format!("{}:ssh", id))
+    }
+
     /// Save password directly into the vault
     pub fn save_password(&self, id: &str, password: &str) -> Result<(), AppError> {
         self.vault.save_password(id, password)
+    }
+
+    /// Save SSH passphrase directly into the vault
+    pub fn save_ssh_passphrase(&self, id: &str, passphrase: &str) -> Result<(), AppError> {
+        self.vault.save_password(&format!("{}:ssh", id), passphrase)
     }
 
     /// Helper to write connection list to disk atomically with directory creation

@@ -20,6 +20,7 @@ pub struct SessionEntry {
 pub struct SessionManager {
     sessions: Arc<RwLock<HashMap<String, SessionEntry>>>,
     session_passwords: Arc<RwLock<HashMap<String, String>>>,
+    session_ssh_passphrases: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl SessionManager {
@@ -27,6 +28,7 @@ impl SessionManager {
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             session_passwords: Arc::new(RwLock::new(HashMap::new())),
+            session_ssh_passphrases: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -45,6 +47,24 @@ impl SessionManager {
     /// Clears in-memory RAM password for a connection
     pub async fn clear_session_password(&self, connection_id: &str) {
         let mut map = self.session_passwords.write().await;
+        map.remove(connection_id);
+    }
+
+    /// Stores SSH passphrase temporarily in RAM for the lifetime of this session/connection
+    pub async fn set_session_ssh_passphrase(&self, connection_id: impl Into<String>, passphrase: impl Into<String>) {
+        let mut map = self.session_ssh_passphrases.write().await;
+        map.insert(connection_id.into(), passphrase.into());
+    }
+
+    /// Retrieves in-memory RAM SSH passphrase for a connection
+    pub async fn get_session_ssh_passphrase(&self, connection_id: &str) -> Option<String> {
+        let map = self.session_ssh_passphrases.read().await;
+        map.get(connection_id).cloned()
+    }
+
+    /// Clears in-memory RAM SSH passphrase for a connection
+    pub async fn clear_session_ssh_passphrase(&self, connection_id: &str) {
+        let mut map = self.session_ssh_passphrases.write().await;
         map.remove(connection_id);
     }
 
@@ -154,6 +174,7 @@ impl SessionManager {
         };
 
         self.clear_session_password(connection_id).await;
+        self.clear_session_ssh_passphrase(connection_id).await;
         let count = entries_to_close.len();
         for entry in entries_to_close {
             let _ = entry.connection.rollback().await;

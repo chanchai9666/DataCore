@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { redactSensitiveSql } from '../utils/sqlSanitizer';
 
 export type AuditActionType =
   | 'QUERY'
@@ -55,9 +56,10 @@ export const useAuditLogStore = create<AuditLogState>()(
 
       addLog: (entry) => {
         const newEntry: AuditLogEntry = {
+          ...entry,
           id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           timestamp: new Date().toISOString(),
-          ...entry,
+          query: entry.query ? redactSensitiveSql(entry.query) : entry.query,
         };
 
         set((state) => {

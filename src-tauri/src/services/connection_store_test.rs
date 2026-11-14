@@ -185,3 +185,73 @@ fn test_atomic_persistence_cleans_up_tmp_file() {
         "Temporary file connections.json.tmp should not exist after atomic rename"
     );
 }
+
+#[test]
+fn test_ssh_passphrase_vault_encryption_and_json_omission() {
+    use crate::models::connection::SshTunnelConfig;
+
+    let dir = tempdir().expect("create temp dir");
+    let config_file = dir.path().join("connections.json");
+    let store = ConnectionStore::new(&config_file);
+
+    let secret_passphrase = "super_ssh_passphrase_999";
+    let conn = ConnectionConfig {
+        id: "conn-ssh-sec-1".to_string(),
+        name: "Bastion SSH Test".to_string(),
+        driver: DatabaseDriver::Postgres,
+        host: Some("internal-db.local".to_string()),
+        port: Some(5432),
+        database: "mydb".to_string(),
+        user: Some("app".to_string()),
+        folder: None,
+        ssl_mode: None,
+        ssl_certs: None,
+        ssh_tunnel: Some(SshTunnelConfig {
+            enabled: true,
+            host: Some("jumpbox.local".to_string()),
+            port: Some(22),
+            user: Some("ubuntu".to_string()),
+            auth_type: Some("key".to_string()),
+            private_key_path: Some("~/.ssh/id_rsa".to_string()),
+            passphrase: Some(secret_passphrase.to_string()),
+        }),
+        timeout_seconds: Some(15),
+        auto_reconnect: Some(true),
+    };
+
+    // 1. Save connection with SSH passphrase
+    store
+        .save_connection(&conn, Some("db_password_123"))
+        .expect("save connection");
+
+    // 2. Verify connections.json does NOT contain the SSH passphrase in plaintext
+    let json_content = fs::read_to_string(&config_file).expect("read json");
+    assert!(
+        !json_content.contains(secret_passphrase),
+        "SSH passphrase must NEVER be stored in plain text in connections.json"
+    );
+    assert!(
+        !json_content.contains("passphrase"),
+        "connections.json must not have a passphrase key"
+    );
+
+    // 3. Verify retrieved via get_ssh_passphrase from vault
+    let stored_ssh_pass = store
+        .get_ssh_passphrase(&conn.id)
+        .expect("get ssh passphrase");
+    assert_eq!(
+        stored_ssh_pass.as_deref(),
+        Some(secret_passphrase),
+        "SSH passphrase should be retrievable from encrypted vault"
+    );
+
+    // 4. Verify deleting connection also purges the SSH passphrase from vault
+    store.delete_connection(&conn.id).expect("delete connection");
+    let after_delete = store
+        .get_ssh_passphrase(&conn.id)
+        .expect("get ssh passphrase after delete");
+    assert_eq!(
+        after_delete, None,
+        "SSH passphrase should be purged from vault upon deleting connection"
+    );
+}
