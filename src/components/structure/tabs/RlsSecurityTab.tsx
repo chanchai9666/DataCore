@@ -273,7 +273,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
           </p>
           <button
             type="button"
-            data-testid="add-policy-btn"
+            data-testid="create-policy-empty-btn"
             onClick={openAddPolicy}
             className="px-3 py-1.5 rounded text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white inline-flex items-center space-x-1.5 transition-colors"
           >
@@ -295,7 +295,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
             <span>Configured Policies ({rlsPolicies.length})</span>
             <button
               type="button"
-              data-testid="add-policy-btn"
+              data-testid="add-policy-table-btn"
               onClick={openAddPolicy}
               className="px-2 py-1 rounded text-[11px] font-medium bg-emerald-600 hover:bg-emerald-500 text-white inline-flex items-center space-x-1 transition-colors"
             >
@@ -390,7 +390,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <Shield className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-sm font-semibold">Create Security Policy on {tableName}</h3>
+                <h3 className="text-sm font-semibold">Add RLS Policy to {tableName}</h3>
               </div>
               <button
                 type="button"
@@ -533,7 +533,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
             <div className="p-4 space-y-3 text-xs">
               <div className="flex items-center space-x-2 text-red-400 font-semibold text-sm">
                 <ShieldAlert className="w-5 h-5 flex-shrink-0" />
-                <h3 className="text-sm font-semibold">Drop Security Policy</h3>
+                <h3 className="text-sm font-semibold">Drop RLS Policy</h3>
               </div>
 
               <p className="text-gray-300">

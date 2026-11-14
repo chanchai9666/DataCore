@@ -635,8 +635,21 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **Automatic Log Rotation:** หมุนเวียนไฟล์อัตโนมัติเมื่อขนาดไฟล์เกิน 10MB ไปยัง `audit.<timestamp>.jsonl` โดยยังคงรักษาความต่อเนื่องของ Hash Chain ไว้อย่างสมบูรณ์
   - **IPC Commands & Backend Integration:** เพิ่ม IPC endpoints (`get_audit_logs`, `verify_audit_log_integrity`, `clear_audit_logs`, `record_audit_log`) พร้อมผูกการบันทึก Audit Log เข้ากับ Backend commands โดยตรง (`execute_query`, `open_session`, `close_session`, `export_data`, `import_data`, `duplicate_table`, `export_sql`, `import_sql`)
   - **UI & Store Integration:** อัปเดต `useAuditLogStore` ให้โหลดและซิงค์ข้อมูลกับ Rust Backend พร้อมปุ่ม "Verify Chain" ใน `AuditLogDrawer` เพื่อตรวจสอบความถูกต้องของสาย Hash ได้ทันที
-- **Issue #91 (Schema-Aware Autocomplete):** อัปเดตระบุการผสานรวมกับ CodeMirror 6 `sql({ schema: schemaMap })` และการจัดการ Cache Invalidation
-- **Issue #92 (Multi-Statement & Formatter):** อัปเดตระบุการนำ Quote-aware SQL Splitter ไปใช้ใน Rust Driver เพื่อรองรับ Multi-Statement Execution ที่มีหลาย `SELECT`
-- **Issue #93 (Object Browser Deep Tree):** อัปเดตขยายประเภท `SchemaNodeType` ใน Rust & TS ให้ครอบคลุม Indexes, Foreign Keys, Triggers, Functions/Procedures ร่วมกับกลยุทธ์ Lazy Loading
+- **Issue #91 (Schema-Aware Autocomplete):** [COMPLETED] ผสานรวมกับ CodeMirror 6 `sql({ schema: schemaMap })` และการจัดการ Cache Invalidation พร้อม `useSchemaStore`
+- **Issue #92 (Multi-Statement & Formatter):** [COMPLETED] นำ Quote-aware SQL Splitter ไปใช้ใน Rust Driver เพื่อรองรับ Multi-Statement Execution ที่มีหลาย `SELECT` พร้อมปุ่มจัดรูปแบบโค้ด SQL Formatter (⌘⇧F)
+- **Issue #93 (Object Browser Deep Tree & Keyboard Splitter Navigation):** [COMPLETED]
+  - ขยาย `SchemaNodeType` ใน Rust (`src-tauri/src/drivers/traits.rs`) และ TypeScript (`src/types/db.ts`) ให้ครอบคลุม `Column`, `Index`, `ForeignKey`, `Trigger`, `Function`, `Procedure`
+  - ขยายโหนด Table ใน `ObjectBrowser.tsx` ให้กดคลี่ดู Columns พร้อม data types และไอคอน PK/FK (lazy-loaded เมื่อคลิกขยายลูกศร)
+  - รองรับการลาก (Drag and Drop) คอลัมน์ หรือดับเบิ้ลคลิกเพื่อแทรกชื่อคอลัมน์ลงใน SQL Editor ทันที
+  - ปรับปรุง Accessibility ของแถบแบ่งหน้าต่าง (Splitter) ใน `DockLayout.tsx` เพิ่ม `role="separator"`, `tabIndex={0}`, `aria-orientation="vertical"`, และรองรับการนำทางปรับขนาดด้วยปุ่มลูกศรซ้าย/ขวาบนคีย์บอร์ด
+- **Issue #106 (Refactor Monolithic TableStructureEditor & Clean IPC Parameters):** [COMPLETED]
+  - แยก `TableStructureEditor.tsx` (จากเดิม 3,647 บรรทัด) ออกเป็น sub-tabs ขนาดกะทัดรัดไม่เกิน 500-800 บรรทัดใน `src/components/structure/tabs/`:
+    - `ColumnsTab.tsx` (จัดการคอลัมน์, เพิ่ม/แก้ไข/ลบคอลัมน์ และ quick presets)
+    - `IndexesTab.tsx` (จัดการ Index: B-Tree, Hash, GIN, GiST, Full-text, Composite)
+    - `ForeignKeysTab.tsx` (จัดการ Foreign Keys และ Reference Actions: CASCADE, SET NULL, NO ACTION)
+    - `ConstraintsTab.tsx` (จัดการ CHECK และ UNIQUE Constraints)
+    - `RlsSecurityTab.tsx` (จัดการ Row-Level Security, Enable/Disable RLS, Add/Drop Policies)
+  - ย้ายฟังก์ชัน Runtime `formatCellValue` ออกจาก `src/types/db.ts` ไปไว้ใน `src/utils/cellFormatter.ts` พร้อม unit test ครอบคลุม
+  - ทำความสะอาดพารามิเตอร์ IPC ใน `src/api/db.ts` ให้เป็น camelCase มาตรฐานเดียว ปราศจาก redundant aliases ตาม Tauri 2 convention
 
 

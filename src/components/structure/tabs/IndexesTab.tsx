@@ -69,6 +69,14 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
     setAddOpen(true);
   };
 
+  React.useEffect(() => {
+    if (isAddOpen) {
+      const defaultCol = columns[0]?.name || '';
+      setNewIndexName((prev) => (prev ? prev : `idx_${tableName}_${defaultCol || 'col'}`));
+      setNewIndexCols((prev) => (prev.length > 0 ? prev : (defaultCol ? [defaultCol] : [])));
+    }
+  }, [isAddOpen, columns, tableName]);
+
   // Preview SQL for Add Index
   const addIndexPreviewSql = useMemo(() => {
     if (!newIndexName.trim() || newIndexCols.length === 0) return '';
