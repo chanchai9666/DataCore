@@ -62,6 +62,7 @@ import {
   ObjectBrowserContext,
   type BrowserTreeNode,
 } from './ConnectionTreeNode';
+import { ExplorerBreadcrumb } from './ExplorerBreadcrumb';
 import { showConfirmDialog } from '../../utils/dialog';
 
 const SYSTEM_SCHEMA_NAMES = new Set([
@@ -820,6 +821,105 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   const activeTabId = useTabStore((s) => s.activeTabId);
   const activeTab = useTabStore((s) => s.tabs.find((t) => t.id === activeTabId));
 
+  // Active Connection & Context for Sticky Breadcrumb
+  const currentActiveConnId = activeTab?.connectionId || activeConnectionId;
+  const currentActiveConn = (connections || []).find((c) => c.id === currentActiveConnId);
+  const shouldShowBreadcrumb =
+    Boolean(currentActiveConn) &&
+    Boolean(currentActiveConnId) &&
+    (Boolean(activeTab) || (currentActiveConnId ? connectedConnectionIds.includes(currentActiveConnId) : false));
+
+  // Locate active node callback
+  const handleLocateActive = useCallback(() => {
+    if (!currentActiveConnId || !treeRef.current) return;
+
+    const targetTableName = activeTab?.tableName;
+    const targetSchemaName = activeTab?.schemaName;
+
+    const targetNode = findNodeInTree(treeData, (node) => {
+      if (node.connectionId !== currentActiveConnId) return false;
+      if (targetTableName) {
+        const matchesTable =
+          (node.nodeType === 'table' || node.nodeType === 'view') &&
+          (node.tableName === targetTableName || node.name === targetTableName);
+        if (matchesTable) {
+          if (!targetSchemaName || !node.schemaName || node.schemaName === targetSchemaName) {
+            return true;
+          }
+        }
+        return false;
+      }
+      if (activeTab?.type === 'table-list') {
+        const isTableFolder =
+          node.nodeType === 'folder' &&
+          (node.name.startsWith('Tables') || node.id.includes('tables')) &&
+          (!targetSchemaName || !node.schemaName || node.schemaName === targetSchemaName);
+        if (isTableFolder) return true;
+      }
+      return node.nodeType === 'connection' && node.connectionId === currentActiveConnId;
+    });
+
+    if (targetNode) {
+      const ancestors = getAncestorNodeIds(treeData, targetNode.id);
+      if (ancestors) {
+        for (const ancestorId of ancestors) {
+          treeRef.current.open(ancestorId);
+        }
+      }
+      treeRef.current.scrollTo(targetNode.id);
+      treeRef.current.select(targetNode.id);
+    } else {
+      treeRef.current.scrollTo(`conn-${currentActiveConnId}`);
+      treeRef.current.select(`conn-${currentActiveConnId}`);
+    }
+  }, [currentActiveConnId, activeTab?.tableName, activeTab?.schemaName, activeTab?.type, treeData]);
+
+  // Click on breadcrumb segment to navigate
+  const handleSelectBreadcrumbSegment = useCallback(
+    (target: 'connection' | 'database' | 'schema' | 'table') => {
+      if (!currentActiveConnId || !treeRef.current) return;
+
+      if (target === 'connection') {
+        treeRef.current.open(`conn-${currentActiveConnId}`);
+        treeRef.current.scrollTo(`conn-${currentActiveConnId}`);
+        treeRef.current.select(`conn-${currentActiveConnId}`);
+        return;
+      }
+
+      if (target === 'table') {
+        handleLocateActive();
+        return;
+      }
+
+      // For database or schema, find matching node in tree
+      const targetNode = findNodeInTree(treeData, (node) => {
+        if (node.connectionId !== currentActiveConnId) return false;
+        if (target === 'database') {
+          return node.nodeType === 'database' || node.name === currentActiveConn?.database;
+        }
+        if (target === 'schema') {
+          return (
+            node.nodeType === 'schema' &&
+            (!activeTab?.schemaName || node.name === activeTab.schemaName || node.schemaName === activeTab.schemaName)
+          );
+        }
+        return false;
+      });
+
+      if (targetNode) {
+        const ancestors = getAncestorNodeIds(treeData, targetNode.id);
+        if (ancestors) {
+          for (const ancestorId of ancestors) {
+            treeRef.current.open(ancestorId);
+          }
+        }
+        treeRef.current.scrollTo(targetNode.id);
+        treeRef.current.select(targetNode.id);
+      }
+    },
+    [currentActiveConnId, currentActiveConn?.database, activeTab?.schemaName, treeData, handleLocateActive]
+  );
+
   // Auto-reveal and scroll into view when active tab changes
   useEffect(() => {
     if (!activeTab || !activeTab.connectionId || !treeRef.current) return;
@@ -1279,6 +1379,20 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           />
         </div>
       </div>
+
+      {/* Sticky Context Breadcrumb Bar */}
+      {shouldShowBreadcrumb && currentActiveConn && (
+        <ExplorerBreadcrumb
+          connectionName={currentActiveConn.name}
+          driver={currentActiveConn.driver}
+          databaseName={activeTab?.schemaName || currentActiveConn.database}
+          schemaName={activeTab?.schemaName}
+          tableName={activeTab?.tableName}
+          onSelectNode={handleSelectBreadcrumbSegment}
+          onLocateActive={handleLocateActive}
+          theme={_theme}
+        />
+      )}
 
       {/* Tree View Container */}
       <div ref={containerRef} className="flex-1 overflow-hidden p-1">

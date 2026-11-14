@@ -81,7 +81,7 @@ describe('ObjectBrowser', () => {
     render(<ObjectBrowser />);
 
     // Connection name should be displayed
-    expect(await screen.findByText('Production SQLite')).toBeInTheDocument();
+    expect(await screen.findByTestId('tree-node-Production SQLite')).toBeInTheDocument();
 
     // Tree structure should remain collapsed initially (not auto-expanded)
     expect(screen.queryByText('main')).not.toBeInTheDocument();
@@ -167,7 +167,7 @@ describe('ObjectBrowser', () => {
   it('opens a query tab when new query action is triggered', async () => {
     render(<ObjectBrowser />);
 
-    const connElement = await screen.findByText('Production SQLite');
+    const connElement = await screen.findByTestId('tree-node-Production SQLite');
     fireEvent.contextMenu(connElement);
 
     const newQueryBtn = await screen.findByText(/new query/i);
@@ -182,7 +182,7 @@ describe('ObjectBrowser', () => {
   it('refreshes schema when refresh action is triggered', async () => {
     render(<ObjectBrowser />);
 
-    const connElement = await screen.findByText('Production SQLite');
+    const connElement = await screen.findByTestId('tree-node-Production SQLite');
     fireEvent.contextMenu(connElement);
 
     const refreshBtn = await screen.findByText(/refresh/i);
@@ -196,7 +196,7 @@ describe('ObjectBrowser', () => {
   it('disconnects connection and stops auto-fetching schema when Disconnect is clicked, and reconnects on Connect', async () => {
     render(<ObjectBrowser />);
 
-    const connElement = await screen.findByText('Production SQLite');
+    const connElement = await screen.findByTestId('tree-node-Production SQLite');
 
     // Initially disconnected: context menu shows Connect button
     fireEvent.contextMenu(connElement);
@@ -279,7 +279,7 @@ describe('ObjectBrowser', () => {
     const handleEdit = vi.fn();
     render(<ObjectBrowser onEditConnection={handleEdit} />);
 
-    const connElement = await screen.findByText('Production SQLite');
+    const connElement = await screen.findByTestId('tree-node-Production SQLite');
     fireEvent.contextMenu(connElement);
 
     const editBtn = await screen.findByRole('button', { name: /edit connection/i });
@@ -297,7 +297,7 @@ describe('ObjectBrowser', () => {
 
     render(<ObjectBrowser />);
 
-    const connElement = await screen.findByText('Production SQLite');
+    const connElement = await screen.findByTestId('tree-node-Production SQLite');
     fireEvent.contextMenu(connElement);
 
     const deleteBtn = await screen.findByRole('button', { name: /delete connection/i });
@@ -668,6 +668,35 @@ describe('ObjectBrowser', () => {
       const usersTable = await screen.findByTestId('tree-node-users');
       expect(usersTable).toHaveAttribute('data-active-table', 'true');
       expect(usersTable.className).toContain('ring-blue-500');
+    });
+
+    it('renders sticky breadcrumb bar when an active table tab is present and supports locating node', async () => {
+      act(() => {
+        useTabStore.setState({
+          tabs: [
+            {
+              id: 'tab-users',
+              connectionId: 'conn-1',
+              type: 'table',
+              title: 'users',
+              tableName: 'users',
+              schemaName: 'main',
+              autoCommit: true,
+              queryContent: '',
+            },
+          ],
+          activeTabId: 'tab-users',
+        });
+      });
+
+      render(<ObjectBrowser />);
+      expect(await screen.findByTestId('explorer-breadcrumb')).toBeInTheDocument();
+      expect(screen.getByTestId('breadcrumb-connection')).toHaveTextContent('Production SQLite');
+      expect(screen.getByTestId('breadcrumb-table')).toHaveTextContent('users');
+
+      const locateBtn = screen.getByTestId('breadcrumb-locate-btn');
+      expect(locateBtn).toBeInTheDocument();
+      fireEvent.click(locateBtn);
     });
   });
 });

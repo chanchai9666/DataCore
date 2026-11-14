@@ -787,6 +787,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Explicit On-Demand Per-Tab Data Loading:** จัดการสถานะ `isLoaded` แยกอิสระในระดับแท็บ และ strip ออกจาก localStorage เพื่อไม่ให้แท็บที่กู้คืนข้ามเซสชันแอบดึงข้อมูลเบื้องหลังอัตโนมัติ แม้ว่าการเชื่อมต่อของเซิร์ฟเวอร์นั้นจะเชื่อมต่อแล้วก็ตาม โดยแสดงหน้าจอ "Table Data Not Loaded" พร้อมปุ่ม "Load Table Data" ให้ผู้ใช้เลือกโหลดเมื่อต้องการจริง
     - **Refined Explorer Tree Highlights:** ปรับปรุง Active Connection Highlight ให้เป็นกรอบโค้งมนที่สมบูรณ์สวยงาม (`border border-blue-500/50` พร้อม badge `ACTIVE`) โดยตัดขอบเส้น `border-l-4` ที่เคยยื่นลอยแปลกๆ ออก และปรับขอบ Active Table Node ให้เป็นกล่องมนครบ 360 องศา ไม่ถูกตัดขอบจาก Virtual List container
 
+22. **Issue #130: Sticky Context Breadcrumb Bar in Sidebar Explorer (`ExplorerBreadcrumb.tsx`, `ObjectBrowser.tsx`)**
+    - **Persistent Database & Schema Context:** เพิ่มแถบ Sticky Context Breadcrumb Bar ติดอยู่ใต้ช่องค้นหา (Search tables/views) ใน Sidebar Explorer แสดงลำดับชั้นของฐานข้อมูลที่กำลังเปิดใช้งาน เช่น `[PG] POS V2 › 🛢️ postgres › 📁 public › ▦ sale_lines` ป้องกันปัญหา Loss of Context เมื่อเลื่อนดูรายการตารางที่ยาวมาก
+    - **Interactive Click-to-Locate Navigation:** ผู้ใช้สามารถคลิกที่แต่ละ segment ใน Breadcrumb เพื่อเลื่อน Virtual Tree กลับไปหาโหนด Connection, Database, Schema หรือ Table ได้ทันที พร้อมปุ่มไอคอน "Locate Active Node" (Focus/Target) สำหรับคลิกเดียวกลับมาที่ตารางปัจจุบัน
+    - **Dynamic State Synchronization:** แถบ Breadcrumb จะแสดงผลอย่างชาญฉลาดเมื่อมีการเชื่อมต่อหรือมีแท็บที่กำลังทำงานอยู่ และซิงค์เปลี่ยนตามการสลับแท็บโดยอัตโนมัติ
+
+
 
 
 
