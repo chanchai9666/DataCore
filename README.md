@@ -1,6 +1,6 @@
 # DataCore ⚡️
 
-> โปรแกรมจัดการฐานข้อมูลแบบ Desktop สไตล์ **Navicat / TablePlus** ที่ออกแบบมาสำหรับ **macOS Apple Silicon (M1/M2/M3/M4)** โดยเฉพาะ มีขนาดเล็ก (~10 MB), เปิดเร็ว, กินแรมน้อย และรองรับ SQLite, PostgreSQL และ MySQL
+> โปรแกรมจัดการฐานข้อมูลแบบเดสก์ท็อปสำหรับ **macOS Apple Silicon** รองรับ **SQLite**, **PostgreSQL** และ **MySQL** พัฒนาด้วย Tauri 2, Rust และ React
 
 [![Tauri 2](https://img.shields.io/badge/Tauri-v2-blue?logo=tauri)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-1.85+-orange?logo=rust)](https://www.rust-lang.org/)
@@ -18,96 +18,96 @@
 
 ---
 
-## 🌟 จุดเด่นและฟีเจอร์หลัก (Features)
+## ฟีเจอร์การทำงาน (Features)
 
-### 1. ความเร็วและสถาปัตยกรรมระดับ Native (High Performance Architecture)
-* **พัฒนาด้วย Tauri 2 + Rust + React 18:** แอปพลิเคชัน Desktop ขนาดกะทัดรัด คอมไพล์แบบ Native ARM64 เปิดโปรแกรมได้ทันใจและประหยัด RAM
-* **รองรับ 3 ฐานข้อมูลหลัก:** เชื่อมต่อและบริหารจัดการ **SQLite** (ทั้งไฟล์ดิสก์และ `:memory:`), **PostgreSQL** และ **MySQL** ได้อย่างสมบูรณ์แบบ
-* **ระบบจัดเก็บรหัสผ่านความปลอดภัยสูง (Local Encrypted Vault & Session Security):**
-  - **เมื่อเลือก Remember password:** เข้ารหัสรหัสผ่านอย่างปลอดภัยด้วย **AES-256-GCM** จัดเก็บลงดิสก์ที่ `~/.datacore/vault.enc` (file permission 0600) พร้อมกุญแจ 256-bit ที่ `~/.datacore/.vault.key` **คงอยู่ปลอดภัยข้ามการปิด-เปิดโปรแกรมและการ restart เครื่อง** โดยไม่ต้องกรอกรหัสผ่านซ้ำ ไม่มีการบันทึก Plaintext ลงไฟล์คอนฟิก และไม่เรียกใช้ OS Keychain เพื่อหลีกเลี่ยง Authorization Popups รบกวน
-  - **เมื่อไม่เลือก Remember password:** จัดเก็บรหัสผ่านเฉพาะใน RAM ชั่วคราว (In-Memory Session) และจะถูกล้างทิ้งทันทีเมื่อปิดโปรแกรมหรือ restart เครื่อง เพื่อความเป็นส่วนตัวสูงสุด
+### 1. สถาปัตยกรรมและการเชื่อมต่อ (Architecture & Connections)
+* **พัฒนาด้วย Tauri 2 + Rust + React 18:** แอปพลิเคชันเดสก์ท็อปขนาดกะทัดรัด คอมไพล์เป็นเนทีฟไบนารีสำหรับ macOS Apple Silicon (ARM64)
+* **รองรับ 3 ฐานข้อมูลหลัก:** เชื่อมต่อและจัดการ **SQLite** (ทั้งไฟล์ดิสก์และ `:memory:`), **PostgreSQL** และ **MySQL**
+* **ระบบจัดเก็บรหัสผ่าน (Local Encrypted Vault & Session):**
+  - **เมื่อเลือก Remember password:** เข้ารหัสรหัสผ่านด้วย **AES-256-GCM** จัดเก็บที่ `~/.datacore/vault.enc` (สิทธิ์ไฟล์ 0600) โดยกุญแจเข้ารหัสถูกผูกกับเครื่อง (`~/.datacore/.vault.key`) ไม่จัดเก็บเป็นข้อความธรรมดา (plaintext) และไม่เรียกใช้ OS Keychain เพื่อลดการแสดงหน้าต่างแจ้งเตือนขอสิทธิ์
+  - **เมื่อไม่เลือก Remember password:** จัดเก็บรหัสผ่านเฉพาะในหน่วยความจำ RAM ชั่วคราวระดับ Session และจะถูกล้างทิ้งเมื่อปิดโปรแกรม
 
-### 2. ความถูกต้องของข้อมูลและธุรกรรมระดับองค์กร (Enterprise Transactions & ACID)
-* **Dedicated Transaction Sessions ต่อแท็บ:** แต่ละแท็บ Query Editor ทำงานบน Connection Session อิสระ รองรับคำสั่ง Transaction (`BEGIN`, `COMMIT`, `ROLLBACK`), Temporary Tables และ Session Variables ได้อย่างอิสระ ไม่ปนเปื้อนข้ามแท็บ
-* **Transaction Isolation Level Selector:** ปรับเลือกระดับ Isolation ได้แบบ Real-time บน Editor Toolbar (`Read Committed`, `Repeatable Read`, `Serializable`, `Read Uncommitted`)
+### 2. การจัดการธุรกรรมและเซสชัน (Transactions & Sessions)
+* **Dedicated Transaction Sessions ต่อแท็บ:** แต่ละแท็บ Query Editor ทำงานบน Connection Session แยกกัน รองรับคำสั่ง Transaction (`BEGIN`, `COMMIT`, `ROLLBACK`), Temporary Tables และตัวแปร Session แยกอิสระในแต่ละแท็บ
+* **Transaction Isolation Level Selector:** ปรับเลือกระดับ Isolation ได้บน Editor Toolbar (`Read Committed`, `Repeatable Read`, `Serializable`, `Read Uncommitted`)
 * **Savepoint Manager:** คำสั่งสร้าง Savepoint, Rollback to Savepoint, และ Release Savepoint ผ่าน UI พร้อมคำสั่ง SQL Preview
-* **Lock Inspector & Deadlock Terminator:** หน้าต่างวิเคราะห์ Active Sessions และ Table/Row Locks แบบ Real-time ตรวจจับ Deadlock พร้อมปุ่ม Terminate / Kill Blocking Query ได้ทันทีจากแถบเครื่องมือ Tools
+* **Lock Inspector:** หน้าต่างตรวจสอบ Active Sessions และ Table/Row Locks พร้อมปุ่มยกเลิก Blocking Query จากแถบเครื่องมือ Tools
 
-### 3. ประสิทธิภาพและการวิเคราะห์ (Performance & Optimization Suite)
-* **Visual Query Explain & Execution Plan:** รองรับคำสั่ง `EXPLAIN` และ `EXPLAIN ANALYZE` (PostgreSQL, MySQL, SQLite) แสดงผลทั้งแบบ Plan Node Tree, Summary Metrics (Planning Time, Execution Time, Total Cost, Estimated Rows) และ Raw JSON/Text
-* **Extended Index Support:** รองรับการสร้าง Index หลากหลายประเภทใน Table Structure Editor: **B-Tree, Hash, GIN, GiST, Full-text, Composite** และ **Unique**
-* **Database Metrics & Buffer Cache Dashboard:** มอนิเตอร์ Buffer Cache Hit Ratio, Database Storage Stats, Deadlock Counts แบบ Real-time
-* **Table Partitioning Viewer:** ตรวจสอบข้อมูลแถบ Partitions ของตารางขนาดใหญ่ (Partition Key, Expression, Row Counts, Storage Size)
-* **Views & Materialized Views Management:** ตรวจสอบ View DDL และปุ่มสั่ง Refresh Materialized View สำหรับ PostgreSQL
+### 3. การวิเคราะห์คิวรีและประสิทธิภาพ (Performance & Query Analysis)
+* **Visual Query Explain & Execution Plan:** รองรับคำสั่ง `EXPLAIN` และ `EXPLAIN ANALYZE` (PostgreSQL, MySQL, SQLite) แสดงผลทั้งแบบ Plan Node Tree, ข้อมูลสรุปเวลาประมวลผล (Planning/Execution Time, Total Cost, Estimated Rows) และ Raw JSON/Text
+* **Extended Index Support:** รองรับการสร้าง Index หลายรูปแบบใน Table Structure Editor: **B-Tree, Hash, GIN, GiST, Full-text, Composite** และ **Unique**
+* **Database Metrics & Buffer Cache Dashboard:** แสดงสถิติ Buffer Cache Hit Ratio, ข้อมูลพื้นที่จัดเก็บ และสถิติต่างๆ ของฐานข้อมูล
+* **Table Partitioning Viewer:** ตรวจสอบข้อมูล Partitions ของตาราง (Partition Key, Expression, Row Counts, Storage Size)
+* **Views & Materialized Views Management:** ตรวจสอบคำสั่ง DDL ของ View และปุ่มรีเฟรช Materialized View สำหรับ PostgreSQL
 
-### 4. ความปลอดภัยและการปฏิบัติตามมาตรฐาน (Security & Compliance Suite)
-* **Row-Level Security (RLS) Management:** เมนูควบคุมสิทธิ์แถวข้อมูลในแท็บ Security ของ Table Designer:
+### 4. ความปลอดภัยและการเข้ารหัส (Security & Encryption)
+* **Row-Level Security (RLS) Management:** เมนูจัดการสิทธิ์ระดับแถวข้อมูลในแท็บ Security ของ Table Designer:
   - สวิตช์เปิด/ปิด RLS (`ALTER TABLE ... ENABLE/DISABLE ROW LEVEL SECURITY`)
-  - ระบบบริหารจัดการ Policy: ดูรายการ, สร้าง Policy ใหม่ (`CREATE POLICY`) กำหนด Command (`ALL`, `SELECT`, `INSERT`, `UPDATE`, `DELETE`), Roles, Permissive/Restrictive, `USING` Expression, และ `WITH CHECK` Expression พร้อมปุ่ม Drop Policy
+  - จัดการ Policy: ตรวจสอบรายการ, สร้าง Policy ใหม่ (`CREATE POLICY`) กำหนด Command (`ALL`, `SELECT`, `INSERT`, `UPDATE`, `DELETE`), Roles, `USING` Expression, และ `WITH CHECK` Expression พร้อมปุ่ม Drop Policy
 * **In-Transit Encryption (TLS/SSL):**
-  - รองรับโหมด SSL เต็มรูปแบบบน PostgreSQL และ MySQL (`disable`, `prefer`, `require`, `verify-ca`, `verify-full`)
-  - **Live Connection Security Inspector:** ตรวจสอบ Cipher Suite, TLS Protocol Version, และ Key Exchange Bit Strength ของการเชื่อมต่อปัจจุบันได้แบบ Real-time
+  - รองรับโหมด SSL บน PostgreSQL และ MySQL (`disable`, `prefer`, `require`, `verify-ca`, `verify-full`)
+  - **Live Connection Security Inspector:** ตรวจสอบ Cipher Suite, TLS Protocol Version, และ Bit Strength ของการเชื่อมต่อปัจจุบัน
 * **At-Rest Storage Encryption:** ตรวจสอบสถานะการเข้ารหัส Local Vault (AES-256-GCM) และ Transparent Data Encryption (TDE) ของเซิร์ฟเวอร์
-* **Security Audit Trail & Searchable Drawer:** บันทึกประวัติกิจกรรมสำคัญทั้งหมด (Who, What, When, Query, Status, Duration) พร้อมช่องค้นหา กรองตามกิจกรรม/ช่วงเวลา และส่งออก Audit Log เป็น CSV/JSON
+* **Security Audit Trail:** บันทึกประวัติกิจกรรมสำคัญลงในเครื่องแบบ Append-Only พร้อมตรวจสอบความถูกต้องด้วย Cryptographic Hash Chain และส่งออกข้อมูลเป็น CSV/JSON
 
 ### 5. การจัดการตารางและการถ่ายโอนข้อมูล (Table Management & Transfers)
-* **Table List View & Detailed Metadata Grid:** ดับเบิลคลิกที่โหนด Tables ใน Object Browser เพื่อดูรายการตารางทั้งหมด พร้อมข้อมูลเชิงลึก (Rows, Data Size, Index Size, Total Size, Engine, Collation, Encoding, Comment) พร้อมระบบค้นหาและจัดเรียงได้ทุกคอลัมน์
-* **Foreign Keys & Constraints Manager:** แถบจัดการ Foreign Keys (กำหนด Referenced Table/Column, On Delete/Update rules) และ Constraints (`CHECK`, `UNIQUE`) ใน Table Designer พร้อม Live SQL Preview และ Confirmation Dialog
-* **Table Maintenance & Diagnostics Suite:** สั่งการบำรุงรักษาตารางผ่าน UI (OPTIMIZE, VACUUM, ANALYZE, REINDEX, CHECK TABLE)
-* **Duplicate Table (Native SQL Clone):** โคลนตารางพร้อมโครงสร้างและข้อมูลทันใจใน Database เดียวกัน (Structure Only หรือ Structure + Data)
-* **Cross-Database Table Transfer (แบบ Navicat):** ย้ายหรือคัดลอกตารางข้าม Connection หรือ Engine (SQLite ⟷ PostgreSQL ⟷ MySQL) พร้อม Automatic Data Type Mapping อัจฉริยะ และสตรีมมิ่ง Batch Inserts ทีละ 500 แถว ควบคุม RAM < 32MB
-* **Streaming SQL/CSV/JSON Import & Export:** นำเข้าและส่งออกข้อมูลตารางหรือผลลัพธ์ Query เป็น `.sql`, `.csv`, `.json` พร้อมตัวแยกคำสั่งอัจฉริยะ รองรับ multi-statement และคำสั่ง `DELIMITER`
+* **Table List View & Metadata Grid:** ดับเบิลคลิกที่โหนด Tables ใน Object Browser เพื่อดูรายการตาราง พร้อมรายละเอียด (จำนวนแถว, ขนาดข้อมูล, ขนาด Index, Storage Engine, Collation) และช่องค้นหา/จัดเรียง
+* **Foreign Keys & Constraints Manager:** แถบจัดการ Foreign Keys และ Constraints (`CHECK`, `UNIQUE`) ใน Table Designer พร้อม Live SQL Preview
+* **การบำรุงรักษาตาราง (Table Maintenance):** สั่งการบำรุงรักษาตารางผ่าน UI (OPTIMIZE, VACUUM, ANALYZE, REINDEX, CHECK TABLE)
+* **Duplicate Table:** คัดลอกตารางพร้อมโครงสร้างหรือข้อมูลใน Database เดียวกัน (Structure Only หรือ Structure + Data)
+* **Cross-Database Table Transfer:** คัดลอกตารางข้าม Connection หรือ Engine (SQLite ⟷ PostgreSQL ⟷ MySQL) พร้อมแปลงชนิดข้อมูลระหว่างเอนจินอัตโนมัติ และสตรีมมิ่ง Batch Inserts ทีละ 500 แถว
+* **Streaming SQL/CSV/JSON Import & Export:** นำเข้าและส่งออกข้อมูลตารางหรือผลลัพธ์ Query เป็น `.sql`, `.csv`, `.json` พร้อมตัวแยกคำสั่ง SQL และรองรับคำสั่ง `DELIMITER`
 
-### 6. ความสะดวกและประสบการณ์ผู้ใช้ (Productivity & UI/UX)
-* **ตารางข้อมูลความเร็วสูง (Glide Data Grid):** เรนเดอร์บน HTML5 Canvas ลื่นไหลแม้ข้อมูลมีปริมาณมหาศาล, แบ่งหน้าทีละ 100 แถว, แสดงผลค่า `NULL` ชัดเจน, รองรับ Inline Edit / Insert Row, Filter Bar Builder และ **Cell Detail Drawer**
-* **Global Tools Dropdown Menu:** รวมศูนย์เครื่องมือวิเคราะห์ระดับโปรแกรมบน MainToolbar เข้าถึง Metrics, Locks, Audit Log, Query History & Snippets, และ Connection Security ได้ทันที
-* **Query History & Saved Snippets:** บันทึกประวัติการรันคำสั่ง SQL ย้อนหลัง 200 รายการ พร้อมระบบบันทึกและจัดการ Snippet คำสั่งที่ใช้บ่อย
-* **Command Palette (⌘K / ⌘P):** ศูนย์กลางสั่งการด้วยคีย์บอร์ดระดับโปรแกรม ค้นหาคำสั่ง, สลับ Connection, เปิด Table/View ได้อย่างรวดเร็ว
-* **Connection Folder Grouping:** จัดกลุ่มการเชื่อมต่อเป็นโฟลเดอร์ พร้อมเลือกสีโฟลเดอร์ตามต้องการ
-* **Application Visual Identity:** ไอคอนแอปพลิเคชันสไตล์ Luxury Minimalist Squircle ตัดขอบโปร่งใสตามมาตรฐาน **macOS Human Interface Guidelines (HIG)**
+### 6. ส่วนติดต่อผู้ใช้และการนำทาง (UI & Navigation)
+* **ตารางข้อมูล (Glide Data Grid):** แสดงผลข้อมูลตารางด้วย Glide Data Grid บน Canvas แบ่งหน้าทีละ 100 แถว, แสดงผลค่า `NULL` ชัดเจน, รองรับ Inline Edit / Insert Row, Filter Bar และ Cell Detail Drawer
+* **Global Tools Dropdown Menu:** เมนูเครื่องมือส่วนกลางบน MainToolbar เข้าถึง Metrics, Locks, Audit Log, Query History & Snippets, และ Connection Security
+* **Query History & Saved Snippets:** บันทึกประวัติคำสั่ง SQL ย้อนหลัง 200 รายการ พร้อมระบบบันทึก Snippet คำสั่งที่ใช้บ่อย
+* **Command Palette (⌘K / ⌘P):** ค้นหาคำสั่ง, สลับ Connection หรือเปิด Table/View ได้ผ่านคีย์บอร์ด
+* **Connection Folder Grouping:** จัดกลุ่มการเชื่อมต่อเป็นโฟลเดอร์ พร้อมเลือกสีโฟลเดอร์
+* **Application Visual Identity:** ไอคอนแอปพลิเคชันขอบมนตามแนวทาง macOS Human Interface Guidelines (HIG)
 
-### 7. การเขียนคิวรีและการแนะนำโค้ดอัจฉริยะ (Querying, Autocomplete & No-Code Builder)
-* **Visual Query Builder (No-Code SELECT Query Builder):** สร้างคำสั่ง SELECT Query ได้ง่ายดายผ่านหน้าต่าง No-Code UI โดยไม่ต้องพิมพ์ SQL:
-  - เลือกตารางหลัก (Base Table) และตั้ง Alias
+### 7. การเขียนคิวรีและตัวช่วยสร้างคำสั่ง (Querying & Editor)
+* **Visual Query Builder (No-Code SELECT Query Builder):** สร้างคำสั่ง SELECT Query ผ่านหน้าต่าง UI โดยเลือกข้อมูลจากตาราง:
+  - เลือกตารางหลัก (Base Table) และกำหนด Alias
   - เลือกคอลัมน์ พร้อม Alias และฟังก์ชันสรุปผลรวม (COUNT, SUM, AVG, MIN, MAX)
   - กำหนด Table JOINs (INNER, LEFT, RIGHT, FULL) พร้อมเงื่อนไข ON
   - กำหนดตัวกรองเงื่อนไข WHERE (equals, contains, between, is null ฯลฯ) สลับระหว่าง AND / OR
-  - กำหนดการจัดเรียง (ORDER BY) และขอบเขตแถว (LIMIT / OFFSET)
-  - แสดงผล Live SQL Preview ตาม Dialect จริง พร้อมปุ่ม Copy, Open in SQL Editor หรือกด Run Query เพื่อแสดงผลลัพธ์ผ่าน Data Grid ได้ทันที
-* **Schema-Aware Autocomplete สำหรับ SQL Editor:** แนะนำคำสั่งอัตโนมัติใน CodeMirror 6 โดยดึง Metadata จากโครงสร้างฐานข้อมูลจริง (`Record<string, string[]>`) แนะนำชื่อตาราง, Views, และชื่อคอลัมน์พร้อม Data Types เมื่อพิมพ์หลังคำสั่ง `FROM`, `JOIN`, `SELECT` หรือ `<table>.` พร้อมระบบ Invalidate Cache อัตโนมัติเมื่อมีการรันคำสั่ง DDL (`CREATE`, `ALTER`, `DROP`)
+  - กำหนดการจัดเรียง (ORDER BY) และจำนวนแถว (LIMIT / OFFSET)
+  - แสดง Live SQL Preview พร้อมปุ่ม Copy, Open in SQL Editor หรือรัน Query แสดงผลใน Data Grid ทันที
+* **Schema-Aware Autocomplete สำหรับ SQL Editor:** แนะนำคำสั่งอัตโนมัติใน CodeMirror 6 จากโครงสร้างจริงของฐานข้อมูล แนะนำชื่อตาราง, Views, และคอลัมน์พร้อมประเภทข้อมูลเมื่อพิมพ์คำสั่ง `FROM`, `JOIN`, `SELECT` หรือ `<table>.` พร้อม Invalidate Cache เมื่อมีคำสั่ง DDL (`CREATE`, `ALTER`, `DROP`)
 * **SQL Formatter (⌘⇧F) & Multi-Result Tabs:**
-  - จัดรูปแบบโค้ด SQL ให้เป็นระเบียบสวยงามผ่านไลบรารี `sql-formatter` รองรับ dialect ของ PostgreSQL, MySQL และ SQLite ด้วยปุ่มบน Toolbar หรือคีย์ลัด `⌘⇧F` (Mac) / `Ctrl+Shift+F`
-  - รองรับการรัน Batch Script ที่มีหลายคำสั่ง (เช่น `SELECT 1; SELECT 2;`) โดย SQLite driver แยก statement แบบ Quote-aware และแสดงผลลัพธ์แยกแต่ละชุดบน Multi-Result Tabs (`Result 1`, `Result 2`, `Messages`)
-* **Horizontal Split Layout สำหรับหน้าจอกว้าง (Ultrawide Monitors):** สลับโหมดแบ่งหน้าจอใน Query Editor ได้ทั้ง Vertical Split (บน/ล่าง) และ Horizontal Split (Editor ซ้าย / Data Grid ขวา) พร้อมแถบ Resizer ปรับขนาดความกว้างได้ตามต้องการ และจดจำการตั้งค่าลงใน `localStorage`
-* **Safe Mutation Impact Preview (Simulation Guard):** พรีวิวผลกระทบของคำสั่ง `DELETE` / `UPDATE` ก่อนรันจริง เพื่อดูจำนวนแถวที่จะได้รับผลกระทบ โดยระบบจำลองคำสั่งภายใต้ Transaction และทำการ Rollback 100% เสมอ ป้องกันการลบข้อมูลทั้งตารางโดยไม่ตั้งใจ
+  - จัดรูปแบบโค้ด SQL ด้วย `sql-formatter` รองรับ dialect ของ PostgreSQL, MySQL และ SQLite ผ่านปุ่มบน Toolbar หรือคีย์ลัด `⌘⇧F` (Mac) / `Ctrl+Shift+F`
+  - รองรับการรันสคริปต์ที่มีหลายคำสั่ง แสดงผลลัพธ์แยกแท็บย่อย (`Result 1`, `Result 2`, `Messages`)
+* **Horizontal Split Layout สำหรับหน้าจอกว้าง:** สลับโหมดแบ่งหน้าจอระหว่าง Vertical Split (บน/ล่าง) และ Horizontal Split (Editor ซ้าย / Data Grid ขวา) พร้อมปรับขนาดได้ และจดจำการตั้งค่าใน `localStorage`
+* **Mutation Impact Preview:** พรีวิวผลกระทบของคำสั่ง `DELETE` / `UPDATE` เพื่อตรวจสอบจำนวนแถวที่จะได้รับผลกระทบ โดยระบบจำลองคำสั่งภายใต้ Transaction และทำการ Rollback 100% เสมอ
 
-### 8. ความสะดวก การเข้าถึง และสถาปัตยกรรมระดับโมดูลาร์ (Accessibility, i18n & Modular Design)
-* **ระบบ Internationalization (i18n):** รองรับภาษาไทย (th) และภาษาอังกฤษ (en) สลับภาษาได้ทันทีแบบ Reactive บน Toolbar และ StatusBar โดยไม่ต้องรีสตาร์ทแอป และบันทึกค่าภาษาไว้ใน `localStorage`
-* **Deep Tree Object Browser:** ขยายโหนด Table ใน Sidebar ให้แสดงลูกศรคลี่ดู Columns พร้อม Data Types และไอคอน PK/FK (Lazy-loaded) และรองรับการ Drag & Drop หรือดับเบิลคลิกชื่อคอลัมน์เพื่อแทรกลงใน SQL Editor ทันที
-* **Keyboard Splitter Navigation (Accessibility A11y):** แถบ Resizer ใน DockLayout รองรับมาตรฐาน `role="separator"`, `tabIndex={0}`, `aria-orientation` และสามารถปรับขนาดความกว้าง/ความสูงได้ด้วยปุ่มลูกศรบนคีย์บอร์ด
-* **Modular UI Architecture:** สถาปัตยกรรมคอมโพเนนต์ระดับโมดูลาร์ แยกหน้าจอ `TableStructureEditor` ออกเป็น 5 Sub-tabs ย่อย (`ColumnsTab`, `IndexesTab`, `ForeignKeysTab`, `ConstraintsTab`, `RlsSecurityTab`) ให้ไฟล์มีขนาดกะทัดรัด บำรุงรักษาง่าย และทำความสะอาด Tauri IPC parameters เป็น camelCase มาตรฐานเดียว ปราศจากความซ้ำซ้อน
+### 8. การรองรับภาษา สถาปัตยกรรม และการเข้าถึง (Localization & Architecture)
+* **ระบบ Internationalization (i18n):** รองรับภาษาไทย (th) และภาษาอังกฤษ (en) สลับภาษาได้บน Toolbar และ StatusBar โดยไม่ต้องรีสตาร์ทแอป และบันทึกค่าไว้ใน `localStorage`
+* **Deep Tree Object Browser:** ขยายโหนด Table ในแถบด้านข้างเพื่อดูรายชื่อ Columns พร้อมประเภทข้อมูลและไอคอน PK/FK (Lazy-loaded) และรองรับการ Drag & Drop หรือดับเบิลคลิกเพื่อแทรกลงใน Editor
+* **Keyboard Splitter Navigation (Accessibility):** แถบแบ่งหน้าจอ (Splitter) ใน DockLayout รองรับมาตรฐาน `role="separator"`, `tabIndex={0}` และสามารถปรับขนาดได้ด้วยปุ่มลูกศรบนคีย์บอร์ด
+* **Modular UI Architecture:** แยกหน้าจอ `TableStructureEditor` ออกเป็น 5 Sub-tabs ย่อย (`ColumnsTab`, `IndexesTab`, `ForeignKeysTab`, `ConstraintsTab`, `RlsSecurityTab`) เพื่อความสะดวกในการบำรุงรักษา และปรับพารามิเตอร์ IPC ให้เป็น camelCase มาตรฐานเดียว
 
 ---
 
 ## 🛠 Tech Stack
 
 ### Backend (Rust)
-- **Tauri 2**: Framework สำหรับ Native Desktop Application
-- **Tokio**: Asynchronous Runtime ประสิทธิภาพสูง
+- **Tauri 2**: Framework สำหรับ Desktop Application
+- **Tokio**: Asynchronous Runtime สำหรับ Rust
 - **sqlx**: Database Driver สำหรับ PostgreSQL และ MySQL (พร้อม `tls-rustls` และ Connection Pooling)
 - **rusqlite**: Database Driver สำหรับ SQLite (เปิดใช้ feature `bundled` และ `column_decltype`)
-- **aes-gcm / rand**: ระบบเข้ารหัสรหัสผ่าน Local Vault แบบ AES-256-GCM
+- **aes-gcm / rand**: เข้ารหัสรหัสผ่าน Local Vault แบบ AES-256-GCM
 - **serde / serde_json**: Serialization / Deserialization ข้อมูลระหว่าง Rust และ Frontend
 - **csv**: Streaming CSV Reader / Writer
 
 ### Frontend (React & TypeScript)
 - **React 18 + TypeScript + Vite**: UI Framework, Compiler และ Build Tool
-- **@glideapps/glide-data-grid**: Data Grid ประสิทธิภาพสูงบน HTML5 Canvas
+- **@glideapps/glide-data-grid**: Data Grid บน HTML5 Canvas
 - **CodeMirror 6 (@codemirror/lang-sql)**: SQL Editor พร้อม Syntax Highlighting & Keymaps
-- **react-arborist**: Tree Component ประสิทธิภาพสูงสำหรับ Object Browser
+- **react-arborist**: Tree Component สำหรับ Object Browser
 - **Zustand**: Client State Management (`tabStore`, `connectionStore`, `auditLogStore`, `snippetStore`, `folderStore`, `queryHistoryStore`)
 - **Tailwind CSS**: Styling และ Dynamic Theme Management (Dark/Light Mode)
-- **lucide-react**: Modern SVG Icons
+- **lucide-react**: ไอคอน SVG
 - **Vitest**: Unit & Component Testing
 
 ---
@@ -259,8 +259,8 @@ make test
 - [x] **Phase 11-15: Cell Detail Drawer Diffs, ObjectBrowser Double-Click, Table Rename & Maintenance Suite**
 - [x] **Phase 16-20: Metrics Isolation, Streamlined Cell Editing, SQLite Native File Picker & Connection Folders**
 - [x] **Phase 21-23: Query History & Snippets, Query Explain Visualizer, Foreign Keys & Constraints**
-- [x] **Phase 24: Brand Icon & Visual Identity Upgrade** (Luxury Minimalist Squircle Core, macOS HIG compliance)
-- [x] **Phase 25: Enterprise Capabilities** (ACID Transactions, Extended Indexes, Cache Metrics, Partitioning Viewer, Audit Log)
+- [x] **Phase 24: Brand Icon & App Icon Updates** (ปรับปรุงไอคอนตามแนวทาง macOS HIG)
+- [x] **Phase 25: Transactions, Performance Metrics & Audit Log** (ACID Transactions, Extended Indexes, Cache Metrics, Partitioning Viewer, Audit Log)
 - [x] **Phase 26: MainToolbar Tools Menu & Global Drawers Integration**
 - [x] **Phase 27: Row-Level Security (RLS) Manager, In-Transit TLS & At-Rest Encryption Inspector**
 - [x] **Phase 28: Visual ER Diagram Viewer & Designer** (Topological Layout, Pan & Zoom, SVG Export)
@@ -268,7 +268,7 @@ make test
 - [x] **Phase 30: Server Activity Monitor & Process List** (Active Sessions, Query Termination, Auto-Refresh)
 - [x] **Phase 31: Comprehensive Data Import/Export Wizard** (Multi-step Column Mapping, CSV/JSON/TSV)
 - [x] **Phase 32: Database User & Privilege Manager** (User Lifecycle, GRANT/REVOKE, Host Scopes)
-- [x] **Phase 33: Modern UX/UI Upgrade & Performance Suite** (Internationalization i18n th/en, Visual Query Builder No-Code UI, Schema-Aware Autocomplete, SQL Formatter ⌘⇧F, Multi-Result Tabs, Horizontal Split Layout, Deep Tree Object Browser, Keyboard Splitter Accessibility, และ Modular TableStructureEditor Architecture)
+- [x] **Phase 33: UX/UI Updates & Modular Refactoring** (Internationalization i18n th/en, Visual Query Builder, Schema Autocomplete, SQL Formatter ⌘⇧F, Multi-Result Tabs, Horizontal Split Layout, Deep Tree Object Browser, Keyboard Splitter Accessibility, Modular TableStructureEditor Architecture)
 
 ---
 
