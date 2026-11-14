@@ -362,24 +362,34 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
               <div className="flex items-center justify-between text-xs text-zinc-800 dark:text-zinc-300">
                 <span className="flex items-center space-x-1.5">
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
-                  <span>{progress?.status || 'Transferring table...'}</span>
+                  <span data-testid="transfer-progress-status">{progress?.status || 'Preparing transfer...'}</span>
                 </span>
-                {progress?.total_rows && progress.total_rows > 0 && (
-                  <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
-                    {progress.current_row.toLocaleString()} / {progress.total_rows.toLocaleString()}
+                {progress?.total_rows && progress.total_rows > 0 ? (
+                  <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400" data-testid="transfer-progress-counts">
+                    {progress.current_row.toLocaleString()} / {progress.total_rows.toLocaleString()} (
+                    {Math.min(100, Math.round((progress.current_row / progress.total_rows) * 100))}%)
                   </span>
-                )}
+                ) : progress?.current_row && progress.current_row > 0 ? (
+                  <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400" data-testid="transfer-progress-counts">
+                    {progress.current_row.toLocaleString()} rows
+                  </span>
+                ) : null}
               </div>
               <div className="w-full bg-zinc-200 dark:bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
-                <div
-                  className="bg-blue-500 h-full transition-all duration-150"
-                  style={{
-                    width:
-                      progress?.total_rows && progress.total_rows > 0
-                        ? `${Math.min(100, Math.round((progress.current_row / progress.total_rows) * 100))}%`
-                        : '100%',
-                  }}
-                />
+                {progress?.total_rows && progress.total_rows > 0 ? (
+                  <div
+                    data-testid="transfer-progress-bar"
+                    className="bg-blue-500 h-full transition-all duration-150"
+                    style={{
+                      width: `${Math.min(100, Math.round((progress.current_row / progress.total_rows) * 100))}%`,
+                    }}
+                  />
+                ) : (
+                  <div
+                    data-testid="transfer-progress-bar-indeterminate"
+                    className="bg-blue-500/60 h-full w-full animate-pulse"
+                  />
+                )}
               </div>
             </div>
           )}

@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { ConnectionTreeNode, type BrowserTreeNode } from './ConnectionTreeNode';
+import { ConnectionTreeNode, ObjectBrowserContext, type BrowserTreeNode } from './ConnectionTreeNode';
 import type { NodeRendererProps } from 'react-arborist';
 
 function createMockNode(data: BrowserTreeNode): NodeRendererProps<BrowserTreeNode>['node'] {
@@ -97,5 +97,32 @@ describe('ConnectionTreeNode Badges', () => {
     expect(envBadge).toBeInTheDocument();
     expect(envBadge).toHaveTextContent('DEV');
     expect(envBadge.className).toContain('text-emerald-400');
+  });
+
+  it('renders Show Columns button on table node and calls onLoadTableColumns and toggle on click', () => {
+    const onLoadTableColumns = vi.fn();
+    const data: BrowserTreeNode = {
+      id: 'table-users',
+      name: 'users',
+      nodeType: 'table',
+      connectionId: 'conn-1',
+      tableName: 'users',
+      driver: 'sqlite',
+    };
+
+    const node = createMockNode(data);
+    render(
+      <ObjectBrowserContext.Provider value={{ onLoadTableColumns }}>
+        <ConnectionTreeNode node={node} style={{}} dragHandle={vi.fn()} tree={{} as any} />
+      </ObjectBrowserContext.Provider>
+    );
+
+    const toggleColsBtn = screen.getByTestId('btn-toggle-columns');
+    expect(toggleColsBtn).toBeInTheDocument();
+    expect(toggleColsBtn).toHaveAttribute('title', 'Show Columns');
+
+    fireEvent.click(toggleColsBtn);
+    expect(onLoadTableColumns).toHaveBeenCalledWith(data);
+    expect(node.toggle).toHaveBeenCalled();
   });
 });

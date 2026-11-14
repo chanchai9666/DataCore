@@ -580,14 +580,31 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         )}
 
         {isTableOrView && (
-          <button
-            type="button"
-            title="Query Table"
-            className="p-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            onClick={handleNewQueryTab}
-          >
-            <Play className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
-          </button>
+          <>
+            <button
+              type="button"
+              title="Show Columns"
+              data-testid="btn-toggle-columns"
+              className="p-0.5 text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!node.isOpen && context.onLoadTableColumns) {
+                  context.onLoadTableColumns(data);
+                }
+                node.toggle();
+              }}
+            >
+              <Columns3 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              title="Query Table"
+              className="p-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              onClick={handleNewQueryTab}
+            >
+              <Play className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
+            </button>
+          </>
         )}
       </div>
     </div>

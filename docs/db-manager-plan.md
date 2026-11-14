@@ -812,6 +812,18 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **API & Serde Model Normalization:** แก้ไขฟังก์ชัน `cancelTransfer` ใน `src/api/dataTransferApi.ts` ให้ส่ง `{ jobId }` ตัวเดียว และปรับโครงสร้าง Rust struct ใน `src-tauri/src/models/transfer.rs` (`CrossDbCopyTableOptions`, `SqlExportOptions`) ให้ใช้ `#[serde(default, alias = "job_id")]` อย่างถูกต้องเพื่อรองรับทั้ง camelCase และ snake_case โดยไม่มี redundant alias
     - **Automated Verification:** เพิ่ม unit tests ทั้งฝั่ง Frontend (`CrossDbCopyModal.test.tsx`, `ImportSqlModal.test.tsx`, `dataTransferApi.test.ts`) เพื่อยืนยันว่า payload ไม่มีคีย์ซ้ำ และฝั่ง Rust (`cross_db_transfer_test.rs`) เพื่อยืนยันการ deserialize ตัวเลือกจากทั้ง camelCase และ snake_case อย่างสมบูรณ์
 
+26. **Issue #134: Functional Progress Bar for Cross-DB Transfer, Disable Auto-Refresh Tree After Copy, and Dedicated Columns Button in Explorer Tree (`cross_db_transfer.rs`, `CrossDbCopyModal.tsx`, `ObjectBrowser.tsx`, `ConnectionTreeNode.tsx`)**
+    - **Functional Progress Bar with Live Percentages (`cross_db_transfer.rs`, `CrossDbCopyModal.tsx`):**
+      - ฝั่ง Rust backend คำนวณจำนวนแถวของตารางต้นทางจริงด้วย `SELECT COUNT(*)` เมื่อระบุ `copy_data: true`
+      - ส่ง Progress event ตั้งแต่ช่วงเริ่มต้นเตรียมโครงสร้าง (Preparing table structure), การลบตารางเดิมถ้ามี (Dropping target table), การสร้างตารางใหม่ (Creating table structure) และการสตรีมถ่ายโอนข้อมูลแต่ละ chunk พร้อมสถิติจริง `Transferring rows: X / Y (Z%)` และปิดท้ายด้วย `Transfer completed successfully`
+      - ปรับปรุง Frontend ไม่ให้หลอดแสดงความคืบหน้ากระโดดเป็น 100% ล่วงหน้า โดยแสดง animated pulse แบบ indeterminate ระหว่างรอ และแสดงความกว้างของหลอดตามเปอร์เซ็นต์จริง `(current_row / total_rows) * 100`% พร้อมตัวเลข `X / Y (Z%)`
+    - **Manual Tree Refresh After Copy (`ObjectBrowser.tsx`):**
+      - นำ `fetchSchema(...)` ออกจาก callback การคัดลอกตารางสำเร็จ เพื่อไม่ให้ tree ทำการรีเฟรชเองโดยอัตโนมัติ ให้ผู้ใช้จัดการกดปุ่มรีเฟรชได้เองตามความต้องการ
+    - **Dedicated Column Toggle Button on Hover in Explorer Tree (`ConnectionTreeNode.tsx`):**
+      - เพิ่มปุ่มไอคอน `<Columns3>` สีฟ้า (`Show Columns`) วางอยู่ข้างๆ ปุ่มไอคอน `<Play>` สีเขียว (`Query Table`) บนแถบ Hover Action Buttons ของโหนดตารางใน Sidebar Explorer Tree
+      - เมื่อผู้ใช้คลิกปุ่มไอคอนคอลัมน์ ระบบจะดึงข้อมูลโครงสร้างคอลัมน์ของตารางนั้นและคลี่เปิด/ปิดรายการคอลัมน์ใน Tree ได้ทันทีโดยตรง
+
+
 
 
 

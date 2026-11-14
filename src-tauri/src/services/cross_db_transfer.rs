@@ -3,7 +3,7 @@ use crate::drivers::DatabaseConnection;
 use crate::error::AppError;
 use crate::models::query::ColumnMeta;
 use crate::models::transfer::{CrossDbCopyResult, CrossDbCopyTableOptions, TransferProgress};
-use crate::models::DatabaseDriver;
+use crate::models::{CellValue, DatabaseDriver};
 use crate::services::data_transfer::{
     generate_batch_insert_cells_sql, is_transfer_cancelled, remove_cancellation_token,
 };
@@ -205,7 +205,34 @@ where
         )
         .await?;
     let mut columns = meta_res.columns;
-    let total_rows_opt = meta_res.rows_affected.map(|n| n as usize);
+    let total_rows_opt = if options.copy_data {
+        let count_sql = format!("SELECT COUNT(*) FROM {}", src_qualified_table);
+        if let Ok(count_res) = src_conn.execute_query(&count_sql).await {
+            count_res.rows.first().and_then(|row| {
+                row.first().and_then(|val| match val {
+                    CellValue::Integer(n) => Some(*n as usize),
+                    CellValue::Text(s) => s.parse::<usize>().ok(),
+                    _ => None,
+                })
+            })
+        } else {
+            None
+        }
+    } else {
+        Some(0)
+    };
+
+    if let Some(ref cb) = on_progress {
+        cb(TransferProgress {
+            current_row: 0,
+            total_rows: total_rows_opt,
+            status: if options.copy_structure {
+                "Preparing table structure...".to_string()
+            } else {
+                "Preparing data transfer...".to_string()
+            },
+        });
+    }
 
     let tgt_qualified_table = match options.target_schema.as_deref() {
         Some(s) if !s.is_empty() => match tgt_driver {
@@ -220,6 +247,13 @@ where
 
     // 2. Drop target table if exists
     if options.drop_target_if_exists {
+        if let Some(ref cb) = on_progress {
+            cb(TransferProgress {
+                current_row: 0,
+                total_rows: total_rows_opt,
+                status: "Dropping target table if exists...".to_string(),
+            });
+        }
         let drop_sql = match tgt_driver {
             DatabaseDriver::Postgres => format!("DROP TABLE IF EXISTS {} CASCADE;", tgt_qualified_table),
             _ => format!("DROP TABLE IF EXISTS {};", tgt_qualified_table),
@@ -229,6 +263,13 @@ where
 
     // 3. Create target table structure
     if options.copy_structure && !columns.is_empty() {
+        if let Some(ref cb) = on_progress {
+            cb(TransferProgress {
+                current_row: 0,
+                total_rows: total_rows_opt,
+                status: "Creating target table structure...".to_string(),
+            });
+        }
         let create_ddl = generate_create_table_ddl(
             tgt_dialect,
             options.target_schema.as_deref(),
@@ -291,13 +332,20 @@ where
             rows_transferred += fetched_count;
 
             if let Some(ref cb) = on_progress {
+                let status = match total_rows_opt {
+                    Some(tot) if tot > 0 => format!(
+                        "Transferring rows: {} / {} ({}%)",
+                        rows_transferred,
+                        tot,
+                        ((rows_transferred as f64 / tot as f64) * 100.0).round().min(100.0) as u64
+                    ),
+                    Some(tot) => format!("Transferring rows: {} / {}", rows_transferred, tot),
+                    None => format!("Transferring rows: {}", rows_transferred),
+                };
                 cb(TransferProgress {
                     current_row: rows_transferred,
                     total_rows: total_rows_opt,
-                    status: match total_rows_opt {
-                        Some(tot) => format!("Transferring rows: {} / {}", rows_transferred, tot),
-                        None => format!("Transferring rows: {}", rows_transferred),
-                    },
+                    status,
                 });
             }
 
@@ -306,6 +354,14 @@ where
             }
             offset += fetched_count;
         }
+    }
+
+    if let Some(ref cb) = on_progress {
+        cb(TransferProgress {
+            current_row: rows_transferred,
+            total_rows: total_rows_opt.or(Some(rows_transferred)),
+            status: "Transfer completed successfully".to_string(),
+        });
     }
 
     if let Some(jid) = job_id {

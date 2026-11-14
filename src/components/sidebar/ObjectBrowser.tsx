@@ -2036,9 +2036,6 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           sourceTableName={crossDbCopyModalTarget.sourceTableName}
           sourceSchemaName={crossDbCopyModalTarget.schemaName}
           onClose={() => setCrossDbCopyModalTarget(null)}
-          onSuccess={() => {
-            fetchSchema(crossDbCopyModalTarget.connectionId);
-          }}
         />
       )}
 

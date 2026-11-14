@@ -208,4 +208,54 @@ describe('CrossDbCopyModal', () => {
 
     expect(await screen.findByText('Connection timed out')).toBeInTheDocument();
   });
+
+  it('updates progress indicator with percentage and row count on transfer progress events', async () => {
+    let progressCallback: ((p: any) => void) | undefined;
+    const { onTransferProgress } = await import('../../api/dataTransferApi');
+    vi.mocked(onTransferProgress).mockImplementation(async (cb) => {
+      progressCallback = cb;
+      return () => {};
+    });
+
+    let resolveCopy: (val: any) => void;
+    vi.mocked(dbApi.copyTableCrossDb).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCopy = resolve;
+        })
+    );
+
+    render(
+      <CrossDbCopyModal
+        isOpen={true}
+        sourceConnectionId="conn-sqlite"
+        sourceTableName="customers"
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('start-transfer-btn'));
+
+    // Initially indeterminate
+    expect(await screen.findByTestId('transfer-progress-bar-indeterminate')).toBeInTheDocument();
+    expect(screen.getByTestId('transfer-progress-status')).toHaveTextContent('Preparing transfer...');
+
+    // Progress event with rows and total
+    progressCallback?.({
+      current_row: 250,
+      total_rows: 1000,
+      status: 'Transferring rows: 250 / 1000 (25%)',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('transfer-progress-counts')).toHaveTextContent('250 / 1,000 (25%)');
+      const bar = screen.getByTestId('transfer-progress-bar');
+      expect(bar.style.width).toBe('25%');
+    });
+
+    resolveCopy!({
+      rowsTransferred: 1000,
+      elapsedMs: 200,
+    });
+  });
 });
