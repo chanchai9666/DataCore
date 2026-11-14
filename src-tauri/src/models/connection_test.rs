@@ -66,6 +66,35 @@ mod tests {
         assert_eq!(ssh.auth_type.as_deref(), Some("key"));
     }
 
+    #[test]
+    fn test_connection_config_environment_and_read_only_deserialization() {
+        let json_camel = r#"{
+            "id": "c-prod",
+            "name": "Production Database",
+            "driver": "postgres",
+            "database": "app_prod",
+            "environment": "production",
+            "readOnly": true
+        }"#;
+
+        let config: ConnectionConfig = serde_json::from_str(json_camel).unwrap();
+        assert_eq!(config.environment.as_deref(), Some("production"));
+        assert_eq!(config.read_only, Some(true));
+
+        let json_snake = r#"{
+            "id": "c-stg",
+            "name": "Staging Database",
+            "driver": "mysql",
+            "database": "app_stg",
+            "environment": "staging",
+            "read_only": false
+        }"#;
+
+        let config2: ConnectionConfig = serde_json::from_str(json_snake).unwrap();
+        assert_eq!(config2.environment.as_deref(), Some("staging"));
+        assert_eq!(config2.read_only, Some(false));
+    }
+
     #[tokio::test]
     async fn test_ssh_tunnel_safety_guard_blocks_unauthorized_direct_connection() {
         use crate::drivers::postgres::PostgresConnection;
@@ -94,6 +123,8 @@ mod tests {
             }),
             timeout_seconds: Some(5),
             auto_reconnect: Some(true),
+            environment: None,
+            read_only: None,
         };
 
         // Attempting direct Postgres connection with ssh_tunnel enabled must fail with security bypass error

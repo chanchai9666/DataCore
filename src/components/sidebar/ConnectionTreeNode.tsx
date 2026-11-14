@@ -47,6 +47,8 @@ export interface BrowserTreeNode {
   isDisconnected?: boolean;
   folderColor?: string;
   isConnectionFolder?: boolean;
+  environment?: string;
+  readOnly?: boolean;
 }
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -339,6 +341,66 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       {data.nodeType === 'connection' && (
         <div className="flex items-center space-x-1 mr-1 shrink-0">
           <DbBadge driver={data.driver} />
+          {(() => {
+            const env =
+              data.environment ||
+              useConnectionStore
+                .getState()
+                .connections.find((c) => c.id === data.connectionId)?.environment;
+            if (!env) return null;
+
+            const normalizedEnv = env.toLowerCase();
+            let badgeClass = '';
+            let label = '';
+
+            if (normalizedEnv === 'production') {
+              badgeClass = 'bg-red-500/20 text-red-400 border border-red-500/40';
+              label = 'PROD';
+            } else if (normalizedEnv === 'staging') {
+              badgeClass = 'bg-amber-500/20 text-amber-400 border border-amber-500/40';
+              label = 'STAGING';
+            } else if (normalizedEnv === 'development') {
+              badgeClass = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
+              label = 'DEV';
+            } else {
+              badgeClass = 'bg-gray-500/20 text-gray-400 border border-gray-500/40';
+              label = env.toUpperCase();
+            }
+
+            return (
+              <span
+                data-testid="badge-environment"
+                data-environment={normalizedEnv}
+                title={`Environment: ${env}`}
+                className={`text-[9px] font-bold px-1 py-0.5 rounded leading-none ${badgeClass}`}
+              >
+                {label}
+              </span>
+            );
+          })()}
+          {(() => {
+            const isRo =
+              data.readOnly ??
+              Boolean(
+                useConnectionStore
+                  .getState()
+                  .connections.find((c) => c.id === data.connectionId)?.readOnly ||
+                useConnectionStore
+                  .getState()
+                  .connections.find((c) => c.id === data.connectionId)?.read_only
+              );
+            if (!isRo) return null;
+
+            return (
+              <span
+                data-testid="badge-readonly"
+                title="Read-Only Mode"
+                className="text-[9px] font-bold px-1 py-0.5 rounded leading-none bg-amber-500/20 text-amber-400 border border-amber-500/40"
+              >
+                RO
+              </span>
+            );
+          })()}
           {data.isLoading && (
             <span title="Connecting...">
               <Loader2 className="w-3 h-3 text-amber-500 animate-spin" data-testid="spinner-connecting" />

@@ -13,6 +13,8 @@ export interface ConnectionFormData {
   password?: string;
   rememberPassword?: boolean;
   folder?: string;
+  environment?: 'development' | 'staging' | 'production' | string;
+  readOnly?: boolean;
   sslMode?: string;
   // SSL Certs
   caCertPath?: string;
@@ -100,6 +102,46 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             placeholder="e.g. Production, Analytics"
             className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
           />
+        </div>
+      </div>
+
+      {/* Environment & Read-Only Settings */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+        <div>
+          <label htmlFor="conn-environment" className="block text-xs font-medium text-gray-300 mb-1">
+            Environment
+          </label>
+          <select
+            id="conn-environment"
+            aria-label="Environment"
+            value={formData.environment || ''}
+            onChange={(e) =>
+              onChange('environment', (e.target.value as 'development' | 'staging' | 'production' | '') || undefined)
+            }
+            disabled={disabled}
+            className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 focus:outline-none transition-colors text-xs"
+          >
+            <option value="">None (Default)</option>
+            <option value="development">Development</option>
+            <option value="staging">Staging</option>
+            <option value="production">Production</option>
+          </select>
+        </div>
+
+        <div className="pt-2 md:pt-4">
+          <label className="flex items-center space-x-2 cursor-pointer select-none">
+            <input
+              id="conn-readonly"
+              type="checkbox"
+              aria-label="Read-Only Mode"
+              checked={formData.readOnly ?? false}
+              onChange={(e) => onChange('readOnly', e.target.checked)}
+              disabled={disabled}
+              className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+            />
+            <span className="text-xs text-gray-300 font-medium">Read-Only Mode</span>
+            <span className="text-[11px] text-gray-500">(Enforce read-only queries)</span>
+          </label>
         </div>
       </div>
 

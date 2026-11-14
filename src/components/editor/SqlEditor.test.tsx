@@ -671,4 +671,79 @@ describe('SqlEditor', () => {
       expect(screen.queryByTestId('sql-error-callout')).not.toBeInTheDocument();
     });
   });
+
+  describe('Read-Only Mode in SqlEditor', () => {
+    it('displays the Read-Only banner when isReadOnly is true', () => {
+      render(<SqlEditor isReadOnly={true} />);
+      const banner = screen.getByTestId('sql-readonly-banner');
+      expect(banner).toBeInTheDocument();
+      expect(banner).toHaveTextContent(/read-only mode active/i);
+    });
+
+    it('rejects write queries (DML/DDL) in read-only mode and displays error message', async () => {
+      const execSpy = vi.spyOn(dbApi, 'executeQuery');
+      useTabStore.setState({
+        tabs: [
+          {
+            id: 'tab-ro-test',
+            title: 'RO Query Tab',
+            type: 'query',
+            connectionId: 'conn-1',
+            queryContent: 'DELETE FROM users WHERE id = 1;',
+            autoCommit: true,
+          },
+        ],
+        activeTabId: 'tab-ro-test',
+      });
+
+      render(<SqlEditor isReadOnly={true} tabId="tab-ro-test" />);
+
+      const runBtn = screen.getByRole('button', { name: /run/i });
+      await act(async () => {
+        fireEvent.click(runBtn);
+      });
+
+      // dbApi.executeQuery should NOT have been called
+      expect(execSpy).not.toHaveBeenCalled();
+
+      // Error callout should display write query rejection message
+      const callout = await screen.findByTestId('sql-error-callout');
+      expect(callout).toBeInTheDocument();
+      expect(callout).toHaveTextContent(/read-only mode: write query rejected/i);
+    });
+
+    it('allows SELECT queries in read-only mode', async () => {
+      const mockResult: QueryResult = {
+        columns: [{ name: 'val', data_type: 'INTEGER', nullable: true }],
+        rows: [[{ Integer: 123 }]],
+        execution_time_ms: 5,
+        rows_affected: null,
+      };
+      const execSpy = vi.spyOn(dbApi, 'executeQuery').mockResolvedValue(mockResult);
+
+      useTabStore.setState({
+        tabs: [
+          {
+            id: 'tab-ro-select',
+            title: 'RO Select Tab',
+            type: 'query',
+            connectionId: 'conn-1',
+            queryContent: 'SELECT * FROM users;',
+            autoCommit: true,
+          },
+        ],
+        activeTabId: 'tab-ro-select',
+      });
+
+      render(<SqlEditor isReadOnly={true} tabId="tab-ro-select" />);
+
+      const runBtn = screen.getByRole('button', { name: /run/i });
+      await act(async () => {
+        fireEvent.click(runBtn);
+      });
+
+      expect(execSpy).toHaveBeenCalledWith('tab-ro-select', expect.stringContaining('SELECT * FROM users'));
+      expect(screen.queryByTestId('sql-error-callout')).not.toBeInTheDocument();
+    });
+  });
 });

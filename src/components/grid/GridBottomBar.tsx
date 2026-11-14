@@ -14,9 +14,11 @@ import {
   FileText,
   Zap,
   Edit3,
+  Lock,
 } from 'lucide-react';
 
 export interface GridBottomBarProps {
+  isReadOnly?: boolean;
   // Row Operations
   onAddRow?: () => void;
   onDeleteRow?: () => void;
@@ -51,6 +53,7 @@ export interface GridBottomBarProps {
 }
 
 export const GridBottomBar: React.FC<GridBottomBarProps> = ({
+  isReadOnly = false,
   onAddRow,
   onDeleteRow,
   canDelete = false,
@@ -81,6 +84,16 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
     >
       {/* Left: Row actions, commit/discard, and refresh */}
       <div className="flex items-center gap-1">
+        {isReadOnly && (
+          <span
+            data-testid="grid-readonly-badge"
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-500/15 text-amber-500 border border-amber-500/30 mr-1"
+            title="Read-Only Mode: Data modifications are disabled"
+          >
+            <Lock size={11} />
+            <span>Read-Only</span>
+          </span>
+        )}
         {onAddRow && (
           <button
             type="button"

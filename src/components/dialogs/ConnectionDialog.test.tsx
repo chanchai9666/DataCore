@@ -639,6 +639,73 @@ describe('ConnectionDialog', () => {
     });
   });
 
+  describe('Environment and Read-Only Mode', () => {
+    it('renders Environment select and Read-Only Mode checkbox', () => {
+      render(<ConnectionDialog isOpen={true} onClose={onClose} />);
+      const envSelect = screen.getByLabelText(/environment/i);
+      const readOnlyCheckbox = screen.getByLabelText(/read-only mode/i);
+
+      expect(envSelect).toBeInTheDocument();
+      expect(readOnlyCheckbox).toBeInTheDocument();
+      expect(readOnlyCheckbox).not.toBeChecked();
+    });
+
+    it('populates environment and read-only mode from initialConnection', () => {
+      const initial: ConnectionConfig = {
+        id: 'conn-prod',
+        name: 'Production Main',
+        driver: 'postgres',
+        host: '10.0.0.1',
+        port: 5432,
+        database: 'prod_db',
+        environment: 'production',
+        readOnly: true,
+      };
+
+      render(<ConnectionDialog isOpen={true} onClose={onClose} initialConnection={initial} />);
+      const envSelect = screen.getByLabelText(/environment/i) as HTMLSelectElement;
+      const readOnlyCheckbox = screen.getByLabelText(/read-only mode/i) as HTMLInputElement;
+
+      expect(envSelect.value).toBe('production');
+      expect(readOnlyCheckbox.checked).toBe(true);
+    });
+
+    it('saves connection with selected environment and read-only mode', async () => {
+      render(<ConnectionDialog isOpen={true} onClose={onClose} onSaved={onSaved} />);
+
+      // Fill basic required SQLite config
+      fireEvent.change(screen.getByLabelText(/connection name/i), {
+        target: { value: 'Staging SQLite' },
+      });
+      fireEvent.change(screen.getByLabelText(/database path/i), {
+        target: { value: ':memory:' },
+      });
+
+      // Change environment to staging and check read-only mode
+      fireEvent.change(screen.getByLabelText(/environment/i), {
+        target: { value: 'staging' },
+      });
+      fireEvent.click(screen.getByLabelText(/read-only mode/i));
+
+      // Click save
+      fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(dbApi.saveConnection).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'Staging SQLite',
+            driver: 'sqlite',
+            database: ':memory:',
+            environment: 'staging',
+            readOnly: true,
+            read_only: true,
+          }),
+          expect.anything()
+        );
+      });
+    });
+  });
+
   describe('Close and Cancel Actions', () => {
     it('calls onClose when Cancel button is clicked', () => {
       render(<ConnectionDialog isOpen={true} onClose={onClose} />);

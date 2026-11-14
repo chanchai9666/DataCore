@@ -11,6 +11,7 @@ import {
   CornerDownRight,
   ChevronDown,
   ChevronRight,
+  ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { EditorToolbar } from './EditorToolbar';
@@ -33,6 +34,23 @@ import { buildExplainSql } from '../../api/queryBuilder';
 import { buildSetIsolationLevelSql, type IsolationLevel } from '../../api/transactionHelpers';
 import { parseSqlError, type ParsedSqlError } from '../../utils/sqlErrorParser';
 import type { QueryResult } from '../../types/db';
+
+export function isWriteQuery(sql: string): boolean {
+  if (!sql) return false;
+  // Strip comments (-- ... and /* ... */)
+  const stripped = sql
+    .replace(/--.*$/gm, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .trim();
+
+  if (!stripped) return false;
+
+  const statements = stripped.split(';').map((s) => s.trim()).filter(Boolean);
+  const writeKeywordRegex = /^\s*(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|REPLACE|MERGE|GRANT|REVOKE)\b/i;
+  const embeddedWriteRegex = /\b(INSERT\s+INTO|UPDATE\s+[`"'\w]+|DELETE\s+FROM|DROP\s+(TABLE|VIEW|INDEX|DATABASE|SCHEMA)|ALTER\s+TABLE|TRUNCATE\s+TABLE)\b/i;
+
+  return statements.some((stmt) => writeKeywordRegex.test(stmt) || embeddedWriteRegex.test(stmt));
+}
 
 export const setErrorLineEffect = StateEffect.define<number | null>();
 
@@ -325,6 +343,7 @@ export interface SqlEditorProps {
   onError?: (error: unknown) => void;
   theme?: 'light' | 'dark';
   onEditorCreated?: (view: EditorView) => void;
+  isReadOnly?: boolean;
 }
 
 export const SqlEditor: React.FC<SqlEditorProps> = ({
@@ -333,6 +352,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   onError,
   theme: themeProp,
   onEditorCreated,
+  isReadOnly: isReadOnlyProp,
 }) => {
   const activeTabId = useTabStore((s) => s.activeTabId);
   const targetTabId = tabId ?? activeTabId;
@@ -343,6 +363,8 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const connection = useConnectionStore((s) =>
     s.connections.find((c) => c.id === tab?.connectionId)
   );
+
+  const isReadOnly = isReadOnlyProp ?? Boolean(connection?.readOnly || connection?.read_only);
 
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const editorViewRef = useRef<EditorView | null>(null);
@@ -441,6 +463,20 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       }
 
       if (!sqlToExecute) return;
+
+      if (isReadOnly && isWriteQuery(sqlToExecute)) {
+        const errorMsg = 'Read-Only Mode: Write query rejected (INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE are disabled).';
+        const parsed = parseSqlError(errorMsg, sqlToExecute, connection?.driver);
+        setErrorMessage(errorMsg);
+        setParsedError(parsed);
+        toast.error(errorMsg);
+        useStatusStore.getState().setTabStatus(targetTabId, {
+          lastQuery: sqlToExecute,
+          statusMessage: `Blocked: ${errorMsg}`,
+        });
+        onError?.(new Error(errorMsg));
+        return;
+      }
 
       const { modifiedSql, isLimited } = applySafeLimit(sqlToExecute, safeLimit);
       setIsLimitedActive(isLimited);
@@ -566,7 +602,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
 
       await executeSql(modifiedSql, isLimited);
     },
-    [targetTabId, tab, onQueryResult, onError, safeLimit, connection?.driver]
+    [targetTabId, tab, onQueryResult, onError, safeLimit, connection?.driver, isReadOnly]
   );
 
   const handleDismissError = useCallback(() => {
@@ -843,6 +879,23 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         }}
         onExplain={handleExplain}
       />
+
+      {isReadOnly && (
+        <div
+          data-testid="sql-readonly-banner"
+          className="flex items-center justify-between px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/30 text-amber-400 text-xs select-none shrink-0"
+        >
+          <div className="flex items-center gap-2">
+            <ShieldAlert size={14} className="text-amber-400 shrink-0" />
+            <span className="font-medium">
+              Read-Only Mode Active: Write queries (INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE) are blocked.
+            </span>
+          </div>
+          <span className="text-[10px] uppercase font-bold tracking-wider bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/40">
+            Read-Only
+          </span>
+        </div>
+      )}
 
       {parsedError && (
         <SqlErrorCallout

@@ -579,6 +579,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         isLoading,
         isConnected,
         isDisconnected,
+        environment: conn.environment,
+        readOnly: conn.readOnly ?? conn.read_only,
         children,
       });
     });

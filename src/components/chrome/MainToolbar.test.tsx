@@ -208,4 +208,14 @@ describe('MainToolbar Component', () => {
     fireEvent.click(screen.getByTestId('toolbar-tools-user-manager-btn'));
     expect(onOpenUserManager).toHaveBeenCalledTimes(1);
   });
+
+  it('triggers onOpenShortcuts when Keyboard Shortcuts button is clicked', () => {
+    const onOpenShortcuts = vi.fn();
+    render(<MainToolbar onOpenShortcuts={onOpenShortcuts} />);
+    const shortcutsBtn = screen.getByTestId('toolbar-shortcuts-btn');
+    expect(shortcutsBtn).toBeInTheDocument();
+    expect(shortcutsBtn).toHaveAttribute('aria-label', 'Keyboard Shortcuts (⌘/)');
+    fireEvent.click(shortcutsBtn);
+    expect(onOpenShortcuts).toHaveBeenCalledTimes(1);
+  });
 });

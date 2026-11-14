@@ -22,6 +22,7 @@ import {
   GitCompare,
   Activity,
   Users,
+  Keyboard,
   type LucideIcon,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -63,6 +64,7 @@ export interface MainToolbarProps {
   onOpenSchemaDiff?: () => void;
   onOpenActivityMonitor?: () => void;
   onOpenUserManager?: () => void;
+  onOpenShortcuts?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   customItems?: ToolbarActionItem[];
@@ -91,6 +93,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenSchemaDiff,
   onOpenActivityMonitor,
   onOpenUserManager,
+  onOpenShortcuts,
   theme = 'dark',
   onToggleTheme,
   customItems,
@@ -497,6 +500,19 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
           </button>
         ) : (
           <span className="text-xs text-muted/70 italic hidden sm:inline">No connection selected</span>
+        )}
+
+        {onOpenShortcuts && (
+          <button
+            type="button"
+            onClick={onOpenShortcuts}
+            data-testid="toolbar-shortcuts-btn"
+            aria-label="Keyboard Shortcuts (⌘/)"
+            title="Keyboard Shortcuts (⌘/)"
+            className="h-7 w-7 flex items-center justify-center rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+          >
+            <Keyboard size={15} />
+          </button>
         )}
 
         {onToggleTheme && (

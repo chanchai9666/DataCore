@@ -100,6 +100,12 @@ impl PostgresConnection {
             .await
             .unwrap_or(0);
 
+        if config.read_only.unwrap_or(false) {
+            sqlx::query("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;")
+                .execute(&mut conn)
+                .await?;
+        }
+
         Ok((conn, options, backend_pid, tunnel_handle))
     }
 

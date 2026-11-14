@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum DatabaseDriver {
+    #[default]
     #[serde(alias = "Sqlite", alias = "SQLITE")]
     Sqlite,
     #[serde(alias = "Postgres", alias = "POSTGRES", alias = "postgresql", alias = "PostgreSQL")]
@@ -38,7 +39,7 @@ pub struct SslCertConfig {
     pub client_key_path: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct ConnectionConfig {
     pub id: String,
     pub name: String,
@@ -58,4 +59,8 @@ pub struct ConnectionConfig {
     pub timeout_seconds: Option<u32>,
     #[serde(default, alias = "autoReconnect")]
     pub auto_reconnect: Option<bool>,
+    #[serde(default)]
+    pub environment: Option<String>,
+    #[serde(default, alias = "readOnly")]
+    pub read_only: Option<bool>,
 }

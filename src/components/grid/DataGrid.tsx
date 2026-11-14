@@ -17,6 +17,7 @@ import { GridBottomBar } from './GridBottomBar';
 import { lightGridTheme, darkGridTheme } from './gridTheme';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { useStatusStore } from '../../stores/statusStore';
+import { useConnectionStore } from '../../stores/connectionStore';
 import { createGridColumns, createCellContent } from './gridUtils';
 import { sanitizeEditedCellValue } from './tableEditHelpers';
 import { showConfirmDialog } from '../../utils/dialog';
@@ -39,6 +40,7 @@ export interface DataGridProps {
   onRowsDelete?: (rowIndices: number[]) => void;
   onAddRow?: () => void;
   isEditable?: boolean;
+  isReadOnly?: boolean;
   statusMessage?: { type: 'success' | 'error'; text: string } | null;
   theme?: 'dark' | 'light';
   filterState?: TableFilterState;
@@ -75,6 +77,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
   onRowsDelete,
   onAddRow,
   isEditable = false,
+  isReadOnly: isReadOnlyProp,
   statusMessage = null,
   theme = 'dark',
   filterState,
@@ -96,6 +99,12 @@ export const DataGrid: React.FC<DataGridProps> = ({
   onToggleAutoCommit: onToggleAutoCommitProp,
   onCommitChanges,
 }) => {
+  const connection = useConnectionStore((state) =>
+    connectionId ? state.connections.find((c) => c.id === connectionId) : undefined
+  );
+  const effectiveReadOnly = isReadOnlyProp ?? Boolean(connection?.readOnly || connection?.read_only);
+  const effectiveIsEditable = isEditable && !effectiveReadOnly;
+
   const [selectedCell, setSelectedCell] = useState<Item | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -390,6 +399,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
   const handleCellEditedWithStaging = useCallback(
     (cell: readonly [number, number], newValue: EditableGridCell) => {
+      if (effectiveReadOnly) return;
       const [colIndex, rowIndex] = cell;
       const colMeta = data?.columns[colIndex];
       const oldValue = data?.rows[rowIndex]?.[colIndex];
@@ -416,7 +426,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
         onCellEdited?.(cell, newValue);
       }
     },
-    [data, tableKey, activeIsAutoCommit, onCellEdited]
+    [data, tableKey, activeIsAutoCommit, onCellEdited, effectiveReadOnly]
   );
 
   const handleSaveDrawerValue = useCallback(
@@ -831,7 +841,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                   onGridSelectionChange={setGridSelection}
                   onCellActivated={handleCellActivated}
                   onCellClicked={handleCellClicked}
-                  onCellEdited={handleCellEditedWithStaging}
+                  onCellEdited={effectiveReadOnly ? undefined : handleCellEditedWithStaging}
                   onHeaderClicked={handleHeaderClicked}
                   onColumnResize={handleColumnResize}
                   showSearch={showSearch}
@@ -912,11 +922,12 @@ export const DataGrid: React.FC<DataGridProps> = ({
         onPageSizeChange={onPageSizeChange}
         onRefresh={onRefresh}
         isLoading={isLoading}
-        onAddRow={isEditable && onAddRow ? onAddRow : undefined}
-        onDeleteRow={isEditable ? handleDeleteSelected : undefined}
-        canDelete={isEditable && (hasSelectedRows || selectedCell !== null)}
+        isReadOnly={effectiveReadOnly}
+        onAddRow={effectiveIsEditable && onAddRow ? onAddRow : undefined}
+        onDeleteRow={effectiveIsEditable ? handleDeleteSelected : undefined}
+        canDelete={effectiveIsEditable && (hasSelectedRows || selectedCell !== null)}
         isAutoCommit={activeIsAutoCommit}
-        onToggleAutoCommit={handleToggleAutoCommit}
+        onToggleAutoCommit={effectiveReadOnly ? undefined : handleToggleAutoCommit}
         hasPendingChanges={hasPending}
         pendingCount={pendingCount}
         onCommit={handleCommitChanges}
@@ -928,7 +939,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         cellInfo={activeCellInfo}
-        onSaveValue={isEditable || Boolean(onCellEdited) ? handleSaveDrawerValue : undefined}
+        onSaveValue={effectiveIsEditable && (isEditable || Boolean(onCellEdited)) ? handleSaveDrawerValue : undefined}
       />
 
       {/* Export Modal */}

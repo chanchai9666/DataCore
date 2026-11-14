@@ -251,3 +251,43 @@ async fn test_sqlite_table_filter_sanitization() {
         );
     }
 }
+
+#[tokio::test]
+async fn test_sqlite_read_only_mode_blocks_writes() {
+    use crate::models::connection::{ConnectionConfig, DatabaseDriver};
+
+    let config = ConnectionConfig {
+        id: "ro-test".to_string(),
+        name: "Read-Only SQLite".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: ":memory:".to_string(),
+        user: None,
+        folder: None,
+        ssl_mode: None,
+        ssl_certs: None,
+        ssh_tunnel: None,
+        timeout_seconds: None,
+        auto_reconnect: Some(true),
+        environment: Some("production".to_string()),
+        read_only: Some(true),
+    };
+
+    let conn = SqliteConnection::from_config(&config).expect("create read-only sqlite connection");
+
+    // Read query should succeed
+    let res = conn.execute_query("SELECT 42 as num;").await.expect("read query must succeed");
+    assert_eq!(res.rows.len(), 1);
+    assert_eq!(res.rows[0][0], CellValue::Integer(42));
+
+    // Write operations must fail due to PRAGMA query_only = ON;
+    let write_res = conn.execute_query("CREATE TABLE blocked (id INT);").await;
+    assert!(write_res.is_err(), "write operation must be blocked in read-only mode");
+    let err_str = write_res.err().unwrap().to_string();
+    assert!(
+        err_str.to_lowercase().contains("readonly") || err_str.to_lowercase().contains("read-only"),
+        "error should indicate readonly violation, got: {}",
+        err_str
+    );
+}

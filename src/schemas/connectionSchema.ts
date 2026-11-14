@@ -7,6 +7,9 @@ export const baseConnectionSchema = z.object({
   rememberPassword: z.boolean().optional(),
   password: z.string().optional(),
   sslMode: z.string().optional(),
+  environment: z.enum(['development', 'staging', 'production']).or(z.literal('')).optional(),
+  readOnly: z.boolean().optional(),
+  read_only: z.boolean().optional(),
 });
 
 export const sqliteConnectionSchema = baseConnectionSchema.extend({

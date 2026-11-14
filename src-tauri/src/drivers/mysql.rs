@@ -97,6 +97,12 @@ impl MySqlConnection {
             .await
             .unwrap_or(0);
 
+        if config.read_only.unwrap_or(false) {
+            sqlx::query("SET SESSION transaction_read_only = 1;")
+                .execute(&mut conn)
+                .await?;
+        }
+
         Ok((conn, options, connection_id, tunnel_handle))
     }
 

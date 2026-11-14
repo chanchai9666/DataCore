@@ -35,6 +35,8 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
     sshPassphrase: '',
     timeoutSeconds: '',
     autoReconnect: true,
+    environment: '',
+    readOnly: false,
   };
 
   switch (driver) {
@@ -111,6 +113,8 @@ function initializeFormData(initial?: ConnectionConfig | null): ConnectionFormDa
     sshPassphrase: ssh?.passphrase || '',
     timeoutSeconds: initial.timeout_seconds ?? initial.timeoutSeconds ?? '',
     autoReconnect: initial.auto_reconnect ?? initial.autoReconnect ?? true,
+    environment: (initial.environment as any) || '',
+    readOnly: initial.read_only ?? initial.readOnly ?? false,
   };
 }
 
@@ -272,6 +276,9 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       timeoutSeconds,
       auto_reconnect: formData.autoReconnect,
       autoReconnect: formData.autoReconnect,
+      environment: formData.environment ? formData.environment : undefined,
+      read_only: formData.readOnly,
+      readOnly: formData.readOnly,
     };
   };
 

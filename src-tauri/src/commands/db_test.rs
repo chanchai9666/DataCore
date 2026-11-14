@@ -26,6 +26,8 @@ async fn test_session_lifecycle() {
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
     save_connection_impl(&store, &config, None).expect("save connection config");
 
@@ -222,6 +224,8 @@ async fn test_command_error_handling_and_cancellation() {
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
     let latency_res = test_connection_impl(&store, &config, None).await;
     assert!(latency_res.is_ok());
@@ -241,6 +245,8 @@ async fn test_command_error_handling_and_cancellation() {
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     }, None).unwrap();
     open_session_impl(&store, &session_mgr, "mem-test", "tab-cancel").await.unwrap();
     let cancel_ok = cancel_query_impl(&session_mgr, "tab-cancel").await;
@@ -269,6 +275,8 @@ async fn test_close_session_performs_explicit_rollback() {
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
     store.save_connection(&config, None).unwrap();
 
@@ -343,6 +351,8 @@ async fn test_schema_tree_uses_dedicated_connection_independent_of_tab_transacti
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
     store.save_connection(&config, None).unwrap();
 
@@ -396,6 +406,8 @@ async fn test_connection_impl_uses_stored_keychain_password_when_none_provided()
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
 
     // Store connection with password in keychain
@@ -447,6 +459,8 @@ async fn test_disconnect_connection_teardown_all_sessions() {
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
     let config2 = ConnectionConfig {
         id: "conn-2".to_string(),
@@ -462,6 +476,8 @@ async fn test_disconnect_connection_teardown_all_sessions() {
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
 
     store.save_connection(&config1, None).expect("save conn 1");
@@ -517,6 +533,8 @@ async fn test_session_password_in_memory_lifecycle_without_vault() {
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
 
     // 1. User saves connection WITHOUT remember password (stored password is None)
@@ -585,6 +603,8 @@ async fn test_session_ssh_passphrase_lifecycle_in_memory_and_vault() {
         }),
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
 
     store.save_connection(&config, None).expect("save connection");

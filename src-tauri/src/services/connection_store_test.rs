@@ -24,6 +24,8 @@ fn test_connection_storage_and_keychain_isolation() {
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
 
     let secret_password = "super_secret_pw_123";
@@ -74,6 +76,8 @@ fn test_connection_storage_and_keychain_isolation() {
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
     store
         .save_connection(&conn2, None)
@@ -120,6 +124,8 @@ fn test_connection_storage_update_existing() {
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
 
     store
@@ -169,6 +175,8 @@ fn test_atomic_persistence_cleans_up_tmp_file() {
         ssh_tunnel: None,
         timeout_seconds: None,
         auto_reconnect: None,
+        environment: None,
+        read_only: None,
     };
 
     store.save_connection(&conn, None).expect("save connection");
@@ -217,6 +225,8 @@ fn test_ssh_passphrase_vault_encryption_and_json_omission() {
         }),
         timeout_seconds: Some(15),
         auto_reconnect: Some(true),
+        environment: None,
+        read_only: None,
     };
 
     // 1. Save connection with SSH passphrase

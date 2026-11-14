@@ -76,6 +76,21 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     }
   }, []);
 
+  // Listen for global toggle-sidebar keybinding (Cmd+B / Ctrl+B)
+  useEffect(() => {
+    const handleToggleSidebar = () => {
+      setSidebarCollapsedState((prev) => {
+        const next = !prev;
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('datacore-sidebar-collapsed', String(next));
+        }
+        return next;
+      });
+    };
+    window.addEventListener('datacore:toggle-sidebar', handleToggleSidebar);
+    return () => window.removeEventListener('datacore:toggle-sidebar', handleToggleSidebar);
+  }, []);
+
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     if (typeof localStorage !== 'undefined') {
       const saved = localStorage.getItem('datacore-sidebar-width');
@@ -1060,6 +1075,10 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                 <SqlEditor
                   tabId={activeTab.id}
                   theme={theme}
+                  isReadOnly={Boolean(
+                    connections.find((c) => c.id === activeTab.connectionId)?.readOnly ||
+                    connections.find((c) => c.id === activeTab.connectionId)?.read_only
+                  )}
                   onQueryResult={(result) => {
                     setQueryResults((prev) => ({
                       ...prev,
@@ -1243,6 +1262,10 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                           );
                         }}
                         theme={theme}
+                        isReadOnly={Boolean(
+                          connections.find((c) => c.id === activeTab.connectionId)?.readOnly ||
+                          connections.find((c) => c.id === activeTab.connectionId)?.read_only
+                        )}
                         isEditable={true}
                         onCellEdited={handleCellEdited}
                         onRowDelete={handleRowDelete}

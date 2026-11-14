@@ -597,7 +597,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 | **#106** | `refactor(architecture): แยก Monolithic UI Components (TableStructureEditor, ObjectBrowser, DockLayout) และลบความซ้ำซ้อนใน IPC Parameters` | 🟡 Medium | แยกไฟล์ UI ขนาดใหญ่ (>1,000-3,000 บรรทัด) เป็นโมดูลย่อย และปรับแต่ง IPC parameters ให้เป็นมาตรฐานเดียว |
 
 ### 6.2 การขยายขอบเขตและอัปเดต Issues เดิมที่เกี่ยวข้อง
-- **Issue #84 (Read-Only Mode):** อัปเดตเพิ่มการบังคับใช้ระดับ **Database Session & Driver (Backend)** เช่น SQLite `SQLITE_OPEN_READ_ONLY`, PostgreSQL `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`, MySQL `SET SESSION transaction_read_only = 1;` เพื่อป้องกันการ Bypass จากภายนอก
+- **Issue #84 (Read-Only Mode):** [COMPLETED] เพิ่มฟีเจอร์ Environment Color Badges (`development` = สีเขียว Emerald, `staging` = สีส้ม Amber, `production` = สีแดง Red) และ Read-Only Mode พร้อมการบังคับใช้ระดับ **Database Session & Driver (Backend)**: SQLite `PRAGMA query_only = ON;`, PostgreSQL `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;`, MySQL `SET SESSION transaction_read_only = 1;` และการป้องกันบน UI (SqlEditor ปฏิเสธ DML/DDL write queries พร้อมแจ้งเตือน Read-Only banner, DataGrid ปิดการแก้ไขเซลล์/เพิ่มแถว/ลบแถว) เพื่อความปลอดภัยสูงสุด
 - **Issue #91 (Schema-Aware Autocomplete):** อัปเดตระบุการผสานรวมกับ CodeMirror 6 `sql({ schema: schemaMap })` และการจัดการ Cache Invalidation
 - **Issue #92 (Multi-Statement & Formatter):** อัปเดตระบุการนำ Quote-aware SQL Splitter ไปใช้ใน Rust Driver เพื่อรองรับ Multi-Statement Execution ที่มีหลาย `SELECT`
 - **Issue #93 (Object Browser Deep Tree):** อัปเดตขยายประเภท `SchemaNodeType` ใน Rust & TS ให้ครอบคลุม Indexes, Foreign Keys, Triggers, Functions/Procedures ร่วมกับกลยุทธ์ Lazy Loading

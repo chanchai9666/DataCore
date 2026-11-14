@@ -13,6 +13,7 @@ pub struct SqliteConnection {
     database_name: String,
     file_path: Option<String>,
     auto_reconnect: bool,
+    read_only: bool,
     autocommit: Arc<Mutex<bool>>,
 }
 
@@ -26,6 +27,7 @@ impl SqliteConnection {
             database_name: "main".to_string(),
             file_path: None,
             auto_reconnect: false,
+            read_only: false,
             autocommit: Arc::new(Mutex::new(true)),
         })
     }
@@ -44,6 +46,7 @@ impl SqliteConnection {
             database_name: db_name,
             file_path: Some(path.to_string()),
             auto_reconnect: true,
+            read_only: false,
             autocommit: Arc::new(Mutex::new(true)),
         })
     }
@@ -55,6 +58,11 @@ impl SqliteConnection {
             Self::open(&config.database)?
         };
         instance.auto_reconnect = config.auto_reconnect.unwrap_or(true);
+        if config.read_only.unwrap_or(false) {
+            instance.read_only = true;
+            let conn = instance.conn.try_lock().map_err(|e| AppError::Other(e.to_string()))?;
+            conn.execute_batch("PRAGMA query_only = ON;")?;
+        }
         Ok(instance)
     }
 
@@ -148,6 +156,9 @@ impl DatabaseConnection for SqliteConnection {
                 if self.auto_reconnect && ac {
                     if let Some(ref path) = self.file_path {
                         if let Ok(new_conn) = rusqlite::Connection::open(path) {
+                            if self.read_only {
+                                let _ = new_conn.execute_batch("PRAGMA query_only = ON;");
+                            }
                             let new_handle = new_conn.get_interrupt_handle();
                             *conn = new_conn;
                             *self.interrupt_handle.lock().await = new_handle;

@@ -40,7 +40,12 @@ export interface ConnectionConfig {
   timeoutSeconds?: number;
   auto_reconnect?: boolean;
   autoReconnect?: boolean;
+  environment?: 'development' | 'staging' | 'production' | string;
+  read_only?: boolean;
+  readOnly?: boolean;
 }
+
+export type ConnectionEnvironment = 'development' | 'staging' | 'production';
 
 export type SchemaNodeType = 'database' | 'schema' | 'table' | 'view';
 

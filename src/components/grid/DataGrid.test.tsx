@@ -997,4 +997,34 @@ describe('DataGrid', () => {
       expect(writeTextMock).toHaveBeenCalled();
     });
   });
+
+  describe('Read-Only Mode in DataGrid', () => {
+    it('disables cell editing, add row, and delete row when isReadOnly is true', () => {
+      const onCellEdited = vi.fn();
+      const onAddRow = vi.fn();
+      const onRowDelete = vi.fn();
+
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          isEditable={true}
+          isReadOnly={true}
+          onCellEdited={onCellEdited}
+          onAddRow={onAddRow}
+          onRowDelete={onRowDelete}
+        />
+      );
+
+      // DataEditor onCellEdited prop should be undefined to disallow in-grid editing
+      expect(latestDataEditorProps.onCellEdited).toBeUndefined();
+
+      // Add Row and Delete Row buttons must not be rendered
+      expect(screen.queryByLabelText(/add row/i)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/delete selected row/i)).not.toBeInTheDocument();
+
+      // Read-Only badge must be rendered
+      expect(screen.getByTestId('grid-readonly-badge')).toBeInTheDocument();
+      expect(screen.getByText('Read-Only')).toBeInTheDocument();
+    });
+  });
 });

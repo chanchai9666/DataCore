@@ -16,6 +16,7 @@ import { ActivityMonitorModal } from './components/monitor/ActivityMonitorModal'
 import { UserPrivilegeManagerModal } from './components/security/UserPrivilegeManagerModal';
 import { DataImportWizardModal } from './components/transfer/DataImportWizardModal';
 import { DataExportWizardModal } from './components/transfer/DataExportWizardModal';
+import { KeyboardShortcutsModal } from './components/dialogs/KeyboardShortcutsModal';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
 import { openQueryTab, openTableListTab, openERDiagramTab } from './components/sidebar/tabHelpers';
@@ -45,6 +46,7 @@ export function App() {
   const [isSchemaDiffModalOpen, setIsSchemaDiffModalOpen] = useState(false);
   const [isActivityMonitorModalOpen, setIsActivityMonitorModalOpen] = useState(false);
   const [isUserManagerModalOpen, setIsUserManagerModalOpen] = useState(false);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
@@ -204,10 +206,16 @@ export function App() {
     }
   };
 
-  // Keyboard shortcuts integration: ⌘N (New Connection), ⌘T (New Query), ⌘W (Close Tab)
+  // Keyboard shortcuts integration: ⌘N, ⌘T, ⌘W, ⌘/, ⌘B, ⌘[/⌘], ⌘D, Escape
   useShortcuts({
     onNewConnection: handleOpenNewConnection,
     onToggleTheme: handleToggleTheme,
+    onOpenShortcuts: () => setIsShortcutsModalOpen((prev) => !prev),
+    onEscape: () => {
+      if (isShortcutsModalOpen) {
+        setIsShortcutsModalOpen(false);
+      }
+    },
   });
 
   return (
@@ -253,6 +261,7 @@ export function App() {
           if (resolvedConnectionId) setIsActivityMonitorModalOpen(true);
         }}
         onOpenUserManager={() => setIsUserManagerModalOpen(true)}
+        onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
         onEditConnection={(conn) => {
           setConnectionToEdit(conn);
           setIsConnectionDialogOpen(true);
@@ -417,6 +426,12 @@ export function App() {
             });
           }
         }}
+      />
+
+      {/* Global Keyboard Shortcuts Cheat Sheet Modal */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
       />
 
       {/* Global Toast Notifications */}
