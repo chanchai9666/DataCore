@@ -823,6 +823,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
       - เพิ่มปุ่มไอคอน `<Columns3>` สีฟ้า (`Show Columns`) วางอยู่ข้างๆ ปุ่มไอคอน `<Play>` สีเขียว (`Query Table`) บนแถบ Hover Action Buttons ของโหนดตารางใน Sidebar Explorer Tree
       - เมื่อผู้ใช้คลิกปุ่มไอคอนคอลัมน์ ระบบจะดึงข้อมูลโครงสร้างคอลัมน์ของตารางนั้นและคลี่เปิด/ปิดรายการคอลัมน์ใน Tree ได้ทันทีโดยตรง
 
+27. **Issue #135: Prevent Table Row Click From Auto-Expanding Columns in Explorer Tree (`ConnectionTreeNode.tsx`)**
+    - **Separate Row Selection from Column Expansion:** แก้ไขฟังก์ชัน `handleClick` บนโหนดประเภท Table และ View ไม่ให้ trigger `node.toggle()` หรือดึงรายการคอลัมน์ออกมาเมื่อคลิกที่ชื่อตาราง โดยคงไว้เฉพาะการเลือกแถว (`node.select()`)
+    - **Explicit Column Expansion Control:** การเปิดดูและคลี่รายการคอลัมน์ใต้ตารางจะเกิดขึ้นเฉพาะเมื่อผู้ใช้คลิกปุ่มเฉพาะ **Show Columns** (ไอคอนสีฟ้าข้างปุ่ม Play) หรือคลิกที่ลูกศร Chevron เท่านั้น ป้องกันปัญหาโครงสร้าง tree ขยายกางคอลัมน์ออกมารกโดยไม่ตั้งใจ
+
+
 
 
 

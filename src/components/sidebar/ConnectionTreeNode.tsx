@@ -311,11 +311,9 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       if (status === 'connected') {
         node.toggle();
       }
-    } else if (isTable) {
-      if (!node.isOpen && context.onLoadTableColumns) {
-        context.onLoadTableColumns(data);
-      }
-      node.toggle();
+    } else if (isTableOrView) {
+      // Do nothing to toggle: clicking table or view row only selects it.
+      // Columns are expanded via the dedicated Show Columns button or chevron arrow.
     } else if (!isLeaf) {
       node.toggle();
     }

@@ -125,4 +125,30 @@ describe('ConnectionTreeNode Badges', () => {
     expect(onLoadTableColumns).toHaveBeenCalledWith(data);
     expect(node.toggle).toHaveBeenCalled();
   });
+
+  it('does not toggle or load columns when table row is clicked', () => {
+    const onLoadTableColumns = vi.fn();
+    const data: BrowserTreeNode = {
+      id: 'table-users',
+      name: 'users',
+      nodeType: 'table',
+      connectionId: 'conn-1',
+      tableName: 'users',
+      driver: 'sqlite',
+    };
+
+    const node = createMockNode(data);
+    render(
+      <ObjectBrowserContext.Provider value={{ onLoadTableColumns }}>
+        <ConnectionTreeNode node={node} style={{}} dragHandle={vi.fn()} tree={{} as any} />
+      </ObjectBrowserContext.Provider>
+    );
+
+    const tableName = screen.getByText('users');
+    fireEvent.click(tableName);
+
+    expect(node.select).toHaveBeenCalled();
+    expect(node.toggle).not.toHaveBeenCalled();
+    expect(onLoadTableColumns).not.toHaveBeenCalled();
+  });
 });
