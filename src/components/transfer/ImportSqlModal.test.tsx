@@ -187,4 +187,56 @@ describe('ImportSqlModal', () => {
       );
     });
   });
+
+  it('adapts schema for SQLite connection (disabled N/A and target database name)', async () => {
+    useConnectionStore.setState({
+      connections: [
+        { id: 'sqlite-1', name: 'local.db', driver: 'sqlite', database: 'local.db' },
+      ],
+    });
+
+    vi.mocked(dataTransferApi.pickSqlImportFile).mockResolvedValueOnce('/dump/script.sql');
+    vi.mocked(dbApi.importSql).mockResolvedValueOnce({
+      totalStatements: 3,
+      successfulStatements: 3,
+      failedStatements: 0,
+    });
+
+    render(
+      <ImportSqlModal
+        isOpen={true}
+        connectionId="sqlite-1"
+        schemaName="public" // Should be ignored for SQLite
+        onClose={vi.fn()}
+      />
+    );
+
+    const schemaInput = screen.getByTestId('destination-schema-input') as HTMLInputElement;
+    expect(schemaInput).toBeDisabled();
+    expect(schemaInput.placeholder).toBe('N/A (SQLite)');
+    expect(schemaInput.value).toBe('');
+
+    expect(screen.getByText('SQLite Database (local.db)')).toBeInTheDocument();
+
+    // Pick file
+    fireEvent.click(screen.getByRole('button', { name: /Browse.../i }));
+    await waitFor(() => {
+      expect(
+        (screen.getByPlaceholderText('Select or enter path to .sql file') as HTMLInputElement).value
+      ).toBe('/dump/script.sql');
+    });
+
+    // Execute
+    fireEvent.click(screen.getByRole('button', { name: /Execute SQL Script/i }));
+
+    await waitFor(() => {
+      expect(dbApi.importSql).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionId: 'sqlite-1',
+          schema: undefined,
+          filePath: '/dump/script.sql',
+        })
+      );
+    });
+  });
 });

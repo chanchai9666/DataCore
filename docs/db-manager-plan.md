@@ -798,6 +798,15 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Data Import & Export Wizards Context Headers (`DataImportWizardModal.tsx`, `DataExportWizardModal.tsx`):** เพิ่ม Destination Context Banner ใน Step 1 ของ Data Import Wizard และ Source Target Banner ใน Data Export Wizard ระบุเซิร์ฟเวอร์และตารางที่เกี่ยวข้องอย่างโปร่งใส
     - **Categorized 2-Line Tools Menu Redesign (`MainToolbar.tsx`):** ปรับขนาดเมนู Tools ให้กว้างขึ้น (`min-w-[340px]`) พร้อมจัดหมวดหมู่ 4 กลุ่มชัดเจน (Performance & Monitoring, Design & Modeling, Security & Administration, Productivity) และแสดงข้อความ 2 บรรทัด (ชื่อเครื่องมือตัวหนา + คำอธิบายประโยชน์และการใช้งานสั้นๆ 1 บรรทัด) ป้องกันปัญหาข้อความโดนตัดและช่วยให้ผู้ใช้งานเข้าใจหน้าที่ของเครื่องมือแต่ละตัวทันที
 
+24. **Issue #132: Equalize Dropdown & Input Heights and Adapt Schema Context by Database Driver (`index.css`, `ExportSqlModal.tsx`, `ImportSqlModal.tsx`, `CrossDbCopyModal.tsx`, `SchemaDiffModal.tsx`, `App.tsx`)**
+    - **Equalized Dropdown (<select>) & Input Height:** กำหนด Base CSS Normalization ใน `src/index.css` (`select:not([multiple]) { min-height: 34px }`) และใส่คลาส `h-[34px]` ควบคู่กันบน Dropdown และ Input ในทุกฟอร์มและโมดอล ป้องกันปัญหา WebKit Native Select หดสั้นกว่า Input Textbox บน macOS
+    - **Driver-Aware Schema Adaptation:** ปรับเปลี่ยนการแสดงผลและค่าของ Schema ตาม Driver ของฐานข้อมูลที่เลือก:
+      - **SQLite:** ปิดใช้งาน (Disabled) ช่อง Schema พร้อมแสดง placeholder `N/A (SQLite)` และบังคับค่าเป็นว่างเปล่า (`undefined`) โดยใน Target Scope จะแสดงเฉพาะชื่อตารางตรงๆ เช่น `categories` หรือ `All database tables` โดยไม่มีคำว่า `public.` นำหน้า
+      - **PostgreSQL:** เปิดใช้งานช่อง Schema ตามปกติ ค่าเริ่มต้น `public` และแสดง Target Scope เป็น `public.tableName`
+      - **MySQL:** ปรับ Label เป็น `Database / Schema:` และดึงชื่อ Database ใน connection configuration มาเป็นค่าเริ่มต้น ไม่ใช้คำว่า `public`
+      - **Dynamic Switching:** เมื่อผู้ใช้เปลี่ยน Connection ใน Dropdown ระบบจะรีเซ็ตและปรับ Schema ให้สอดคล้องกับ Driver ใหม่อัตโนมัติทันที
+
+
 
 
 

@@ -6,6 +6,7 @@ import { pickSqlExportFile, cancelTransfer } from '../../api/dataTransferApi';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { DbBadge } from '../sidebar/DbBadge';
 import type { SqlExportResult } from '../../types/dataTransfer';
+import type { DatabaseDriver } from '../../types/db';
 
 export interface ExportSqlModalProps {
   isOpen: boolean;
@@ -35,25 +36,49 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
 
+  const fallbackDriver: DatabaseDriver = schemaName ? 'postgres' : 'sqlite';
+  const connOptions = connections.some((c) => c.id === selectedConnectionId)
+    ? connections
+    : [{ id: selectedConnectionId, name: selectedConnectionId, driver: fallbackDriver, database: '' }, ...connections];
+
+  const activeConn = connections.find((c) => c.id === selectedConnectionId) || connOptions.find((c) => c.id === selectedConnectionId);
+  const isSqlite = activeConn?.driver === 'sqlite';
+  const isMysql = activeConn?.driver === 'mysql';
+
   useEffect(() => {
     if (isOpen) {
       setSelectedConnectionId(connectionId);
-      setSelectedSchemaName(schemaName || '');
+      const conn = connections.find((c) => c.id === connectionId) || { driver: fallbackDriver, database: '' };
+      if (conn?.driver === 'sqlite') {
+        setSelectedSchemaName('');
+      } else if (conn?.driver === 'mysql') {
+        setSelectedSchemaName(schemaName || conn?.database || '');
+      } else {
+        setSelectedSchemaName(schemaName || 'public');
+      }
       setMode('both');
       setIncludeDropTable(true);
       setLoading(false);
       setError(null);
     }
-  }, [isOpen, connectionId, schemaName]);
+  }, [isOpen, connectionId, schemaName, connections, fallbackDriver]);
 
   if (!isOpen) return null;
 
-  const targetName = tableName || (selectedSchemaName ? `${selectedSchemaName}_dump` : 'database_dump');
+  const handleConnectionChange = (newConnId: string) => {
+    setSelectedConnectionId(newConnId);
+    const newConn = connections.find((c) => c.id === newConnId);
+    if (newConn?.driver === 'sqlite') {
+      setSelectedSchemaName('');
+    } else if (newConn?.driver === 'mysql') {
+      setSelectedSchemaName(newConn.database || '');
+    } else if (newConn?.driver === 'postgres') {
+      setSelectedSchemaName(selectedSchemaName || 'public');
+    }
+  };
 
-  const activeConn = connections.find((c) => c.id === selectedConnectionId);
-  const connOptions = connections.some((c) => c.id === selectedConnectionId)
-    ? connections
-    : [{ id: selectedConnectionId, name: selectedConnectionId, driver: 'sqlite' as const, database: '' }, ...connections];
+  const effectiveSchema = isSqlite ? undefined : (selectedSchemaName.trim() || undefined);
+  const targetName = tableName || (effectiveSchema ? `${effectiveSchema}_dump` : (activeConn?.name ? `${activeConn.name}_dump` : 'database_dump'));
 
   const handleCancelExport = async () => {
     if (loading && activeJobIdRef.current) {
@@ -84,7 +109,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
         try {
           const allMeta = await dbApi.getTableListMetadata(
             selectedConnectionId,
-            selectedSchemaName.trim() || undefined
+            effectiveSchema
           );
           tables = allMeta.map((t) => t.name);
         } catch {
@@ -94,7 +119,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
 
       const result = await dbApi.exportSql({
         connectionId: selectedConnectionId,
-        schema: selectedSchemaName.trim() || undefined,
+        schema: effectiveSchema,
         tables,
         filePath,
         includeDropTable,
@@ -178,9 +203,9 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                   id="source-connection-select"
                   data-testid="source-connection-select"
                   value={selectedConnectionId}
-                  onChange={(e) => setSelectedConnectionId(e.target.value)}
+                  onChange={(e) => handleConnectionChange(e.target.value)}
                   disabled={loading}
-                  className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-[#141414] border border-gray-300 dark:border-[#333333] rounded text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 truncate"
+                  className="w-full h-[34px] px-2.5 py-1.5 text-xs bg-white dark:bg-[#141414] border border-gray-300 dark:border-[#333333] rounded text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 truncate"
                 >
                   {connOptions.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -195,17 +220,27 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                   htmlFor="source-schema-input"
                   className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1"
                 >
-                  Schema (optional):
+                  {isMysql ? 'Database / Schema:' : 'Schema:'}
                 </label>
                 <input
                   id="source-schema-input"
                   data-testid="source-schema-input"
                   type="text"
-                  value={selectedSchemaName}
+                  value={isSqlite ? '' : selectedSchemaName}
                   onChange={(e) => setSelectedSchemaName(e.target.value)}
-                  placeholder="e.g. public"
-                  disabled={loading}
-                  className="w-full px-2.5 py-1.5 text-xs font-mono bg-white dark:bg-[#141414] border border-gray-300 dark:border-[#333333] rounded text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500"
+                  placeholder={
+                    isSqlite
+                      ? 'N/A (SQLite)'
+                      : isMysql
+                      ? (activeConn?.database || 'e.g. database_name')
+                      : 'e.g. public'
+                  }
+                  disabled={loading || isSqlite}
+                  className={`w-full h-[34px] px-2.5 py-1.5 text-xs font-mono border rounded focus:outline-none transition-colors ${
+                    isSqlite
+                      ? 'bg-gray-100 dark:bg-[#181818] border-gray-200 dark:border-[#2a2a2a] text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      : 'bg-white dark:bg-[#141414] border-gray-300 dark:border-[#333333] text-gray-900 dark:text-gray-100 focus:border-blue-500'
+                  }`}
                 />
               </div>
             </div>
@@ -216,7 +251,17 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
               Target Scope
             </label>
             <div className="px-3 py-2 text-xs font-mono bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded text-gray-700 dark:text-gray-300">
-              {tableName
+              {isSqlite
+                ? tableName || 'All database tables'
+                : isMysql
+                ? tableName
+                  ? selectedSchemaName
+                    ? `${selectedSchemaName}.${tableName}`
+                    : tableName
+                  : selectedSchemaName
+                  ? `All tables in database '${selectedSchemaName}'`
+                  : 'All database tables'
+                : tableName
                 ? `${selectedSchemaName ? selectedSchemaName + '.' : ''}${tableName}`
                 : selectedSchemaName
                 ? `All tables in schema '${selectedSchemaName}'`

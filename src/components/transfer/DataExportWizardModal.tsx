@@ -332,7 +332,7 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
                       <select
                         value={delimiter}
                         onChange={(e) => setDelimiter(e.target.value)}
-                        className="w-full bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
+                        className="w-full h-[34px] bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
                       >
                         <option value=",">Comma (,)</option>
                         <option value="&#9;">Tab (\t) - TSV</option>

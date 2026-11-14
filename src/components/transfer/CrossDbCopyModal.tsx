@@ -42,7 +42,14 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setTargetConnectionId(sourceConnectionId);
-      setTargetSchemaName(sourceSchemaName || '');
+      const tgt = connections.find((c) => c.id === sourceConnectionId);
+      if (tgt?.driver === 'sqlite') {
+        setTargetSchemaName('');
+      } else if (tgt?.driver === 'mysql') {
+        setTargetSchemaName(sourceSchemaName || tgt.database || '');
+      } else {
+        setTargetSchemaName(sourceSchemaName || (tgt?.driver === 'postgres' ? 'public' : ''));
+      }
       setTargetTableName(`${sourceTableName}_copy`);
       setCopyStructure(true);
       setDropTargetIfExists(false);
@@ -52,7 +59,7 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
       setProgress(null);
       activeJobIdRef.current = null;
     }
-  }, [isOpen, sourceConnectionId, sourceTableName, sourceSchemaName]);
+  }, [isOpen, sourceConnectionId, sourceTableName, sourceSchemaName, connections]);
 
   const handleCancelOrClose = async () => {
     if (loading && activeJobIdRef.current) {
@@ -67,9 +74,18 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
     onClose();
   };
 
-  // Adjust default target table name when target connection changes
+  // Adjust default target table name and schema when target connection changes
   const handleTargetConnectionChange = (newTargetConnId: string) => {
     setTargetConnectionId(newTargetConnId);
+    const newTgt = connections.find((c) => c.id === newTargetConnId);
+    if (newTgt?.driver === 'sqlite') {
+      setTargetSchemaName('');
+    } else if (newTgt?.driver === 'mysql') {
+      setTargetSchemaName(newTgt.database || '');
+    } else if (newTgt?.driver === 'postgres' && !targetSchemaName) {
+      setTargetSchemaName('public');
+    }
+
     if (newTargetConnId !== sourceConnectionId) {
       if (targetTableName === `${sourceTableName}_copy`) {
         setTargetTableName(sourceTableName);
@@ -244,7 +260,7 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
                   value={targetConnectionId}
                   onChange={(e) => handleTargetConnectionChange(e.target.value)}
                   disabled={loading}
-                  className="w-full px-2 py-1 text-xs bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 truncate"
+                  className="w-full h-[34px] px-2.5 py-1 text-xs bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 truncate"
                 >
                   {connections.map((conn) => (
                     <option key={conn.id} value={conn.id}>
@@ -257,17 +273,27 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
               {/* Target Schema */}
               <div className="space-y-1 text-xs">
                 <label htmlFor="target-schema-input" className="text-zinc-500 dark:text-zinc-400 block">
-                  Schema (optional):
+                  {targetConn?.driver === 'mysql' ? 'Database / Schema:' : 'Schema:'}
                 </label>
                 <input
                   id="target-schema-input"
                   data-testid="target-schema-input"
                   type="text"
-                  value={targetSchemaName}
+                  value={targetConn?.driver === 'sqlite' ? '' : targetSchemaName}
                   onChange={(e) => setTargetSchemaName(e.target.value)}
-                  disabled={loading}
-                  placeholder={targetConn?.driver === 'postgres' ? 'public' : 'default'}
-                  className="w-full px-2 py-1 text-xs bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
+                  disabled={loading || targetConn?.driver === 'sqlite'}
+                  placeholder={
+                    targetConn?.driver === 'sqlite'
+                      ? 'N/A (SQLite)'
+                      : targetConn?.driver === 'mysql'
+                      ? (targetConn.database || 'default')
+                      : 'public'
+                  }
+                  className={`w-full h-[34px] px-2.5 py-1 text-xs border rounded focus:outline-none font-mono transition-colors ${
+                    targetConn?.driver === 'sqlite'
+                      ? 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed'
+                      : 'bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white focus:border-blue-500'
+                  }`}
                 />
               </div>
 
@@ -284,7 +310,7 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
                   onChange={(e) => setTargetTableName(e.target.value)}
                   disabled={loading}
                   required
-                  className="w-full px-2 py-1 text-xs bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full h-[34px] px-2.5 py-1 text-xs bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
             </div>

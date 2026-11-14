@@ -139,4 +139,72 @@ describe('ExportSqlModal', () => {
       );
     });
   });
+
+  it('adapts schema for SQLite connection (disabled N/A and unscoped table)', async () => {
+    useConnectionStore.setState({
+      connections: [
+        { id: 'sqlite-1', name: 'mydata.db', driver: 'sqlite', database: 'mydata.db' },
+      ],
+    });
+
+    vi.mocked(dataTransferApi.pickSqlExportFile).mockResolvedValueOnce('/path/to/categories.sql');
+    vi.mocked(dbApi.exportSql).mockResolvedValueOnce({
+      totalTables: 1,
+      totalRows: 10,
+      fileSizeBytes: 1024,
+    });
+
+    render(
+      <ExportSqlModal
+        isOpen={true}
+        connectionId="sqlite-1"
+        tableName="categories"
+        schemaName="public" // Even if passed, SQLite must ignore it
+        onClose={vi.fn()}
+      />
+    );
+
+    // Schema input must be disabled with N/A (SQLite) placeholder and empty value
+    const schemaInput = screen.getByTestId('source-schema-input') as HTMLInputElement;
+    expect(schemaInput).toBeDisabled();
+    expect(schemaInput.placeholder).toBe('N/A (SQLite)');
+    expect(schemaInput.value).toBe('');
+
+    // Target Scope must display "categories" without "public."
+    expect(screen.getByText('categories')).toBeInTheDocument();
+    expect(screen.queryByText('public.categories')).not.toBeInTheDocument();
+
+    // Submit export
+    fireEvent.click(screen.getByRole('button', { name: /Choose File & Export/i }));
+
+    await waitFor(() => {
+      expect(dbApi.exportSql).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionId: 'sqlite-1',
+          schema: undefined,
+          tables: ['categories'],
+        })
+      );
+    });
+  });
+
+  it('adapts schema for MySQL connection defaulting to connection database', async () => {
+    useConnectionStore.setState({
+      connections: [
+        { id: 'mysql-1', name: 'Production MySQL', driver: 'mysql', database: 'ecommerce' },
+      ],
+    });
+
+    render(
+      <ExportSqlModal
+        isOpen={true}
+        connectionId="mysql-1"
+        tableName="orders"
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Database / Schema:')).toBeInTheDocument();
+    expect(screen.getByText('ecommerce.orders')).toBeInTheDocument();
+  });
 });

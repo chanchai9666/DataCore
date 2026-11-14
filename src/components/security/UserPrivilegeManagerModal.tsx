@@ -259,7 +259,7 @@ export const UserPrivilegeManagerModal: React.FC<UserPrivilegeManagerModalProps>
               <select
                 value={selectedConnectionId}
                 onChange={(e) => setSelectedConnectionId(e.target.value)}
-                className="text-xs bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 outline-none focus:border-accent text-text"
+                className="h-[34px] text-xs bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 outline-none focus:border-accent text-text"
               >
                 {connections.map((c) => (
                   <option key={c.id} value={c.id}>

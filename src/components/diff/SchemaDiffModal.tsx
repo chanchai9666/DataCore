@@ -229,7 +229,7 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
               <select
                 value={sourceConnId}
                 onChange={(e) => setSourceConnId(e.target.value)}
-                className="flex-1 text-xs bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 outline-none focus:border-accent text-text"
+                className="flex-1 h-[34px] text-xs bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 outline-none focus:border-accent text-text"
               >
                 {connections.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -239,10 +239,13 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
               </select>
               <input
                 type="text"
-                placeholder="Schema (optional)"
-                value={sourceSchema}
+                placeholder={connections.find((c) => c.id === sourceConnId)?.driver === 'sqlite' ? 'N/A (SQLite)' : 'Schema (optional)'}
+                value={connections.find((c) => c.id === sourceConnId)?.driver === 'sqlite' ? '' : sourceSchema}
                 onChange={(e) => setSourceSchema(e.target.value)}
-                className="w-28 text-xs bg-black/10 dark:bg-white/5 border border-line rounded px-2 py-1.5 outline-none focus:border-accent text-text"
+                disabled={connections.find((c) => c.id === sourceConnId)?.driver === 'sqlite'}
+                className={`w-28 h-[34px] text-xs bg-black/10 dark:bg-white/5 border border-line rounded px-2 py-1.5 outline-none focus:border-accent text-text ${
+                  connections.find((c) => c.id === sourceConnId)?.driver === 'sqlite' ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               />
             </div>
 
@@ -264,7 +267,7 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
               <select
                 value={targetConnId}
                 onChange={(e) => setTargetConnId(e.target.value)}
-                className="flex-1 text-xs bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 outline-none focus:border-accent text-text"
+                className="flex-1 h-[34px] text-xs bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 outline-none focus:border-accent text-text"
               >
                 {connections.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -274,10 +277,13 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
               </select>
               <input
                 type="text"
-                placeholder="Schema (optional)"
-                value={targetSchema}
+                placeholder={connections.find((c) => c.id === targetConnId)?.driver === 'sqlite' ? 'N/A (SQLite)' : 'Schema (optional)'}
+                value={connections.find((c) => c.id === targetConnId)?.driver === 'sqlite' ? '' : targetSchema}
                 onChange={(e) => setTargetSchema(e.target.value)}
-                className="w-28 text-xs bg-black/10 dark:bg-white/5 border border-line rounded px-2 py-1.5 outline-none focus:border-accent text-text"
+                disabled={connections.find((c) => c.id === targetConnId)?.driver === 'sqlite'}
+                className={`w-28 h-[34px] text-xs bg-black/10 dark:bg-white/5 border border-line rounded px-2 py-1.5 outline-none focus:border-accent text-text ${
+                  connections.find((c) => c.id === targetConnId)?.driver === 'sqlite' ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               />
             </div>
 

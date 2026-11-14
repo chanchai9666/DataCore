@@ -498,7 +498,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                       <select
                         value={delimiter}
                         onChange={(e) => setDelimiter(e.target.value)}
-                        className="w-full bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
+                        className="w-full h-[34px] bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
                       >
                         <option value=",">Comma (,)</option>
                         <option value="&#9;">Tab (\t)</option>
@@ -542,7 +542,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                       <select
                         value={targetTable}
                         onChange={(e) => setTargetTable(e.target.value)}
-                        className="w-full text-xs bg-panel border border-line rounded px-3 py-2 text-text outline-none focus:border-accent"
+                        className="w-full h-[34px] text-xs bg-panel border border-line rounded px-3 py-1.5 text-text outline-none focus:border-accent"
                       >
                         {availableTables.map((t) => (
                           <option key={t} value={t}>
@@ -690,7 +690,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                     <select
                       value={batchSize}
                       onChange={(e) => setBatchSize(Number(e.target.value))}
-                      className="w-48 bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
+                      className="w-48 h-[34px] bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
                     >
                       <option value={200}>200 rows per batch</option>
                       <option value={500}>500 rows per batch</option>

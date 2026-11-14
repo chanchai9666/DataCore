@@ -317,7 +317,11 @@ export function App() {
         <ExportSqlModal
           isOpen={true}
           connectionId={activeConnectionId}
-          schemaName={activeTab?.schemaName}
+          schemaName={
+            connections.find((c) => c.id === activeConnectionId)?.driver === 'sqlite'
+              ? undefined
+              : activeTab?.schemaName
+          }
           tableName={activeTab?.type === 'table' ? activeTab.tableName : undefined}
           onClose={() => setIsBackupModalOpen(false)}
         />
@@ -328,7 +332,11 @@ export function App() {
         <ImportSqlModal
           isOpen={true}
           connectionId={activeConnectionId}
-          schemaName={activeTab?.schemaName}
+          schemaName={
+            connections.find((c) => c.id === activeConnectionId)?.driver === 'sqlite'
+              ? undefined
+              : activeTab?.schemaName
+          }
           onClose={() => setIsImportSqlModalOpen(false)}
         />
       )}
@@ -338,7 +346,11 @@ export function App() {
         <ExportSqlModal
           isOpen={true}
           connectionId={activeConnectionId}
-          schemaName={activeTab?.schemaName}
+          schemaName={
+            connections.find((c) => c.id === activeConnectionId)?.driver === 'sqlite'
+              ? undefined
+              : activeTab?.schemaName
+          }
           tableName={activeTab?.type === 'table' ? activeTab.tableName : undefined}
           onClose={() => setIsExportSqlModalOpen(false)}
         />

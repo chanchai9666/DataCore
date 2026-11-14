@@ -38,6 +38,12 @@
     outline: 2px solid var(--accent);
     outline-offset: -1px;
   }
+
+  /* Equalize Dropdown (<select>) and Input baseline height */
+  select:not([multiple]) {
+    min-height: 34px;
+    box-sizing: border-box;
+  }
 }
 
 /* Custom minimal scrollbar */
