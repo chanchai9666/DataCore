@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import { DockLayout } from './DockLayout';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -211,6 +211,92 @@ describe('DockLayout', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /run/i })).toBeInTheDocument();
     });
+  });
+
+  it('supports horizontal split layout and dragging horizontal resizer', async () => {
+    localStorage.setItem('datacore-split-direction', 'horizontal');
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'q-horiz',
+          connectionId: 'conn-1',
+          type: 'query',
+          title: 'Query Horiz',
+          autoCommit: true,
+          queryContent: 'SELECT 1;',
+        },
+      ],
+      activeTabId: 'q-horiz',
+    });
+
+    render(<DockLayout />);
+
+    const resizer = screen.getByTestId('split-resizer');
+    expect(resizer).toBeInTheDocument();
+
+    // Simulate horizontal drag
+    fireEvent.mouseDown(resizer, { clientX: 400 });
+    fireEvent.mouseMove(window, { clientX: 550 });
+    fireEvent.mouseUp(window);
+
+    expect(localStorage.getItem('datacore-editor-width')).toBe('700');
+    localStorage.removeItem('datacore-split-direction');
+  });
+
+  it('renders Multi-Result sub-tabs and allows switching between result sets and messages', async () => {
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'q-multi',
+          connectionId: 'conn-1',
+          type: 'query',
+          title: 'Query Multi',
+          autoCommit: true,
+          queryContent: 'SELECT * FROM users; SELECT * FROM orders;',
+        },
+      ],
+      activeTabId: 'q-multi',
+    });
+
+    const res1: QueryResult = {
+      columns: [{ name: 'id', data_type: 'integer', nullable: false }, { name: 'username', data_type: 'text', nullable: false }],
+      rows: [[1, 'Alice']],
+      execution_time_ms: 10,
+    };
+    const res2: QueryResult = {
+      columns: [{ name: 'order_id', data_type: 'integer', nullable: false }, { name: 'total', data_type: 'real', nullable: false }],
+      rows: [[101, 99.5]],
+      execution_time_ms: 15,
+    };
+
+    vi.spyOn(dbApi, 'executeQuery')
+      .mockResolvedValueOnce(res1)
+      .mockResolvedValueOnce(res2);
+
+    render(<DockLayout />);
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('multi-result-tabs-bar')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('result-subtab-0')).toHaveTextContent(/Result 1/);
+    expect(screen.getByTestId('result-subtab-1')).toHaveTextContent(/Result 2/);
+    expect(screen.getByTestId('result-subtab-messages')).toHaveTextContent('Messages');
+
+    // Click Messages tab
+    fireEvent.click(screen.getByTestId('result-subtab-messages'));
+    expect(screen.getByTestId('query-messages-view')).toBeInTheDocument();
+    expect(screen.getByTestId('query-messages-view')).toHaveTextContent('Total execution time: 25 ms');
+
+    // Click back to Result 1
+    fireEvent.click(screen.getByTestId('result-subtab-0'));
+    expect(screen.queryByTestId('query-messages-view')).not.toBeInTheDocument();
   });
 
   it('opens insert row modal when Add Row button is clicked in a table tab', async () => {
@@ -856,5 +942,43 @@ describe('DockLayout', () => {
       expect(rollbackCallOrder[0]).toBe('BEGIN');
       expect(rollbackCallOrder).toContain('ROLLBACK');
     });
+  });
+
+  it('supports keyboard navigation and ARIA attributes on sidebar splitter', () => {
+    render(<DockLayout />);
+
+    const splitter = screen.getByTestId('sidebar-splitter');
+    expect(splitter).toHaveAttribute('role', 'separator');
+    expect(splitter).toHaveAttribute('tabIndex', '0');
+    expect(splitter).toHaveAttribute('aria-orientation', 'vertical');
+
+    const initialVal = Number(splitter.getAttribute('aria-valuenow'));
+
+    fireEvent.keyDown(splitter, { key: 'ArrowLeft' });
+    expect(Number(splitter.getAttribute('aria-valuenow'))).toBe(Math.max(180, initialVal - 10));
+
+    fireEvent.keyDown(splitter, { key: 'ArrowRight' });
+    expect(Number(splitter.getAttribute('aria-valuenow'))).toBe(initialVal);
+  });
+
+  it('renders visual query builder tab when activeTab type is query-builder', async () => {
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'qb-tab-1',
+          connectionId: 'conn-1',
+          type: 'query-builder',
+          title: 'Query Builder (users)',
+          tableName: 'users',
+          autoCommit: true,
+          queryContent: '',
+        },
+      ],
+      activeTabId: 'qb-tab-1',
+    });
+
+    render(<DockLayout />);
+
+    expect(await screen.findByTestId('visual-query-builder-tab')).toBeInTheDocument();
   });
 });

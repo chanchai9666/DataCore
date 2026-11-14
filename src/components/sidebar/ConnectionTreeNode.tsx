@@ -13,6 +13,9 @@ import {
   AlertCircle,
   Loader2,
   Wrench,
+  Key,
+  Link2,
+  Columns3,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { openTableTab, openQueryTab, openTableListTab } from './tabHelpers';
@@ -26,6 +29,13 @@ export type BrowserNodeType =
   | 'folder'
   | 'table'
   | 'view'
+  | 'column'
+  | 'index'
+  | 'foreign_key'
+  | 'foreignkey'
+  | 'trigger'
+  | 'function'
+  | 'procedure'
   | 'error'
   | 'loading'
   | 'empty';
@@ -39,6 +49,10 @@ export interface BrowserTreeNode {
   databaseName?: string;
   schemaName?: string;
   tableName?: string;
+  dataType?: string;
+  isPrimaryKey?: boolean;
+  isForeignKey?: boolean;
+  isNullable?: boolean;
   driver?: string;
   children?: BrowserTreeNode[];
   errorMessage?: string;
@@ -76,6 +90,8 @@ export interface ObjectBrowserContextType {
   onEditConnection?: (connectionId: string) => void;
   onDeleteConnection?: (connectionId: string) => void;
   onDisconnectConnection?: (connectionId: string) => void;
+  onLoadTableColumns?: (node: BrowserTreeNode) => void;
+  onInsertColumnToEditor?: (colName: string) => void;
 }
 
 export const ObjectBrowserContext = createContext<ObjectBrowserContextType>({});
@@ -158,8 +174,9 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
   }
 
   const isConnection = data.nodeType === 'connection';
+  const isTable = data.nodeType === 'table';
   const connectionStatus = isConnection ? getConnectionStatus(data) : null;
-  const showArrow = isConnection ? connectionStatus === 'connected' : !isLeaf;
+  const showArrow = isConnection ? connectionStatus === 'connected' : (isTable ? true : !isLeaf);
 
   const getNodeIcon = () => {
     switch (data.nodeType) {
@@ -212,6 +229,32 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         return <TableIcon className="w-4 h-4 text-emerald-400 shrink-0" data-testid="icon-table" />;
       case 'view':
         return <Eye className="w-4 h-4 text-purple-400 shrink-0" data-testid="icon-view" />;
+      case 'column': {
+        if (data.isPrimaryKey) {
+          return (
+            <span title="Primary Key" className="inline-flex">
+              <Key className="w-3.5 h-3.5 text-amber-400 shrink-0" data-testid="icon-pk" />
+            </span>
+          );
+        }
+        if (data.isForeignKey) {
+          return (
+            <span title="Foreign Key" className="inline-flex">
+              <Link2 className="w-3.5 h-3.5 text-blue-400 shrink-0" data-testid="icon-fk" />
+            </span>
+          );
+        }
+        return <Columns3 className="w-3.5 h-3.5 text-slate-400 shrink-0" data-testid="icon-column" />;
+      }
+      case 'index':
+        return <Key className="w-3.5 h-3.5 text-cyan-400 shrink-0" data-testid="icon-index" />;
+      case 'foreign_key':
+        return <Link2 className="w-3.5 h-3.5 text-blue-400 shrink-0" data-testid="icon-fk" />;
+      case 'trigger':
+        return <Play className="w-3.5 h-3.5 text-orange-400 shrink-0" data-testid="icon-trigger" />;
+      case 'function':
+      case 'procedure':
+        return <Wrench className="w-3.5 h-3.5 text-indigo-400 shrink-0" data-testid="icon-function" />;
       default:
         return <Folder className="w-4 h-4 text-gray-400 shrink-0" />;
     }
@@ -265,6 +308,11 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       if (status === 'connected') {
         node.toggle();
       }
+    } else if (isTable) {
+      if (!node.isOpen && context.onLoadTableColumns) {
+        context.onLoadTableColumns(data);
+      }
+      node.toggle();
     } else if (!isLeaf) {
       node.toggle();
     }
@@ -272,7 +320,9 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isTableOrView) {
+    if (data.nodeType === 'column') {
+      context.onInsertColumnToEditor?.(data.name);
+    } else if (isTableOrView) {
       handleOpenTableTab();
     } else if (isTablesFolder) {
       handleOpenTableListTab();
@@ -302,6 +352,13 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
     <div
       ref={dragHandle}
       style={style}
+      draggable={data.nodeType === 'column'}
+      onDragStart={(e) => {
+        if (data.nodeType === 'column') {
+          e.dataTransfer.setData('text/plain', data.name);
+          e.dataTransfer.setData('application/datacore-column', data.name);
+        }
+      }}
       className={`group flex items-center h-6 px-1.5 rounded cursor-pointer select-none text-xs text-gray-200 hover:bg-gray-800 transition-colors ${
         node.isSelected ? 'bg-blue-600/30 text-white font-medium' : ''
       }`}
@@ -315,6 +372,9 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         className="w-4 h-4 flex items-center justify-center shrink-0 mr-0.5 text-gray-400 hover:text-gray-200"
         onClick={(e) => {
           e.stopPropagation();
+          if (isTable && !node.isOpen && context.onLoadTableColumns) {
+            context.onLoadTableColumns(data);
+          }
           if (showArrow) node.toggle();
         }}
       >
@@ -333,9 +393,38 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       <span className="mr-1.5 flex items-center">{getNodeIcon()}</span>
 
       {/* Node Name */}
-      <span className="truncate flex-1" title={data.name}>
+      <span className={`truncate flex-1 ${data.nodeType === 'column' ? 'font-mono text-[11px]' : ''}`} title={data.name}>
         {data.name}
       </span>
+
+      {/* Column Data Type & PK/FK Badges */}
+      {data.nodeType === 'column' && (
+        <div className="flex items-center space-x-1 ml-1.5 shrink-0 select-none">
+          {data.isPrimaryKey && (
+            <span
+              className="text-[9px] px-1 py-0.2 bg-amber-500/20 text-amber-300 rounded font-semibold border border-amber-500/30"
+              title="Primary Key"
+              data-testid="badge-pk"
+            >
+              PK
+            </span>
+          )}
+          {data.isForeignKey && (
+            <span
+              className="text-[9px] px-1 py-0.2 bg-blue-500/20 text-blue-300 rounded font-semibold border border-blue-500/30"
+              title="Foreign Key"
+              data-testid="badge-fk"
+            >
+              FK
+            </span>
+          )}
+          {data.dataType && (
+            <span className="text-[10px] text-gray-400 font-mono" data-testid="column-datatype">
+              {data.dataType}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Status Badges & DB Type for Connection Nodes */}
       {data.nodeType === 'connection' && (

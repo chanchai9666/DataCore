@@ -578,7 +578,15 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - โมดูลหลัก `src/i18n.ts` รองรับการสลับภาษา (th/en) ทันทีโดยไม่ต้อง reload และจำค่าภาษาที่เลือกลงใน `localStorage` (`datacore_language`)
   - เพิ่มปุ่มสลับภาษา (EN / TH) บน MainToolbar และ StatusBar สลับภาษาได้ทันทีแบบ Reactive
   - รองรับการแปลข้อความในส่วนประกอบหลัก ได้แก่ MainToolbar, StatusBar, DockLayout, ConnectionDialog, Export/Import, Tabs และ Modals ต่างๆ
-- **Issue #96:** `feat(query): Visual Query Builder (No-Code UI) สำหรับสร้าง SELECT Query` — เครื่องมือช่วยสร้างคำสั่งสำหรับผู้เริ่มต้น
+- **Issue #96:** `feat(query): Visual Query Builder (No-Code UI) สำหรับสร้าง SELECT Query` — [COMPLETED]
+  - พัฒนาคอมโพเนนต์ `src/components/querybuilder/VisualQueryBuilderTab.tsx` สำหรับสร้าง SELECT Query แบบ No-Code
+  - เพิ่มโมดูล `buildSelectQuery` ใน `src/api/queryBuilder.ts` รองรับการสร้าง SQL SELECT ตาม dialect (Postgres, SQLite, MySQL)
+  - รองรับการเลือก Base Table, Columns พร้อมตั้งชื่อ Alias, และการประมวลผล Aggregate Function (COUNT, SUM, AVG, MIN, MAX)
+  - รองรับการทำ Table JOINs (INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN) พร้อมกำหนดเงื่อนไข ON
+  - รองรับตัวกรองเงื่อนไข (WHERE Filter Conditions: equals, not_equals, contains, starts_with, ends_with, greater_than, less_than, between, is_null, is_not_null) พร้อมสลับการรวมเงื่อนไขแบบ AND / OR
+  - รองรับการจัดเรียง (ORDER BY ASC/DESC) และการจำกัดจำนวนแถว (LIMIT / OFFSET) รวมทั้งตัวเลือก DISTINCT
+  - แสดงผล Live SQL Preview คู่ขนานแบบ Real-time พร้อมปุ่มคัดลอก SQL ("Copy SQL"), ปุ่มเปิดใน SQL Editor ("Open in SQL Editor"), และปุ่มรัน Query ทันที ("Run Query") แสดงผลลัพธ์ผ่าน DataGrid
+  - เชื่อมโยงระบบแท็บผ่าน `openQueryBuilderTab` ใน `src/components/sidebar/tabHelpers.ts`, `src/types/db.ts` และรองรับการเปิดจาก Context Menu ใน Object Browser, Main Toolbar และ Command Palette
 - **Issue #97:** `feat(layout): Horizontal Split Layout (Editor ซ้าย / Data Grid ขวา) สำหรับ Ultrawide Monitors` — เพิ่มความยืดหยุ่นในการจัดวางหน้าจอ
 - **Issue #98:** `feat(safety): Impact Preview (Affected Rows Simulation) ก่อนรัน DELETE/UPDATE` — ระบบพรีวิวผลกระทบก่อนรันคำสั่งแก้ไขข้อมูล (Simulation Mode)
   - **Backend IPC:** คำสั่ง `simulate_query_impact(connection_id, sql)` ใน `src-tauri/src/commands/db.rs`

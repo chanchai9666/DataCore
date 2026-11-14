@@ -122,11 +122,45 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     }
     return 260;
   });
+
+  // Split pane layout direction ('vertical' | 'horizontal') with localStorage persistence
+  const [splitDirection, setSplitDirection] = useState<'vertical' | 'horizontal'>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('datacore-split-direction');
+      if (saved === 'horizontal' || saved === 'vertical') return saved;
+    }
+    return 'vertical';
+  });
+
+  // Split pane width state for Horizontal Split (editor width in pixels) with localStorage persistence
+  const [editorWidth, setEditorWidth] = useState<number>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('datacore-editor-width');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 150 && parsed <= 2500) {
+          return parsed;
+        }
+      }
+    }
+    return 550;
+  });
+
+  const handleToggleSplitDirection = (dir?: 'vertical' | 'horizontal') => {
+    const next = dir ?? (splitDirection === 'vertical' ? 'horizontal' : 'vertical');
+    setSplitDirection(next);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('datacore-split-direction', next);
+    }
+  };
+
   const isResizingSplitRef = useRef(false);
   const querySplitContainerRef = useRef<HTMLDivElement>(null);
 
   // Per-tab query results for 'query' tabs
   const [queryResults, setQueryResults] = useState<Record<string, QueryResult>>({});
+  const [queryMultiResults, setQueryMultiResults] = useState<Record<string, QueryResult[]>>({});
+  const [activeResultSubtab, setActiveResultSubtab] = useState<Record<string, number | 'messages'>>({});
 
   // Per-tab table state for 'table' tabs
   const [tableStates, setTableStates] = useState<Record<string, TableTabState>>({});
@@ -808,34 +842,62 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     window.addEventListener('mouseup', handleMouseUp);
   };
 
-  // Draggable vertical split resizer between SqlEditor and DataGrid
+  // Draggable split resizer between SqlEditor and DataGrid (Vertical or Horizontal)
   const handleSplitResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     isResizingSplitRef.current = true;
-    const startY = e.clientY;
-    const startHeight = editorHeight;
-    let currentHeight = editorHeight;
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!isResizingSplitRef.current) return;
-      const deltaY = moveEvent.clientY - startY;
-      const containerH = querySplitContainerRef.current?.clientHeight || 600;
-      const newHeight = Math.max(100, Math.min(containerH - 100, startHeight + deltaY));
-      currentHeight = newHeight;
-      setEditorHeight(newHeight);
-    };
+    if (splitDirection === 'horizontal') {
+      const startX = e.clientX;
+      const startWidth = editorWidth;
+      let currentWidth = editorWidth;
 
-    const handleMouseUp = () => {
-      isResizingSplitRef.current = false;
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('datacore-editor-height', String(currentHeight));
-      }
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (!isResizingSplitRef.current) return;
+        const deltaX = moveEvent.clientX - startX;
+        const containerW = querySplitContainerRef.current?.clientWidth || 1000;
+        const newWidth = Math.max(150, Math.min(containerW - 150, startWidth + deltaX));
+        currentWidth = newWidth;
+        setEditorWidth(newWidth);
+      };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+      const handleMouseUp = () => {
+        isResizingSplitRef.current = false;
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('datacore-editor-width', String(currentWidth));
+        }
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    } else {
+      const startY = e.clientY;
+      const startHeight = editorHeight;
+      let currentHeight = editorHeight;
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (!isResizingSplitRef.current) return;
+        const deltaY = moveEvent.clientY - startY;
+        const containerH = querySplitContainerRef.current?.clientHeight || 600;
+        const newHeight = Math.max(100, Math.min(containerH - 100, startHeight + deltaY));
+        currentHeight = newHeight;
+        setEditorHeight(newHeight);
+      };
+
+      const handleMouseUp = () => {
+        isResizingSplitRef.current = false;
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('datacore-editor-height', String(currentHeight));
+        }
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
   };
 
   // Ensure listeners are cleaned up if component unmounts
@@ -1109,136 +1171,276 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
               />
             </div>
           ) : activeTab.type === 'query' ? (
-            /* Query Tab: Split view (Editor on top, DataGrid on bottom with vertical resizer) */
+            /* Query Tab: Split view (Editor and DataGrid with vertical or horizontal resizer) */
             <div
               ref={querySplitContainerRef}
-              className="flex-1 flex flex-col min-h-0 overflow-hidden relative"
+              className={`flex-1 flex ${splitDirection === 'horizontal' ? 'flex-row' : 'flex-col'} min-h-0 overflow-hidden relative`}
             >
-              {/* Top: SQL Editor */}
+              {/* SQL Editor */}
               <div
-                style={{ height: `${editorHeight}px` }}
+                style={
+                  splitDirection === 'horizontal'
+                    ? { width: `${editorWidth}px` }
+                    : { height: `${editorHeight}px` }
+                }
                 className="flex flex-col overflow-hidden flex-shrink-0"
               >
                 <SqlEditor
                   tabId={activeTab.id}
                   theme={theme}
+                  splitDirection={splitDirection}
+                  onToggleSplit={handleToggleSplitDirection}
                   isReadOnly={Boolean(
                     connections.find((c) => c.id === activeTab.connectionId)?.readOnly ||
                     connections.find((c) => c.id === activeTab.connectionId)?.read_only
                   )}
-                  onQueryResult={(result) => {
+                  onQueryResult={(result, multiResults) => {
                     setQueryResults((prev) => ({
                       ...prev,
                       [activeTab.id]: result,
                     }));
+                    if (multiResults && multiResults.length > 1) {
+                      setQueryMultiResults((prev) => ({
+                        ...prev,
+                        [activeTab.id]: multiResults,
+                      }));
+                      setActiveResultSubtab((prev) => ({
+                        ...prev,
+                        [activeTab.id]: 0,
+                      }));
+                    } else {
+                      setQueryMultiResults((prev) => {
+                        const next = { ...prev };
+                        delete next[activeTab.id];
+                        return next;
+                      });
+                    }
                   }}
                 />
               </div>
 
-              {/* Draggable Vertical Split Resizer between Editor and Grid */}
+              {/* Draggable Split Resizer between Editor and Grid */}
               <div
                 data-testid="split-resizer"
                 role="separator"
                 tabIndex={0}
-                aria-orientation="horizontal"
+                aria-orientation={splitDirection === 'horizontal' ? 'vertical' : 'horizontal'}
                 aria-label="Resize editor and results"
-                aria-valuenow={editorHeight}
+                aria-valuenow={splitDirection === 'horizontal' ? editorWidth : editorHeight}
                 onKeyDown={(e) => {
-                  if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    setEditorHeight((prev) => {
-                      const next = Math.max(100, prev - 10);
-                      if (typeof localStorage !== 'undefined') {
-                        localStorage.setItem('datacore-editor-height', String(next));
-                      }
-                      return next;
-                    });
-                  } else if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    const containerH = querySplitContainerRef.current?.clientHeight || 600;
-                    setEditorHeight((prev) => {
-                      const next = Math.min(containerH - 100, prev + 10);
-                      if (typeof localStorage !== 'undefined') {
-                        localStorage.setItem('datacore-editor-height', String(next));
-                      }
-                      return next;
-                    });
+                  if (splitDirection === 'horizontal') {
+                    if (e.key === 'ArrowLeft') {
+                      e.preventDefault();
+                      setEditorWidth((prev) => {
+                        const next = Math.max(150, prev - 10);
+                        if (typeof localStorage !== 'undefined') {
+                          localStorage.setItem('datacore-editor-width', String(next));
+                        }
+                        return next;
+                      });
+                    } else if (e.key === 'ArrowRight') {
+                      e.preventDefault();
+                      const containerW = querySplitContainerRef.current?.clientWidth || 1000;
+                      setEditorWidth((prev) => {
+                        const next = Math.min(containerW - 150, prev + 10);
+                        if (typeof localStorage !== 'undefined') {
+                          localStorage.setItem('datacore-editor-width', String(next));
+                        }
+                        return next;
+                      });
+                    }
+                  } else {
+                    if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setEditorHeight((prev) => {
+                        const next = Math.max(100, prev - 10);
+                        if (typeof localStorage !== 'undefined') {
+                          localStorage.setItem('datacore-editor-height', String(next));
+                        }
+                        return next;
+                      });
+                    } else if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      const containerH = querySplitContainerRef.current?.clientHeight || 600;
+                      setEditorHeight((prev) => {
+                        const next = Math.min(containerH - 100, prev + 10);
+                        if (typeof localStorage !== 'undefined') {
+                          localStorage.setItem('datacore-editor-height', String(next));
+                        }
+                        return next;
+                      });
+                    }
                   }
                 }}
                 onMouseDown={handleSplitResizeMouseDown}
-                className={`h-1.5 flex-shrink-0 cursor-row-resize border-y transition-colors z-10 flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                className={`${
+                  splitDirection === 'horizontal'
+                    ? 'w-1.5 h-full cursor-col-resize border-x'
+                    : 'h-1.5 w-full cursor-row-resize border-y'
+                } flex-shrink-0 transition-colors z-10 flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                   theme === 'dark'
                     ? 'bg-gray-900 border-gray-800 hover:bg-blue-600/60 active:bg-blue-600'
                     : 'bg-gray-200 border-gray-300 hover:bg-blue-500/60 active:bg-blue-500'
                 }`}
               >
                 <div
-                  className={`w-8 h-0.5 rounded-full ${
+                  className={`${
+                    splitDirection === 'horizontal' ? 'w-0.5 h-8' : 'w-8 h-0.5'
+                  } rounded-full ${
                     theme === 'dark' ? 'bg-gray-600' : 'bg-gray-400'
                   }`}
                 />
               </div>
 
-              {/* Bottom: DataGrid displaying QueryResult */}
-              <div className="flex-1 min-h-[100px] flex flex-col overflow-hidden">
-                <DataGrid
-                  data={(() => {
-                    const raw = queryResults[activeTab.id];
-                    if (!raw) return null;
-                    let rows = raw.rows;
-                    if (activeTab.filterState && activeTab.filterState.enabled) {
-                      rows = filterInMemoryRows(
-                        raw.columns,
-                        rows,
-                        activeTab.filterState.conditions,
-                        activeTab.filterState.conjunction
-                      );
-                    }
-                    if (activeTab.sortState) {
-                      rows = sortInMemoryRows(
-                        raw.columns,
-                        rows,
-                        activeTab.sortState.column,
-                        activeTab.sortState.direction
-                      );
-                    }
-                    return {
-                      ...raw,
-                      rows,
-                    };
-                  })()}
-                  theme={theme}
-                  filterState={activeTab.filterState}
-                  onFilterChange={(newFilter) => updateTab(activeTab.id, { filterState: newFilter })}
-                  onApplyFilter={() => {}}
-                  onClearFilter={() => {
-                    const cleared: TableFilterState = {
-                      enabled: false,
-                      conjunction: 'AND',
-                      conditions: [
-                        {
-                          id: 'c1',
-                          column: queryResults[activeTab.id]?.columns?.[0]?.name || '',
-                          operator: '=',
-                          value: '',
-                        },
-                      ],
-                    };
-                    updateTab(activeTab.id, { filterState: cleared });
-                  }}
-                  sortState={activeTab.sortState}
-                  onSortChange={(newSort) => updateTab(activeTab.id, { sortState: newSort })}
-                  columnWidths={activeTab.columnWidths}
-                  onColumnResize={(colId, newWidth) => {
-                    updateTab(activeTab.id, {
-                      columnWidths: {
-                        ...(activeTab.columnWidths || {}),
-                        [colId]: newWidth,
-                      },
-                    });
-                  }}
-                  driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
-                />
+              {/* Bottom / Right: Multi-Result Tabs & DataGrid */}
+              <div className="flex-1 min-h-[100px] min-w-[200px] flex flex-col overflow-hidden">
+                {(() => {
+                  const multi = queryMultiResults[activeTab.id];
+                  const hasMulti = multi && multi.length > 1;
+                  const currentSubtab = activeResultSubtab[activeTab.id] ?? 0;
+                  const activeResult = hasMulti
+                    ? (typeof currentSubtab === 'number' ? multi[currentSubtab] : null)
+                    : (queryResults[activeTab.id] || null);
+
+                  return (
+                    <>
+                      {/* Multi-Result Sub-tabs Bar */}
+                      {hasMulti && (
+                        <div
+                          data-testid="multi-result-tabs-bar"
+                          className={`flex items-center gap-1 px-2 border-b flex-shrink-0 overflow-x-auto text-xs ${
+                            theme === 'dark' ? 'bg-gray-900 border-gray-800' : 'bg-gray-100 border-gray-200'
+                          }`}
+                        >
+                          {multi.map((res, idx) => {
+                            const stmt = (res as any).statement || '';
+                            const tblMatch = stmt.match(/\b(?:FROM|INTO|UPDATE|JOIN|TABLE)\s+[`"']?([a-zA-Z0-9_]+)[`"']?/i);
+                            const tblName = tblMatch ? tblMatch[1] : null;
+                            const label = tblName ? `Result ${idx + 1} (${tblName})` : `Result ${idx + 1}`;
+                            const isSelected = currentSubtab === idx;
+
+                            return (
+                              <button
+                                key={idx}
+                                data-testid={`result-subtab-${idx}`}
+                                type="button"
+                                onClick={() => setActiveResultSubtab((prev) => ({ ...prev, [activeTab.id]: idx }))}
+                                className={`px-3 py-1.5 font-medium border-b-2 transition-colors ${
+                                  isSelected
+                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-500/10'
+                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                                }`}
+                              >
+                                {label}
+                                {res.rows ? (
+                                  <span className="ml-1.5 text-[10px] opacity-75">({res.rows.length})</span>
+                                ) : null}
+                              </button>
+                            );
+                          })}
+
+                          <button
+                            data-testid="result-subtab-messages"
+                            type="button"
+                            onClick={() => setActiveResultSubtab((prev) => ({ ...prev, [activeTab.id]: 'messages' }))}
+                            className={`px-3 py-1.5 font-medium border-b-2 transition-colors ${
+                              currentSubtab === 'messages'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-500/10'
+                                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                            }`}
+                          >
+                            Messages
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Content: Messages view or DataGrid */}
+                      {hasMulti && currentSubtab === 'messages' ? (
+                        <div
+                          data-testid="query-messages-view"
+                          className={`flex-1 p-4 font-mono text-xs overflow-auto select-text whitespace-pre-wrap ${
+                            theme === 'dark' ? 'bg-gray-950 text-gray-300' : 'bg-white text-gray-800'
+                          }`}
+                        >
+                          {multi.map((r, i) => (
+                            <div key={i} className="mb-3">
+                              <div className="font-semibold text-blue-500 dark:text-blue-400">
+                                [Query {i + 1}] {(r as any).statement || 'Statement'}
+                              </div>
+                              <div className="text-gray-500 dark:text-gray-400 mt-0.5">
+                                {r.rows
+                                  ? `${r.rows.length} rows retrieved in ${r.execution_time_ms} ms.`
+                                  : `${r.rows_affected ?? 0} rows affected in ${r.execution_time_ms} ms.`}
+                              </div>
+                            </div>
+                          ))}
+                          <div className="mt-4 pt-2 border-t border-gray-700/50 text-emerald-500 font-semibold">
+                            Total execution time: {multi.reduce((acc, curr) => acc + curr.execution_time_ms, 0)} ms. All statements finished.
+                          </div>
+                        </div>
+                      ) : (
+                        <DataGrid
+                          data={(() => {
+                            const raw = activeResult;
+                            if (!raw) return null;
+                            let rows = raw.rows;
+                            if (activeTab.filterState && activeTab.filterState.enabled) {
+                              rows = filterInMemoryRows(
+                                raw.columns,
+                                rows,
+                                activeTab.filterState.conditions,
+                                activeTab.filterState.conjunction
+                              );
+                            }
+                            if (activeTab.sortState) {
+                              rows = sortInMemoryRows(
+                                raw.columns,
+                                rows,
+                                activeTab.sortState.column,
+                                activeTab.sortState.direction
+                              );
+                            }
+                            return {
+                              ...raw,
+                              rows,
+                            };
+                          })()}
+                          theme={theme}
+                          filterState={activeTab.filterState}
+                          onFilterChange={(newFilter) => updateTab(activeTab.id, { filterState: newFilter })}
+                          onApplyFilter={() => {}}
+                          onClearFilter={() => {
+                            const cleared: TableFilterState = {
+                              enabled: false,
+                              conjunction: 'AND',
+                              conditions: [
+                                {
+                                  id: 'c1',
+                                  column: activeResult?.columns?.[0]?.name || '',
+                                  operator: '=',
+                                  value: '',
+                                },
+                              ],
+                            };
+                            updateTab(activeTab.id, { filterState: cleared });
+                          }}
+                          sortState={activeTab.sortState}
+                          onSortChange={(newSort) => updateTab(activeTab.id, { sortState: newSort })}
+                          columnWidths={activeTab.columnWidths}
+                          onColumnResize={(colId, newWidth) => {
+                            updateTab(activeTab.id, {
+                              columnWidths: {
+                                ...(activeTab.columnWidths || {}),
+                                [colId]: newWidth,
+                              },
+                            });
+                          }}
+                          driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
+                        />
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           ) : (

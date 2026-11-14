@@ -13,6 +13,7 @@ import {
   buildDeleteSql,
   buildInsertSql,
   buildExplainSql,
+  buildSelectQuery,
 } from './queryBuilder';
 
 describe('queryBuilder', () => {
@@ -419,6 +420,162 @@ describe('queryBuilder', () => {
         analyze: true,
       });
       expect(analyze).toBe('EXPLAIN ANALYZE SELECT * FROM users;');
+    });
+  });
+
+  describe('Select Query Builder', () => {
+    it('returns empty string if baseTable is empty', () => {
+      expect(buildSelectQuery({ baseTable: '' })).toBe('');
+    });
+
+    it('generates basic SELECT * FROM table for SQLite/Postgres', () => {
+      const sql = buildSelectQuery({
+        baseTable: 'users',
+        driver: 'postgres',
+      });
+      expect(sql).toBe('SELECT *\nFROM "users";');
+    });
+
+    it('generates SELECT with specific columns, table prefix and aliases', () => {
+      const sql = buildSelectQuery({
+        baseTable: 'users',
+        driver: 'postgres',
+        columns: [
+          { column: 'id', table: 'users' },
+          { column: 'email', alias: 'user_email' },
+          { column: 'name' },
+        ],
+      });
+      expect(sql).toBe('SELECT "users"."id", "email" AS "user_email", "name"\nFROM "users";');
+    });
+
+    it('generates SELECT with table aliases and DISTINCT', () => {
+      const sql = buildSelectQuery({
+        baseTable: 'orders',
+        baseTableAlias: 'o',
+        distinct: true,
+        driver: 'sqlite',
+        columns: [{ column: 'status' }],
+      });
+      expect(sql).toBe('SELECT DISTINCT "status"\nFROM "orders" AS "o";');
+    });
+
+    it('generates aggregate functions on columns', () => {
+      const sql = buildSelectQuery({
+        baseTable: 'orders',
+        driver: 'postgres',
+        columns: [
+          { column: '*', aggregate: 'COUNT', alias: 'total_orders' },
+          { column: 'total_price', aggregate: 'SUM', alias: 'revenue' },
+          { column: 'customer_id', aggregate: 'COUNT', distinct: true, alias: 'unique_customers' },
+        ],
+      });
+      expect(sql).toBe(
+        'SELECT COUNT(*) AS "total_orders", SUM("total_price") AS "revenue", COUNT(DISTINCT "customer_id") AS "unique_customers"\nFROM "orders";'
+      );
+    });
+
+    it('generates JOIN clauses (INNER, LEFT)', () => {
+      const sql = buildSelectQuery({
+        baseTable: 'users',
+        baseTableAlias: 'u',
+        driver: 'postgres',
+        columns: [
+          { table: 'u', column: 'id' },
+          { table: 'u', column: 'name' },
+          { table: 'o', column: 'total' },
+        ],
+        joins: [
+          {
+            id: 'j1',
+            type: 'INNER',
+            table: 'orders',
+            alias: 'o',
+            leftTable: 'u',
+            leftColumn: 'id',
+            rightTable: 'o',
+            rightColumn: 'user_id',
+          },
+          {
+            id: 'j2',
+            type: 'LEFT',
+            table: 'profiles',
+            alias: 'p',
+            leftTable: 'u',
+            leftColumn: 'id',
+            rightTable: 'p',
+            rightColumn: 'user_id',
+          },
+        ],
+      });
+
+      expect(sql).toContain('FROM "users" AS "u"');
+      expect(sql).toContain('INNER JOIN "orders" AS "o" ON "u"."id" = "o"."user_id"');
+      expect(sql).toContain('LEFT JOIN "profiles" AS "p" ON "u"."id" = "p"."user_id"');
+    });
+
+    it('generates WHERE filter conditions (equals, contains, between, is_null, etc.)', () => {
+      const sql = buildSelectQuery({
+        baseTable: 'users',
+        driver: 'postgres',
+        filters: [
+          { id: '1', column: 'status', operator: 'equals', value: 'active' },
+          { id: '2', column: 'name', operator: 'contains', value: 'admin' },
+          { id: '3', column: 'age', operator: 'between', value: '18', valueTo: '65' },
+          { id: '4', column: 'deleted_at', operator: 'is_null' },
+        ],
+        filterConjunction: 'AND',
+      });
+
+      expect(sql).toContain(
+        `WHERE "status" = 'active' AND "name" LIKE '%admin%' AND "age" BETWEEN 18 AND 65 AND "deleted_at" IS NULL`
+      );
+    });
+
+    it('generates WHERE with OR conjunction and starts_with / ends_with', () => {
+      const sql = buildSelectQuery({
+        baseTable: 'users',
+        driver: 'postgres',
+        filters: [
+          { id: '1', column: 'email', operator: 'starts_with', value: 'test' },
+          { id: '2', column: 'email', operator: 'ends_with', value: '.org' },
+        ],
+        filterConjunction: 'OR',
+      });
+
+      expect(sql).toContain(`WHERE "email" LIKE 'test%' OR "email" LIKE '%.org'`);
+    });
+
+    it('generates ORDER BY and LIMIT & OFFSET', () => {
+      const sql = buildSelectQuery({
+        baseTable: 'users',
+        driver: 'postgres',
+        orderBy: [
+          { id: 'o1', column: 'created_at', direction: 'DESC' },
+          { id: 'o2', column: 'id', direction: 'ASC' },
+        ],
+        limit: 50,
+        offset: 10,
+      });
+
+      expect(sql).toContain('ORDER BY "created_at" DESC, "id" ASC');
+      expect(sql).toContain('LIMIT 50');
+      expect(sql).toContain('OFFSET 10');
+    });
+
+    it('supports MySQL backtick identifier escaping', () => {
+      const sql = buildSelectQuery({
+        baseTable: 'products',
+        schemaName: 'shop',
+        driver: 'mysql',
+        columns: [{ column: 'name' }, { column: 'price' }],
+        filters: [{ id: '1', column: 'price', operator: 'greater_than', value: '100' }],
+        limit: 20,
+      });
+
+      expect(sql).toBe(
+        'SELECT `name`, `price`\nFROM `shop`.`products`\nWHERE `price` > 100\nLIMIT 20;'
+      );
     });
   });
 });

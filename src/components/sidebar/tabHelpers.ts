@@ -144,3 +144,29 @@ export function openQueryTab({
     queryContent: initialQuery,
   });
 }
+
+export interface OpenQueryBuilderTabParams {
+  connectionId: string;
+  tableName?: string;
+  schemaName?: string;
+}
+
+export function openQueryBuilderTab({
+  connectionId,
+  tableName,
+  schemaName,
+}: OpenQueryBuilderTabParams): void {
+  const fullId = `qb:${connectionId}:${schemaName || 'default'}:${tableName || 'new'}-${Date.now()}`;
+  const title = tableName ? `Builder (${tableName})` : 'Query Builder';
+
+  useTabStore.getState().openTab({
+    id: fullId,
+    connectionId,
+    type: 'query-builder',
+    title,
+    schemaName,
+    tableName,
+    autoCommit: true,
+    queryContent: '',
+  });
+}

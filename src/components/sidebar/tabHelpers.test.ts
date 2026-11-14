@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { openQueryTab, openTableTab, openTableListTab, openERDiagramTab } from './tabHelpers';
+import {
+  openQueryTab,
+  openTableTab,
+  openTableListTab,
+  openERDiagramTab,
+  openQueryBuilderTab,
+} from './tabHelpers';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import type { ConnectionConfig } from '../../types/db';
@@ -178,6 +184,35 @@ describe('tabHelpers', () => {
       const tabs = useTabStore.getState().tabs;
       expect(tabs).toHaveLength(1);
       expect(useTabStore.getState().activeTabId).toBe('er:conn-pg-1:public');
+    });
+  });
+
+  describe('openQueryBuilderTab', () => {
+    it('opens a query-builder tab with table name in title', () => {
+      openQueryBuilderTab({
+        connectionId: 'conn-pg-1',
+        tableName: 'users',
+        schemaName: 'public',
+      });
+
+      const tabs = useTabStore.getState().tabs;
+      expect(tabs).toHaveLength(1);
+      expect(tabs[0].type).toBe('query-builder');
+      expect(tabs[0].title).toBe('Builder (users)');
+      expect(tabs[0].tableName).toBe('users');
+      expect(tabs[0].schemaName).toBe('public');
+      expect(useTabStore.getState().activeTabId).toBe(tabs[0].id);
+    });
+
+    it('opens a query-builder tab without initial table', () => {
+      openQueryBuilderTab({
+        connectionId: 'conn-mysql-1',
+      });
+
+      const tabs = useTabStore.getState().tabs;
+      expect(tabs).toHaveLength(1);
+      expect(tabs[0].type).toBe('query-builder');
+      expect(tabs[0].title).toBe('Query Builder');
     });
   });
 });

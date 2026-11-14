@@ -22,13 +22,25 @@ import {
   Palette,
   ChevronRight,
   Network,
+  Wand2,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useFolderStore } from '../../stores/folderStore';
 import { useTabStore } from '../../stores/tabStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, SchemaNode } from '../../types/db';
-import { openTableTab, openQueryTab, openTableListTab, openERDiagramTab } from './tabHelpers';
+import {
+  openTableTab,
+  openQueryTab,
+  openTableListTab,
+  openERDiagramTab,
+  openQueryBuilderTab,
+} from './tabHelpers';
+import {
+  getFetchColumnsSql,
+  parseColumnsFromQueryResult,
+  type TableColumnStructure,
+} from '../structure/tableStructureHelpers';
 import { FolderModal } from './FolderModal';
 import { CreateTableModal } from '../structure/CreateTableModal';
 import { DropTableModal } from '../structure/DropTableModal';
@@ -82,7 +94,8 @@ function groupTablesAndViews(
   connectionName: string,
   parentPath: string,
   schemaName: string | undefined,
-  driver?: string
+  driver?: string,
+  tableColumnsMap?: Record<string, { loading: boolean; columns?: TableColumnStructure[]; error?: string }>
 ): BrowserTreeNode[] {
   const tables = rawChildren.filter((c) => c.node_type === 'table');
   const views = rawChildren.filter((c) => c.node_type === 'view');
@@ -118,7 +131,8 @@ function groupTablesAndViews(
           connectionId,
           connectionName,
           `${parentPath}/tables`,
-          driver
+          driver,
+          tableColumnsMap
         )
       ),
     });
@@ -139,7 +153,8 @@ function groupTablesAndViews(
           connectionId,
           connectionName,
           `${parentPath}/views`,
-          driver
+          driver,
+          tableColumnsMap
         )
       ),
     });
@@ -153,17 +168,99 @@ function mapSchemaNodeToTreeNode(
   connectionId: string,
   connectionName: string,
   parentPath = '',
-  driver?: string
+  driver?: string,
+  tableColumnsMap?: Record<string, { loading: boolean; columns?: TableColumnStructure[]; error?: string }>
 ): BrowserTreeNode {
   const currentPath = `${parentPath}/${node.node_type}-${node.name}`;
   const schemaName = node.schema || (node as any).schema_name;
-  const isLeaf = node.node_type === 'table' || node.node_type === 'view';
 
-  if (isLeaf) {
+  if (node.node_type === 'table') {
+    const tableKey = `${connectionId}:${schemaName || ''}:${node.name}`;
+    const colState = tableColumnsMap?.[tableKey];
+    let children: BrowserTreeNode[] = [];
+
+    if (colState?.loading) {
+      children = [
+        {
+          id: `${connectionId}-${currentPath}/loading`,
+          name: 'Loading columns...',
+          nodeType: 'loading',
+          connectionId,
+          connectionName,
+          schemaName,
+          tableName: node.name,
+          driver,
+        },
+      ];
+    } else if (colState?.columns) {
+      if (colState.columns.length === 0) {
+        children = [
+          {
+            id: `${connectionId}-${currentPath}/empty`,
+            name: '(No columns)',
+            nodeType: 'empty',
+            connectionId,
+            connectionName,
+            schemaName,
+            tableName: node.name,
+            driver,
+          },
+        ];
+      } else {
+        children = colState.columns.map((c) => ({
+          id: `${connectionId}-${currentPath}/col-${c.name}`,
+          name: c.name,
+          nodeType: 'column',
+          connectionId,
+          connectionName,
+          schemaName,
+          tableName: node.name,
+          driver,
+          dataType: c.dataType,
+          isPrimaryKey: c.isPrimaryKey,
+          isNullable: c.isNullable,
+        }));
+      }
+    } else if (node.children && node.children.length > 0) {
+      children = node.children.map((child) =>
+        mapSchemaNodeToTreeNode(child, connectionId, connectionName, currentPath, driver, tableColumnsMap)
+      );
+    }
+
     return {
       id: `${connectionId}-${currentPath}`,
       name: node.name,
-      nodeType: node.node_type,
+      nodeType: 'table',
+      connectionId,
+      connectionName,
+      schemaName,
+      tableName: node.name,
+      driver,
+      children,
+    };
+  }
+
+  if (node.node_type === 'column') {
+    return {
+      id: `${connectionId}-${currentPath}`,
+      name: node.name,
+      nodeType: 'column',
+      connectionId,
+      connectionName,
+      schemaName,
+      tableName: (node as any).tableName,
+      driver,
+      dataType: node.metadata?.data_type || node.metadata?.dataType,
+      isPrimaryKey: node.metadata?.is_primary_key === 'true' || node.metadata?.isPrimaryKey === 'true',
+      isForeignKey: node.metadata?.is_foreign_key === 'true' || node.metadata?.isForeignKey === 'true',
+    };
+  }
+
+  if (node.node_type === 'view') {
+    return {
+      id: `${connectionId}-${currentPath}`,
+      name: node.name,
+      nodeType: 'view',
       connectionId,
       connectionName,
       schemaName,
@@ -188,7 +285,8 @@ function mapSchemaNodeToTreeNode(
         connectionName,
         currentPath,
         node.name,
-        driver
+        driver,
+        tableColumnsMap
       ),
     };
   }
@@ -221,7 +319,7 @@ function mapSchemaNodeToTreeNode(
       });
 
       const mappedUserSchemas = userSchemas.map((child) =>
-        mapSchemaNodeToTreeNode(child, connectionId, connectionName, currentPath, driver)
+        mapSchemaNodeToTreeNode(child, connectionId, connectionName, currentPath, driver, tableColumnsMap)
       );
 
       const dbChildren: BrowserTreeNode[] = [...mappedUserSchemas];
@@ -234,7 +332,8 @@ function mapSchemaNodeToTreeNode(
             connectionId,
             connectionName,
             `${currentPath}/system-schemas`,
-            driver
+            driver,
+            tableColumnsMap
           )
         );
 
@@ -275,7 +374,8 @@ function mapSchemaNodeToTreeNode(
           connectionName,
           currentPath,
           undefined,
-          driver
+          driver,
+          tableColumnsMap
         ),
       };
     }
@@ -288,10 +388,10 @@ function mapSchemaNodeToTreeNode(
     connectionId,
     connectionName,
     schemaName,
-    tableName: isLeaf ? node.name : undefined,
+    tableName: undefined,
     driver,
     children: (node.children || []).map((child) =>
-      mapSchemaNodeToTreeNode(child, connectionId, connectionName, currentPath, driver)
+      mapSchemaNodeToTreeNode(child, connectionId, connectionName, currentPath, driver, tableColumnsMap)
     ),
   };
 }
@@ -414,6 +514,55 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     connectionId: string;
     schemaName?: string;
   } | null>(null);
+
+  const [tableColumnsMap, setTableColumnsMap] = useState<
+    Record<string, { loading: boolean; columns?: TableColumnStructure[]; error?: string }>
+  >({});
+
+  const handleLoadTableColumns = useCallback(
+    async (node: BrowserTreeNode) => {
+      const tableKey = `${node.connectionId}:${node.schemaName || ''}:${node.tableName || node.name}`;
+      if (tableColumnsMap[tableKey]?.columns || tableColumnsMap[tableKey]?.loading) {
+        return;
+      }
+      setTableColumnsMap((prev) => ({ ...prev, [tableKey]: { loading: true } }));
+      try {
+        const sql = getFetchColumnsSql(
+          node.driver || 'postgres',
+          node.tableName || node.name,
+          node.schemaName
+        );
+        const res = await dbApi.executeDirectQuery(node.connectionId, sql);
+        const cols = parseColumnsFromQueryResult(res, node.driver || 'postgres');
+        setTableColumnsMap((prev) => ({
+          ...prev,
+          [tableKey]: { loading: false, columns: cols },
+        }));
+      } catch (err: unknown) {
+        console.error(`Failed to load columns for ${tableKey}:`, err);
+        setTableColumnsMap((prev) => ({
+          ...prev,
+          [tableKey]: { loading: false, error: String(err) },
+        }));
+      }
+    },
+    [tableColumnsMap]
+  );
+
+  const handleInsertColumnToEditor = useCallback((colName: string) => {
+    const tabStore = useTabStore.getState();
+    const activeTabId = tabStore.activeTabId;
+    const activeTab = tabStore.tabs.find((t) => t.id === activeTabId);
+    if (activeTab && activeTab.type === 'query' && activeTabId) {
+      const current = activeTab.queryContent || '';
+      const newContent = current ? `${current} ${colName}` : colName;
+      tabStore.setQueryContent(activeTabId, newContent);
+      toast.success(`Inserted column "${colName}" into SQL editor`);
+    } else {
+      navigator.clipboard?.writeText(colName);
+      toast.success(`Copied column "${colName}" to clipboard`);
+    }
+  }, []);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<TreeApi<BrowserTreeNode>>(null);
@@ -564,7 +713,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         ];
       } else {
         children = connSchema.map((schemaNode) =>
-          mapSchemaNodeToTreeNode(schemaNode, conn.id, conn.name, '', conn.driver)
+          mapSchemaNodeToTreeNode(schemaNode, conn.id, conn.name, '', conn.driver, tableColumnsMap)
         );
       }
 
@@ -624,7 +773,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       .filter(Boolean);
 
     return [...folderNodes, ...rootConns];
-  }, [connections, schemas, loadingMap, errorMap, connectedConnectionIds, allFolderNames, folderMetadata]);
+  }, [connections, schemas, loadingMap, errorMap, connectedConnectionIds, allFolderNames, folderMetadata, tableColumnsMap]);
 
   const handleOpenTable = useCallback((node: BrowserTreeNode) => {
     openTableTab({
@@ -646,6 +795,15 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   const handleOpenERDiagram = useCallback((node: BrowserTreeNode) => {
     openERDiagramTab({
       connectionId: node.connectionId,
+      schemaName: node.schemaName,
+    });
+    setContextMenu(null);
+  }, []);
+
+  const handleOpenQueryBuilder = useCallback((node: BrowserTreeNode) => {
+    openQueryBuilderTab({
+      connectionId: node.connectionId,
+      tableName: node.tableName || (node.nodeType === 'table' || node.nodeType === 'view' ? node.name : undefined),
       schemaName: node.schemaName,
     });
     setContextMenu(null);
@@ -1062,6 +1220,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               onEditConnection: handleEditConnection,
               onDeleteConnection: handleDeleteConnection,
               onDisconnectConnection: handleDisconnect,
+              onLoadTableColumns: handleLoadTableColumns,
+              onInsertColumnToEditor: handleInsertColumnToEditor,
             }}
           >
             <Tree
@@ -1377,6 +1537,16 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
               <button
                 type="button"
+                data-testid="open-query-builder-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-amber-400 font-medium"
+                onClick={() => handleOpenQueryBuilder(contextMenu.node)}
+              >
+                <Wand2 className="w-3.5 h-3.5 text-amber-400" />
+                <span>Visual Query Builder</span>
+              </button>
+
+              <button
+                type="button"
                 className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-gray-200"
                 onClick={() => handleCopyName(contextMenu.node.tableName || contextMenu.node.name)}
               >
@@ -1473,6 +1643,16 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                   >
                     <Network className="w-3.5 h-3.5 text-emerald-400" />
                     <span>View ER Diagram</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="schema-query-builder-btn"
+                    className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-700 text-amber-400 font-medium"
+                    onClick={() => handleOpenQueryBuilder(contextMenu.node)}
+                  >
+                    <Wand2 className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Visual Query Builder</span>
                   </button>
                 </>
               )}

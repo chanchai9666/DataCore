@@ -23,6 +23,7 @@ import {
   Check,
   Copy,
   LayoutGrid,
+  Wand2,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
@@ -60,6 +61,7 @@ export interface CommandPaletteModalProps {
   onOpenTable?: (tableName: string, schemaName?: string) => void;
   onOpenTableList?: () => void;
   onOpenERDiagram?: () => void;
+  onOpenQueryBuilder?: () => void;
   onOpenShortcuts?: () => void;
   onToggleTheme?: () => void;
   onToggleSidebar?: () => void;
@@ -133,6 +135,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   onOpenTable,
   onOpenTableList,
   onOpenERDiagram,
+  onOpenQueryBuilder,
   onOpenShortcuts,
   onToggleTheme,
   onToggleSidebar,
@@ -348,6 +351,18 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       keywords: ['diagram', 'erd', 'canvas', 'relationship', 'foreign', 'keys', 'visual'],
       onSelect: () => {
         onOpenERDiagram?.();
+      },
+    });
+
+    items.push({
+      id: 'action-visual-query-builder',
+      title: 'Visual Query Builder',
+      subtitle: 'Build SELECT queries with no-code visual interface',
+      category: 'Actions',
+      icon: <Wand2 className="w-4 h-4 text-amber-400" />,
+      keywords: ['query', 'builder', 'visual', 'select', 'no-code', 'filter', 'join'],
+      onSelect: () => {
+        onOpenQueryBuilder?.();
       },
     });
 

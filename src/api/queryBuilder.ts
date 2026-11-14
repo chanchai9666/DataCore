@@ -1128,3 +1128,293 @@ export function buildDropConstraintSql(params: DropConstraintParams): string {
 
   return `ALTER TABLE ${fullTable} DROP CONSTRAINT ${quotedName};`;
 }
+
+export type QueryJoinType = 'INNER' | 'LEFT' | 'RIGHT' | 'FULL';
+
+export type QueryFilterOperator =
+  | 'equals'
+  | 'not_equals'
+  | 'contains'
+  | 'starts_with'
+  | 'ends_with'
+  | 'greater_than'
+  | 'less_than'
+  | 'greater_or_equal'
+  | 'less_or_equal'
+  | 'between'
+  | 'is_null'
+  | 'is_not_null';
+
+export interface SelectedColumn {
+  id?: string;
+  table?: string;
+  column: string;
+  alias?: string;
+  aggregate?: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX' | '';
+  distinct?: boolean;
+}
+
+export interface QueryJoin {
+  id: string;
+  type: QueryJoinType;
+  table: string;
+  schema?: string;
+  alias?: string;
+  leftTable: string;
+  leftColumn: string;
+  rightTable: string;
+  rightColumn: string;
+}
+
+export interface QueryFilter {
+  id: string;
+  table?: string;
+  column: string;
+  operator: QueryFilterOperator;
+  value?: string;
+  valueTo?: string;
+}
+
+export interface QueryOrderBy {
+  id: string;
+  table?: string;
+  column: string;
+  direction: 'ASC' | 'DESC';
+}
+
+export interface SelectQueryConfig {
+  driver?: DatabaseDriver | string;
+  baseTable: string;
+  baseTableAlias?: string;
+  schemaName?: string;
+  distinct?: boolean;
+  columns?: SelectedColumn[];
+  joins?: QueryJoin[];
+  filters?: QueryFilter[];
+  filterConjunction?: 'AND' | 'OR';
+  groupBy?: string[];
+  orderBy?: QueryOrderBy[];
+  limit?: number;
+  offset?: number;
+}
+
+function formatFilterValue(val: unknown, driver?: string): string {
+  if (val === null || val === undefined) return 'NULL';
+  if (typeof val === 'number') return isNaN(val) ? 'NULL' : String(val);
+  if (typeof val === 'boolean') {
+    const isPostgres = !driver || driver.toLowerCase().includes('postgres');
+    return isPostgres ? (val ? 'TRUE' : 'FALSE') : (val ? '1' : '0');
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.toUpperCase() === 'NULL') return 'NULL';
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      return trimmed;
+    }
+    return `'${val.replace(/'/g, "''")}'`;
+  }
+  return `'${String(val).replace(/'/g, "''")}'`;
+}
+
+/**
+ * Builds a formatted SQL SELECT query from visual query configuration.
+ */
+export function buildSelectQuery(config: SelectQueryConfig): string {
+  const driver = config.driver;
+  const cleanBaseTable = (config.baseTable || '').trim();
+  if (!cleanBaseTable) {
+    return '';
+  }
+
+  const baseTableQuoted = qualifyTable(cleanBaseTable, config.schemaName, driver);
+  const baseTableRef = config.baseTableAlias && config.baseTableAlias.trim()
+    ? `${baseTableQuoted} AS ${quoteIdentifier(config.baseTableAlias.trim(), driver)}`
+    : baseTableQuoted;
+
+  // 1. SELECT Columns
+  const validCols = (config.columns || []).filter(
+    (c) => c && c.column && c.column.trim().length > 0
+  );
+
+  let selectClause = 'SELECT';
+  if (config.distinct) {
+    selectClause += ' DISTINCT';
+  }
+
+  let colParts: string[] = [];
+  if (validCols.length === 0) {
+    colParts.push('*');
+  } else {
+    colParts = validCols.map((c) => {
+      const colName = c.column.trim();
+      let expr: string;
+
+      if (colName === '*') {
+        if (c.table && c.table.trim()) {
+          expr = `${quoteIdentifier(c.table.trim(), driver)}.*`;
+        } else {
+          expr = '*';
+        }
+      } else {
+        const quotedCol = quoteIdentifier(colName, driver);
+        if (c.table && c.table.trim()) {
+          expr = `${quoteIdentifier(c.table.trim(), driver)}.${quotedCol}`;
+        } else {
+          expr = quotedCol;
+        }
+      }
+
+      if (c.aggregate && c.aggregate.trim()) {
+        const agg = c.aggregate.trim().toUpperCase();
+        if (c.distinct) {
+          expr = `${agg}(DISTINCT ${expr})`;
+        } else {
+          expr = `${agg}(${expr})`;
+        }
+      }
+
+      if (c.alias && c.alias.trim()) {
+        expr += ` AS ${quoteIdentifier(c.alias.trim(), driver)}`;
+      }
+
+      return expr;
+    });
+  }
+
+  const lines: string[] = [];
+  lines.push(`${selectClause} ${colParts.join(', ')}`);
+  lines.push(`FROM ${baseTableRef}`);
+
+  // 2. JOINs
+  if (config.joins && config.joins.length > 0) {
+    for (const join of config.joins) {
+      if (!join.table || !join.table.trim()) continue;
+      const joinType = (join.type || 'INNER').toUpperCase();
+      const joinTableQuoted = qualifyTable(join.table.trim(), join.schema, driver);
+      const joinTableTarget = join.alias && join.alias.trim()
+        ? `${joinTableQuoted} AS ${quoteIdentifier(join.alias.trim(), driver)}`
+        : joinTableQuoted;
+
+      const leftTable = (join.leftTable || config.baseTableAlias || cleanBaseTable).trim();
+      const leftCol = (join.leftColumn || '').trim();
+      const rightTable = (join.alias || join.rightTable || join.table).trim();
+      const rightCol = (join.rightColumn || '').trim();
+
+      if (leftCol && rightCol) {
+        const leftRef = `${quoteIdentifier(leftTable, driver)}.${quoteIdentifier(leftCol, driver)}`;
+        const rightRef = `${quoteIdentifier(rightTable, driver)}.${quoteIdentifier(rightCol, driver)}`;
+        lines.push(`${joinType} JOIN ${joinTableTarget} ON ${leftRef} = ${rightRef}`);
+      } else {
+        lines.push(`${joinType} JOIN ${joinTableTarget}`);
+      }
+    }
+  }
+
+  // 3. WHERE filters
+  if (config.filters && config.filters.length > 0) {
+    const filterClauses: string[] = [];
+    for (const filter of config.filters) {
+      if (!filter.column || !filter.column.trim()) continue;
+      const colName = filter.column.trim();
+      const colRef = filter.table && filter.table.trim()
+        ? `${quoteIdentifier(filter.table.trim(), driver)}.${quoteIdentifier(colName, driver)}`
+        : quoteIdentifier(colName, driver);
+
+      const val = filter.value !== undefined ? filter.value : '';
+      const valTo = filter.valueTo !== undefined ? filter.valueTo : '';
+
+      switch (filter.operator) {
+        case 'equals':
+          filterClauses.push(`${colRef} = ${formatFilterValue(val, driver)}`);
+          break;
+        case 'not_equals':
+          filterClauses.push(`${colRef} != ${formatFilterValue(val, driver)}`);
+          break;
+        case 'contains':
+          filterClauses.push(`${colRef} LIKE '%${val.replace(/'/g, "''")}%'`);
+          break;
+        case 'starts_with':
+          filterClauses.push(`${colRef} LIKE '${val.replace(/'/g, "''")}%'`);
+          break;
+        case 'ends_with':
+          filterClauses.push(`${colRef} LIKE '%${val.replace(/'/g, "''")}'`);
+          break;
+        case 'greater_than':
+          filterClauses.push(`${colRef} > ${formatFilterValue(val, driver)}`);
+          break;
+        case 'less_than':
+          filterClauses.push(`${colRef} < ${formatFilterValue(val, driver)}`);
+          break;
+        case 'greater_or_equal':
+          filterClauses.push(`${colRef} >= ${formatFilterValue(val, driver)}`);
+          break;
+        case 'less_or_equal':
+          filterClauses.push(`${colRef} <= ${formatFilterValue(val, driver)}`);
+          break;
+        case 'between':
+          filterClauses.push(
+            `${colRef} BETWEEN ${formatFilterValue(val, driver)} AND ${formatFilterValue(valTo, driver)}`
+          );
+          break;
+        case 'is_null':
+          filterClauses.push(`${colRef} IS NULL`);
+          break;
+        case 'is_not_null':
+          filterClauses.push(`${colRef} IS NOT NULL`);
+          break;
+        default:
+          filterClauses.push(`${colRef} = ${formatFilterValue(val, driver)}`);
+          break;
+      }
+    }
+
+    if (filterClauses.length > 0) {
+      const conjunction = config.filterConjunction === 'OR' ? ' OR ' : ' AND ';
+      lines.push(`WHERE ${filterClauses.join(conjunction)}`);
+    }
+  }
+
+  // 4. GROUP BY
+  if (config.groupBy && config.groupBy.length > 0) {
+    const groupCols = config.groupBy
+      .map((g) => g.trim())
+      .filter(Boolean)
+      .map((g) => {
+        if (g.includes('.')) {
+          const [t, c] = g.split('.');
+          return `${quoteIdentifier(t, driver)}.${quoteIdentifier(c, driver)}`;
+        }
+        return quoteIdentifier(g, driver);
+      });
+    if (groupCols.length > 0) {
+      lines.push(`GROUP BY ${groupCols.join(', ')}`);
+    }
+  }
+
+  // 5. ORDER BY
+  if (config.orderBy && config.orderBy.length > 0) {
+    const orderClauses: string[] = [];
+    for (const ord of config.orderBy) {
+      if (!ord.column || !ord.column.trim()) continue;
+      const colName = ord.column.trim();
+      const colRef = ord.table && ord.table.trim()
+        ? `${quoteIdentifier(ord.table.trim(), driver)}.${quoteIdentifier(colName, driver)}`
+        : quoteIdentifier(colName, driver);
+      const dir = (ord.direction || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+      orderClauses.push(`${colRef} ${dir}`);
+    }
+    if (orderClauses.length > 0) {
+      lines.push(`ORDER BY ${orderClauses.join(', ')}`);
+    }
+  }
+
+  // 6. LIMIT & OFFSET
+  if (typeof config.limit === 'number' && config.limit >= 0) {
+    lines.push(`LIMIT ${config.limit}`);
+  }
+  if (typeof config.offset === 'number' && config.offset > 0) {
+    lines.push(`OFFSET ${config.offset}`);
+  }
+
+  return `${lines.join('\n')};`;
+}

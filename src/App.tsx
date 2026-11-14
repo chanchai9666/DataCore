@@ -20,7 +20,13 @@ import { KeyboardShortcutsModal } from './components/dialogs/KeyboardShortcutsMo
 import { CommandPaletteModal } from './components/palette/CommandPaletteModal';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
-import { openQueryTab, openTableListTab, openERDiagramTab, openTableTab } from './components/sidebar/tabHelpers';
+import {
+  openQueryTab,
+  openTableListTab,
+  openERDiagramTab,
+  openTableTab,
+  openQueryBuilderTab,
+} from './components/sidebar/tabHelpers';
 import { useShortcuts } from './hooks/useShortcuts';
 import type { ConnectionConfig } from './types/db';
 
@@ -261,6 +267,15 @@ export function App() {
             });
           }
         }}
+        onOpenQueryBuilder={() => {
+          if (resolvedConnectionId) {
+            openQueryBuilderTab({
+              connectionId: resolvedConnectionId,
+              tableName: activeTab?.tableName,
+              schemaName: activeTab?.schemaName,
+            });
+          }
+        }}
         onOpenSchemaDiff={() => setIsSchemaDiffModalOpen(true)}
         onOpenActivityMonitor={() => {
           if (resolvedConnectionId) setIsActivityMonitorModalOpen(true);
@@ -459,6 +474,15 @@ export function App() {
           if (resolvedConnectionId) {
             openERDiagramTab({
               connectionId: resolvedConnectionId,
+              schemaName: activeTab?.schemaName,
+            });
+          }
+        }}
+        onOpenQueryBuilder={() => {
+          if (resolvedConnectionId) {
+            openQueryBuilderTab({
+              connectionId: resolvedConnectionId,
+              tableName: activeTab?.tableName,
               schemaName: activeTab?.schemaName,
             });
           }
