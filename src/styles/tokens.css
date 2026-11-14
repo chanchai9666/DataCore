@@ -25,6 +25,15 @@
   --danger: #d33a3a;
   --success: #2e9e5b;
   --warn: #c9861a;
+
+  /* Aliases for UI components (e.g. PaginationBar, Modals) */
+  --bg-secondary: var(--bg-toolbar);
+  --bg-input: #ffffff;
+  --btn-bg: #e4e4e7;
+  --border-color: var(--border);
+  --text-primary: var(--text);
+  --text-secondary: var(--text-muted);
+  --text-disabled: #a1a1aa;
 }
 
 .dark {
@@ -43,4 +52,13 @@
   --danger: #ef6b6b;
   --success: #4cc17f;
   --warn: #e0a840;
+
+  /* Aliases for UI components (e.g. PaginationBar, Modals) */
+  --bg-secondary: var(--bg-toolbar);
+  --bg-input: #1e1e20;
+  --btn-bg: #3e3e42;
+  --border-color: var(--border);
+  --text-primary: var(--text);
+  --text-secondary: var(--text-muted);
+  --text-disabled: #52525b;
 }

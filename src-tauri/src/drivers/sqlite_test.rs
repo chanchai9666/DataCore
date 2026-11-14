@@ -207,6 +207,18 @@ async fn test_sqlite_table_filter_sanitization() {
     assert!(valid_res2.is_ok(), "valid standard filter should succeed");
     assert_eq!(valid_res2.unwrap().rows.len(), 1);
 
+    // Filter with keywords and special characters inside string literals should succeed
+    let valid_keyword_in_literal = conn
+        .fetch_table_data(None, "test_filter", 10, 0, Some("name = 'pending update' OR name = 'delete'"), None, None)
+        .await;
+    assert!(valid_keyword_in_literal.is_ok(), "keywords in single quotes should be allowed");
+
+    // Unclosed string literal should fail
+    let unclosed_res = conn
+        .fetch_table_data(None, "test_filter", 10, 0, Some("name = 'Alice"), None, None)
+        .await;
+    assert!(unclosed_res.is_err(), "unclosed string literal should be rejected");
+
     // 2. Dangerous SQL injection and stacked query patterns
     let dangerous_filters = vec![
         "id = 1; DROP TABLE test_filter",
@@ -319,4 +331,15 @@ async fn test_sqlite_quote_aware_splitting_and_multi_select() {
     assert_eq!(res.rows.len(), 1);
     assert_eq!(res.rows[0][0], CellValue::Integer(20));
     assert_eq!(res.rows[0][1], CellValue::Text("ok".to_string()));
+}
+
+#[test]
+fn test_sqlite_split_sql_statements_backslash_is_literal() {
+    use crate::drivers::sqlite::split_sql_statements;
+
+    let sql = "INSERT INTO dirs VALUES ('C:\\'); SELECT 1;";
+    let statements = split_sql_statements(sql);
+    assert_eq!(statements.len(), 2);
+    assert_eq!(statements[0], "INSERT INTO dirs VALUES ('C:\\')");
+    assert_eq!(statements[1], "SELECT 1");
 }

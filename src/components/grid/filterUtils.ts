@@ -1,6 +1,16 @@
 import type { ColumnMeta, FilterCondition, CellValue } from '../../types/db';
 
 /**
+ * Determines if a string value can safely be emitted as an unquoted numeric literal in SQL.
+ * Values with leading zeros (e.g. "0123", "-0123") must retain quotes to prevent type coercion
+ * errors on PostgreSQL or loss of leading zeros in SQLite/MySQL.
+ */
+export const isSafeUnquotedNumber = (val: string): boolean => {
+  if (/^-?0\d+/.test(val)) return false;
+  return /^-?\d+(\.\d+)?$/.test(val);
+};
+
+/**
  * Builds an escaped SQL WHERE clause string from a list of filter conditions.
  */
 export function buildSqlWhereClause(
@@ -25,6 +35,11 @@ export function buildSqlWhereClause(
     return `"${name.replace(/"/g, '""')}"`;
   };
 
+  const escapeString = (s: string) => {
+    const escapedQuotes = s.replace(/'/g, "''");
+    return driver === 'mysql' ? escapedQuotes.replace(/\\/g, '\\\\') : escapedQuotes;
+  };
+
   const parts = activeConditions.map((cond) => {
     const col = quoteId(cond.column);
     const val = cond.value?.trim() ?? '';
@@ -36,16 +51,16 @@ export function buildSqlWhereClause(
         return `${col} IS NOT NULL`;
       case 'LIKE':
       case 'NOT LIKE': {
-        const escaped = val.replace(/'/g, "''");
+        const escaped = escapeString(val);
         const pattern = escaped.includes('%') || escaped.includes('_') ? escaped : `%${escaped}%`;
         return `${col} ${cond.operator} '${pattern}'`;
       }
       default: {
-        // Numeric literals without quotes if purely numeric
-        if (/^-?\d+(\.\d+)?$/.test(val)) {
+        // Numeric literals without quotes only if purely numeric and not having leading zeros
+        if (isSafeUnquotedNumber(val)) {
           return `${col} ${cond.operator} ${val}`;
         }
-        const escaped = val.replace(/'/g, "''");
+        const escaped = escapeString(val);
         return `${col} ${cond.operator} '${escaped}'`;
       }
     }

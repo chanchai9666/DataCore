@@ -114,10 +114,17 @@ describe('useQueryHistoryStore', () => {
       executionTimeMs: 15,
       status: 'success',
     });
+    useQueryHistoryStore.getState().addHistoryItem({
+      sql: "ALTER USER alice WITH PASSWORD 'MySecret123';",
+      executionTimeMs: 10,
+      status: 'success',
+    });
 
     const { history } = useQueryHistoryStore.getState();
-    expect(history.length).toBe(1);
-    expect(history[0].sql).toBe("CREATE USER 'db_admin'@'%' IDENTIFIED BY '***REDACTED***';");
-    expect(history[0].sql).not.toContain('TopSecretPass123!');
+    expect(history.length).toBe(2);
+    expect(history[1].sql).toBe("CREATE USER 'db_admin'@'%' IDENTIFIED BY '***REDACTED***';");
+    expect(history[1].sql).not.toContain('TopSecretPass123!');
+    expect(history[0].sql).toBe("ALTER USER alice WITH PASSWORD '***REDACTED***';");
+    expect(history[0].sql).not.toContain('MySecret123');
   });
 });

@@ -98,6 +98,26 @@ describe('splitSqlStatements', () => {
     ]);
   });
 
+  it('treats backslash as literal inside quotes for SQLite and PostgreSQL', () => {
+    const sql = "INSERT INTO dirs VALUES ('C:\\'); SELECT 1;";
+    expect(splitSqlStatements(sql, 'sqlite')).toEqual([
+      "INSERT INTO dirs VALUES ('C:\\')",
+      'SELECT 1',
+    ]);
+    expect(splitSqlStatements(sql, 'postgres')).toEqual([
+      "INSERT INTO dirs VALUES ('C:\\')",
+      'SELECT 1',
+    ]);
+  });
+
+  it('treats backslash as escape inside quotes for MySQL', () => {
+    const sql = "SELECT 'escaped\\'quote; inside'; SELECT 2;";
+    expect(splitSqlStatements(sql, 'mysql')).toEqual([
+      "SELECT 'escaped\\'quote; inside'",
+      'SELECT 2',
+    ]);
+  });
+
   it('handles empty strings and trailing semicolons cleanly', () => {
     expect(splitSqlStatements('')).toEqual([]);
     expect(splitSqlStatements('   ')).toEqual([]);

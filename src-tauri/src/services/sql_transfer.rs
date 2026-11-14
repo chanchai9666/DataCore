@@ -4,7 +4,9 @@ use crate::drivers::DatabaseConnection;
 use crate::error::AppError;
 use crate::models::transfer::{SqlExportOptions, SqlExportResult, SqlImportOptions, SqlImportResult, TransferProgress};
 use crate::models::{CellValue, DatabaseDriver};
-use crate::services::data_transfer::{is_transfer_cancelled, remove_cancellation_token};
+use crate::services::data_transfer::{
+    escape_sql_string, is_transfer_cancelled, remove_cancellation_token,
+};
 use crate::services::table_list::get_table_list_metadata_impl;
 
 /// Checks whether a statement string contains any executable SQL (i.e. not solely whitespace and comments).
@@ -200,7 +202,7 @@ fn format_cell_value(val: &CellValue, dialect: &str) -> String {
             }
         }
         CellValue::Text(s) => {
-            format!("'{}'", s.replace('\'', "''"))
+            format!("'{}'", escape_sql_string(s, dialect))
         }
         CellValue::Boolean(b) => {
             if dialect == "postgres" {
@@ -211,10 +213,20 @@ fn format_cell_value(val: &CellValue, dialect: &str) -> String {
         }
         CellValue::Json(j) => {
             let json_str = j.to_string();
-            format!("'{}'", json_str.replace('\'', "''"))
+            format!("'{}'", escape_sql_string(&json_str, dialect))
         }
         CellValue::Bytes(b64) => {
-            format!("'{}'", b64.replace('\'', "''"))
+            use base64::Engine;
+            if let Ok(raw) = base64::engine::general_purpose::STANDARD.decode(b64) {
+                let hex_str: String = raw.iter().map(|b| format!("{:02X}", b)).collect();
+                if dialect.to_lowercase().contains("postgres") {
+                    format!("'\\x{}'::bytea", hex_str)
+                } else {
+                    format!("X'{}'", hex_str)
+                }
+            } else {
+                format!("'{}'", escape_sql_string(b64, dialect))
+            }
         }
     }
 }
@@ -333,14 +345,52 @@ pub async fn export_sql_impl(
                             let mut col_defs = Vec::new();
                             for row in res.rows {
                                 if let (Some(CellValue::Text(name)), Some(CellValue::Text(dtype))) = (row.first(), row.get(1)) {
-                                    let is_null = row.get(2).and_then(|c| match c {
+                                    let is_not_null = row.get(2).and_then(|c| match c {
                                         CellValue::Text(t) => Some(t == "NO"),
                                         _ => None,
                                     }).unwrap_or(false);
-                                    let not_null_str = if is_null { " NOT NULL" } else { "" };
-                                    col_defs.push(format!("    \"{}\" {}{}", name.replace('"', "\"\""), dtype, not_null_str));
+                                    let default_str = if let Some(CellValue::Text(def)) = row.get(3) {
+                                        if !def.is_empty() {
+                                            format!(" DEFAULT {}", def)
+                                        } else {
+                                            String::new()
+                                        }
+                                    } else {
+                                        String::new()
+                                    };
+                                    let not_null_str = if is_not_null { " NOT NULL" } else { "" };
+                                    col_defs.push(format!("    \"{}\" {}{}{}", name.replace('"', "\"\""), dtype, default_str, not_null_str));
                                 }
                             }
+
+                            // Query primary key constraints
+                            let pk_query = format!(
+                                r#"SELECT kcu.column_name 
+                                   FROM information_schema.table_constraints tc 
+                                   JOIN information_schema.key_column_usage kcu 
+                                     ON tc.constraint_name = kcu.constraint_name 
+                                     AND tc.table_schema = kcu.table_schema 
+                                   WHERE tc.constraint_type = 'PRIMARY KEY' 
+                                     AND tc.table_schema = '{}' 
+                                     AND tc.table_name = '{}' 
+                                   ORDER BY kcu.ordinal_position;"#,
+                                s_name.replace('\'', "''"),
+                                table.replace('\'', "''")
+                            );
+                            if let Ok(pk_res) = conn.execute_query(&pk_query).await {
+                                let pk_cols: Vec<String> = pk_res
+                                    .rows
+                                    .into_iter()
+                                    .filter_map(|r| match r.first() {
+                                        Some(CellValue::Text(c)) => Some(format!("\"{}\"", c.replace('"', "\"\""))),
+                                        _ => None,
+                                    })
+                                    .collect();
+                                if !pk_cols.is_empty() {
+                                    col_defs.push(format!("    PRIMARY KEY ({})", pk_cols.join(", ")));
+                                }
+                            }
+
                             writeln!(writer, "CREATE TABLE \"{}\".\"{}\" (\n{}\n);\n",
                                 s_name.replace('"', "\"\""),
                                 table.replace('"', "\"\""),

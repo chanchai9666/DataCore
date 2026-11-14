@@ -1,4 +1,4 @@
-use std::fs::{self, File};
+use std::fs;
 use std::io::Write;
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -43,6 +43,19 @@ impl SshTunnelHandle {
             .as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty());
+
+        if ssh_host.starts_with('-') {
+            return Err(AppError::InvalidInput(
+                "Invalid SSH host: cannot start with '-'".to_string(),
+            ));
+        }
+        if let Some(user) = ssh_user {
+            if user.starts_with('-') {
+                return Err(AppError::InvalidInput(
+                    "Invalid SSH username: cannot start with '-'".to_string(),
+                ));
+            }
+        }
 
         // Allocate an ephemeral local port on 127.0.0.1
         let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| {
@@ -119,12 +132,19 @@ impl SshTunnelHandle {
                 "datacore_ssh_askpass_{}.sh",
                 uuid::Uuid::new_v4()
             ));
-            let mut file = File::create(&script_path).map_err(|e| {
+            let mut open_opts = fs::OpenOptions::new();
+            open_opts.create_new(true).write(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                open_opts.mode(0o700);
+            }
+            let mut file = open_opts.open(&script_path).map_err(|e| {
                 AppError::Other(format!("Failed to create SSH askpass helper: {}", e))
             })?;
             // Safely escape single quotes in secret
             let escaped = sec.replace('\'', "'\\''");
-            writeln!(file, "#!/bin/sh\necho '{}'", escaped).map_err(|e| {
+            writeln!(file, "#!/bin/sh\nprintf '%s\\n' '{}'", escaped).map_err(|e| {
                 AppError::Other(format!("Failed to write SSH askpass helper: {}", e))
             })?;
             drop(file);
@@ -143,6 +163,7 @@ impl SshTunnelHandle {
             cmd.arg("-o").arg("BatchMode=yes");
         }
 
+        cmd.arg("--");
         if let Some(user) = ssh_user {
             cmd.arg(format!("{}@{}", user, ssh_host));
         } else {
@@ -240,6 +261,55 @@ impl Drop for SshTunnelHandle {
         let _ = self.child.wait();
         if let Some(ref script) = self.askpass_script {
             let _ = fs::remove_file(script);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_ssh_tunnel_rejects_leading_dash_host() {
+        let config = SshTunnelConfig {
+            enabled: true,
+            host: Some("-oProxyCommand=calc.exe".to_string()),
+            port: Some(22),
+            user: Some("testuser".to_string()),
+            auth_type: Some("password".to_string()),
+            passphrase: Some("secret".to_string()),
+            private_key_path: None,
+        };
+
+        let res = SshTunnelHandle::establish(&config, "127.0.0.1", 3306, 1).await;
+        assert!(res.is_err());
+        match res.err().unwrap() {
+            AppError::InvalidInput(msg) => {
+                assert!(msg.contains("cannot start with '-'"), "Expected leading dash error, got: {}", msg);
+            }
+            other => panic!("Expected AppError::InvalidInput, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ssh_tunnel_rejects_leading_dash_user() {
+        let config = SshTunnelConfig {
+            enabled: true,
+            host: Some("example.com".to_string()),
+            port: Some(22),
+            user: Some("-oProxyCommand=evil".to_string()),
+            auth_type: Some("password".to_string()),
+            passphrase: Some("secret".to_string()),
+            private_key_path: None,
+        };
+
+        let res = SshTunnelHandle::establish(&config, "127.0.0.1", 3306, 1).await;
+        assert!(res.is_err());
+        match res.err().unwrap() {
+            AppError::InvalidInput(msg) => {
+                assert!(msg.contains("cannot start with '-'"), "Expected leading dash error, got: {}", msg);
+            }
+            other => panic!("Expected AppError::InvalidInput, got: {:?}", other),
         }
     }
 }

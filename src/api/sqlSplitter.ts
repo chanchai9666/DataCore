@@ -7,7 +7,8 @@
  * - Single-line comments (-- ...)
  * - Nested block comments (/* ... /* ... *\/ ... *\/)
  */
-export function splitSqlStatements(sql: string): string[] {
+export function splitSqlStatements(sql: string, dialect?: string): string[] {
+  const allowBackslashEscape = dialect ? dialect.toLowerCase().includes('mysql') : true;
   const statements: string[] = [];
   let current = '';
   let inSingleQuote = false;
@@ -63,7 +64,7 @@ export function splitSqlStatements(sql: string): string[] {
     // 4. Single-quoted string ('...')
     if (inSingleQuote) {
       current += char;
-      if (char === '\\' && next !== undefined) {
+      if (allowBackslashEscape && char === '\\' && next !== undefined) {
         current += next;
         i++;
         continue;
@@ -82,7 +83,7 @@ export function splitSqlStatements(sql: string): string[] {
     // 5. Double-quoted identifier ("...")
     if (inDoubleQuote) {
       current += char;
-      if (char === '\\' && next !== undefined) {
+      if (allowBackslashEscape && char === '\\' && next !== undefined) {
         current += next;
         i++;
         continue;
@@ -101,7 +102,7 @@ export function splitSqlStatements(sql: string): string[] {
     // 6. Backtick identifier (`...`)
     if (inBacktick) {
       current += char;
-      if (char === '\\' && next !== undefined) {
+      if (allowBackslashEscape && char === '\\' && next !== undefined) {
         current += next;
         i++;
         continue;

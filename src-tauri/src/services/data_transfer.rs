@@ -406,6 +406,17 @@ impl<W: Write> Write for CountingWriter<W> {
     }
 }
 
+/// Escapes string literals for SQL according to database dialect.
+/// Replaces single quotes with double single quotes, and for MySQL additionally escapes backslashes.
+pub fn escape_sql_string(val: &str, dialect: &str) -> String {
+    let escaped_quotes = val.replace('\'', "''");
+    if dialect.to_lowercase().contains("mysql") {
+        escaped_quotes.replace('\\', "\\\\")
+    } else {
+        escaped_quotes
+    }
+}
+
 /// Quotes an SQL identifier depending on database dialect.
 pub fn quote_identifier(ident: &str, dialect: &str) -> String {
     let lower_dialect = dialect.to_lowercase();
@@ -454,7 +465,7 @@ pub fn format_sql_literal_with_options(
             if trimmed.eq_ignore_ascii_case("null") {
                 return "NULL".to_string();
             }
-            return format!("'{}'", val.replace('\'', "''"));
+            return format!("'{}'", escape_sql_string(val, dialect));
         }
         if dt.contains("int") || dt.contains("serial") {
             if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("null") {
@@ -524,8 +535,8 @@ pub fn format_sql_literal_with_options(
         }
     }
 
-    // Escape single quotes for string literal
-    format!("'{}'", val.replace('\'', "''"))
+    // Escape single quotes (and backslashes for MySQL) for string literal
+    format!("'{}'", escape_sql_string(val, dialect))
 }
 
 /// Formats a CellValue into a valid SQL literal without type coercion.
@@ -548,9 +559,21 @@ pub fn cell_value_to_sql_literal(val: &CellValue, dialect: &str) -> String {
                 if *b { "TRUE".to_string() } else { "FALSE".to_string() }
             }
         }
-        CellValue::Text(s) => format!("'{}'", s.replace('\'', "''")),
-        CellValue::Json(j) => format!("'{}'", j.to_string().replace('\'', "''")),
-        CellValue::Bytes(b) => format!("'{}'", b.replace('\'', "''")),
+        CellValue::Text(s) => format!("'{}'", escape_sql_string(s, dialect)),
+        CellValue::Json(j) => format!("'{}'", escape_sql_string(&j.to_string(), dialect)),
+        CellValue::Bytes(b64) => {
+            use base64::Engine;
+            if let Ok(raw) = base64::engine::general_purpose::STANDARD.decode(b64) {
+                let hex_str: String = raw.iter().map(|b| format!("{:02X}", b)).collect();
+                if dialect.to_lowercase().contains("postgres") {
+                    format!("'\\x{}'::bytea", hex_str)
+                } else {
+                    format!("X'{}'", hex_str)
+                }
+            } else {
+                format!("'{}'", escape_sql_string(b64, dialect))
+            }
+        }
     }
 }
 

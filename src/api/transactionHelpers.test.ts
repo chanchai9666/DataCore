@@ -4,6 +4,7 @@ import {
   buildSavepointSql,
   buildRollbackToSavepointSql,
   buildReleaseSavepointSql,
+  sanitizeSavepointName,
   buildLocksQuery,
   buildKillSessionSql,
 } from './transactionHelpers';
@@ -39,18 +40,30 @@ describe('transactionHelpers', () => {
   });
 
   describe('Savepoint helpers', () => {
+    it('sanitizes savepoint names properly', () => {
+      expect(sanitizeSavepointName('my_savepoint')).toBe('my_savepoint');
+      expect(sanitizeSavepointName('จุดบันทึก1')).toBe('_________1'); // thai chars replaced with _
+      expect(sanitizeSavepointName('123')).toBe('sp_123'); // digits prefixed with sp_
+      expect(sanitizeSavepointName('   ')).toBe('sp_default'); // empty fallback
+      expect(sanitizeSavepointName('!@#$')).toBe('____');
+      expect(sanitizeSavepointName('')).toBe('sp_default');
+    });
+
     it('builds SAVEPOINT SQL', () => {
       expect(buildSavepointSql('sp_checkout')).toBe('SAVEPOINT sp_checkout;');
+      expect(buildSavepointSql('123')).toBe('SAVEPOINT sp_123;');
     });
 
     it('builds ROLLBACK TO SAVEPOINT SQL', () => {
       expect(buildRollbackToSavepointSql('sp_checkout')).toBe('ROLLBACK TO SAVEPOINT sp_checkout;');
+      expect(buildRollbackToSavepointSql('123')).toBe('ROLLBACK TO SAVEPOINT sp_123;');
     });
 
     it('builds RELEASE SAVEPOINT SQL', () => {
       expect(buildReleaseSavepointSql('sp_checkout', 'postgres')).toBe('RELEASE SAVEPOINT sp_checkout;');
       expect(buildReleaseSavepointSql('sp_checkout', 'mysql')).toBe('RELEASE SAVEPOINT sp_checkout;');
       expect(buildReleaseSavepointSql('sp_checkout', 'sqlite')).toBe('RELEASE sp_checkout;');
+      expect(buildReleaseSavepointSql('123', 'sqlite')).toBe('RELEASE sp_123;');
     });
   });
 

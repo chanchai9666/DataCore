@@ -808,7 +808,19 @@ async fn test_simulate_query_impact_delete_and_update() {
         "Should warn when affected rows exceed 100 threshold"
     );
 
-    // 5. Query with syntax error fails gracefully
+    // 5. Multi-statement query should be rejected for safety
+    let multi_res = simulate_query_impact_impl(
+        &store,
+        &session_mgr,
+        "conn-sim-test",
+        "DELETE FROM test_items WHERE id = 1; DROP TABLE test_items;",
+    )
+    .await
+    .expect("multi-statement simulation response");
+    assert!(!multi_res.is_mutation);
+    assert!(multi_res.preview_warning.as_ref().unwrap().contains("single"));
+
+    // 6. Query with syntax error fails gracefully
     let err_res = simulate_query_impact_impl(
         &store,
         &session_mgr,

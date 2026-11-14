@@ -349,3 +349,37 @@ fn test_remove_master_password_reverts_to_machine_mode() {
     let retrieved = machine_session.get_password("c-revert").expect("read in machine mode");
     assert_eq!(retrieved.as_deref(), Some("super_secret_value"));
 }
+
+#[test]
+fn test_vault_creates_directory_with_0700_permissions() {
+    let dir = tempdir().expect("create temp dir");
+    // Point to non-existent subfolder so Vault has to create it
+    let non_existent_vault_dir = dir.path().join("datacore_new_vault");
+    assert!(!non_existent_vault_dir.exists());
+
+    let vault = Vault::new(&non_existent_vault_dir);
+    vault.save_password("conn-test-fresh-dir", "pass123").expect("save in new dir");
+
+    assert!(non_existent_vault_dir.exists());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = fs::metadata(&non_existent_vault_dir).unwrap().permissions();
+        assert_eq!(
+            perms.mode() & 0o777,
+            0o700,
+            "Vault directory must have 0o700 permissions"
+        );
+
+        let vault_file_perms = fs::metadata(non_existent_vault_dir.join("vault.enc")).unwrap().permissions();
+        assert_eq!(
+            vault_file_perms.mode() & 0o777,
+            0o600,
+            "Vault file must have 0o600 permissions"
+        );
+    }
+
+    let pass = vault.get_password("conn-test-fresh-dir").expect("get password");
+    assert_eq!(pass.as_deref(), Some("pass123"));
+}

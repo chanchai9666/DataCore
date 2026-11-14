@@ -79,10 +79,10 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
         <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150" />
         <AlertDialog.Content
           aria-describedby="drop-table-description"
-          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-900 border border-red-500/30 rounded-lg shadow-2xl max-w-md w-full overflow-hidden text-gray-200 focus:outline-none"
+          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-zinc-900 border border-red-500/30 rounded-lg shadow-2xl max-w-md w-full overflow-hidden text-zinc-900 dark:text-zinc-100 focus:outline-none"
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-red-950/20">
-            <div className="flex items-center space-x-2 text-red-400">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-red-50 dark:bg-red-950/20">
+            <div className="flex items-center space-x-2 text-red-500 dark:text-red-400">
               <AlertTriangle className="w-5 h-5 flex-shrink-0" />
               <AlertDialog.Title asChild>
                 <h2 id="drop-table-title" className="text-sm font-semibold tracking-wide">
@@ -95,7 +95,7 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
                 type="button"
                 onClick={onClose}
                 aria-label="Close dialog"
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -104,35 +104,35 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
 
           <form onSubmit={handleDrop} className="p-4 space-y-4">
             <AlertDialog.Description asChild>
-              <div id="drop-table-description" className="text-xs text-gray-300 space-y-2">
+              <div id="drop-table-description" className="text-xs text-zinc-600 dark:text-zinc-300 space-y-2">
                 <p>
                   Are you sure you want to drop table{' '}
-                  <span className="font-mono font-bold text-red-300 bg-red-950/40 px-1 py-0.5 rounded">
+                  <span className="font-mono font-bold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/40 px-1 py-0.5 rounded">
                     {fullDisplay}
                   </span>
                   ?
                 </p>
-                <p className="text-red-400">
+                <p className="text-red-600 dark:text-red-400">
                   This action is permanent and cannot be undone. All data, indexes, and triggers associated with this table will be deleted.
                 </p>
               </div>
             </AlertDialog.Description>
 
             {isPostgres && (
-              <label className="flex items-center space-x-2 text-xs text-gray-300 cursor-pointer select-none">
+              <label className="flex items-center space-x-2 text-xs text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={cascade}
                   onChange={(e) => setCascade(e.target.checked)}
-                  className="rounded border-gray-700 bg-gray-800 text-red-600 focus:ring-0 focus:ring-offset-0"
+                  className="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-red-600 focus:ring-0 focus:ring-offset-0"
                 />
                 <span>Cascade drop dependent objects (foreign keys, views)</span>
               </label>
             )}
 
             <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Type <span className="font-mono text-gray-200 font-semibold">{tableName}</span> to confirm:
+              <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                Type <span className="font-mono text-zinc-900 dark:text-zinc-200 font-semibold">{tableName}</span> to confirm:
               </label>
               <input
                 type="text"
@@ -140,16 +140,16 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
                 value={confirmName}
                 onChange={(e) => setConfirmName(e.target.value)}
                 placeholder={tableName}
-                className="w-full bg-gray-950 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-gray-200 font-mono focus:outline-none focus:border-red-500"
+                className="w-full bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded px-2.5 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-red-500"
                 data-testid="drop-table-confirm-input"
               />
             </div>
 
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-1">
                 SQL Statement:
               </div>
-              <pre className="text-xs bg-gray-950 border border-gray-800 p-2 rounded font-mono text-red-300 whitespace-pre-wrap select-all">
+              <pre className="text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-2 rounded font-mono text-red-700 dark:text-red-300 whitespace-pre-wrap select-all">
                 {sql}
               </pre>
             </div>
@@ -157,19 +157,19 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
             {error && (
               <div
                 role="alert"
-                className="p-2.5 bg-red-950/50 border border-red-500/40 rounded text-xs text-red-300 font-mono"
+                className="p-2.5 bg-red-100 dark:bg-red-950/50 border border-red-300 dark:border-red-500/40 rounded text-xs text-red-700 dark:text-red-300 font-mono"
               >
                 {error}
               </div>
             )}
 
-            <div className="flex justify-end space-x-2 pt-2 border-t border-gray-800">
+            <div className="flex justify-end space-x-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
               <AlertDialog.Cancel asChild>
                 <button
                   type="button"
                   onClick={onClose}
                   disabled={loading}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-white transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
                 >
                   Cancel
                 </button>

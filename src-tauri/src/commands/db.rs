@@ -378,6 +378,13 @@ pub async fn simulate_query_impact_impl(
     connection_id: &str,
     sql: &str,
 ) -> Result<ImpactSimulationResult, AppError> {
+    let statements = crate::drivers::sqlite::split_sql_statements(sql);
+    if statements.len() != 1 {
+        return Ok(ImpactSimulationResult::non_mutation(Some(
+            "Impact preview supports only a single DELETE or UPDATE statement at a time.".to_string(),
+        )));
+    }
+
     let (is_mutation, table_name, has_where) = parse_mutation_info(sql);
     if !is_mutation {
         return Ok(ImpactSimulationResult::non_mutation(Some(
@@ -434,16 +441,19 @@ pub async fn simulate_query_impact_impl(
         return Err(AppError::NotFound(format!("Connection '{}' not found", connection_id)));
     };
 
-    let use_savepoint = conn.execute_query("SAVEPOINT _dc_impact_preview;").await.is_ok();
-    if !use_savepoint {
-        conn.execute_query("BEGIN;").await?;
-    }
+    let started_tx = conn.execute_query("BEGIN;").await.is_ok();
+    let use_savepoint = if !started_tx {
+        conn.execute_query("SAVEPOINT _dc_impact_preview;").await?;
+        true
+    } else {
+        false
+    };
 
     let exec_res = conn.execute_query(sql).await;
 
     if use_savepoint {
-        let _ = conn.execute_query("ROLLBACK TO _dc_impact_preview;").await;
-        let _ = conn.execute_query("RELEASE _dc_impact_preview;").await;
+        let _ = conn.execute_query("ROLLBACK TO SAVEPOINT _dc_impact_preview;").await;
+        let _ = conn.execute_query("RELEASE SAVEPOINT _dc_impact_preview;").await;
     } else {
         let _ = conn.execute_query("ROLLBACK;").await;
     }

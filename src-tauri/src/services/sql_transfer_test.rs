@@ -192,4 +192,43 @@ SELECT * FROM users WHERE name = 'ทดสอบ'; -- ปิดท้าย
 
         let _ = std::fs::remove_file(sql_path);
     }
+
+    #[tokio::test]
+    async fn test_export_sql_binary_blob_as_hex() {
+        let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+
+        conn.execute_query("CREATE TABLE bin_test (id INT, data BLOB);")
+            .await
+            .expect("create bin_test");
+        conn.execute_query("INSERT INTO bin_test VALUES (1, X'CAFEBABE');")
+            .await
+            .expect("insert blob");
+
+        let temp_dir = std::env::temp_dir();
+        let dump_path = temp_dir.join(format!("datacore_bin_dump_{}.sql", uuid::Uuid::new_v4()));
+        let dump_file_str = dump_path.to_str().unwrap().to_string();
+
+        let export_opts = SqlExportOptions {
+            connection_id: "test".to_string(),
+            schema: None,
+            tables: vec!["bin_test".to_string()],
+            file_path: dump_file_str.clone(),
+            include_drop_table: false,
+            include_structure: false,
+            include_data: true,
+            batch_size: Some(10),
+            job_id: None,
+        };
+
+        let export_res = export_sql_impl(&conn, DatabaseDriver::Sqlite, &export_opts)
+            .await
+            .expect("export sql");
+
+        assert_eq!(export_res.total_rows, 1);
+
+        let sql_content = std::fs::read_to_string(&dump_path).expect("read dump");
+        assert!(sql_content.contains("X'CAFEBABE'"));
+
+        let _ = std::fs::remove_file(dump_path);
+    }
 }

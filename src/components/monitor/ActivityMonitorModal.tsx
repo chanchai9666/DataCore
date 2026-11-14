@@ -367,7 +367,7 @@ export const ActivityMonitorModal: React.FC<ActivityMonitorModalProps> = ({
                           </td>
                           <td className="py-2 px-3 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              {proc.query && isActive && (
+                              {currentConnection?.driver?.toLowerCase() !== 'sqlite' && proc.query && isActive && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -380,17 +380,19 @@ export const ActivityMonitorModal: React.FC<ActivityMonitorModalProps> = ({
                                   <StopCircle className="w-3.5 h-3.5" />
                                 </button>
                               )}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTerminateSession(proc);
-                                }}
-                                title="Terminate session (kill connection)"
-                                className="p-1 rounded hover:bg-rose-500/20 text-rose-400 transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {currentConnection?.driver?.toLowerCase() !== 'sqlite' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleTerminateSession(proc);
+                                  }}
+                                  title="Terminate session (kill connection)"
+                                  className="p-1 rounded hover:bg-rose-500/20 text-rose-400 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

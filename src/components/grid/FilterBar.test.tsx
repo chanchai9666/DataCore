@@ -139,4 +139,22 @@ describe('FilterBar', () => {
       expect.objectContaining({ enabled: false })
     );
   });
+
+  it('renders correctly with light theme classes (Issue #122)', () => {
+    render(
+      <FilterBar
+        columns={mockColumns}
+        filterState={initialFilterState}
+        onChange={vi.fn()}
+        onApply={vi.fn()}
+        onClear={vi.fn()}
+        theme="light"
+      />
+    );
+
+    const filterBar = screen.getByTestId('filter-bar');
+    expect(filterBar.className).toContain('bg-gray-50');
+    expect(screen.getByText('Filter:').parentElement?.className).toContain('text-gray-700');
+    expect(screen.getByTestId('clear-filter-btn').className).toContain('bg-white');
+  });
 });

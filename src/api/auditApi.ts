@@ -1,5 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { AuditLogEntry, AuditIntegrityResult } from '../stores/auditLogStore';
+import { redactSensitiveSql } from '../utils/sqlSanitizer';
+
+export { redactSensitiveSql };
 
 export const getAuditLogs = async (
   limit?: number,
@@ -19,5 +22,9 @@ export const clearAuditLogs = async (): Promise<void> => {
 export const recordAuditLog = async (
   entry: Partial<AuditLogEntry> & { action: string; status: string }
 ): Promise<AuditLogEntry> => {
-  return invoke<AuditLogEntry>('record_audit_log', { entry });
+  const sanitizedEntry = {
+    ...entry,
+    query: entry.query ? redactSensitiveSql(entry.query) : entry.query,
+  };
+  return invoke<AuditLogEntry>('record_audit_log', { entry: sanitizedEntry });
 };

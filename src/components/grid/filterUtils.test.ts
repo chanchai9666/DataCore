@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildSqlWhereClause,
   filterInMemoryRows,
+  isSafeUnquotedNumber,
 } from './filterUtils';
 import type { ColumnMeta, FilterCondition, CellValue } from '../../types/db';
 
@@ -25,11 +26,38 @@ describe('filterUtils', () => {
       expect(buildSqlWhereClause(conditions)).toBe('"age" >= 18');
     });
 
+    it('does NOT strip quotes from values with leading zeros (Issue #116)', () => {
+      const conditions: FilterCondition[] = [
+        { id: '1', column: 'phone', operator: '=', value: '0812345678' },
+        { id: '2', column: 'zipcode', operator: '=', value: '00125' },
+      ];
+      expect(buildSqlWhereClause(conditions, 'AND')).toBe(
+        '"phone" = \'0812345678\' AND "zipcode" = \'00125\''
+      );
+    });
+
+    it('tests isSafeUnquotedNumber', () => {
+      expect(isSafeUnquotedNumber('123')).toBe(true);
+      expect(isSafeUnquotedNumber('-45')).toBe(true);
+      expect(isSafeUnquotedNumber('0')).toBe(true);
+      expect(isSafeUnquotedNumber('08123')).toBe(false);
+      expect(isSafeUnquotedNumber('-0123')).toBe(false);
+      expect(isSafeUnquotedNumber('abc')).toBe(false);
+    });
+
     it('escapes single quotes in values', () => {
       const conditions: FilterCondition[] = [
         { id: '1', column: 'name', operator: '=', value: "O'Connor" },
       ];
       expect(buildSqlWhereClause(conditions)).toBe('"name" = \'O\'\'Connor\'');
+    });
+
+    it('escapes backslashes when driver is mysql', () => {
+      const conditions: FilterCondition[] = [
+        { id: '1', column: 'path', operator: '=', value: 'C:\\temp\\' },
+      ];
+      expect(buildSqlWhereClause(conditions, 'AND', 'mysql')).toBe('`path` = \'C:\\\\temp\\\\\'');
+      expect(buildSqlWhereClause(conditions, 'AND', 'sqlite')).toBe('"path" = \'C:\\temp\\\'');
     });
 
     it('wraps LIKE and NOT LIKE values with wildcards automatically', () => {

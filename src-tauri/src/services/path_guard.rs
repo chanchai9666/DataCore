@@ -69,21 +69,14 @@ fn check_blocked_locations(path: &Path, home: Option<&Path>) -> Result<(), Strin
         }
     }
 
-    // 3. Sensitive DataCore vault files: ~/.datacore/vault.enc, ~/.datacore/.vault.key
-    if let Some(file_name) = normalized.file_name().and_then(|f| f.to_str()) {
-        let is_vault_file = file_name == "vault.enc"
-            || file_name == ".vault.key"
-            || file_name.starts_with("vault.enc")
-            || file_name.starts_with(".vault.key");
-
-        if is_vault_file {
-            let in_datacore_dir = normalized.components().any(|c| c.as_os_str() == ".datacore");
-            let in_vault_env = std::env::var("DATACORE_VAULT_DIR")
-                .map(|vd| normalized.starts_with(PathBuf::from(vd)))
-                .unwrap_or(false);
-
-            if in_datacore_dir || in_vault_env {
-                return Err("Access to sensitive DataCore vault files is denied".to_string());
+    // 3. Sensitive DataCore application data directory (~/.datacore, DATACORE_VAULT_DIR, DATACORE_LOG_DIR, DATACORE_DIR)
+    if normalized.components().any(|c| c.as_os_str() == ".datacore") {
+        return Err("Access to sensitive DataCore application directory is denied".to_string());
+    }
+    for env_key in ["DATACORE_VAULT_DIR", "DATACORE_LOG_DIR", "DATACORE_DIR"] {
+        if let Ok(env_dir) = std::env::var(env_key) {
+            if !env_dir.trim().is_empty() && normalized.starts_with(PathBuf::from(env_dir)) {
+                return Err("Access to sensitive DataCore application directory is denied".to_string());
             }
         }
     }
@@ -115,6 +108,11 @@ pub fn validate_safe_transfer_path(
         return Err("File path contains invalid null characters".to_string());
     }
 
+    // Reject Windows UNC and network paths early (e.g. \\server\share or //server/share)
+    if trimmed.starts_with(r"\\") || trimmed.starts_with("//") {
+        return Err("Network and UNC paths are not allowed".to_string());
+    }
+
     // Reject directory traversal attempts early
     if file_path.split(['/', '\\']).any(|part| part == "..")
         || file_path.contains("%2e%2e")
@@ -144,7 +142,19 @@ pub fn validate_safe_transfer_path(
     let mut normalized = PathBuf::new();
     for comp in expanded.components() {
         match comp {
-            Component::Prefix(p) => normalized.push(p.as_os_str()),
+            Component::Prefix(p) => {
+                #[cfg(windows)]
+                {
+                    use std::path::Prefix;
+                    match p.kind() {
+                        Prefix::UNC(..) | Prefix::VerbatimUNC(..) => {
+                            return Err("Network and UNC paths are not allowed".to_string());
+                        }
+                        _ => {}
+                    }
+                }
+                normalized.push(p.as_os_str());
+            }
             Component::RootDir => normalized.push(Component::RootDir.as_os_str()),
             Component::CurDir => { /* Skip . */ }
             Component::ParentDir => {
@@ -295,16 +305,40 @@ mod tests {
             "~/.gnupg/secring.gpg.sql",
             "~/.datacore/vault.enc",
             "~/.datacore/.vault.key",
+            "~/.datacore/connections.json",
+            "~/.datacore/audit.jsonl",
             "/tmp/fake/.ssh/key.csv",
             "/tmp/fake/.gnupg/key.sql",
+            "/tmp/fake/.datacore/config.json",
         ];
         for path in sensitive {
-            let res = validate_safe_transfer_path(path, &["csv", "sql", "enc", "key", "txt"]);
+            let res = validate_safe_transfer_path(path, &["csv", "sql", "enc", "key", "txt", "json", "jsonl"]);
             assert!(res.is_err(), "Expected rejection for {}", path);
             let err = res.err().unwrap();
             assert!(
                 err.contains("sensitive") || err.contains("denied"),
                 "Expected sensitive rejection, got: {} for {}",
+                err,
+                path
+            );
+        }
+    }
+
+    #[test]
+    fn test_rejects_unc_and_network_paths() {
+        let unc_paths = [
+            r"\\192.168.1.100\share\data.csv",
+            r"\\smbserver\public\backup.json",
+            "//192.168.1.100/share/data.csv",
+            "//smbserver/public/export.sql",
+        ];
+        for path in unc_paths {
+            let res = validate_safe_transfer_path(path, &["csv", "json", "sql"]);
+            assert!(res.is_err(), "Expected rejection for UNC path {}", path);
+            let err = res.err().unwrap();
+            assert!(
+                err.contains("Network and UNC paths are not allowed"),
+                "Expected UNC error, got: {} for {}",
                 err,
                 path
             );

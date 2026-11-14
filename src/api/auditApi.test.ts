@@ -79,4 +79,22 @@ describe('auditApi', () => {
     });
     expect(result).toEqual(mockCreated);
   });
+
+  it('redacts sensitive password in query before recording audit log', async () => {
+    const input = {
+      action: 'SECURITY' as const,
+      status: 'SUCCESS' as const,
+      query: "CREATE USER 'app'@'%' IDENTIFIED BY 'SecretPass123';",
+    };
+    vi.mocked(core.invoke).mockResolvedValueOnce({} as any);
+
+    await recordAuditLog(input);
+    expect(core.invoke).toHaveBeenCalledWith('record_audit_log', {
+      entry: {
+        action: 'SECURITY',
+        status: 'SUCCESS',
+        query: "CREATE USER 'app'@'%' IDENTIFIED BY '***REDACTED***';",
+      },
+    });
+  });
 });

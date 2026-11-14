@@ -93,4 +93,33 @@ describe('ActivityMonitorModal', () => {
     expect(screen.queryByText('big_orders')).not.toBeInTheDocument();
     expect(screen.getByText('worker')).toBeInTheDocument();
   });
+
+  it('hides terminate session button when driver is sqlite (Issue #120)', async () => {
+    useConnectionStore.setState({
+      connections: [
+        {
+          id: 'conn_sqlite',
+          name: 'Local SQLite',
+          driver: 'sqlite',
+          database: 'local.db',
+        } as ConnectionConfig,
+      ],
+      activeConnectionId: 'conn_sqlite',
+    });
+
+    render(
+      <ActivityMonitorModal
+        isOpen={true}
+        onClose={vi.fn()}
+        connectionId="conn_sqlite"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('9901')).toBeInTheDocument();
+    });
+
+    // Should not render terminate button for sqlite
+    expect(screen.queryByTitle(/terminate session/i)).not.toBeInTheDocument();
+  });
 });

@@ -243,3 +243,58 @@ fn test_unix_file_permissions_0600() {
     let mode = meta.permissions().mode() & 0o777;
     assert_eq!(mode, 0o600, "Log file mode must be 0600 on Unix");
 }
+
+#[test]
+fn test_redact_sensitive_sql_patterns() {
+    assert_eq!(
+        redact_sensitive_sql("CREATE USER 'app'@'%' IDENTIFIED BY 'MySecret123';"),
+        "CREATE USER 'app'@'%' IDENTIFIED BY '[REDACTED]';"
+    );
+    assert_eq!(
+        redact_sensitive_sql("ALTER USER alice WITH PASSWORD 'MySecret123';"),
+        "ALTER USER alice WITH PASSWORD '[REDACTED]';"
+    );
+    assert_eq!(
+        redact_sensitive_sql("ALTER USER alice PASSWORD 'MySecret123';"),
+        "ALTER USER alice PASSWORD '[REDACTED]';"
+    );
+    assert_eq!(
+        redact_sensitive_sql("SET PASSWORD = 'MySecret123';"),
+        "SET PASSWORD = '[REDACTED]';"
+    );
+    assert_eq!(
+        redact_sensitive_sql("CREATE USER 'bob' IDENTIFIED WITH mysql_native_password BY 'pass456';"),
+        "CREATE USER 'bob' IDENTIFIED WITH mysql_native_password BY '[REDACTED]';"
+    );
+    assert_eq!(
+        redact_sensitive_sql("SELECT * FROM users WHERE name = 'Alice';"),
+        "SELECT * FROM users WHERE name = 'Alice';"
+    );
+}
+
+#[test]
+fn test_audit_logger_redacts_passwords_automatically() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    let entry = logger
+        .log(AuditLogEntryInput {
+            action: "USER_MGMT".to_string(),
+            query: Some("CREATE USER 'app'@'%' IDENTIFIED BY 'SuperSecretPassword!';".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    assert_eq!(
+        entry.query.as_deref(),
+        Some("CREATE USER 'app'@'%' IDENTIFIED BY '[REDACTED]';")
+    );
+    assert!(!entry.details.as_ref().unwrap().contains("SuperSecretPassword!"));
+    assert!(entry.details.as_ref().unwrap().contains("[REDACTED]"));
+
+    // Ensure raw file on disk also does not contain plaintext password
+    let disk_content = fs::read_to_string(logger.main_log_path()).unwrap();
+    assert!(!disk_content.contains("SuperSecretPassword!"));
+    assert!(disk_content.contains("[REDACTED]"));
+}

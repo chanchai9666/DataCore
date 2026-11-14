@@ -128,6 +128,65 @@ fn ensure_dir_0700(dir: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Redacts passwords in SQL queries (CREATE USER, ALTER USER, etc.) before writing to audit logs.
+pub fn redact_sensitive_sql(sql: &str) -> String {
+    let mut out = sql.to_string();
+
+    // Check IDENTIFIED [WITH ...] BY '...'
+    if let Some(pos) = out.to_uppercase().find("IDENTIFIED") {
+        if let Some(by_rel) = out[pos..].to_uppercase().find("BY") {
+            let by_pos = pos + by_rel + 2;
+            let rest = &out[by_pos..];
+            let first_quote = rest.char_indices().find(|(_, c)| *c == '\'' || *c == '"');
+            if let Some((quote_offset, q)) = first_quote {
+                let start_quote = by_pos + quote_offset;
+                if let Some(end_quote_rel) = out[start_quote + 1..].find(q) {
+                    let end_quote = start_quote + 1 + end_quote_rel;
+                    out.replace_range(start_quote..=end_quote, "'[REDACTED]'");
+                }
+            }
+        }
+    }
+
+    let keywords = [
+        "WITH PASSWORD",
+        "PASSWORD =",
+        "PASSWORD=",
+        "PASSWORD",
+    ];
+
+    for kw in &keywords {
+        let mut search_start = 0;
+        while search_start < out.len() {
+            let upper = out[search_start..].to_uppercase();
+            if let Some(rel_pos) = upper.find(kw) {
+                let kw_pos = search_start + rel_pos;
+                let after_kw = kw_pos + kw.len();
+                let rest = &out[after_kw..];
+
+                // Check next non-whitespace char for quote
+                let first_quote = rest.char_indices().find(|(_, c)| !c.is_whitespace());
+                if let Some((quote_offset, q)) = first_quote {
+                    if q == '\'' || q == '"' {
+                        let start_quote = after_kw + quote_offset;
+                        if let Some(end_quote_rel) = out[start_quote + 1..].find(q) {
+                            let end_quote = start_quote + 1 + end_quote_rel;
+                            out.replace_range(start_quote..=end_quote, "'[REDACTED]'");
+                            search_start = start_quote + "'[REDACTED]'".len();
+                            continue;
+                        }
+                    }
+                }
+                search_start = after_kw;
+            } else {
+                break;
+            }
+        }
+    }
+
+    out
+}
+
 #[derive(Clone)]
 pub struct AuditLogger {
     log_dir: PathBuf,
@@ -251,6 +310,14 @@ impl AuditLogger {
     pub fn log(&self, input: AuditLogEntryInput) -> Result<AuditLogEntry, AppError> {
         let _guard = self.write_lock.lock().unwrap();
         ensure_dir_0700(&self.log_dir)?;
+
+        let mut input = input;
+        if let Some(ref mut q) = input.query {
+            *q = redact_sensitive_sql(q);
+        }
+        if let Some(ref mut d) = input.details {
+            *d = redact_sensitive_sql(d);
+        }
 
         let prev_hash = self.get_or_recover_last_hash()?;
 

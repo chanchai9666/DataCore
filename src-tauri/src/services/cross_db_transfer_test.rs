@@ -42,6 +42,7 @@ mod tests {
         assert!(ddl.contains("CREATE TABLE \"members\""));
         assert!(ddl.contains("\"id\" INTEGER NOT NULL"));
         assert!(ddl.contains("\"username\" TEXT NOT NULL"));
+        assert!(ddl.contains("PRIMARY KEY (\"id\")"));
     }
 
     #[tokio::test]

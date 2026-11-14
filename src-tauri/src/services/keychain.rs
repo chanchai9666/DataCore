@@ -31,6 +31,21 @@ fn set_secure_permissions(_path: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
+#[cfg(unix)]
+fn set_secure_dir_permissions(path: &Path) -> Result<(), AppError> {
+    use std::os::unix::fs::PermissionsExt;
+    let metadata = fs::metadata(path)?;
+    let mut perms = metadata.permissions();
+    perms.set_mode(0o700);
+    fs::set_permissions(path, perms)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_secure_dir_permissions(_path: &Path) -> Result<(), AppError> {
+    Ok(())
+}
+
 fn get_machine_identifier() -> String {
     if let Ok(id) = std::env::var("DATACORE_MACHINE_ID") {
         if !id.is_empty() {
@@ -254,7 +269,7 @@ impl Vault {
 
         if !self.vault_dir.exists() {
             fs::create_dir_all(&self.vault_dir)?;
-            set_secure_permissions(&self.vault_dir)?;
+            set_secure_dir_permissions(&self.vault_dir)?;
         }
 
         let key_file = self.vault_dir.join(".vault.key");
@@ -407,7 +422,7 @@ impl Vault {
     fn get_or_create_key(&self) -> Result<[u8; KEY_LEN], AppError> {
         if !self.vault_dir.exists() {
             fs::create_dir_all(&self.vault_dir)?;
-            set_secure_permissions(&self.vault_dir)?;
+            set_secure_dir_permissions(&self.vault_dir)?;
         }
 
         let key_file = self.vault_dir.join(".vault.key");
@@ -529,7 +544,7 @@ impl Vault {
     fn save_vault_to_disk(&self, map: &HashMap<String, String>) -> Result<(), AppError> {
         if !self.vault_dir.exists() {
             fs::create_dir_all(&self.vault_dir)?;
-            set_secure_permissions(&self.vault_dir)?;
+            set_secure_dir_permissions(&self.vault_dir)?;
         }
 
         let key = self.get_or_create_key()?;

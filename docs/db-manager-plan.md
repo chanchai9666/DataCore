@@ -516,11 +516,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 ---
 
 ## 4. สถานะภาพรวมการพัฒนา (Development Status Summary)
-- **สถานะ Phase:** ครบถ้วนสมบูรณ์ทั้ง 33 Phase (Phase 1 ถึง Phase 33)
-- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 907 tests ผ่าน 100%
-  - Rust Backend Unit & Integration Tests: 87/87 passed
-  - Frontend Vitest Component & Unit Tests: 820/820 passed
+- **สถานะ Phase:** ครบถ้วนสมบูรณ์ทั้ง 33 Phase (Phase 1 ถึง Phase 33) พร้อมการแก้ไข Audit & Remediation ทั้ง 19 Issues (#107–#125)
+- **ชุดการทดสอบอัตโนมัติ (Automated Test Suite):** รวม 936 tests ผ่าน 100%
+  - Rust Backend Unit & Integration Tests: 100/100 passed
+  - Frontend Vitest Component & Unit Tests: 836/836 passed
   - Code Quality & Linting: Cargo Clippy (`-D warnings`) ผ่าน 100% ปราศจาก Warning
+  - Build & Typecheck: Vite build + tsc ผ่าน 100%
 - **ระบบความปลอดภัย (Security):**
   - Zero Plaintext Disk Storage สำหรับรหัสผ่าน (AES-256-GCM Vault)
   - TLS In-Transit Encryption รองรับระดับสูงสุด (`verify-full`)
@@ -691,6 +692,76 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 | **#123** | 🟠 High | ปรับปรุงสีพื้นหลัง Canvas และสีคอลัมน์ PK/FK ใน `ERDiagramTab` ให้รองรับ Light Mode (ISSUE-19) | `src/components/diagram/ERDiagramTab.tsx` |
 | **#124** | 🟡 Medium | เพิ่มตัวแปร CSS Aliases ใน `tokens.css` แก้ปัญหา `PaginationBar` แสดงสีดำใน Light Mode (ISSUE-20) | `src/components/grid/PaginationBar.tsx`, `src/styles/tokens.css` |
 | **#125** | 🟡 Medium | ปรับปรุง `DropTableModal` และ `DangerousQueryConfirmModal` ให้รองรับทั้ง Light และ Dark Mode (ISSUE-21) | `src/components/structure/DropTableModal.tsx`, `src/components/dialogs/DangerousQueryConfirmModal.tsx` |
+
+### 7.2 สรุปผลการแก้ไขและการตรวจสอบ (Remediation & Verification Completed - Issues #107 through #125)
+
+การแก้ไขและปรับปรุงทั้ง 19 รายการเสร็จสมบูรณ์ 100% พร้อมผ่านชุดการทดสอบทั้งฝั่ง Rust Backend และ React Frontend:
+
+1. **Issue #107 (Critical): MySQL/Transaction Impact Simulation Fix (`commands/db.rs`)**
+   - ตรวจสอบคำสั่ง Mutation เดี่ยวด้วย `split_sql_statements(sql).len() == 1` ป้องกันการรันหลายคำสั่งพร้อมกัน
+   - รัน `BEGIN;` ก่อนเริ่มสร้าง `SAVEPOINT _dc_impact_preview;` เพื่อเปิด Transaction ใน MySQL ป้องกัน autocommit ลบข้อมูลจริง พร้อม fallback สู่ SAVEPOINT เดี่ยวในกรณีฐานข้อมูลไม่รองรับ BEGIN ซ้ำซ้อน (เช่น SQLite in-memory)
+   - สั่ง `ROLLBACK TO SAVEPOINT _dc_impact_preview;` และ `RELEASE SAVEPOINT _dc_impact_preview;` (หรือ `ROLLBACK;`) รับประกันการคืนค่าข้อมูล 100%
+
+2. **Issue #108 (High): SSH Tunnel Askpass Race Condition & Injection Guard (`services/ssh_tunnel.rs`)**
+   - สร้างไฟล์ askpass helper แบบ atomic บน Unix ด้วยสิทธิ์ `0o700` (`OpenOptionsExt::mode(0o700)`) ป้องกันการอ่านรหัสผ่านระหว่างสร้างไฟล์
+   - ตรวจสอบ `ssh_host` และ `ssh_user` ไม่ให้ขึ้นต้นด้วยเครื่องหมายลบ (`-`) ป้องกัน SSH Option Injection
+   - เปลี่ยนจากการใช้ `echo` เป็น `printf '%s\n'` ใน askpass script เพื่อป้องกัน flag interpretation และแทรก `--` ก่อน host argument
+
+3. **Issue #109 (High): Keychain Folder Permission Fix (`services/keychain.rs`)**
+   - เพิ่มฟังก์ชัน `set_secure_dir_permissions` กำหนดสิทธิ์ไดเรกทอรีเป็น `0o700` (`rwx------`) บน Unix
+   - ปรับใช้กับการสร้างโฟลเดอร์ `~/.datacore` ใน `set_master_password`, `get_or_create_key`, และ `save_vault_to_disk` แก้ไขปัญหา Permission Denied
+
+4. **Issue #110 (Medium): Path Guard Protection for UNC Paths & `.datacore` Directory (`services/path_guard.rs`)**
+   - บล็อก Windows UNC และ network paths (`\\...`, `//...`, `Prefix::UNC`, `Prefix::VerbatimUNC`)
+   - บล็อกการเข้าถึงโฟลเดอร์ `.datacore` รวมถึงไฟล์คอนฟิก, vault (`vault.enc`, `.vault.key`), และ audit log ทั้งหมดผ่าน path traversal
+
+5. **Issue #111 (Medium): Sensitive Password Redaction in Audit Log & History (`audit_logger.rs`, `auditApi.ts`, `queryHistoryStore.ts`)**
+   - พัฒนาฟังก์ชัน `redact_sensitive_sql` และ `redactSensitiveSql` ตรวจจับคำสั่ง `CREATE USER` และ `ALTER USER` ที่มี `IDENTIFIED BY`, `WITH PASSWORD`, หรือ `PASSWORD [=] '...'`
+   - ซ่อนรหัสผ่านเป็น `'********'` ก่อนบันทึกลงใน audit hash chain และ query history
+
+6. **Issue #112 (Medium): Dialect-Aware Backslash Handling (`drivers/sqlite.rs`, `sqlSplitter.ts`, `filterUtils.ts`, `data_transfer.rs`, `sql_transfer.rs`)**
+   - ใน SQLite `split_sql_statements` และ `sqlSplitter.ts`: กำหนดให้ backslash (`\`) ภายใน quote เป็น string literal ปกติ (SQLite ใช้เฉพาะ `''` ในการ escape)
+   - ใน MySQL data transfer และ SQL export: จัดการ escape `\` เป็น `\\` เฉพาะเมื่อ target dialect เป็น MySQL
+
+7. **Issue #113 (Low): Savepoint Name Sanitization (`api/transactionHelpers.ts`)**
+   - พัฒนา `sanitizeSavepointName` แทนที่อักขระที่ไม่ใช่ alphanumeric ด้วย `_`
+   - จัดการชื่อว่างโดย fallback เป็น `sp_default` และเติม prefix `sp_` หากชื่อขึ้นต้นด้วยตัวเลข
+
+8. **Issue #114 (High): Quote-Aware Table Filter Validation (`drivers/traits.rs`)**
+   - ปรับปรุง `validate_table_filter` ให้ข้ามเนื้อหาภายใน Single Quotes (`'...'`)
+   - รองรับ escaped quote ทั้งแบบ `''` และ `\'` ป้องกันการปฏิเสธคำค้นหาที่บังเอิญตรงกับ SQL keywords
+   - คืนค่า error ทันทีหากพบ string literal ที่ปิดไม่สมบูรณ์ (Unclosed Quote)
+
+9. **Issue #115 & #119 (High & Medium): InsertRowModal Auto-Generated Column Detection & Safe BigInt (`InsertRowModal.tsx`)**
+   - สกัดฟังก์ชัน `isAutoGeneratedColumn` ตรวจสอบคอลัมน์ auto-generated ที่แท้จริง ไม่ล็อกคอลัมน์ทั่วไป เช่น `paid`, `valid`, `grid` หรือ foreign key เช่น `user_id`
+   - ป้องกันการสูญเสียความแม่นยำของ `BIGINT` และ `DECIMAL` โดยแปลงเป็นตัวเลขเฉพาะเมื่อ `Number.isSafeInteger(num)` หากเกินขอบเขตจะคงสถานะเป็น String
+
+10. **Issue #116 (High): Safe Unquoted Number Preservation (`filterUtils.ts`)**
+    - เพิ่ม `isSafeUnquotedNumber` ป้องกันการตัด quote ออกจากสตริงที่มีเลขศูนย์นำหน้า (เช่น `/^-?0\d+/`) หรือสตริงที่ไม่ใช่ตัวเลข
+    - ป้องกันปัญหา Type Mismatch บน PostgreSQL (`character varying = integer`) และการสูญเสียเลข 0 นำหน้าบน SQLite/MySQL
+
+11. **Issue #117 (High): Primary Key Preservation in SQLite Cross-DB Transfer (`services/cross_db_transfer.rs`)**
+    - นำเงื่อนไข `&& target_dialect != "sqlite"` ออก ทำให้คำสั่ง `CREATE TABLE` ที่สร้างขึ้นสำหรับ SQLite มีนิยาม `PRIMARY KEY (...)` ครบถ้วน
+
+12. **Issue #118 (Medium): Binary BLOB Export as Hex Literals & PostgreSQL DDL Preservation (`services/sql_transfer.rs`, `services/data_transfer.rs`)**
+    - แปลง `CellValue::Bytes` ในคำสั่ง SQL Export จาก Base64 สู่ Hex Literals (`X'...'` สำหรับ SQLite/MySQL และ `'\x...'::bytea` สำหรับ PostgreSQL)
+    - รักษาค่า `column_default` และ `PRIMARY KEY (...)` ใน PostgreSQL DDL Export
+
+13. **Issue #120 (Low): Hide Terminate Session for SQLite (`ActivityMonitorModal.tsx`)**
+    - ซ่อนปุ่ม Terminate Session ใน Activity Monitor เมื่อไดรเวอร์ที่เชื่อมต่อคือ `sqlite`
+
+14. **Issue #121 & #123 (Medium & High): ER Diagram FK Performance & Light Mode Canvas (`ERDiagramTab.tsx`)**
+    - แคช Foreign Key relationships เป็น `Set<string>` ผ่าน `useMemo` ทำให้การตรวจสอบความสัมพันธ์ขณะลากการ์ดตารางทำงานเร็วระดับ $O(1)$
+    - ปรับปรุงสี Canvas เป็น `bg-slate-100 dark:bg-[#0b0f17]`, สีคอลัมน์ PK/FK เป็น `text-amber-700 dark:text-amber-300` และ `text-indigo-700 dark:text-indigo-300`
+
+15. **Issue #122 (High): FilterBar Dual-Theme Support (`FilterBar.tsx`)**
+    - ปรับเปลี่ยนคลาสสี hardcoded dark mode เป็น dynamic theme classes รองรับทั้ง Light และ Dark mode
+
+16. **Issue #124 (Medium): CSS Variable Aliases for PaginationBar & Dark/Light Mode (`tokens.css`)**
+    - เพิ่ม alias variables ใน `:root` และ `.dark` (`--bg-secondary`, `--bg-input`, `--btn-bg`, `--border-color`, `--text-primary`, `--text-secondary`, `--text-disabled`) แก้ไขปัญหาพื้นหลังสีดำของ PaginationBar ใน Light Mode
+
+17. **Issue #125 (Medium): Dual-Theme Modals (`DropTableModal.tsx`, `DangerousQueryConfirmModal.tsx`)**
+    - ปรับปรุงคอนเทนเนอร์, หัวข้อ, กรอบข้อความ และปุ่มกดยืนยันใน DropTableModal และ DangerousQueryConfirmModal ให้แสดงผลถูกต้องสวยงามทั้งในโหมด Light และ Dark Mode
 
 
 

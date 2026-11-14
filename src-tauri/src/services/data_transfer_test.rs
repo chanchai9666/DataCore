@@ -6,9 +6,9 @@ use crate::models::{
     JsonStructure, QueryResult, TransferFormat, TransferProgress,
 };
 use crate::services::data_transfer::{
-    detect_csv_delimiter, export_data_impl, export_query_result_to_writer,
-    generate_batch_insert_sql, import_data_impl, parse_csv_preview, parse_json_preview,
-    register_cancellation_token, trigger_cancellation,
+    cell_value_to_sql_literal, detect_csv_delimiter, escape_sql_string, export_data_impl,
+    export_query_result_to_writer, generate_batch_insert_sql, import_data_impl, parse_csv_preview,
+    parse_json_preview, register_cancellation_token, trigger_cancellation,
 };
 
 #[test]
@@ -525,4 +525,37 @@ async fn test_import_cancellation() {
 
     let count_res = conn.execute_query("SELECT COUNT(*) FROM cancel_test;").await.expect("count");
     assert_eq!(count_res.rows[0][0], CellValue::Integer(0));
+}
+
+#[test]
+fn test_escape_sql_string_mysql_and_others() {
+    let input = "C:\\path\\to\\'file'";
+    // MySQL: escapes both ' and \
+    let escaped_mysql = escape_sql_string(input, "mysql");
+    assert_eq!(escaped_mysql, "C:\\\\path\\\\to\\\\''file''");
+
+    // SQLite: escapes only ', \ is left as literal
+    let escaped_sqlite = escape_sql_string(input, "sqlite");
+    assert_eq!(escaped_sqlite, "C:\\path\\to\\''file''");
+
+    // Postgres: escapes only ', \ is left as literal
+    let escaped_pg = escape_sql_string(input, "postgres");
+    assert_eq!(escaped_pg, "C:\\path\\to\\''file''");
+}
+
+#[test]
+fn test_cell_value_to_sql_literal_binary_hex() {
+    use base64::Engine;
+    let raw_bytes = vec![0xDE, 0xAD, 0xBE, 0xEF];
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&raw_bytes);
+    let cell = CellValue::Bytes(b64);
+
+    // SQLite format: X'DEADBEEF'
+    assert_eq!(cell_value_to_sql_literal(&cell, "sqlite"), "X'DEADBEEF'");
+
+    // MySQL format: X'DEADBEEF'
+    assert_eq!(cell_value_to_sql_literal(&cell, "mysql"), "X'DEADBEEF'");
+
+    // Postgres format: '\xDEADBEEF'::bytea
+    assert_eq!(cell_value_to_sql_literal(&cell, "postgres"), "'\\xDEADBEEF'::bytea");
 }

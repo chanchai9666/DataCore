@@ -131,7 +131,7 @@ pub fn generate_create_table_ddl(
         col_defs.push(def);
     }
 
-    if !pk_cols.is_empty() && target_dialect != "sqlite" && !col_defs.iter().any(|d| d.contains("PRIMARY KEY")) {
+    if !pk_cols.is_empty() && !col_defs.iter().any(|d| d.contains("PRIMARY KEY")) {
         col_defs.push(format!("PRIMARY KEY ({})", pk_cols.join(", ")));
     }
 

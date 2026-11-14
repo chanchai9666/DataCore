@@ -40,26 +40,34 @@ export function buildSetIsolationLevelSql(level: IsolationLevel, driver: string)
 }
 
 /**
+ * Sanitizes a savepoint name to be safe in SQL statements.
+ * Replaces non-alphanumeric chars with _, ensures non-empty fallback, and prefixes with sp_ if starting with a digit.
+ */
+export function sanitizeSavepointName(name: string): string {
+  const clean = name.trim().replace(/[^a-zA-Z0-9_]/g, '_');
+  if (!clean) return 'sp_default';
+  return /^[0-9]/.test(clean) ? `sp_${clean}` : clean;
+}
+
+/**
  * Builds a SAVEPOINT statement.
  */
 export function buildSavepointSql(name: string): string {
-  const clean = name.trim().replace(/[^a-zA-Z0-9_]/g, '');
-  return `SAVEPOINT ${clean};`;
+  return `SAVEPOINT ${sanitizeSavepointName(name)};`;
 }
 
 /**
  * Builds a ROLLBACK TO SAVEPOINT statement.
  */
 export function buildRollbackToSavepointSql(name: string): string {
-  const clean = name.trim().replace(/[^a-zA-Z0-9_]/g, '');
-  return `ROLLBACK TO SAVEPOINT ${clean};`;
+  return `ROLLBACK TO SAVEPOINT ${sanitizeSavepointName(name)};`;
 }
 
 /**
  * Builds a RELEASE SAVEPOINT statement.
  */
 export function buildReleaseSavepointSql(name: string, driver: string): string {
-  const clean = name.trim().replace(/[^a-zA-Z0-9_]/g, '');
+  const clean = sanitizeSavepointName(name);
   if (driver?.toLowerCase() === 'sqlite') {
     return `RELEASE ${clean};`;
   }

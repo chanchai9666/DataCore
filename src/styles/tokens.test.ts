@@ -18,6 +18,10 @@ describe('Design Tokens & CSS Variables (Phase 1)', () => {
     expect(tokensContent).toContain('--h-row: 24px');
     expect(tokensContent).toContain('--h-toolbar: 56px');
     expect(tokensContent).toContain('--h-status: 22px');
+    expect(tokensContent).toContain('--bg-secondary: var(--bg-toolbar);');
+    expect(tokensContent).toContain('--bg-input: #ffffff;');
+    expect(tokensContent).toContain('--border-color: var(--border);');
+    expect(tokensContent).toContain('--text-primary: var(--text);');
   });
 
   it('defines dark mode (charcoal) CSS variables in .dark', () => {
@@ -28,6 +32,8 @@ describe('Design Tokens & CSS Variables (Phase 1)', () => {
     expect(tokensContent).toContain('--bg-grid: #1e1e20');
     expect(tokensContent).toContain('--accent: #4a8bf0');
     expect(tokensContent).toContain('--border: #3e3e42');
+    expect(tokensContent).toContain('--bg-input: #1e1e20;');
+    expect(tokensContent).toContain('--btn-bg: #3e3e42;');
   });
 
   it('is imported by src/index.css', () => {

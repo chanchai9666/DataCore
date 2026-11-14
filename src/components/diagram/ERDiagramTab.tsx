@@ -249,6 +249,17 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
     return map;
   }, [data, collapsedTables]);
 
+  // Set of related column keys for O(1) foreign key lookup
+  const relatedColumnKeys = useMemo(() => {
+    const set = new Set<string>();
+    if (!data) return set;
+    for (const r of data.relationships) {
+      set.add(`${r.fromTable}.${r.fromColumn}`);
+      set.add(`${r.toTable}.${r.toColumn}`);
+    }
+    return set;
+  }, [data?.relationships]);
+
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-muted select-none">
@@ -284,7 +295,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
-      className="flex-1 flex flex-col relative overflow-hidden select-none bg-[#0f172a] dark:bg-[#0b0f17] text-text"
+      className="flex-1 flex flex-col relative overflow-hidden select-none bg-slate-100 dark:bg-[#0b0f17] text-text"
       style={{ cursor: isPanning ? 'grabbing' : 'default' }}
     >
       {/* Top Floating Control Bar */}
@@ -338,7 +349,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
               data-testid="er-zoom-out"
               onClick={handleZoomOut}
               title="Zoom Out"
-              className="p-1 hover:text-text hover:bg-white/5 rounded transition-colors"
+              className="p-1 hover:text-text hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
@@ -347,7 +358,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
               data-testid="er-zoom-reset"
               onClick={handleZoomReset}
               title="Reset Zoom to 100%"
-              className="px-1.5 py-0.5 text-[11px] font-mono hover:text-text hover:bg-white/5 rounded transition-colors"
+              className="px-1.5 py-0.5 text-[11px] font-mono hover:text-text hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors"
             >
               {Math.round(zoom * 100)}%
             </button>
@@ -356,7 +367,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
               data-testid="er-zoom-in"
               onClick={handleZoomIn}
               title="Zoom In"
-              className="p-1 hover:text-text hover:bg-white/5 rounded transition-colors"
+              className="p-1 hover:text-text hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
@@ -364,7 +375,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
               type="button"
               onClick={handleFitView}
               title="Fit to Screen"
-              className="p-1 hover:text-text hover:bg-white/5 rounded transition-colors border-l border-line/50 ml-0.5"
+              className="p-1 hover:text-text hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors border-l border-line/50 ml-0.5"
             >
               <Maximize2 className="w-3.5 h-3.5" />
             </button>
@@ -538,7 +549,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
                       e.stopPropagation();
                       toggleCollapse(table.id);
                     }}
-                    className="p-0.5 rounded text-muted hover:text-text hover:bg-white/10"
+                    className="p-0.5 rounded text-muted hover:text-text hover:bg-black/10 dark:hover:bg-white/10"
                   >
                     {isCollapsed ? (
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -550,7 +561,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
                     {table.name}
                   </span>
                 </div>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-muted shrink-0">
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/5 text-muted shrink-0">
                   {table.columns.length}
                 </span>
               </div>
@@ -559,11 +570,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
               {!isCollapsed && (
                 <div className="py-1 px-1 divide-y divide-line/30 max-h-72 overflow-y-auto">
                   {table.columns.map((col) => {
-                    const isRelated = data.relationships.some(
-                      (r) =>
-                        (r.fromTable === table.name && r.fromColumn === col.name) ||
-                        (r.toTable === table.name && r.toColumn === col.name)
-                    );
+                    const isRelated = relatedColumnKeys.has(`${table.name}.${col.name}`);
 
                     return (
                       <div
@@ -583,7 +590,9 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
                           <span
                             className={`truncate ${
                               col.isPrimaryKey
-                                ? 'font-semibold text-amber-300'
+                                ? 'font-semibold text-amber-700 dark:text-amber-300'
+                                : isRelated
+                                ? 'text-indigo-700 dark:text-indigo-300 font-medium'
                                 : 'text-text'
                             }`}
                           >

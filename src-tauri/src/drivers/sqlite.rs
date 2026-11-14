@@ -68,11 +68,6 @@ pub fn split_sql_statements(sql: &str) -> Vec<String> {
         // 3. Single-quoted string ('...')
         if in_single_quote {
             current.push(ch);
-            if ch == '\\' && next.is_some() {
-                current.push(next.unwrap());
-                i += 2;
-                continue;
-            }
             if ch == '\'' {
                 if next == Some('\'') {
                     current.push('\'');
@@ -89,11 +84,6 @@ pub fn split_sql_statements(sql: &str) -> Vec<String> {
         // 4. Double-quoted identifier ("...")
         if in_double_quote {
             current.push(ch);
-            if ch == '\\' && next.is_some() {
-                current.push(next.unwrap());
-                i += 2;
-                continue;
-            }
             if ch == '"' {
                 if next == Some('"') {
                     current.push('"');
