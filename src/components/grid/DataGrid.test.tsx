@@ -566,6 +566,35 @@ describe('DataGrid', () => {
       expect(screen.queryByTestId('filter-bar')).not.toBeInTheDocument();
     });
 
+    it('renders filter button with theme-aware high contrast text color when inactive in light mode', () => {
+      render(<DataGrid data={mockQueryResult} theme="light" />);
+      const filterBtn = screen.getByTestId('toggle-filter-btn');
+      expect(filterBtn).toBeInTheDocument();
+      // Should use var(--text-primary) or dark text color, not hardcoded pure #ffffff
+      expect(filterBtn.style.color).toBe('var(--text-primary, #ffffff)');
+    });
+
+    it('renders active styling and condition count when filter is applied', () => {
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          filterState={{
+            enabled: true,
+            conjunction: 'AND',
+            conditions: [
+              { id: '1', column: 'username', operator: '=', value: 'alice' },
+            ],
+          }}
+        />
+      );
+
+      const filterBtn = screen.getByTestId('toggle-filter-btn');
+      expect(filterBtn).toBeInTheDocument();
+      // Should indicate 1 active condition
+      expect(filterBtn.textContent).toContain('Filter');
+      expect(filterBtn.textContent).toContain('1');
+    });
+
     it('passes filterState and triggers onApplyFilter and onClearFilter', () => {
       const onApply = vi.fn();
       const onClear = vi.fn();

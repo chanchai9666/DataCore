@@ -200,6 +200,17 @@ export const DataGrid: React.FC<DataGridProps> = ({
     );
   }, [activeFilterState]);
 
+  const activeFilterConditionsCount = useMemo(() => {
+    if (!activeFilterState.enabled) return 0;
+    return activeFilterState.conditions.filter(
+      (c) =>
+        c.column &&
+        (c.operator === 'IS NULL' ||
+          c.operator === 'IS NOT NULL' ||
+          (c.value !== undefined && c.value.trim() !== ''))
+    ).length;
+  }, [activeFilterState]);
+
   const columns = useMemo(() => {
     if (!data?.columns) return [];
     return createGridColumns(data.columns, activeColumnWidths, activeSortState);
@@ -703,21 +714,49 @@ export const DataGrid: React.FC<DataGridProps> = ({
               padding: '3px 10px',
               fontSize: '12px',
               backgroundColor: isFilterActive
-                ? '#1e3a8a'
+                ? theme === 'light' ? '#2563eb' : '#1e40af'
                 : isFilterVisible
-                ? '#2563eb'
+                ? theme === 'light' ? '#dbeafe' : '#1e3a8a'
                 : 'var(--btn-bg, #2b2b2b)',
-              color: '#ffffff',
+              color: isFilterActive
+                ? '#ffffff'
+                : isFilterVisible
+                ? theme === 'light' ? '#1d4ed8' : '#ffffff'
+                : 'var(--text-primary, #ffffff)',
               border: isFilterActive
                 ? '1px solid #3b82f6'
+                : isFilterVisible
+                ? theme === 'light' ? '1px solid #93c5fd' : '1px solid #3b82f6'
                 : '1px solid var(--border-color, #444444)',
               borderRadius: '4px',
               cursor: 'pointer',
               fontWeight: 500,
+              transition: 'all 0.15s ease',
             }}
           >
             <Filter size={13} />
-            Filter
+            <span>Filter</span>
+            {isFilterActive && activeFilterConditionsCount > 0 && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                  color: '#ffffff',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  borderRadius: '9999px',
+                  padding: '0 5px',
+                  minWidth: '16px',
+                  height: '16px',
+                  lineHeight: '16px',
+                  marginLeft: '2px',
+                }}
+              >
+                {activeFilterConditionsCount}
+              </span>
+            )}
           </button>
 
           <button

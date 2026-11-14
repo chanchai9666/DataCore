@@ -862,6 +862,13 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Seamless Multi-Node Switching:** เมื่อผู้ใช้เปิด Context Menu ที่ตารางหนึ่ง (เช่น `customers`) แล้วคลิกซ้ายหรือคลิกขวาที่ตารางอื่น (เช่น `categories` หรือ `sale_items`) Context Menu เดิมจะถูก Dismiss ปิดตัวเองทันทีอย่างราบรื่นตามมาตรฐาน Desktop GUI (macOS/Windows)
     - **Defensive Direct Callback:** เพิ่ม `onCloseContextMenu` ลงใน `ObjectBrowserContext` และเรียกใช้ใน `handleClick` บนโหนดของ Tree เพื่อรับประกันการปิดเมนู 100% ควบคู่กับ Capture Listener
 
+34. **Issue #142: High-Contrast Filter Button Styling & Active State Indicator (`DataGrid.tsx`, `FilterBar.tsx`)**
+    - **Dual-Theme High-Contrast Inactive Button:** แก้ไขสีของปุ่ม Filter ใน DataGrid Toolbar ที่เคยฮาร์ดโค้ดเป็น `color: '#ffffff'` ทำให้ใน Light Mode กลืนไปกับพื้นหลังสีเทาอ่อน (`--btn-bg: #e4e4e7`) โดยเปลี่ยนมาใช้ `color: 'var(--text-primary, #ffffff)'` สอดคล้องกับปุ่ม Inspect Cell และ Export ทำให้อ่านคมชัด 100%
+    - **Contextual State Color Adaptation:**
+      - **Filter Bar Open (`isFilterVisible`):** ปรับโทนสีให้แสดงชัดเจนว่าบาร์ตัวกรองกำลังเปิดใช้งาน (Light: ฟ้าอ่อนไฮคอนทราสต์ `bg-blue-50 text-blue-700 border-blue-300`, Dark: `bg-blue-900/60 text-blue-100 border-blue-500`)
+      - **Filter Active (`isFilterActive`):** เปลี่ยนเป็น Primary Blue เด่นชัด พร้อมแสดงจำนวนเงื่อนไขที่ใช้งานอยู่จริง เช่น `Filter (1)` เพื่อให้ผู้ใช้ทราบสถานะการกรองข้อมูลทันที
+
+
 
 
 
