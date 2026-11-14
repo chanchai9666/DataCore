@@ -21,6 +21,7 @@ export interface ForeignKeysTabProps {
   indexes: TableIndexStructure[];
   triggers: TableTriggerDef[];
   tableDdl: string | null;
+  filterText?: string;
   loadStructure: () => Promise<void>;
   showStatus: (type: 'success' | 'error', text: string) => void;
   onStructureChanged?: () => void;
@@ -40,6 +41,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
   indexes,
   triggers,
   tableDdl,
+  filterText,
   loadStructure,
   showStatus,
   onStructureChanged,
@@ -250,24 +252,47 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
     }
   };
 
+  const filteredForeignKeys = useMemo(() => {
+    if (!filterText?.trim()) return foreignKeys;
+    const q = filterText.toLowerCase();
+    return foreignKeys.filter(
+      (fk) =>
+        fk.name.toLowerCase().includes(q) ||
+        fk.foreignTableName.toLowerCase().includes(q) ||
+        fk.columnNames.some((c) => c.toLowerCase().includes(q)) ||
+        fk.foreignColumnNames.some((c) => c.toLowerCase().includes(q))
+    );
+  }, [foreignKeys, filterText]);
+
   return (
     <div>
       {foreignKeys.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 text-gray-400 space-y-2">
-          <Link2 className="w-10 h-10 opacity-30" />
-          <span className="text-xs">No foreign keys defined on this table.</span>
+        <div className="flex flex-col items-center justify-center p-8 border border-dashed rounded-lg text-center max-w-md mx-auto my-6 border-gray-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/40">
+          <div className="p-3 rounded-full bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/40 text-indigo-600 dark:text-indigo-400 mb-3">
+            <Link2 className="w-6 h-6" />
+          </div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-zinc-100 mb-1">
+            No Foreign Keys Defined
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-zinc-400 mb-4 max-w-xs">
+            Foreign keys enforce referential integrity between tables in your database schema.
+          </p>
           <button
             type="button"
             onClick={openAddFk}
-            className="mt-2 px-3 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white flex items-center space-x-1"
+            className="px-3.5 py-1.5 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-500 text-white flex items-center space-x-1.5 shadow-xs transition-colors"
           >
-            <Plus className="w-3 h-3" />
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Add Foreign Key</span>
           </button>
         </div>
+      ) : filteredForeignKeys.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-40 text-gray-400 space-y-2">
+          <span className="text-xs">No foreign keys match &quot;{filterText}&quot;</span>
+        </div>
       ) : (
         <div
-          className={`border rounded-lg overflow-hidden shadow-sm ${
+          className={`border rounded-lg overflow-hidden shadow-xs ${
             isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
           }`}
         >
@@ -289,38 +314,40 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                 <th className="py-2.5 px-3 w-24 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
-              {foreignKeys.map((fk, i) => (
+            <tbody className={`divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-100'}`}>
+              {filteredForeignKeys.map((fk, i) => (
                 <tr
                   key={fk.name}
                   data-testid={`fk-row-${fk.name}`}
                   className={`transition-colors ${
                     isDark
                       ? 'hover:bg-gray-800/40 text-gray-200'
-                      : 'hover:bg-gray-50 text-gray-800 divide-gray-100'
+                      : 'hover:bg-gray-50/80 text-gray-900'
                   }`}
                 >
-                  <td className="py-2 px-3 text-center text-gray-500 font-mono text-[11px]">
+                  <td className="py-2 px-3 text-center text-gray-400 dark:text-gray-500 font-mono text-[11px]">
                     {i + 1}
                   </td>
                   <td className="py-2 px-3 font-medium flex items-center space-x-1.5">
-                    <Link2 className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                    <Link2 className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
                     <span className="font-mono text-xs">{fk.name}</span>
                   </td>
-                  <td className="py-2 px-3 font-mono text-xs text-blue-300">
+                  <td className="py-2 px-3 font-mono text-xs text-blue-600 dark:text-blue-400 font-medium">
                     {fk.columnNames.join(', ')}
                   </td>
-                  <td className="py-2 px-3 font-mono text-xs text-gray-300">
-                    <span className="font-semibold text-emerald-400">{fk.foreignTableName}</span>
+                  <td className="py-2 px-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 mr-1">
+                      {fk.foreignTableName}
+                    </span>
                     <span>({fk.foreignColumnNames.join(', ')})</span>
                   </td>
                   <td className="py-2 px-3 text-center">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-gray-800 text-gray-300 border border-gray-700">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
                       {fk.onDelete || 'NO ACTION'}
                     </span>
                   </td>
                   <td className="py-2 px-3 text-center">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-gray-800 text-gray-300 border border-gray-700">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
                       {fk.onUpdate || 'NO ACTION'}
                     </span>
                   </td>
@@ -330,7 +357,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                       data-testid={`drop-fk-btn-${fk.name}`}
                       onClick={() => setDropFkTarget(fk)}
                       title="Drop Foreign Key"
-                      className="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
+                      className="p-1 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

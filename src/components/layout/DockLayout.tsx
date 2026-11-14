@@ -1452,69 +1452,63 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
               return (
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                  {/* Table Sub-header: Data / Structure Toggle Bar */}
-                  <div
-                    className={`flex items-center justify-between px-3 py-1.5 border-b text-xs flex-shrink-0 select-none ${
-                      theme === 'dark'
-                        ? 'bg-gray-900 border-gray-800'
-                        : 'bg-gray-100 border-gray-200'
-                    }`}
-                  >
-                    <div className={`flex items-center space-x-1 p-0.5 rounded border ${
-                      theme === 'dark'
-                        ? 'bg-black/20 border-gray-700/40'
-                        : 'bg-gray-200/60 border-gray-300'
-                    }`}>
-                      <button
-                        type="button"
-                        data-testid="table-mode-data-btn"
-                        onClick={() =>
-                          setTableTabModes((prev) => ({
-                            ...prev,
-                            [activeTab.id]: 'data',
-                          }))
-                        }
-                        className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${
-                          currentMode === 'data'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : theme === 'dark'
-                            ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
-                        }`}
-                      >
-                        <Table className="w-3.5 h-3.5" />
-                        <span>Data</span>
-                      </button>
+                  {/* Table Sub-header: Rendered in Data view; in Structure view, TableStructureEditor renders its unified Tier 1 bar */}
+                  {currentMode === 'data' && (
+                    <div
+                      className={`flex items-center justify-between px-3 py-1.5 border-b text-xs flex-shrink-0 select-none ${
+                        theme === 'dark'
+                          ? 'bg-gray-900 border-gray-800'
+                          : 'bg-gray-100 border-gray-200'
+                      }`}
+                    >
+                      <div className={`flex items-center space-x-1 p-0.5 rounded border ${
+                        theme === 'dark'
+                          ? 'bg-black/20 border-gray-700/40'
+                          : 'bg-gray-200/60 border-gray-300'
+                      }`}>
+                        <button
+                          type="button"
+                          data-testid="table-mode-data-btn"
+                          onClick={() =>
+                            setTableTabModes((prev) => ({
+                              ...prev,
+                              [activeTab.id]: 'data',
+                            }))
+                          }
+                          className="inline-flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-medium transition-colors bg-blue-600 text-white shadow-sm"
+                        >
+                          <Table className="w-3.5 h-3.5" />
+                          <span>Data</span>
+                        </button>
 
-                      <button
-                        type="button"
-                        data-testid="table-mode-structure-btn"
-                        onClick={() =>
-                          setTableTabModes((prev) => ({
-                            ...prev,
-                            [activeTab.id]: 'structure',
-                          }))
-                        }
-                        className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${
-                          currentMode === 'structure'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : theme === 'dark'
-                            ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
-                        }`}
-                      >
-                        <Wrench className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Structure</span>
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          data-testid="table-mode-structure-btn"
+                          onClick={() =>
+                            setTableTabModes((prev) => ({
+                              ...prev,
+                              [activeTab.id]: 'structure',
+                            }))
+                          }
+                          className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${
+                            theme === 'dark'
+                              ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
+                          }`}
+                        >
+                          <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Structure</span>
+                        </button>
+                      </div>
 
-                    <div className="text-gray-500 text-[11px] font-mono">
-                      {activeTab.schemaName ? `${activeTab.schemaName}.` : ''}
-                      <span className="font-semibold text-gray-700 dark:text-gray-300">
-                        {activeTab.tableName}
-                      </span>
+                      <div className="text-gray-500 text-[11px] font-mono">
+                        {activeTab.schemaName ? `${activeTab.schemaName}.` : ''}
+                        <span className="font-semibold text-gray-700 dark:text-gray-300">
+                          {activeTab.tableName}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {currentMode === 'data' ? (
                     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -1622,6 +1616,13 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                           ?.driver
                       }
                       theme={theme}
+                      currentMode={currentMode}
+                      onModeChange={(newMode) => {
+                        setTableTabModes((prev) => ({
+                          ...prev,
+                          [activeTab.id]: newMode,
+                        }));
+                      }}
                       onStructureChanged={() => {
                         loadTableData(
                           activeTab,

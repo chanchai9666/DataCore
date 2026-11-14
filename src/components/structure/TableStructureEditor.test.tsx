@@ -720,4 +720,58 @@ describe('TableStructureEditor', () => {
     const mysqlToggleBtn = mysqlToggleBtns[mysqlToggleBtns.length - 1];
     expect(mysqlToggleBtn).toBeDisabled();
   });
+
+  it('filters columns in real-time when typing in quick filter input', async () => {
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    // Initial columns
+    expect(await screen.findByTestId('column-row-id')).toBeInTheDocument();
+    expect(screen.getByTestId('column-row-name')).toBeInTheDocument();
+    expect(screen.getByTestId('column-row-sort_order')).toBeInTheDocument();
+
+    // Type filter
+    const filterInput = screen.getByPlaceholderText(/filter columns/i);
+    fireEvent.change(filterInput, { target: { value: 'name' } });
+
+    expect(screen.getByTestId('column-row-name')).toBeInTheDocument();
+    expect(screen.queryByTestId('column-row-id')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('column-row-sort_order')).not.toBeInTheDocument();
+
+    // Clear filter
+    fireEvent.change(filterInput, { target: { value: '' } });
+    expect(screen.getByTestId('column-row-id')).toBeInTheDocument();
+    expect(screen.getByTestId('column-row-name')).toBeInTheDocument();
+    expect(screen.getByTestId('column-row-sort_order')).toBeInTheDocument();
+  });
+
+  it('triggers onModeChange when clicking mode switcher buttons', async () => {
+    const onModeChange = vi.fn();
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+        currentMode="structure"
+        onModeChange={onModeChange}
+      />
+    );
+
+    const dataBtn = await screen.findByTestId('table-mode-data-btn');
+    fireEvent.click(dataBtn);
+    expect(onModeChange).toHaveBeenCalledWith('data');
+
+    const structBtn = screen.getByTestId('table-mode-structure-btn');
+    fireEvent.click(structBtn);
+    expect(onModeChange).toHaveBeenCalledWith('structure');
+  });
 });

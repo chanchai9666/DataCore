@@ -17,6 +17,7 @@ import {
   Link2,
   Split,
   Trash2,
+  Search,
 } from 'lucide-react';
 import {
   buildToggleRlsSql,
@@ -69,6 +70,8 @@ export interface TableStructureEditorProps {
   driver?: string;
   theme?: 'dark' | 'light';
   onStructureChanged?: () => void;
+  currentMode?: 'data' | 'structure';
+  onModeChange?: (mode: 'data' | 'structure') => void;
 }
 
 export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
@@ -79,12 +82,17 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   driver = 'postgres',
   theme: propTheme,
   onStructureChanged,
+  currentMode = 'structure',
+  onModeChange,
 }) => {
   const isDark = propTheme
     ? propTheme === 'dark'
     : typeof document !== 'undefined'
     ? document.documentElement.classList.contains('dark')
     : true;
+
+  // Filter state
+  const [filterText, setFilterText] = useState('');
 
   // Core table state
   const [columns, setColumns] = useState<TableColumnStructure[]>([]);
@@ -317,141 +325,434 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
       data-testid="table-structure-editor"
       className={`flex flex-col h-full ${isDark ? 'bg-gray-950 text-gray-100' : 'bg-gray-50 text-gray-900'}`}
     >
-      {/* Top Header Bar */}
+      {/* Tier 1: Table Master Bar (Table Identity & Global Operations) */}
       <div
-        className={`flex items-center justify-between px-4 py-2.5 border-b select-none ${
-          isDark ? 'border-gray-800 bg-gray-900/60' : 'border-gray-200 bg-white'
+        className={`flex items-center justify-between px-4 py-2 border-b select-none flex-shrink-0 ${
+          isDark ? 'border-gray-800 bg-gray-900/80' : 'border-gray-200 bg-white'
         }`}
       >
+        {/* Left: Mode Switcher + Table Identity */}
         <div className="flex items-center space-x-3">
+          {/* Mode Switcher (Data / Structure) */}
+          <div
+            className={`flex items-center p-0.5 rounded-lg border ${
+              isDark ? 'border-gray-800 bg-gray-950/70' : 'border-gray-200 bg-gray-100'
+            }`}
+          >
+            <button
+              type="button"
+              data-testid="table-mode-data-btn"
+              onClick={() => onModeChange?.('data')}
+              className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                currentMode === 'data'
+                  ? isDark
+                    ? 'bg-gray-800 text-white shadow-xs'
+                    : 'bg-white text-gray-900 shadow-xs'
+                  : isDark
+                  ? 'text-gray-400 hover:text-gray-200'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <TableIcon className="w-3.5 h-3.5 text-blue-500" />
+              <span>Data</span>
+            </button>
+            <button
+              type="button"
+              data-testid="table-mode-structure-btn"
+              onClick={() => onModeChange?.('structure')}
+              className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                currentMode === 'structure'
+                  ? isDark
+                    ? 'bg-gray-800 text-white shadow-xs'
+                    : 'bg-white text-gray-900 shadow-xs'
+                  : isDark
+                  ? 'text-gray-400 hover:text-gray-200'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Wrench className="w-3.5 h-3.5 text-amber-500" />
+              <span>Structure</span>
+            </button>
+          </div>
+
+          <div className={`h-4 w-px ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`} />
+
+          {/* Table Identity */}
           <div className="flex items-center space-x-2">
-            <TableIcon className="w-4 h-4 text-accent" />
-            <span className="font-semibold text-xs tracking-wide">
-              {tableName}
-            </span>
-            {schemaName && (
-              <span className="text-[10px] text-gray-500 font-mono">({schemaName})</span>
-            )}
+            <div
+              className={`p-1 rounded-md ${
+                isDark ? 'bg-blue-950/40 border border-blue-900/40' : 'bg-blue-50 border border-blue-200'
+              }`}
+            >
+              <TableIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="flex items-baseline space-x-1 font-mono text-xs">
+              {schemaName && (
+                <span className="text-gray-400 dark:text-gray-500 font-normal">
+                  {schemaName}.
+                </span>
+              )}
+              <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm tracking-tight">
+                {tableName}
+              </span>
+            </div>
             <span
-              className={`text-[10px] uppercase font-mono px-1.5 py-0.5 rounded border ${
-                isDark ? 'border-gray-700 bg-gray-800 text-gray-400' : 'border-gray-300 bg-gray-100 text-gray-600'
+              className={`text-[10px] uppercase font-mono px-1.5 py-0.5 rounded-md font-semibold border ${
+                isDark
+                  ? 'border-gray-700 bg-gray-800 text-gray-400'
+                  : 'border-gray-200 bg-gray-100 text-gray-600'
               }`}
             >
               {driver}
             </span>
           </div>
 
-          {/* Sub-tab Switchers */}
-          <div className={`flex items-center p-0.5 rounded-lg border ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-100'}`}>
-            <button
-              type="button"
-              data-testid="tab-columns-btn"
-              onClick={() => setActiveTab('columns')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1 ${
-                activeTab === 'columns'
-                  ? isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900 shadow-sm'
-                  : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <TableIcon className="w-3 h-3" />
-              <span>Columns ({columns.length})</span>
-            </button>
-            <button
-              type="button"
-              data-testid="tab-indexes-btn"
-              onClick={() => setActiveTab('indexes')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1 ${
-                activeTab === 'indexes'
-                  ? isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900 shadow-sm'
-                  : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Layers className="w-3 h-3" />
-              <span>Indexes ({indexes.length})</span>
-            </button>
-            <button
-              type="button"
-              data-testid="tab-foreign-keys-btn"
-              onClick={() => setActiveTab('foreign-keys')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1 ${
-                activeTab === 'foreign-keys'
-                  ? isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900 shadow-sm'
-                  : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Link2 className="w-3 h-3" />
-              <span>Foreign Keys ({foreignKeys.length})</span>
-            </button>
-            <button
-              type="button"
-              data-testid="tab-constraints-btn"
-              onClick={() => setActiveTab('constraints')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1 ${
-                activeTab === 'constraints'
-                  ? isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900 shadow-sm'
-                  : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <ShieldAlert className="w-3 h-3" />
-              <span>Constraints ({constraints.length})</span>
-            </button>
-            <button
-              type="button"
-              data-testid="tab-security-btn"
-              onClick={() => setActiveTab('security')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1 ${
-                activeTab === 'security'
-                  ? isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900 shadow-sm'
-                  : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Shield className="w-3 h-3 text-rose-400" />
-              <span>Security / RLS ({rlsPolicies.length})</span>
-            </button>
-            <button
-              type="button"
-              data-testid="tab-ddl-btn"
-              onClick={() => setActiveTab('ddl')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1 ${
-                activeTab === 'ddl'
-                  ? isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900 shadow-sm'
-                  : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Code className="w-3 h-3 text-accent" />
-              <span>SQL Preview</span>
-            </button>
-          </div>
-
           {statusMessage && (
             <div
               data-testid="structure-status-badge"
-              className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-medium ${
+              className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md text-xs font-medium ${
                 statusMessage.type === 'success'
-                  ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
-                  : 'bg-red-950/80 text-red-300 border border-red-800'
+                  ? isDark
+                    ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/60'
+                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : isDark
+                  ? 'bg-red-950/60 text-red-300 border border-red-800/60'
+                  : 'bg-red-50 text-red-700 border border-red-200'
               }`}
             >
               {statusMessage.type === 'success' ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
               ) : (
-                <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                <AlertCircle className="w-3.5 h-3.5 text-red-500" />
               )}
               <span>{statusMessage.text}</span>
             </div>
           )}
         </div>
 
-        {/* Action Buttons & Toolbar */}
-        <div className="flex items-center space-x-2">
+        {/* Right: Table Operations Toolbar */}
+        <div className="flex items-center space-x-1.5">
+          <button
+            type="button"
+            data-testid="refresh-structure-btn"
+            onClick={loadStructure}
+            disabled={loading}
+            title="Refresh Structure"
+            className={`p-1.5 rounded-md transition-colors ${
+              isDark
+                ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'
+                : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-500' : ''}`} />
+          </button>
+
+          <button
+            type="button"
+            data-testid="view-ddl-btn"
+            onClick={() => setIsDdlModalOpen(true)}
+            title="View DDL / CREATE TABLE"
+            className={`inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors shadow-xs ${
+              isDark
+                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-700 text-gray-200'
+                : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
+            }`}
+          >
+            <Code className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+            <span>DDL</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="partitions-table-toolbar-btn"
+            onClick={() => setIsPartitionsModalOpen(true)}
+            title="Table Partitions & Ranges"
+            className={`inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors shadow-xs ${
+              isDark
+                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-700 text-gray-200'
+                : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
+            }`}
+          >
+            <Split className="w-3.5 h-3.5 text-teal-500 dark:text-teal-400" />
+            <span>Partitions</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="maintenance-table-toolbar-btn"
+            onClick={() => setIsMaintenanceModalOpen(true)}
+            title="Table Maintenance & Diagnostics"
+            className={`inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors shadow-xs ${
+              isDark
+                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-700 text-gray-200'
+                : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
+            }`}
+          >
+            <Wrench className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+            <span>Maintain</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="rename-table-toolbar-btn"
+            onClick={() => setIsRenameTableModalOpen(true)}
+            title="Rename Table"
+            className={`inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors shadow-xs ${
+              isDark
+                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-700 text-gray-200'
+                : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
+            }`}
+          >
+            <Pencil className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+            <span>Rename</span>
+          </button>
+
+          <div className={`h-4 w-px ${isDark ? 'bg-gray-800' : 'bg-gray-200'} mx-0.5`} />
+
+          <button
+            type="button"
+            data-testid="drop-table-toolbar-btn"
+            onClick={() => setIsDropTableModalOpen(true)}
+            title="Drop Table"
+            className={`inline-flex items-center space-x-1 px-2 py-1 text-xs font-medium rounded-md transition-colors border ${
+              isDark
+                ? 'border-red-900/40 bg-red-950/20 hover:bg-red-900/40 text-red-400'
+                : 'border-red-200 bg-red-50/70 hover:bg-red-100 text-red-600'
+            }`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Drop</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Tier 2: Sub-navigation Tabs & Contextual Action Toolbar */}
+      <div
+        className={`flex items-center justify-between px-4 py-1.5 border-b select-none flex-shrink-0 ${
+          isDark ? 'border-gray-800 bg-gray-900/40' : 'border-gray-200 bg-gray-50/70'
+        }`}
+      >
+        {/* Left: Section Sub-navigation Tabs */}
+        <div
+          className={`flex items-center p-0.5 rounded-lg border ${
+            isDark ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-100/80'
+          }`}
+        >
+          <button
+            type="button"
+            data-testid="tab-columns-btn"
+            aria-label={`Columns (${columns.length})`}
+            onClick={() => setActiveTab('columns')}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
+              activeTab === 'columns'
+                ? isDark
+                  ? 'bg-gray-800 text-white shadow-xs'
+                  : 'bg-white text-gray-900 shadow-xs'
+                : isDark
+                ? 'text-gray-400 hover:text-gray-200'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <TableIcon className="w-3 h-3 text-blue-500" />
+            <span>Columns</span>
+            <span
+              className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                activeTab === 'columns'
+                  ? isDark
+                    ? 'bg-gray-700 text-gray-200'
+                    : 'bg-gray-100 text-gray-800'
+                  : isDark
+                  ? 'bg-gray-800/80 text-gray-400'
+                  : 'bg-gray-200 text-gray-600'
+              }`}
+            >
+              ({columns.length})
+            </span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="tab-indexes-btn"
+            aria-label={`Indexes (${indexes.length})`}
+            onClick={() => setActiveTab('indexes')}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
+              activeTab === 'indexes'
+                ? isDark
+                  ? 'bg-gray-800 text-white shadow-xs'
+                  : 'bg-white text-gray-900 shadow-xs'
+                : isDark
+                ? 'text-gray-400 hover:text-gray-200'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Layers className="w-3 h-3 text-emerald-500" />
+            <span>Indexes</span>
+            <span
+              className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                activeTab === 'indexes'
+                  ? isDark
+                    ? 'bg-gray-700 text-gray-200'
+                    : 'bg-gray-100 text-gray-800'
+                  : isDark
+                  ? 'bg-gray-800/80 text-gray-400'
+                  : 'bg-gray-200 text-gray-600'
+              }`}
+            >
+              ({indexes.length})
+            </span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="tab-foreign-keys-btn"
+            aria-label={`Foreign Keys (${foreignKeys.length})`}
+            onClick={() => setActiveTab('foreign-keys')}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
+              activeTab === 'foreign-keys'
+                ? isDark
+                  ? 'bg-gray-800 text-white shadow-xs'
+                  : 'bg-white text-gray-900 shadow-xs'
+                : isDark
+                ? 'text-gray-400 hover:text-gray-200'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Link2 className="w-3 h-3 text-indigo-500" />
+            <span>Foreign Keys</span>
+            <span
+              className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                activeTab === 'foreign-keys'
+                  ? isDark
+                    ? 'bg-gray-700 text-gray-200'
+                    : 'bg-gray-100 text-gray-800'
+                  : isDark
+                  ? 'bg-gray-800/80 text-gray-400'
+                  : 'bg-gray-200 text-gray-600'
+              }`}
+            >
+              ({foreignKeys.length})
+            </span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="tab-constraints-btn"
+            aria-label={`Constraints (${constraints.length})`}
+            onClick={() => setActiveTab('constraints')}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
+              activeTab === 'constraints'
+                ? isDark
+                  ? 'bg-gray-800 text-white shadow-xs'
+                  : 'bg-white text-gray-900 shadow-xs'
+                : isDark
+                ? 'text-gray-400 hover:text-gray-200'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <ShieldAlert className="w-3 h-3 text-purple-500" />
+            <span>Constraints</span>
+            <span
+              className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                activeTab === 'constraints'
+                  ? isDark
+                    ? 'bg-gray-700 text-gray-200'
+                    : 'bg-gray-100 text-gray-800'
+                  : isDark
+                  ? 'bg-gray-800/80 text-gray-400'
+                  : 'bg-gray-200 text-gray-600'
+              }`}
+            >
+              ({constraints.length})
+            </span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="tab-security-btn"
+            aria-label={`Security / RLS (${rlsPolicies.length})`}
+            onClick={() => setActiveTab('security')}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
+              activeTab === 'security'
+                ? isDark
+                  ? 'bg-gray-800 text-white shadow-xs'
+                  : 'bg-white text-gray-900 shadow-xs'
+                : isDark
+                ? 'text-gray-400 hover:text-gray-200'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Shield className="w-3 h-3 text-rose-500" />
+            <span>Security / RLS</span>
+            <span
+              className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                activeTab === 'security'
+                  ? isDark
+                    ? 'bg-gray-700 text-gray-200'
+                    : 'bg-gray-100 text-gray-800'
+                  : isDark
+                  ? 'bg-gray-800/80 text-gray-400'
+                  : 'bg-gray-200 text-gray-600'
+              }`}
+            >
+              ({rlsPolicies.length})
+            </span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="tab-ddl-btn"
+            onClick={() => setActiveTab('ddl')}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
+              activeTab === 'ddl'
+                ? isDark
+                  ? 'bg-gray-800 text-white shadow-xs'
+                  : 'bg-white text-gray-900 shadow-xs'
+                : isDark
+                ? 'text-gray-400 hover:text-gray-200'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Code className="w-3 h-3 text-blue-500" />
+            <span>SQL Preview</span>
+          </button>
+        </div>
+
+        {/* Right: Quick Filter & Contextual Actions */}
+        <div className="flex items-center space-x-2.5">
+          {/* Quick Search / Filter Box */}
+          <div className="relative flex items-center">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              placeholder={`Filter ${activeTab}...`}
+              className={`pl-8 pr-6 py-1 text-xs rounded-md border transition-all w-40 focus:w-52 focus:outline-none focus:border-blue-500 ${
+                isDark
+                  ? 'border-gray-700 bg-gray-900 text-gray-100 placeholder-gray-500'
+                  : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400 shadow-2xs'
+              }`}
+            />
+            {filterText && (
+              <button
+                type="button"
+                onClick={() => setFilterText('')}
+                className="absolute right-1.5 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Primary Action Button - Unified Consistent Accent */}
           {activeTab === 'columns' ? (
             <button
               type="button"
               data-testid="add-column-btn"
               onClick={() => setIsAddColumnModalOpen(true)}
-              className="inline-flex items-center space-x-1.5 px-2.5 h-btn text-xs font-medium rounded bg-accent hover:bg-accent-hover text-white shadow-sm transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3 py-1 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-xs transition-colors"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Add Column</span>
             </button>
           ) : activeTab === 'indexes' ? (
@@ -459,9 +760,9 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               type="button"
               data-testid="add-index-btn"
               onClick={() => setIsAddIndexModalOpen(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3 py-1 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-xs transition-colors"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Add Index</span>
             </button>
           ) : activeTab === 'foreign-keys' ? (
@@ -469,9 +770,9 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               type="button"
               data-testid="add-foreign-key-btn"
               onClick={() => setIsAddFkModalOpen(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3 py-1 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-xs transition-colors"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Add Foreign Key</span>
             </button>
           ) : activeTab === 'constraints' ? (
@@ -479,9 +780,9 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               type="button"
               data-testid="add-constraint-btn"
               onClick={() => setIsAddConstraintModalOpen(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-purple-600 hover:bg-purple-500 text-white shadow-sm transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3 py-1 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-xs transition-colors"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Add Constraint</span>
             </button>
           ) : activeTab === 'security' ? (
@@ -492,12 +793,12 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                 onClick={handleToggleRls}
                 disabled={submittingRls || driver !== 'postgres'}
                 title={driver !== 'postgres' ? 'RLS is only supported on PostgreSQL' : undefined}
-                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded text-white shadow-sm transition-colors ${
+                className={`inline-flex items-center space-x-1.5 px-3 py-1 text-xs font-medium rounded-md text-white shadow-xs transition-colors ${
                   driver !== 'postgres'
                     ? 'bg-gray-700 opacity-50 cursor-not-allowed'
                     : rlsEnabled
-                      ? 'bg-amber-600 hover:bg-amber-500'
-                      : 'bg-emerald-600 hover:bg-emerald-500'
+                    ? 'bg-amber-600 hover:bg-amber-500'
+                    : 'bg-emerald-600 hover:bg-emerald-500'
                 }`}
               >
                 <Shield className="w-3.5 h-3.5" />
@@ -508,104 +809,14 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                   type="button"
                   data-testid="add-policy-btn"
                   onClick={() => setIsAddPolicyModalOpen(true)}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-rose-600 hover:bg-rose-500 text-white shadow-sm transition-colors"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-xs transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                   <span>Add Policy</span>
                 </button>
               )}
             </div>
           ) : null}
-
-          <button
-            type="button"
-            data-testid="refresh-structure-btn"
-            onClick={loadStructure}
-            disabled={loading}
-            title="Refresh Structure"
-            className={`p-1.5 rounded transition-colors ${
-              isDark
-                ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'
-                : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-
-          <button
-            type="button"
-            data-testid="view-ddl-btn"
-            onClick={() => setIsDdlModalOpen(true)}
-            title="View DDL / CREATE TABLE"
-            className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded text-xs transition-colors border ${
-              isDark
-                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-800 text-gray-300'
-                : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            <Code className="w-3.5 h-3.5 text-blue-400" />
-            <span>DDL</span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="rename-table-toolbar-btn"
-            onClick={() => setIsRenameTableModalOpen(true)}
-            title="Rename Table"
-            className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded text-xs transition-colors border ${
-              isDark
-                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-800 text-gray-300'
-                : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            <Pencil className="w-3.5 h-3.5 text-blue-400" />
-            <span>Rename</span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="partitions-table-toolbar-btn"
-            onClick={() => setIsPartitionsModalOpen(true)}
-            title="Table Partitions & Ranges"
-            className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded text-xs transition-colors border ${
-              isDark
-                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-800 text-gray-300'
-                : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            <Split className="w-3.5 h-3.5 text-teal-400" />
-            <span>Partitions</span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="maintenance-table-toolbar-btn"
-            onClick={() => setIsMaintenanceModalOpen(true)}
-            title="Table Maintenance & Diagnostics"
-            className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded text-xs transition-colors border ${
-              isDark
-                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-800 text-gray-300'
-                : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            <Wrench className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Maintain</span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="drop-table-toolbar-btn"
-            onClick={() => setIsDropTableModalOpen(true)}
-            title="Drop Table"
-            className={`inline-flex items-center space-x-1 px-2.5 py-1.5 rounded text-xs transition-colors border ${
-              isDark
-                ? 'border-red-900/40 bg-red-950/30 hover:bg-red-900/50 text-red-400'
-                : 'border-red-200 bg-red-50 hover:bg-red-100 text-red-600'
-            }`}
-          >
-            <Trash2 className="w-3.5 h-3.5 text-red-400" />
-            <span>Drop</span>
-          </button>
         </div>
       </div>
 
@@ -640,6 +851,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             driver={driver}
             isDark={isDark}
             columns={columns}
+            filterText={filterText}
             loadStructure={loadStructure}
             showStatus={showStatus}
             onStructureChanged={onStructureChanged}
@@ -656,6 +868,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             isDark={isDark}
             indexes={indexes}
             columns={columns}
+            filterText={filterText}
             loadStructure={loadStructure}
             showStatus={showStatus}
             onStructureChanged={onStructureChanged}
@@ -675,6 +888,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             indexes={indexes}
             triggers={triggers}
             tableDdl={tableDdl}
+            filterText={filterText}
             loadStructure={loadStructure}
             showStatus={showStatus}
             onStructureChanged={onStructureChanged}
@@ -691,6 +905,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             isDark={isDark}
             constraints={constraints}
             columns={columns}
+            filterText={filterText}
             loadStructure={loadStructure}
             showStatus={showStatus}
             onStructureChanged={onStructureChanged}

@@ -56,6 +56,7 @@ export interface ColumnsTabProps {
   driver?: string;
   isDark: boolean;
   columns: TableColumnStructure[];
+  filterText?: string;
   loadStructure: () => Promise<void>;
   showStatus: (type: 'success' | 'error', text: string) => void;
   onStructureChanged?: () => void;
@@ -71,6 +72,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
   driver = 'postgres',
   isDark,
   columns,
+  filterText,
   loadStructure,
   showStatus,
   onStructureChanged,
@@ -347,6 +349,17 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
     }
   };
 
+  const filteredColumns = useMemo(() => {
+    if (!filterText?.trim()) return columns;
+    const q = filterText.toLowerCase();
+    return columns.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.dataType.toLowerCase().includes(q) ||
+        (c.defaultValue && c.defaultValue.toLowerCase().includes(q))
+    );
+  }, [columns, filterText]);
+
   return (
     <div>
       {columns.length === 0 ? (
@@ -354,9 +367,13 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
           <Layers className="w-10 h-10 opacity-30" />
           <span className="text-xs">No columns found in this table.</span>
         </div>
+      ) : filteredColumns.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-40 text-gray-400 space-y-2">
+          <span className="text-xs">No columns match &quot;{filterText}&quot;</span>
+        </div>
       ) : (
         <div
-          className={`border rounded-lg overflow-hidden shadow-sm ${
+          className={`border rounded-lg overflow-hidden shadow-xs ${
             isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
           }`}
         >
@@ -378,25 +395,25 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                 <th className="py-2.5 px-3 w-24 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
-              {columns.map((col) => (
+            <tbody className={`divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-100'}`}>
+              {filteredColumns.map((col) => (
                 <tr
                   key={col.name}
                   data-testid={`column-row-${col.name}`}
                   className={`transition-colors ${
                     isDark
                       ? 'hover:bg-gray-800/40 text-gray-200'
-                      : 'hover:bg-gray-50 text-gray-800 divide-gray-100'
+                      : 'hover:bg-gray-50/80 text-gray-900'
                   }`}
                 >
-                  <td className="py-2 px-3 text-center text-gray-500 font-mono text-[11px]">
+                  <td className="py-2 px-3 text-center text-gray-400 dark:text-gray-500 font-mono text-[11px]">
                     {col.ordinalPosition}
                   </td>
 
                   <td className="py-2 px-3 font-medium flex items-center space-x-1.5">
                     {col.isPrimaryKey && (
                       <span title="Primary Key">
-                        <Key className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                        <Key className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                       </span>
                     )}
                     <span className="font-mono text-sm">{col.name}</span>
@@ -420,7 +437,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                         col.isNullable
                           ? isDark
                             ? 'bg-gray-800 text-gray-300'
-                            : 'bg-gray-200 text-gray-700'
+                            : 'bg-gray-100 text-gray-600 border border-gray-200'
                           : isDark
                           ? 'bg-amber-950/60 text-amber-300 border border-amber-900/40'
                           : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -430,22 +447,22 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                     </span>
                   </td>
 
-                  <td className="py-2 px-3 font-mono text-xs text-gray-400">
+                  <td className="py-2 px-3 font-mono text-xs">
                     {col.defaultValue ? (
-                      <span className="text-gray-300">{col.defaultValue}</span>
+                      <span className="text-gray-900 dark:text-gray-300">{col.defaultValue}</span>
                     ) : (
-                      <span className="text-gray-500 italic">NULL</span>
+                      <span className="text-gray-400 dark:text-gray-500 italic">NULL</span>
                     )}
                   </td>
 
                   <td className="py-2 px-3 text-center">
                     {col.isPrimaryKey ? (
-                      <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-700">
-                        <Key className="w-2.5 h-2.5" />
+                      <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/80 shadow-2xs">
+                        <Key className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
                         <span>PK</span>
                       </span>
                     ) : (
-                      <span className="text-gray-600">-</span>
+                      <span className="text-gray-400 dark:text-gray-600">-</span>
                     )}
                   </td>
 

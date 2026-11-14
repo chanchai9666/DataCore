@@ -13,6 +13,7 @@ export interface IndexesTabProps {
   isDark: boolean;
   indexes: TableIndexStructure[];
   columns: TableColumnStructure[];
+  filterText?: string;
   loadStructure: () => Promise<void>;
   showStatus: (type: 'success' | 'error', text: string) => void;
   onStructureChanged?: () => void;
@@ -29,6 +30,7 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
   isDark,
   indexes,
   columns,
+  filterText,
   loadStructure,
   showStatus,
   onStructureChanged,
@@ -150,24 +152,46 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
     }
   };
 
+  const filteredIndexes = useMemo(() => {
+    if (!filterText?.trim()) return indexes;
+    const q = filterText.toLowerCase();
+    return indexes.filter(
+      (idx) =>
+        idx.name.toLowerCase().includes(q) ||
+        idx.columns.some((c) => c.toLowerCase().includes(q)) ||
+        (idx.indexType && idx.indexType.toLowerCase().includes(q))
+    );
+  }, [indexes, filterText]);
+
   return (
     <div>
       {indexes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 text-gray-400 space-y-2">
-          <Layers className="w-10 h-10 opacity-30" />
-          <span className="text-xs">No indexes found on this table.</span>
+        <div className="flex flex-col items-center justify-center p-8 border border-dashed rounded-lg text-center max-w-md mx-auto my-6 border-gray-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/40">
+          <div className="p-3 rounded-full bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/40 text-blue-600 dark:text-blue-400 mb-3">
+            <Layers className="w-6 h-6" />
+          </div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-zinc-100 mb-1">
+            No Indexes Configured
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-zinc-400 mb-4 max-w-xs">
+            Indexes speed up database query performance on frequently queried columns.
+          </p>
           <button
             type="button"
             onClick={openAddIndex}
-            className="mt-2 px-3 py-1.5 text-xs rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center space-x-1"
+            className="px-3.5 py-1.5 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-500 text-white flex items-center space-x-1.5 shadow-xs transition-colors"
           >
-            <Plus className="w-3 h-3" />
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Create Index</span>
           </button>
         </div>
+      ) : filteredIndexes.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-40 text-gray-400 space-y-2">
+          <span className="text-xs">No indexes match &quot;{filterText}&quot;</span>
+        </div>
       ) : (
         <div
-          className={`border rounded-lg overflow-hidden shadow-sm ${
+          className={`border rounded-lg overflow-hidden shadow-xs ${
             isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
           }`}
         >
@@ -188,50 +212,50 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
                 <th className="py-2.5 px-3 w-24 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
-              {indexes.map((idx, i) => (
+            <tbody className={`divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-100'}`}>
+              {filteredIndexes.map((idx, i) => (
                 <tr
                   key={idx.name}
                   data-testid={`index-row-${idx.name}`}
                   className={`transition-colors ${
                     isDark
                       ? 'hover:bg-gray-800/40 text-gray-200'
-                      : 'hover:bg-gray-50 text-gray-800 divide-gray-100'
+                      : 'hover:bg-gray-50/80 text-gray-900'
                   }`}
                 >
-                  <td className="py-2 px-3 text-center text-gray-500 font-mono text-[11px]">
+                  <td className="py-2 px-3 text-center text-gray-400 dark:text-gray-500 font-mono text-[11px]">
                     {i + 1}
                   </td>
 
                   <td className="py-2 px-3 font-medium flex items-center space-x-1.5">
                     {idx.isPrimary ? (
                       <span title="Primary Key Index">
-                        <Key className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                        <Key className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                       </span>
                     ) : (
-                      <Layers className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                      <Layers className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
                     )}
                     <span className="font-mono text-xs">{idx.name}</span>
                   </td>
 
-                  <td className="py-2 px-3 font-mono text-xs text-gray-300">
+                  <td className="py-2 px-3 font-mono text-xs text-gray-700 dark:text-gray-300">
                     {idx.columns.join(', ')}
                   </td>
 
                   <td className="py-2 px-3 text-center">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-gray-800 text-gray-300 border border-gray-700">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
                       {idx.indexType || 'BTREE'}
                     </span>
                   </td>
 
                   <td className="py-2 px-3 text-center space-x-1">
                     {idx.isPrimary && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-800">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shadow-2xs">
                         PK
                       </span>
                     )}
                     {idx.isUnique && !idx.isPrimary && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-950/80 text-blue-300 border border-blue-800">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-2xs">
                         UNIQUE
                       </span>
                     )}
@@ -244,7 +268,7 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
                         data-testid={`drop-index-btn-${idx.name}`}
                         onClick={() => setDropIndexTarget(idx)}
                         title="Drop Index"
-                        className="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
+                        className="p-1 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

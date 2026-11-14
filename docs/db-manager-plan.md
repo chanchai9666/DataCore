@@ -770,6 +770,14 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Database Modals & Forms:** ปรับปรุง TableMaintenanceModal, CreateTableModal, RenameTableModal, DuplicateTableModal, CrossDbCopyModal, ImportSqlModal และ ExportSqlModal ให้ใช้ดีไซน์ Dual-Theme ไม่แสดงพื้นหลังสีดำหรือข้อความสีมืดกลืนกับพื้นหลังใน Light Mode
     - **DataGrid Context Menu:** ปรับเมนูคลิกขวาในตารางข้อมูลให้รองรับ Light Mode (`bg-white text-gray-800 border-gray-200 hover:bg-blue-50`) และ Dark Mode (`bg-[#252526] text-white border-[#3e3e42] hover:bg-[#094771]`)
 
+19. **Issue #127: Professional Table Structure View 2-Tier Architecture & Consistent UI System (`TableStructureEditor.tsx`, `DockLayout.tsx`, `ColumnsTab.tsx`, `IndexesTab.tsx`, `ForeignKeysTab.tsx`, `ConstraintsTab.tsx`, `RlsSecurityTab.tsx`)**
+    - **Unified 2-Tier Hierarchy & Zero Redundancy:** ยุบ Header สองชั้นที่ซ้ำซ้อนกัน โดยตัด sub-header ชั้นบนใน `DockLayout.tsx` เมื่ออยู่ในโหมด Structure และรวมเข้าเป็นสถาปัตยกรรม 2-Tier Toolbar:
+      - **Tier 1 (Table Master Bar):** สลับโหมด `Data / Structure` สไตล์ Segmented Control + แสดง Table Identity (`schema.table` พร้อม driver badge) + เครื่องมือระดับตาราง (`Refresh`, `DDL`, `Partitions`, `Maintain`, `Rename`, `Drop`) ชัดเจนด้านขวา
+      - **Tier 2 (Sub-navigation & Tab Actions Toolbar):** Sub-tabs 6 แท็บ (`Columns`, `Indexes`, `Foreign Keys`, `Constraints`, `Security / RLS`, `SQL Preview`) พร้อม Count Badge ทรง Capsule ที่สวยงาม + เพิ่มช่อง **Quick Search Filter Box** แบบเรียลไทม์ + **Primary Action Button** ด้วยสีน้ำเงิน Professional Blue สม่ำเสมอทุกแท็บ (`bg-blue-600 hover:bg-blue-500`) แทนที่สีสะเปะสะปะเดิม
+    - **Sub-tab Real-time Filter & Accessibility:** รองรับการค้นหาและกรองแบบเรียลไทม์ใน Columns, Indexes, Foreign Keys, และ Constraints พร้อมทั้งใส่ `aria-label` สำหรับ Screen Readers และ automated testing
+    - **Dual-Theme Contrast & Modern Empty States:** แก้ไขปัญหาตัวหนังสือจาง `text-gray-300` บนพื้นขาวใน Light Mode สำหรับ Indexed Columns, Foreign Key References, และ Constraint Expressions; ปรับปรุง Empty States ให้เป็นการ์ดโมเดิร์นพร้อมไอคอนที่ประณีตและคำอธิบายชัดเจน
+
+
 
 
 

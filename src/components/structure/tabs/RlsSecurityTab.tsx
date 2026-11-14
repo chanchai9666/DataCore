@@ -319,38 +319,38 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                 <th className="py-2 px-3 w-16 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody className={`divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-100'}`}>
               {rlsPolicies.map((p) => (
                 <tr
                   key={p.name}
                   data-testid={`policy-row-${p.name}`}
                   className={`transition-colors ${
-                    isDark ? 'hover:bg-gray-800/40 text-gray-200' : 'hover:bg-gray-50 text-gray-800 divide-gray-100'
+                    isDark ? 'hover:bg-gray-800/40 text-gray-200' : 'hover:bg-gray-50/80 text-gray-900'
                   }`}
                 >
-                  <td className="py-2 px-3 font-medium font-mono text-xs text-blue-300">
+                  <td className="py-2 px-3 font-medium font-mono text-xs text-blue-600 dark:text-blue-300">
                     {p.name}
                   </td>
                   <td className="py-2 px-3 text-center">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-800 text-gray-300 border border-gray-700">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
                       {p.command}
                     </span>
                   </td>
-                  <td className="py-2 px-3 text-gray-300 font-mono text-[11px]">
+                  <td className="py-2 px-3 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
                     {p.roles.join(', ')}
                   </td>
-                  <td className="py-2 px-3 font-mono text-[11px] text-gray-400">
+                  <td className="py-2 px-3 font-mono text-[11px]">
                     {p.usingExpr ? (
-                      <span className="text-emerald-300/90">{p.usingExpr}</span>
+                      <span className="text-emerald-700 dark:text-emerald-300/90 font-medium">{p.usingExpr}</span>
                     ) : (
-                      <span className="text-gray-600">-</span>
+                      <span className="text-gray-400 dark:text-gray-600">-</span>
                     )}
                   </td>
-                  <td className="py-2 px-3 font-mono text-[11px] text-gray-400">
+                  <td className="py-2 px-3 font-mono text-[11px]">
                     {p.checkExpr ? (
-                      <span className="text-blue-300/90">{p.checkExpr}</span>
+                      <span className="text-blue-700 dark:text-blue-300/90 font-medium">{p.checkExpr}</span>
                     ) : (
-                      <span className="text-gray-600">-</span>
+                      <span className="text-gray-400 dark:text-gray-600">-</span>
                     )}
                   </td>
                   <td className="py-2 px-3 text-right">
@@ -359,7 +359,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                       data-testid={`drop-policy-btn-${p.name}`}
                       onClick={() => setDropPolicyTarget(p)}
                       title="Drop Policy"
-                      className="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
+                      className="p-1 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
