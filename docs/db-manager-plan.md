@@ -578,3 +578,28 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Issue #97:** `feat(layout): Horizontal Split Layout (Editor ซ้าย / Data Grid ขวา) สำหรับ Ultrawide Monitors` — เพิ่มความยืดหยุ่นในการจัดวางหน้าจอ
 - **Issue #98:** `feat(safety): Impact Preview (Affected Rows Simulation) ก่อนรัน DELETE/UPDATE` — พรีวิวจำนวนแถวที่กระทบก่อนดำเนินการจริง
 
+---
+
+## 6. แผนการยกระดับความปลอดภัยและสถาปัตยกรรม (Security & Architecture Hardening Roadmap)
+
+จากการประเมินความปลอดภัยตามมาตรฐานระบบจัดการฐานข้อมูล (DBMS Security 10 ด้าน + Desktop/Tauri IPC 2 ด้าน) ได้เปิดและอัปเดต GitHub Issues เพื่อยกระดับความปลอดภัยของ DataCore สู่ระดับ Enterprise-Ready ดังนี้:
+
+### 6.1 ตาราง GitHub Issues ด้านความปลอดภัยและสถาปัตยกรรม
+| Issue | หัวข้อ | ระดับความสำคัญ | ขอบเขตงานหลัก |
+|---|---|:---:|---|
+| **#99** | `security(ssh): เข้ารหัส SSH Passphrase ใน Local Encrypted Vault และล้างสคริปต์ Askpass ใน /tmp ทันทีหลังเชื่อมต่อ` | 🔴 Critical | เข้ารหัส SSH passphrase ใน `vault.enc` ป้องกัน Plaintext ใน `connections.json` และลบไฟล์ askpass ทันทีที่เชื่อมต่อสำเร็จ |
+| **#100** | `security(web): กำหนด Content Security Policy (CSP) และเปลี่ยน Table Filter เป็น Parameterized Query ป้องกัน SQL Injection` | 🔴 Critical | กำหนด CSP ใน `tauri.conf.json` และปรับปรุง `fetch_table_data` ให้ bind parameter แทนการต่อสตริง `WHERE` ดิบ |
+| **#101** | `security(guardrail): ปรับปรุง Dangerous Query Detector ให้ตรวจจับ Tautology (WHERE 1=1) และตัด String Literals ก่อนตรวจจับ` | 🟠 High | ตัด string literals ก่อนสแกนคีย์เวิร์ด และตรวจจับ Tautology clauses ที่เทียบเท่าคำสั่งลบ/แก้ทั้งตาราง |
+| **#102** | `security(privacy): Redact รหัสผ่านใน SQL History/Audit Log และเพิ่มระบบ PII Data Masking บน Data Grid` | 🟠 High | ซ่อนรหัสผ่านในประวัติคำสั่ง (เช่น `CREATE USER ... IDENTIFIED BY`) และเพิ่มปุ่ม Mask ข้อมูลอ่อนไหวบน DataGrid |
+| **#103** | `security(audit): ย้าย Audit Log จาก localStorage ไปยัง Rust Backend พร้อม Tamper-Evident Hashing` | 🟠 High | ย้าย Audit Trail ไปบันทึกฝั่ง Rust (`~/.datacore/audit.jsonl` สิทธิ์ 0600) แบบ Append-Only พร้อม Hash Chaining |
+| **#104** | `security(transfer): ตรวจสอบความปลอดภัยของพาธไฟล์ (Path Traversal Guard) ใน Data Transfer IPC` | 🟡 Medium | ป้องกัน Path Traversal (`../`) และบล็อกการเขียนทับไฟล์ระบบสำคัญของผู้ใช้ในคำสั่งนำเข้า/ส่งออกข้อมูล |
+| **#105** | `security(encryption): เสริมความปลอดภัย Vault Key ด้วย Master Password (Argon2id) และรองรับ SQLCipher สำหรับ SQLite` | 🟡 Medium | เพิ่มตัวเลือก Argon2id Master Password เข้ารหัส `.vault.key` และเปิดฟีเจอร์ SQLCipher สำหรับ SQLite |
+| **#106** | `refactor(architecture): แยก Monolithic UI Components (TableStructureEditor, ObjectBrowser, DockLayout) และลบความซ้ำซ้อนใน IPC Parameters` | 🟡 Medium | แยกไฟล์ UI ขนาดใหญ่ (>1,000-3,000 บรรทัด) เป็นโมดูลย่อย และปรับแต่ง IPC parameters ให้เป็นมาตรฐานเดียว |
+
+### 6.2 การขยายขอบเขตและอัปเดต Issues เดิมที่เกี่ยวข้อง
+- **Issue #84 (Read-Only Mode):** อัปเดตเพิ่มการบังคับใช้ระดับ **Database Session & Driver (Backend)** เช่น SQLite `SQLITE_OPEN_READ_ONLY`, PostgreSQL `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`, MySQL `SET SESSION transaction_read_only = 1;` เพื่อป้องกันการ Bypass จากภายนอก
+- **Issue #91 (Schema-Aware Autocomplete):** อัปเดตระบุการผสานรวมกับ CodeMirror 6 `sql({ schema: schemaMap })` และการจัดการ Cache Invalidation
+- **Issue #92 (Multi-Statement & Formatter):** อัปเดตระบุการนำ Quote-aware SQL Splitter ไปใช้ใน Rust Driver เพื่อรองรับ Multi-Statement Execution ที่มีหลาย `SELECT`
+- **Issue #93 (Object Browser Deep Tree):** อัปเดตขยายประเภท `SchemaNodeType` ใน Rust & TS ให้ครอบคลุม Indexes, Foreign Keys, Triggers, Functions/Procedures ร่วมกับกลยุทธ์ Lazy Loading
+
+
