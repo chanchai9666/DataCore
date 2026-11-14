@@ -848,6 +848,16 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Button Toolbar Layout Refinement:** แก้ไขปัญหากลุ่มปุ่ม Action (เช่น Execute on Target) โดนบีบหรือล้นขอบขวา โดยกำหนด `shrink-0` และปรับ responsive spacing ให้สวยงาม สะอาดตา
     - **High-Contrast Text Color:** ปรับปรุงโทนสีของกล่องแสดงโค้ด SQL จากสีเขียวอ่อนเดิมที่กลืนกับพื้นหลัง เป็น High-Contrast Theme (`text-slate-900 dark:text-slate-100` บน `bg-slate-50 dark:bg-slate-950/80`) ทำให้อ่านสคริปต์และคอมเมนต์ได้อย่างชัดเจนทั้งในโหมดสว่างและโหมดมืด
 
+32. **Issue #140: High-Contrast Error Alert Styling and Stale/Dropped Table State Recovery (`TableStructureEditor.tsx`, `DockLayout.tsx`, `sqlErrorParser.ts`)**
+    - **Dual-Theme High-Contrast Error Styling:** แก้ไขสีของกล่องแจ้งเตือนข้อผิดพลาดใน `TableStructureEditor.tsx` ที่เคยฮาร์ดโค้ดเป็นโทนเข้ม (`bg-red-950/30 text-red-300 border-red-800/60`) โดยเปลี่ยนมาใช้ชุดสีตามมาตรฐาน WCAG ที่คมชัดทั้ง Light Mode (`bg-red-50 border-red-200 text-red-900` พร้อมข้อความ error สี `text-red-700` และปุ่ม Retry สี `bg-red-600 text-white`) และ Dark Mode (`dark:bg-red-950/40 dark:border-red-900/50 dark:text-red-200`) แก้ปัญหาตัวหนังสือจางกลืนกับพื้นหลัง
+    - **Intelligent Dropped/Missing Table Detection:** ตรวจจับประเภทข้อผิดพลาดกรณีตารางถูกลบหรือไม่พบในฐานข้อมูล (เช่น `Undefined Table`, `no such table`, หรือ `relation ... does not exist`) ที่อาจเกิดขึ้นจากการรัน Migration หรือแก้ไขภายนอกขณะที่เครื่องพับจอไว้ (Sleep/Idle)
+    - **Dedicated Table Not Found Recovery Screen:** เมื่อตรวจพบว่าตารางไม่มีอยู่แล้ว ในหน้า Structure View จะแสดงหน้าจอ Empty/Recovery State ที่ประณีต พร้อมสรุปข้อมูลตารางและปุ่ม Action สำคัญ:
+      - **Close Tab:** ปิดแท็บที่ stale ออกได้ทันทีในคลิกเดียวโดยไม่ต้องเล็งกากบาทเล็กบน Tab Bar
+      - **Refresh Schema:** ส่งคำสั่งซิงค์โครงสร้างและอัปเดตสถานะใน Sidebar Explorer ให้ตรงกับฐานข้อมูลจริง
+      - **Retry:** ลองเชื่อมต่อและดึงข้อมูลใหม่อีกครั้ง
+    - **Stale Cached Data Banner in Data View:** ในมุมมอง Data View (Grid) หากการโหลดข้อมูลล้มเหลวเนื่องจากตารางไม่มีอยู่ในฐานข้อมูลแล้ว ระบบจะแสดงแถบแจ้งเตือน Warning สีอำพันด้านบนของ DataGrid ระบุชัดเจนว่าข้อมูลที่เห็นเป็น Snapshot เก่าที่แคชไว้ และมีปุ่มให้กดปิดแท็บหรือรีเฟรชได้ทันที
+
+
 
 
 

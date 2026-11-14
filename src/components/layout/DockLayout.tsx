@@ -11,6 +11,7 @@ import {
   Wrench,
   Network,
   Wand2,
+  AlertTriangle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useTabStore } from '../../stores/tabStore';
@@ -34,6 +35,7 @@ import { TableListTab } from '../tablelist/TableListTab';
 import { ERDiagramTab } from '../diagram/ERDiagramTab';
 import { VisualQueryBuilderTab } from '../querybuilder/VisualQueryBuilderTab';
 import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
+import { detectErrorType } from '../../utils/sqlErrorParser';
 import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
 import type { ConnectionConfig, QueryResult, Tab, TableFilterState, TableSortState } from '../../types/db';
@@ -1627,6 +1629,57 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
                   {currentMode === 'data' ? (
                     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                      {(() => {
+                        const tableError = tableStates[activeTab.id]?.error;
+                        const isTableNotFound = Boolean(
+                          tableError && (
+                            detectErrorType(tableError) === 'Undefined Table' ||
+                            tableError.toLowerCase().includes('no such table') ||
+                            tableError.toLowerCase().includes('does not exist') ||
+                            tableError.toLowerCase().includes("doesn't exist")
+                          )
+                        );
+
+                        if (isTableNotFound) {
+                          return (
+                            <div
+                              data-testid="table-dropped-data-banner"
+                              className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs bg-amber-50 dark:bg-amber-950/60 border-b border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200 font-sans shrink-0 shadow-xs"
+                            >
+                              <div className="flex items-center space-x-2 min-w-0">
+                                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                                <span className="truncate">
+                                  Table <strong className="font-semibold font-mono">&quot;{activeTab.tableName}&quot;</strong> no longer exists in database. Showing cached snapshot.
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    loadTableData(
+                                      activeTab,
+                                      1,
+                                      tableStates[activeTab.id]?.pageSize ?? 100
+                                    )
+                                  }
+                                  className="px-2.5 py-1 rounded text-xs font-medium bg-amber-200 dark:bg-amber-900/80 text-amber-950 dark:text-amber-100 hover:bg-amber-300 dark:hover:bg-amber-800 transition-colors"
+                                >
+                                  Retry
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => closeTab(activeTab.id)}
+                                  className="px-2.5 py-1 rounded text-xs font-medium bg-red-600 hover:bg-red-500 text-white shadow-xs transition-colors flex items-center space-x-1"
+                                >
+                                  <X className="w-3 h-3" />
+                                  <span>Close Tab</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                       <DataGrid
                         data={tableStates[activeTab.id]?.data ?? null}
                         isLoading={tableStates[activeTab.id]?.loading}
@@ -1745,6 +1798,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                           tableStates[activeTab.id]?.pageSize ?? 100
                         );
                       }}
+                      onCloseTab={() => closeTab(activeTab.id)}
                     />
                   )}
                 </div>

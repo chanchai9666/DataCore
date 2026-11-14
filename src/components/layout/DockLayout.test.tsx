@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act, within } from '@testing-library/react';
 import { DockLayout } from './DockLayout';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -1059,6 +1059,49 @@ describe('DockLayout', () => {
       expect(dbApi.openSession).toHaveBeenCalledWith('conn-1', 'tab-connect-action');
       expect(useConnectionStore.getState().connectedConnectionIds).toContain('conn-1');
       expect(dbApi.fetchTableData).toHaveBeenCalledWith('tab-connect-action', 'categories', 'public', 100, 0);
+    });
+  });
+
+  it('displays dropped table banner in Data view when fetchTableData fails with missing table error and allows closing tab', async () => {
+    vi.mocked(dbApi.fetchTableData).mockRejectedValueOnce(
+      new Error('Database error: no such table: main.sale_items')
+    );
+
+    useConnectionStore.setState({
+      connectedConnectionIds: ['conn-1'],
+    });
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-dropped',
+          title: 'sale_items',
+          type: 'table',
+          connectionId: 'conn-1',
+          tableName: 'sale_items',
+          schemaName: 'main',
+          autoCommit: true,
+          queryContent: '',
+          isLoaded: true,
+        },
+      ],
+      activeTabId: 'tab-dropped',
+    });
+
+    render(<DockLayout />);
+
+    const banner = await screen.findByTestId('table-dropped-data-banner');
+    expect(banner).toBeInTheDocument();
+    expect(banner.textContent).toContain('Table "sale_items" no longer exists in database');
+
+    // Click Close Tab on the banner
+    const closeBtn = within(banner).getByRole('button', { name: /close tab/i });
+    expect(closeBtn).toBeInTheDocument();
+    fireEvent.click(closeBtn);
+
+    // Tab should be closed
+    await waitFor(() => {
+      expect(useTabStore.getState().tabs.some((t) => t.id === 'tab-dropped')).toBe(false);
     });
   });
 });

@@ -18,6 +18,7 @@ import {
   Split,
   Trash2,
   Search,
+  FileQuestion,
 } from 'lucide-react';
 import {
   buildToggleRlsSql,
@@ -55,6 +56,9 @@ import { RenameTableModal } from './RenameTableModal';
 import { TableMaintenanceModal } from './TableMaintenanceModal';
 import { TablePartitionsModal } from '../performance/TablePartitionsModal';
 import { useAuditLogStore } from '../../stores/auditLogStore';
+import { useTabStore } from '../../stores/tabStore';
+import { useSchemaStore } from '../../stores/schemaStore';
+import { detectErrorType } from '../../utils/sqlErrorParser';
 import { formatCellValue } from '../../utils/cellFormatter';
 import { ColumnsTab } from './tabs/ColumnsTab';
 import { IndexesTab } from './tabs/IndexesTab';
@@ -72,6 +76,7 @@ export interface TableStructureEditorProps {
   onStructureChanged?: () => void;
   currentMode?: 'data' | 'structure';
   onModeChange?: (mode: 'data' | 'structure') => void;
+  onCloseTab?: () => void;
 }
 
 export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
@@ -84,6 +89,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   onStructureChanged,
   currentMode = 'structure',
   onModeChange,
+  onCloseTab,
 }) => {
   const isDark = propTheme
     ? propTheme === 'dark'
@@ -828,20 +834,159 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             <span className="text-xs">Loading structure...</span>
           </div>
         ) : error ? (
-          <div className="p-4 rounded border border-red-800/60 bg-red-950/30 text-red-300 text-xs flex items-start space-x-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            <div>
-              <div className="font-semibold mb-1">Failed to load structure</div>
-              <div>{error}</div>
-              <button
-                type="button"
-                onClick={loadStructure}
-                className="mt-2 px-2.5 py-1 bg-red-900/60 hover:bg-red-800 rounded text-white"
+          (() => {
+            const isTableNotFound = Boolean(
+              error && (
+                detectErrorType(error) === 'Undefined Table' ||
+                error.toLowerCase().includes('no such table') ||
+                error.toLowerCase().includes('does not exist') ||
+                error.toLowerCase().includes("doesn't exist")
+              )
+            );
+
+            if (isTableNotFound) {
+              return (
+                <div
+                  data-testid="table-not-found-screen"
+                  className={`max-w-xl mx-auto my-8 p-6 rounded-2xl border text-center flex flex-col items-center transition-colors ${
+                    !isDark
+                      ? 'bg-white border-amber-200/80 shadow-md shadow-amber-900/5 text-amber-950'
+                      : 'bg-zinc-900/90 border-amber-900/40 shadow-xl shadow-black/40 text-amber-100'
+                  }`}
+                >
+                  <div
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-transform ${
+                      !isDark
+                        ? 'bg-amber-50 text-amber-600 ring-8 ring-amber-50/50'
+                        : 'bg-amber-500/10 text-amber-400 ring-8 ring-amber-500/5'
+                    }`}
+                  >
+                    <FileQuestion className="w-7 h-7" />
+                  </div>
+
+                  <h3
+                    className={`text-lg font-semibold tracking-tight mb-2 ${
+                      !isDark ? 'text-gray-900' : 'text-gray-100'
+                    }`}
+                  >
+                    Table Not Found in Database
+                  </h3>
+
+                  <p
+                    className={`text-xs max-w-md mb-4 leading-relaxed ${
+                      !isDark ? 'text-gray-600' : 'text-gray-400'
+                    }`}
+                  >
+                    The table{' '}
+                    <span className="font-mono font-semibold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200">
+                      &quot;{tableName}&quot;
+                    </span>{' '}
+                    does not exist in schema{' '}
+                    <span className="font-mono font-medium">{schemaName || 'default'}</span>.
+                    It may have been dropped or renamed by an external migration.
+                  </p>
+
+                  {/* Technical Database Error Details */}
+                  <div
+                    className={`w-full max-w-md p-3 rounded-lg border font-mono text-[11px] text-left mb-6 break-all select-text ${
+                      !isDark
+                        ? 'bg-red-50/70 border-red-200 text-red-800'
+                        : 'bg-red-950/40 border-red-900/50 text-red-300'
+                    }`}
+                  >
+                    <span className="font-semibold block mb-1 text-[10px] uppercase tracking-wider text-red-600 dark:text-red-400">
+                      Database error:
+                    </span>
+                    {error}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap items-center justify-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onCloseTab) {
+                          onCloseTab();
+                        } else {
+                          useTabStore.getState().closeTab(tabId);
+                        }
+                      }}
+                      className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center space-x-1.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Close Tab</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await useSchemaStore.getState().fetchSchema(connectionId, driver, schemaName);
+                          showStatus('success', 'Schema refreshed');
+                        } catch (e) {
+                          console.warn('Failed to refresh schema:', e);
+                        }
+                      }}
+                      className={`px-3.5 py-2 rounded-lg text-xs font-medium border shadow-xs transition-colors flex items-center space-x-1.5 ${
+                        !isDark
+                          ? 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'
+                          : 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-gray-200'
+                      }`}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Refresh Schema</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={loadStructure}
+                      className={`px-3.5 py-2 rounded-lg text-xs font-medium border shadow-xs transition-colors ${
+                        !isDark
+                          ? 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'
+                          : 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-gray-200'
+                      }`}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                data-testid="structure-error-alert"
+                className={`p-4 rounded-xl border text-xs flex items-start space-x-3 transition-colors ${
+                  !isDark
+                    ? 'bg-red-50 border-red-200 text-red-900 shadow-xs'
+                    : 'bg-red-950/40 border-red-900/50 text-red-200'
+                }`}
               >
-                Retry
-              </button>
-            </div>
-          </div>
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+                <div className="flex-1">
+                  <div className="font-semibold text-sm mb-1 text-red-900 dark:text-red-100">
+                    Failed to load structure
+                  </div>
+                  <div
+                    className={`p-2.5 rounded-lg border font-mono text-xs my-2 select-text break-all ${
+                      !isDark
+                        ? 'bg-red-100/60 border-red-200 text-red-800'
+                        : 'bg-red-950/60 border-red-900/60 text-red-300'
+                    }`}
+                  >
+                    {error}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={loadStructure}
+                    className="mt-1 px-3.5 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-white font-medium text-xs shadow-sm transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            );
+          })()
         ) : activeTab === 'columns' ? (
           <ColumnsTab
             tabId={tabId}

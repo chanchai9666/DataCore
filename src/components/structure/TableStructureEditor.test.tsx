@@ -774,4 +774,64 @@ describe('TableStructureEditor', () => {
     fireEvent.click(structBtn);
     expect(onModeChange).toHaveBeenCalledWith('structure');
   });
+
+  it('renders high-contrast error message when structure fails with general error', async () => {
+    vi.mocked(dbApi.executeQuery).mockRejectedValueOnce(new Error('Connection timeout to server'));
+    vi.mocked(dbApi.fetchTableData).mockRejectedValueOnce(new Error('Connection timeout to server'));
+
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="categories"
+        schemaName="public"
+        driver="postgres"
+        theme="light"
+      />
+    );
+
+    expect(await screen.findByText('Failed to load structure')).toBeInTheDocument();
+    expect(screen.getByText(/Connection timeout to server/i)).toBeInTheDocument();
+    
+    const errorContainer = screen.getByTestId('structure-error-alert');
+    expect(errorContainer).toBeInTheDocument();
+    // Verify light-mode high-contrast classes are present
+    expect(errorContainer.className).toContain('bg-red-50');
+    expect(errorContainer.className).toContain('text-red-900');
+  });
+
+  it('detects missing/dropped table error and displays dedicated Table Not Found screen with Close Tab and Refresh', async () => {
+    vi.mocked(dbApi.executeQuery).mockRejectedValueOnce(new Error('Database error: no such table: main.sale_items'));
+    vi.mocked(dbApi.fetchTableData).mockRejectedValueOnce(new Error('Database error: no such table: main.sale_items'));
+
+    const onCloseTab = vi.fn();
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="sale_items"
+        schemaName="main"
+        driver="sqlite"
+        theme="light"
+        onCloseTab={onCloseTab}
+      />
+    );
+
+    const notFoundScreen = await screen.findByTestId('table-not-found-screen');
+    expect(notFoundScreen).toBeInTheDocument();
+    expect(screen.getByText(/Table Not Found in Database/i)).toBeInTheDocument();
+    expect(notFoundScreen.textContent).toContain('The table "sale_items" does not exist');
+
+    // Verify action buttons
+    const closeTabBtn = screen.getByRole('button', { name: /close tab/i });
+    expect(closeTabBtn).toBeInTheDocument();
+    fireEvent.click(closeTabBtn);
+    expect(onCloseTab).toHaveBeenCalledTimes(1);
+
+    const refreshBtn = screen.getByRole('button', { name: /refresh schema/i });
+    expect(refreshBtn).toBeInTheDocument();
+
+    const retryBtn = screen.getByRole('button', { name: /retry/i });
+    expect(retryBtn).toBeInTheDocument();
+  });
 });
