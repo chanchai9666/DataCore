@@ -10,7 +10,9 @@ import {
   Layers,
   Wrench,
   Network,
+  Wand2,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
@@ -29,6 +31,7 @@ import { InsertRowModal } from '../grid/InsertRowModal';
 import { TableStructureEditor } from '../structure/TableStructureEditor';
 import { TableListTab } from '../tablelist/TableListTab';
 import { ERDiagramTab } from '../diagram/ERDiagramTab';
+import { VisualQueryBuilderTab } from '../querybuilder/VisualQueryBuilderTab';
 import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
 import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
@@ -56,6 +59,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
   onEditConnection,
   lastSavedConnectionId,
 }) => {
+  const { t } = useTranslation();
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab } = useTabStore();
   const { connections, activeConnectionId, connectedConnectionIds } = useConnectionStore();
   const hasConnectedDatabase = (connectedConnectionIds?.length ?? 0) > 0;
@@ -885,8 +889,37 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
           {/* Resizer Handle */}
           <div
+            role="separator"
+            tabIndex={0}
+            aria-orientation="vertical"
+            aria-label="Resize Sidebar"
+            aria-valuenow={sidebarWidth}
+            aria-valuemin={180}
+            aria-valuemax={500}
+            data-testid="sidebar-splitter"
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                setSidebarWidth((prev) => {
+                  const next = Math.max(180, prev - 10);
+                  if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('datacore-sidebar-width', String(next));
+                  }
+                  return next;
+                });
+              } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                setSidebarWidth((prev) => {
+                  const next = Math.min(500, prev + 10);
+                  if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('datacore-sidebar-width', String(next));
+                  }
+                  return next;
+                });
+              }
+            }}
             onMouseDown={handleMouseDownResize}
-            className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500 transition-colors z-20"
+            className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors z-20"
           />
         </aside>
       )}
@@ -906,8 +939,8 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
             <button
               type="button"
               onClick={() => setSidebarCollapsed(false)}
-              aria-label="Expand sidebar"
-              title="Expand sidebar"
+              aria-label={t('layout.expandSidebar', 'Expand sidebar')}
+              title={t('layout.expandSidebar', 'Expand sidebar')}
               className={`p-2 border-r transition-colors ${
                 theme === 'dark'
                   ? 'border-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-800'
@@ -942,6 +975,8 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                     <Database className="w-3.5 h-3.5 flex-shrink-0 text-purple-400" />
                   ) : tab.type === 'er-diagram' ? (
                     <Network className="w-3.5 h-3.5 flex-shrink-0 text-emerald-400" />
+                  ) : tab.type === 'query-builder' ? (
+                    <Wand2 className="w-3.5 h-3.5 flex-shrink-0 text-amber-400" />
                   ) : tab.type === 'table' ? (
                     <Table className="w-3.5 h-3.5 flex-shrink-0 text-emerald-400" />
                   ) : (
@@ -991,12 +1026,12 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-500">
               <Layers className="w-16 h-16 mb-4 opacity-25" />
               <h3 className="text-base font-semibold mb-1">
-                {hasConnectedDatabase ? 'No open tabs' : 'No database connected'}
+                {hasConnectedDatabase ? t('layout.noOpenTabs', 'No open tabs') : t('layout.noDatabaseConnected', 'No database connected')}
               </h3>
               <p className="text-xs max-w-sm mb-4">
                 {hasConnectedDatabase
-                  ? 'Select a table from the Object Browser or click the + button to open a new query tab.'
-                  : 'Connect to a database in the Object Browser to start querying or viewing tables.'}
+                  ? t('layout.emptyTabsConnectedHelp', 'Select a table from the Object Browser or click the + button to open a new query tab.')
+                  : t('layout.emptyTabsDisconnectedHelp', 'Connect to a database in the Object Browser to start querying or viewing tables.')}
               </p>
               {hasConnectedDatabase ? (
                 <button
@@ -1006,7 +1041,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                   className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>New Query Tab</span>
+                  <span>{t('layout.newQueryTab', 'New Query Tab')}</span>
                 </button>
               ) : connections.length === 0 && onNewConnection ? (
                 <button
@@ -1016,7 +1051,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                   className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Add Connection</span>
+                  <span>{t('layout.addConnection', 'Add Connection')}</span>
                 </button>
               ) : null}
             </div>
@@ -1027,6 +1062,18 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                 connectionId={activeTab.connectionId}
                 driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
                 schemaName={activeTab.schemaName}
+                theme={theme}
+              />
+            </div>
+          ) : activeTab.type === 'query-builder' ? (
+            /* Visual Query Builder Tab */
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <VisualQueryBuilderTab
+                tab={activeTab}
+                connectionId={activeTab.connectionId}
+                driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
+                schemaName={activeTab.schemaName}
+                tableName={activeTab.tableName}
                 theme={theme}
               />
             </div>
@@ -1091,9 +1138,35 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
               {/* Draggable Vertical Split Resizer between Editor and Grid */}
               <div
                 data-testid="split-resizer"
-                onMouseDown={handleSplitResizeMouseDown}
+                role="separator"
+                tabIndex={0}
+                aria-orientation="horizontal"
                 aria-label="Resize editor and results"
-                className={`h-1.5 flex-shrink-0 cursor-row-resize border-y transition-colors z-10 flex items-center justify-center ${
+                aria-valuenow={editorHeight}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setEditorHeight((prev) => {
+                      const next = Math.max(100, prev - 10);
+                      if (typeof localStorage !== 'undefined') {
+                        localStorage.setItem('datacore-editor-height', String(next));
+                      }
+                      return next;
+                    });
+                  } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    const containerH = querySplitContainerRef.current?.clientHeight || 600;
+                    setEditorHeight((prev) => {
+                      const next = Math.min(containerH - 100, prev + 10);
+                      if (typeof localStorage !== 'undefined') {
+                        localStorage.setItem('datacore-editor-height', String(next));
+                      }
+                      return next;
+                    });
+                  }
+                }}
+                onMouseDown={handleSplitResizeMouseDown}
+                className={`h-1.5 flex-shrink-0 cursor-row-resize border-y transition-colors z-10 flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                   theme === 'dark'
                     ? 'bg-gray-900 border-gray-800 hover:bg-blue-600/60 active:bg-blue-600'
                     : 'bg-gray-200 border-gray-300 hover:bg-blue-500/60 active:bg-blue-500'

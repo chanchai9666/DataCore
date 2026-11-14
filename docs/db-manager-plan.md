@@ -573,7 +573,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **Issue #94:** `feat(shortcuts): Keyboard Shortcuts Expansion และ Keybinding Cheat Sheet Modal (⌘/)` — เพิ่มคีย์ลัดครอบคลุมและหน้าต่างสรุปคีย์ลัด
 
 #### 🟢 Phase 3: Accessibility, Localization & Advanced Capabilities
-- **Issue #95:** `feat(i18n): เพิ่มระบบ Internationalization (i18n) รองรับ UI ภาษาไทยและภาษาอังกฤษ` — สลับภาษาของอินเตอร์เฟซได้สมบูรณ์
+- **Issue #95:** `feat(i18n): เพิ่มระบบ Internationalization (i18n) รองรับ UI ภาษาไทยและภาษาอังกฤษ` — [COMPLETED]
+  - ติดตั้งและตั้งค่า `i18next` และ `react-i18next` พร้อมทรัพยากรแปลภาษาใน `src/locales/th.json` และ `src/locales/en.json`
+  - โมดูลหลัก `src/i18n.ts` รองรับการสลับภาษา (th/en) ทันทีโดยไม่ต้อง reload และจำค่าภาษาที่เลือกลงใน `localStorage` (`datacore_language`)
+  - เพิ่มปุ่มสลับภาษา (EN / TH) บน MainToolbar และ StatusBar สลับภาษาได้ทันทีแบบ Reactive
+  - รองรับการแปลข้อความในส่วนประกอบหลัก ได้แก่ MainToolbar, StatusBar, DockLayout, ConnectionDialog, Export/Import, Tabs และ Modals ต่างๆ
 - **Issue #96:** `feat(query): Visual Query Builder (No-Code UI) สำหรับสร้าง SELECT Query` — เครื่องมือช่วยสร้างคำสั่งสำหรับผู้เริ่มต้น
 - **Issue #97:** `feat(layout): Horizontal Split Layout (Editor ซ้าย / Data Grid ขวา) สำหรับ Ultrawide Monitors` — เพิ่มความยืดหยุ่นในการจัดวางหน้าจอ
 - **Issue #98:** `feat(safety): Impact Preview (Affected Rows Simulation) ก่อนรัน DELETE/UPDATE` — ระบบพรีวิวผลกระทบก่อนรันคำสั่งแก้ไขข้อมูล (Simulation Mode)

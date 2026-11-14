@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import '../i18n';
 
 // Polyfill Canvas 2D context for jsdom
 if (typeof window !== 'undefined' && typeof HTMLCanvasElement !== 'undefined') {

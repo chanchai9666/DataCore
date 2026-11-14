@@ -23,11 +23,15 @@ import {
   Activity,
   Users,
   Keyboard,
+  Languages,
+  Wand2,
   type LucideIcon,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
 import { DbBadge } from '../sidebar/DbBadge';
+import { changeLanguage } from '../../i18n';
 import type { ConnectionConfig } from '../../types/db';
 
 export interface ToolbarActionItem {
@@ -61,6 +65,7 @@ export interface MainToolbarProps {
   onOpenHistory?: () => void;
   onOpenSnippets?: () => void;
   onOpenERDiagram?: () => void;
+  onOpenQueryBuilder?: () => void;
   onOpenSchemaDiff?: () => void;
   onOpenActivityMonitor?: () => void;
   onOpenUserManager?: () => void;
@@ -90,6 +95,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenHistory,
   onOpenSnippets,
   onOpenERDiagram,
+  onOpenQueryBuilder,
   onOpenSchemaDiff,
   onOpenActivityMonitor,
   onOpenUserManager,
@@ -98,6 +104,8 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onToggleTheme,
   customItems,
 }) => {
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.language?.startsWith('th') ? 'th' : 'en';
   const { connections, activeConnectionId } = useConnectionStore();
   const { tabs, activeTabId } = useTabStore();
   const [activeDropdown, setActiveDropdown] = useState<'import' | 'export' | 'tools' | null>(null);
@@ -162,65 +170,77 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   const defaultItems: ToolbarActionItem[] = [
     {
       id: 'connect',
-      label: 'Connect',
-      ariaLabel: 'New Connection',
+      label: t('toolbar.connect', 'Connect'),
+      ariaLabel: t('toolbar.connectAria', 'New Connection'),
       icon: Plug,
       onClick: handleConnectClick,
-      title: 'Manage or add database connections (⌘N)',
+      title: t('toolbar.connectTitle', 'Manage or add database connections (⌘N)'),
       testId: 'toolbar-connect-btn',
     },
     {
       id: 'query',
-      label: 'New Query',
+      label: t('toolbar.newQuery', 'New Query'),
       icon: Terminal,
       onClick: () => onNewQuery?.(),
       disabled: !activeConnection,
-      title: activeConnection ? 'Open new SQL query editor (⌘T)' : 'Select a connection first',
+      title: activeConnection
+        ? t('toolbar.newQueryTitle', 'Open new SQL query editor (⌘T)')
+        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
       testId: 'toolbar-query-btn',
     },
     {
       id: 'table',
-      label: 'Table',
+      label: t('toolbar.table', 'Table'),
       icon: Table,
       onClick: () => onOpenTable?.(),
       disabled: !activeConnection,
-      title: activeConnection ? 'Open table list view or designer' : 'Select a connection first',
+      title: activeConnection
+        ? t('toolbar.tableTitle', 'Open table list view or designer')
+        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
       testId: 'toolbar-table-btn',
     },
     {
       id: 'tools',
-      label: 'Tools',
+      label: t('toolbar.tools', 'Tools'),
       icon: Wrench,
       onClick: handleToolsClick,
       disabled: !activeConnection,
-      title: activeConnection ? 'Database tools, performance metrics & audit logs' : 'Select a connection first',
+      title: activeConnection
+        ? t('toolbar.toolsTitle', 'Database tools, performance metrics & audit logs')
+        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
       testId: 'toolbar-tools-btn',
     },
     {
       id: 'backup',
-      label: 'Backup',
+      label: t('toolbar.backup', 'Backup'),
       icon: Archive,
       onClick: () => onBackup?.(),
       disabled: !activeConnection,
-      title: activeConnection ? 'Backup / Dump database' : 'Select a connection first',
+      title: activeConnection
+        ? t('toolbar.backupTitle', 'Backup / Dump database')
+        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
       testId: 'toolbar-backup-btn',
     },
     {
       id: 'import',
-      label: 'Import',
+      label: t('toolbar.import', 'Import'),
       icon: Upload,
       onClick: handleImportClick,
       disabled: !activeConnection,
-      title: activeConnection ? 'Import data or SQL script' : 'Select a connection first',
+      title: activeConnection
+        ? t('toolbar.importTitle', 'Import data or SQL script')
+        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
       testId: 'toolbar-import-btn',
     },
     {
       id: 'export',
-      label: 'Export',
+      label: t('toolbar.export', 'Export'),
       icon: Download,
       onClick: handleExportClick,
       disabled: !activeConnection,
-      title: activeConnection ? 'Export table or query results' : 'Select a connection first',
+      title: activeConnection
+        ? t('toolbar.exportTitle', 'Export table or query results')
+        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
       testId: 'toolbar-export-btn',
     },
   ];
@@ -288,7 +308,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Import Table Data (CSV, JSON)...</span>
+                    <span>{t('toolbar.importData', 'Import Table Data (CSV, JSON)...')}</span>
                   </button>
                 )}
                 {onImportSql && (
@@ -302,7 +322,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <FileCode className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span>Import SQL Dump / Script (.sql)...</span>
+                    <span>{t('toolbar.importSql', 'Import SQL Dump / Script (.sql)...')}</span>
                   </button>
                 )}
               </div>
@@ -325,7 +345,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Export Table Data (CSV, JSON)...</span>
+                    <span>{t('toolbar.exportData', 'Export Table Data (CSV, JSON)...')}</span>
                   </button>
                 )}
                 {onExportSql && (
@@ -339,7 +359,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <FileCode className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span>Export as SQL Dump / Backup (.sql)...</span>
+                    <span>{t('toolbar.exportSql', 'Export as SQL Dump / Backup (.sql)...')}</span>
                   </button>
                 )}
               </div>
@@ -362,7 +382,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <Cpu className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                    <span>Performance & Metrics...</span>
+                    <span>{t('toolbar.metrics', 'Performance & Metrics...')}</span>
                   </button>
                 )}
                 {onOpenERDiagram && (
@@ -376,7 +396,21 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <Network className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Visual ER Diagram...</span>
+                    <span>{t('toolbar.erDiagram', 'Visual ER Diagram...')}</span>
+                  </button>
+                )}
+                {onOpenQueryBuilder && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-query-builder-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenQueryBuilder();
+                    }}
+                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                  >
+                    <Wand2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>{t('toolbar.queryBuilder', 'Visual Query Builder...')}</span>
                   </button>
                 )}
                 {onOpenSchemaDiff && (
@@ -390,7 +424,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <GitCompare className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <span>Schema Diff & Sync...</span>
+                    <span>{t('toolbar.schemaDiff', 'Schema Diff & Sync...')}</span>
                   </button>
                 )}
                 {onOpenActivityMonitor && (
@@ -404,7 +438,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <Activity className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                    <span>Server Activity & Process List...</span>
+                    <span>{t('toolbar.activityMonitor', 'Server Activity & Process List...')}</span>
                   </button>
                 )}
                 {onOpenLocks && (
@@ -418,7 +452,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>Lock Inspector & Concurrency...</span>
+                    <span>{t('toolbar.locks', 'Lock Inspector & Concurrency...')}</span>
                   </button>
                 )}
                 {onOpenAuditLog && (
@@ -432,7 +466,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Security & Audit Log...</span>
+                    <span>{t('toolbar.auditLog', 'Security & Audit Log...')}</span>
                   </button>
                 )}
                 {onOpenSecurity && (
@@ -446,7 +480,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <Key className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                    <span>Connection Security (TLS / At-Rest)...</span>
+                    <span>{t('toolbar.connectionSecurity', 'Connection Security (TLS / At-Rest)...')}</span>
                   </button>
                 )}
                 {onOpenUserManager && (
@@ -460,7 +494,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <Users className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                    <span>User & Privilege Manager...</span>
+                    <span>{t('toolbar.userManagement', 'User & Privilege Manager...')}</span>
                   </button>
                 )}
                 {(onOpenHistory || onOpenSnippets) && (
@@ -474,7 +508,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                   >
                     <History className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span>Query History & Snippets...</span>
+                    <span>{t('toolbar.queryHistory', 'Query History & Snippets...')}</span>
                   </button>
                 )}
               </div>
@@ -501,6 +535,19 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
         ) : (
           <span className="text-xs text-muted/70 italic hidden sm:inline">No connection selected</span>
         )}
+
+        {/* Language switch button in toolbar */}
+        <button
+          type="button"
+          onClick={() => changeLanguage(currentLang === 'th' ? 'en' : 'th')}
+          data-testid="toolbar-language-btn"
+          aria-label={currentLang === 'th' ? 'Switch to English' : 'Switch to Thai'}
+          title={currentLang === 'th' ? t('toolbar.switchToEnglish', 'Switch to English') : t('toolbar.switchToThai', 'Switch to Thai')}
+          className="h-7 px-2 flex items-center gap-1 rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-xs font-medium"
+        >
+          <Languages size={14} className="shrink-0" />
+          <span>{currentLang === 'th' ? 'ไทย' : 'EN'}</span>
+        </button>
 
         {onOpenShortcuts && (
           <button

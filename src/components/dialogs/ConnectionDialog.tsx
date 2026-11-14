@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, CheckCircle2, AlertCircle, Loader2, Database, PlugZap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { DriverForm, type ConnectionFormData } from './DriverForm';
 import { validateConnectionForm } from '../../schemas/connectionSchema';
@@ -124,6 +125,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
   initialConnection,
   onSaved,
 }) => {
+  const { t } = useTranslation();
   const addConnection = useConnectionStore((s) => s.addConnection);
 
   const [formData, setFormData] = useState<ConnectionFormData>(() =>
@@ -373,7 +375,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
               <Database className="w-5 h-5 text-accent" />
               <Dialog.Title asChild>
                 <h2 id="connection-dialog-title" className="text-base font-semibold text-text">
-                  {initialConnection ? 'Edit Connection' : 'New Connection'}
+                  {initialConnection ? t('connection.editConnection', 'Edit Connection') : t('connection.newConnection', 'New Connection')}
                 </h2>
               </Dialog.Title>
             </div>
@@ -486,12 +488,12 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
               {testStatus.type === 'testing' ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Testing...</span>
+                  <span>{t('connection.testing', 'Testing...')}</span>
                 </>
               ) : (
                 <>
                   <PlugZap className="w-3.5 h-3.5 text-accent" />
-                  <span>Test Connection</span>
+                  <span>{t('connection.testConnection', 'Test Connection')}</span>
                 </>
               )}
             </button>
@@ -503,7 +505,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
                 onChange={(e) => setConnectImmediately(e.target.checked)}
                 className="w-3.5 h-3.5 rounded bg-panel border-line text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
               />
-              <span>Connect immediately after saving</span>
+              <span>{t('connection.connectImmediately', 'Connect immediately after saving')}</span>
             </label>
           </div>
 
@@ -515,7 +517,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
                 disabled={isSaving}
                 className="px-3.5 py-1.5 rounded text-xs font-medium text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               >
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </button>
             </Dialog.Close>
             <button
@@ -527,10 +529,10 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
               {isSaving ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Saving...</span>
+                  <span>{t('connection.saving', 'Saving...')}</span>
                 </>
               ) : (
-                <span>Save</span>
+                <span>{t('common.save', 'Save')}</span>
               )}
             </button>
           </div>
