@@ -265,7 +265,7 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
             onChange={(e) => onPageSizeChange(Number(e.target.value))}
             aria-label="Rows per page"
             title="Rows per page"
-            className="ml-1 bg-transparent border border-line rounded px-1 py-0.5 text-[10px] text-text focus:outline-none"
+            className="ml-1 h-[22px] min-h-[22px] bg-transparent border border-line rounded px-1 text-[10px] text-text focus:outline-none"
           >
             <option value={50}>50</option>
             <option value={100}>100</option>

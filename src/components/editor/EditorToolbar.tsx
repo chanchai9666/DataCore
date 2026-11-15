@@ -125,12 +125,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           style={{
             display: 'inline-flex',
             alignItems: 'center',
+            height: '28px',
+            minHeight: '28px',
+            boxSizing: 'border-box',
             gap: '6px',
             backgroundColor: isRunning ? '#93c5fd' : '#2563eb',
             color: '#ffffff',
             border: 'none',
             borderRadius: '4px',
-            padding: '5px 12px',
+            padding: '0 12px',
             fontWeight: 500,
             cursor: isRunning ? 'not-allowed' : 'pointer',
           }}
@@ -150,12 +153,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           style={{
             display: 'inline-flex',
             alignItems: 'center',
+            height: '28px',
+            minHeight: '28px',
+            boxSizing: 'border-box',
             gap: '5px',
             backgroundColor: !isRunning ? '#f3f4f6' : '#ef4444',
             color: !isRunning ? '#9ca3af' : '#ffffff',
             border: '1px solid #d1d5db',
             borderRadius: '4px',
-            padding: '5px 10px',
+            padding: '0 10px',
             fontWeight: 500,
             cursor: !isRunning ? 'not-allowed' : 'pointer',
           }}
@@ -176,12 +182,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
+                height: '28px',
+                minHeight: '28px',
+                boxSizing: 'border-box',
                 gap: '4px',
                 backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
                 color: isRunning ? '#9ca3af' : '#374151',
                 border: '1px solid #d1d5db',
                 borderRadius: '4px',
-                padding: '5px 8px',
+                padding: '0 8px',
                 fontWeight: 500,
                 cursor: isRunning ? 'not-allowed' : 'pointer',
               }}
@@ -199,12 +208,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
+                height: '28px',
+                minHeight: '28px',
+                boxSizing: 'border-box',
                 gap: '4px',
                 backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
                 color: isRunning ? '#9ca3af' : '#374151',
                 border: '1px solid #d1d5db',
                 borderRadius: '4px',
-                padding: '5px 8px',
+                padding: '0 8px',
                 fontWeight: 500,
                 cursor: isRunning ? 'not-allowed' : 'pointer',
               }}
@@ -225,12 +237,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           style={{
             display: 'inline-flex',
             alignItems: 'center',
+            height: '28px',
+            minHeight: '28px',
+            boxSizing: 'border-box',
             gap: '4px',
             backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
             color: isRunning ? '#9ca3af' : '#2563eb',
             border: '1px solid #d1d5db',
             borderRadius: '4px',
-            padding: '5px 8px',
+            padding: '0 8px',
             fontWeight: 500,
             cursor: isRunning ? 'not-allowed' : 'pointer',
           }}
@@ -251,12 +266,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              height: '28px',
+              minHeight: '28px',
+              boxSizing: 'border-box',
               gap: '4px',
               backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
               color: isRunning ? '#9ca3af' : '#7c3aed',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
-              padding: '5px 8px',
+              padding: '0 8px',
               fontWeight: 500,
               cursor: isRunning ? 'not-allowed' : 'pointer',
             }}
@@ -270,7 +288,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <div style={{ width: '1px', height: '18px', backgroundColor: '#d1d5db', margin: '0 4px' }} />
 
         {/* Auto-Commit Switch */}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', height: '28px', gap: '6px' }}>
           <button
             type="button"
             role="switch"
@@ -304,7 +322,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               }}
             />
           </button>
-          <span style={{ fontSize: '12px', userSelect: 'none' }}>
+          <span style={{ fontSize: '12px', userSelect: 'none', color: '#374151' }}>
             Auto-Commit: {autoCommit ? 'ON' : 'OFF'}
           </span>
         </div>
@@ -319,12 +337,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           style={{
             display: 'inline-flex',
             alignItems: 'center',
+            height: '28px',
+            minHeight: '28px',
+            boxSizing: 'border-box',
             gap: '4px',
             backgroundColor: autoCommit || isRunning ? '#f3f4f6' : '#ffffff',
             color: autoCommit || isRunning ? '#9ca3af' : '#15803d',
             border: '1px solid #d1d5db',
             borderRadius: '4px',
-            padding: '5px 8px',
+            padding: '0 8px',
             cursor: autoCommit || isRunning ? 'not-allowed' : 'pointer',
           }}
         >
@@ -342,12 +363,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           style={{
             display: 'inline-flex',
             alignItems: 'center',
+            height: '28px',
+            minHeight: '28px',
+            boxSizing: 'border-box',
             gap: '4px',
             backgroundColor: autoCommit || isRunning ? '#f3f4f6' : '#ffffff',
             color: autoCommit || isRunning ? '#9ca3af' : '#b91c1c',
             border: '1px solid #d1d5db',
             borderRadius: '4px',
-            padding: '5px 8px',
+            padding: '0 8px',
             cursor: autoCommit || isRunning ? 'not-allowed' : 'pointer',
           }}
         >
@@ -364,7 +388,10 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             aria-label="Isolation Level"
             title="Transaction Isolation Level"
             style={{
-              padding: '4px 6px',
+              height: '28px',
+              minHeight: '28px',
+              boxSizing: 'border-box',
+              padding: '0 6px',
               fontSize: '11px',
               fontWeight: 500,
               borderRadius: '4px',
@@ -391,12 +418,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              height: '28px',
+              minHeight: '28px',
+              boxSizing: 'border-box',
               gap: '4px',
               backgroundColor: '#ffffff',
               color: '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
-              padding: '5px 8px',
+              padding: '0 8px',
               cursor: 'pointer',
             }}
           >
@@ -415,12 +445,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              height: '28px',
+              minHeight: '28px',
+              boxSizing: 'border-box',
               gap: '4px',
               backgroundColor: '#ffffff',
               color: '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
-              padding: '5px 8px',
+              padding: '0 8px',
               cursor: 'pointer',
             }}
           >
@@ -442,12 +475,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              height: '28px',
+              minHeight: '28px',
+              boxSizing: 'border-box',
               gap: '4px',
               backgroundColor: '#ffffff',
               color: '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
-              padding: '5px 8px',
+              padding: '0 8px',
               cursor: 'pointer',
             }}
           >
@@ -466,12 +502,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              height: '28px',
+              minHeight: '28px',
+              boxSizing: 'border-box',
               gap: '4px',
               backgroundColor: '#ffffff',
               color: '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
-              padding: '5px 8px',
+              padding: '0 8px',
               cursor: 'pointer',
             }}
           >
@@ -495,12 +534,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              height: '28px',
+              minHeight: '28px',
+              boxSizing: 'border-box',
               gap: '4px',
               backgroundColor: '#ffffff',
               color: '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
-              padding: '5px 8px',
+              padding: '0 8px',
               cursor: 'pointer',
             }}
           >
@@ -519,12 +561,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              height: '28px',
+              minHeight: '28px',
+              boxSizing: 'border-box',
               gap: '4px',
               backgroundColor: '#ffffff',
               color: '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
-              padding: '5px 8px',
+              padding: '0 8px',
               cursor: 'pointer',
             }}
           >
@@ -540,7 +585,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
         {/* Safe Limit Dropdown */}
         {onChangeSafeLimit && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', height: '28px', gap: '5px' }}>
             <span style={{ fontSize: '11px', color: '#6b7280', userSelect: 'none' }}>Limit:</span>
             <select
               aria-label="Safe Limit"
@@ -550,8 +595,11 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                 onChangeSafeLimit(val === 'none' ? 'none' : (Number(val) as SafeLimitOption));
               }}
               style={{
+                height: '28px',
+                minHeight: '28px',
+                boxSizing: 'border-box',
                 fontSize: '11px',
-                padding: '3px 6px',
+                padding: '0 6px',
                 borderRadius: '4px',
                 border: '1px solid #d1d5db',
                 backgroundColor: '#ffffff',
@@ -578,12 +626,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              height: '28px',
+              minHeight: '28px',
+              boxSizing: 'border-box',
               gap: '4px',
               backgroundColor: '#ffffff',
               color: '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
-              padding: '4px 8px',
+              padding: '0 8px',
               fontWeight: 500,
               fontSize: '11px',
               cursor: 'pointer',

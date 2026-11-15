@@ -105,6 +105,29 @@ describe('EditorToolbar', () => {
     expect(errorEl.textContent).toBe(`Error: ${longError}`);
     expect(errorEl.textContent?.length).toBeGreaterThan(50);
   });
+
+  it('renders toolbar buttons and select dropdowns with matching 28px explicit height', () => {
+    const onChangeSafeLimit = vi.fn();
+    const onChangeIsolationLevel = vi.fn();
+    render(
+      <EditorToolbar
+        {...defaultProps}
+        onChangeSafeLimit={onChangeSafeLimit}
+        onChangeIsolationLevel={onChangeIsolationLevel}
+      />
+    );
+
+    const isolationSelect = screen.getByLabelText('Isolation Level');
+    expect(isolationSelect.style.height).toBe('28px');
+    expect(isolationSelect.style.minHeight).toBe('28px');
+
+    const limitSelect = screen.getByLabelText('Safe Limit');
+    expect(limitSelect.style.height).toBe('28px');
+    expect(limitSelect.style.minHeight).toBe('28px');
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    expect(runBtn.style.height).toBe('28px');
+  });
 });
 
 describe('SqlEditor', () => {

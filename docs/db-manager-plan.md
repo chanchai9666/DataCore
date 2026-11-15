@@ -907,6 +907,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Search Icon Precision Centering:** ปรับตำแหน่งไอคอน `<Search>` ด้วย `top-1/2 -translate-y-1/2` แทนการฮาร์ดโค้ด `top-2.5` เพื่อให้อยู่กึ่งกลางแนวตั้งเป๊ะสมบูรณ์
     - **Query Builder & Filter Bar Height Normalization:** กำหนด Explicit Height บน Form Controls คู่ขนานกันใน `VisualQueryBuilderTab.tsx` (`h-[30px]`), `FilterBar.tsx` (`h-[28px]`), และ `CreateTableModal.tsx` (`h-[30px]`) ให้มีความสูงเท่ากันทุกจุด 100%
 
+40. **Issue #148: Equalize Dropdown and Button Heights in SqlEditor Toolbar (`EditorToolbar.tsx`, `PaginationBar.tsx`, `GridBottomBar.tsx`)**
+    - **SqlEditor Toolbar Height Alignment:** กำหนด Explicit Height `height: '28px'` และ `boxSizing: 'border-box'` ให้กับ `<select>` ทั้งสองตัวใน Editor Toolbar ได้แก่ Isolation Level Selector (`Read Committed`) และ Safe Limit Selector (`1,000 (Safe Default)`) รวมถึงปุ่มคำสั่งทั้งหมดใน Toolbar ให้มีขนาด 28px เท่ากันทั้งหมด 100% ป้องกัน macOS WebKit ย่อขนาด dropdown ต่ำกว่าปุ่มข้างเคียง
+    - **Auto-Commit Toggle Text Contrast:** กำหนดสีตัวอักษรของป้าย `Auto-Commit: ON/OFF` ให้ชัดเจน ไม่กลืนกับพื้นหลังของ Toolbar
+    - **Grid Pagination Height Normalization:** กำหนด Explicit Height `h-[24px]` บนตัวเลือก Rows per page ใน `PaginationBar.tsx` และ `GridBottomBar.tsx` ให้มีขนาดสูงเท่ากับปุ่มควบคุมหน้า
+
+
 
 
 

@@ -58,11 +58,14 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
               disabled={isLoading}
               style={{
+                height: '24px',
+                minHeight: '24px',
+                boxSizing: 'border-box',
                 backgroundColor: 'var(--bg-input, #2a2a2a)',
                 color: 'var(--text-primary, #ffffff)',
                 border: '1px solid var(--border-color, #444444)',
                 borderRadius: '4px',
-                padding: '2px 6px',
+                padding: '0 6px',
                 fontSize: '12px',
                 cursor: 'pointer',
               }}
