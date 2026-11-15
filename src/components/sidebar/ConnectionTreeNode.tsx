@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import type { NodeRendererProps } from 'react-arborist';
+import { useTranslation } from 'react-i18next';
 import {
   Database,
   Folder,
@@ -105,6 +106,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
   style,
   dragHandle,
 }) => {
+  const { t } = useTranslation();
   const context = useContext(ObjectBrowserContext);
   const data = node.data;
   const isLeaf = node.isLeaf;
@@ -559,12 +561,12 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
             );
           })()}
           {data.isLoading && (
-            <span title="Connecting...">
+            <span title={t('sidebar.connecting', 'Connecting...')}>
               <Loader2 className="w-3 h-3 text-amber-500 animate-spin" data-testid="spinner-connecting" />
             </span>
           )}
           {data.errorMessage && !data.isLoading && (
-            <span title={`Connection error: ${data.errorMessage}`}>
+            <span title={t('sidebar.connectionError', 'Connection error: {{error}}', { error: data.errorMessage })}>
               <AlertCircle className="w-3.5 h-3.5 text-red-500" data-testid="icon-connection-error" />
             </span>
           )}
@@ -577,7 +579,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
           <>
             <button
               type="button"
-              title="New Query"
+              title={t('sidebar.newQuery', 'New Query')}
               className="p-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               onClick={handleNewQueryTab}
             >
@@ -585,7 +587,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
             </button>
             <button
               type="button"
-              title="Refresh Schema"
+              title={t('sidebar.refreshSchema', 'Refresh Schema')}
               className="p-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
@@ -601,7 +603,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
           <>
             <button
               type="button"
-              title="Show Columns"
+              title={t('sidebar.showColumns', 'Show Columns')}
               data-testid="btn-toggle-columns"
               className="p-0.5 text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               onClick={(e) => {

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff, ShieldCheck, FolderOpen, Terminal, Sliders, Shield } from 'lucide-react';
 import type { DatabaseDriver } from '../../types/db';
 import { pickSqliteDatabaseFile } from '../../utils/dialog';
@@ -50,6 +51,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
   disabled = false,
   isEditing = false,
 }) => {
+  const { t } = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
   const [subTab, setSubTab] = useState<'general' | 'ssl' | 'ssh' | 'advanced'>('general');
 
@@ -73,7 +75,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label htmlFor="conn-name" className="block text-xs font-medium text-gray-300 mb-1">
-            Connection Name <span className="text-red-400">*</span>
+            {t('connection.connectionName', 'Connection Name')} <span className="text-red-400">*</span>
           </label>
           <input
             id="conn-name"
@@ -81,7 +83,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             value={formData.name}
             onChange={(e) => onChange('name', e.target.value)}
             disabled={disabled}
-            placeholder="e.g. Production Database"
+            placeholder={t('connection.connectionNamePlaceholder', 'e.g. Production Database')}
             className={`w-full px-3 py-1.5 rounded bg-gray-800 border ${
               errors.name ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
             } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs`}
@@ -91,7 +93,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
 
         <div>
           <label htmlFor="conn-folder" className="block text-xs font-medium text-gray-300 mb-1">
-            Folder (Optional)
+            {t('connection.folder', 'Folder (Optional)')}
           </label>
           <input
             id="conn-folder"
@@ -99,7 +101,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             value={formData.folder || ''}
             onChange={(e) => onChange('folder', e.target.value)}
             disabled={disabled}
-            placeholder="e.g. Production, Analytics"
+            placeholder={t('connection.folderPlaceholder', 'e.g. Production, Analytics')}
             className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
           />
         </div>
@@ -109,7 +111,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
         <div>
           <label htmlFor="conn-environment" className="block text-xs font-medium text-gray-300 mb-1">
-            Environment
+            {t('connection.environment', 'Environment')}
           </label>
           <select
             id="conn-environment"
@@ -121,10 +123,10 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             disabled={disabled}
             className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 focus:outline-none transition-colors text-xs"
           >
-            <option value="">None (Default)</option>
-            <option value="development">Development</option>
-            <option value="staging">Staging</option>
-            <option value="production">Production</option>
+            <option value="">{t('connection.envNone', 'None (Default)')}</option>
+            <option value="development">{t('connection.envDevelopment', 'Development')}</option>
+            <option value="staging">{t('connection.envStaging', 'Staging')}</option>
+            <option value="production">{t('connection.envProduction', 'Production')}</option>
           </select>
         </div>
 
@@ -139,8 +141,8 @@ export const DriverForm: React.FC<DriverFormProps> = ({
               disabled={disabled}
               className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
             />
-            <span className="text-xs text-gray-300 font-medium">Read-Only Mode</span>
-            <span className="text-[11px] text-gray-500">(Enforce read-only queries)</span>
+            <span className="text-xs text-gray-300 font-medium">{t('connection.readOnlyMode', 'Read-Only Mode')}</span>
+            <span className="text-[11px] text-gray-500">({t('connection.readOnlyDesc', 'Enforce read-only queries')})</span>
           </label>
         </div>
       </div>
@@ -156,7 +158,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                 : 'text-gray-400 border-transparent hover:text-gray-200'
             }`}
           >
-            <span>General</span>
+            <span>{t('connection.generalTab', 'General')}</span>
           </button>
           <button
             type="button"
@@ -168,7 +170,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             }`}
           >
             <Shield size={13} />
-            <span>SSL / TLS Certificates</span>
+            <span>{t('connection.sslCertsTab', 'SSL / TLS Certificates')}</span>
           </button>
           <button
             type="button"
@@ -180,7 +182,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             }`}
           >
             <Terminal size={13} />
-            <span>SSH Tunnel</span>
+            <span>{t('connection.sshTunnel', 'SSH Tunnel')}</span>
           </button>
           <button
             type="button"
@@ -192,7 +194,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             }`}
           >
             <Sliders size={13} />
-            <span>Advanced</span>
+            <span>{t('connection.advancedTab', 'Advanced')}</span>
           </button>
         </div>
       )}
@@ -268,7 +270,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="md:col-span-2">
                     <label htmlFor="conn-host" className="block text-xs font-medium text-gray-300 mb-1">
-                      Host <span className="text-red-400">*</span>
+                      {t('connection.host', 'Host')} <span className="text-red-400">*</span>
                     </label>
                     <input
                       id="conn-host"
@@ -286,7 +288,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
 
                   <div>
                     <label htmlFor="conn-port" className="block text-xs font-medium text-gray-300 mb-1">
-                      Port <span className="text-red-400">*</span>
+                      {t('connection.port', 'Port')} <span className="text-red-400">*</span>
                     </label>
                     <input
                       id="conn-port"
@@ -306,7 +308,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label htmlFor="conn-database" className="block text-xs font-medium text-gray-300 mb-1">
-                      Database <span className="text-red-400">*</span>
+                      {t('connection.database', 'Database')} <span className="text-red-400">*</span>
                     </label>
                     <input
                       id="conn-database"
@@ -324,7 +326,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
 
                   <div>
                     <label htmlFor="conn-user" className="block text-xs font-medium text-gray-300 mb-1">
-                      User <span className="text-red-400">*</span>
+                      {t('connection.username', 'Username')} <span className="text-red-400">*</span>
                     </label>
                     <input
                       id="conn-user"
@@ -344,7 +346,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label htmlFor="conn-password" className="block text-xs font-medium text-gray-300 mb-1">
-                      Password
+                      {t('connection.password', 'Password')}
                     </label>
                     <div className="relative">
                       <input

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Activity,
   X,
@@ -33,6 +34,7 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
   isAnalyzing = false,
   driver,
 }) => {
+  const { t } = useTranslation();
   const [viewMode, setViewMode] = useState<'visual' | 'raw'>('visual');
   const [copied, setCopied] = useState(false);
 
@@ -87,7 +89,7 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
           <Activity size={18} className="text-blue-500" />
           <div>
             <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-              Query Execution Plan
+              {t('editor.explainDrawer.title', 'Query Execution Plan')}
             </h2>
             <div className="flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
               {driver && <span className="uppercase font-medium">{driver}</span>}
@@ -109,7 +111,7 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close Plan"
+          aria-label={t('editor.explainDrawer.close', 'Close Plan')}
           className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
         >
           <X size={18} />

@@ -912,6 +912,16 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Auto-Commit Toggle Text Contrast:** กำหนดสีตัวอักษรของป้าย `Auto-Commit: ON/OFF` ให้ชัดเจน ไม่กลืนกับพื้นหลังของ Toolbar
     - **Grid Pagination Height Normalization:** กำหนด Explicit Height `h-[24px]` บนตัวเลือก Rows per page ใน `PaginationBar.tsx` และ `GridBottomBar.tsx` ให้มีขนาดสูงเท่ากับปุ่มควบคุมหน้า
 
+41. **Issue #149: Comprehensive UI Localization (EN/TH) & Automated Parity Enforcement (`docs/designs/comprehensive_ui_localization.md`)**
+    - **100% UI Localization Coverage:** ขยายการรองรับภาษาไทย (`th`) และอังกฤษ (`en`) ครอบคลุม UI ทั้งหมด 100% ทั้ง MainToolbar, StatusBar, ObjectBrowser, SqlEditor, DataGrid, ConnectionDialog, TableList, Diagnostic Modals, Data Transfer Wizards และ Toast Envelopes
+    - **Database Technical Terminology Lexicon:** กำหนดมาตรฐานการทับศัพท์ภาษาไทยโดยคงคำศัพท์เทคนิคฐานข้อมูลเป็นภาษาอังกฤษเดิมเสมอ (เช่น "รัน Query", "เลือก Schema", "ดู Execution Plan", "Primary Key", "Index", "Transaction", "Rollback") เพื่อความถูกต้องและสะดวกต่อการใช้งานของนักพัฒนา
+    - **Raw Database Engine Error Preservation:** ข้อความแจ้งเตือนข้อผิดพลาดจาก Database Engine และ Rust Driver (PostgreSQL, SQLite, MySQL) จะคงข้อความดิบดั้งเดิมไว้เพื่อการวินิจฉัยปัญหา โดยห่อหุ้มด้วย Notification Envelope ภาษาไทยที่ปลอดภัย ผ่านยูทิลิตี้ `formatTauriError` ใน `src/utils/error.ts` และแสดงผลผ่าน `sonner`
+    - **TypeScript Compile-Time Validation:** เสริม Custom Type Declaration ใน `src/types/i18next.d.ts` บนโมดูล `'i18next'` ด้วย `defaultNS: 'translation'` และ `typeof en` ช่วยตรวจจับคีย์ที่สะกดผิดหรือไม่มีอยู่จริงตั้งแต่ตอน compile (`pnpm check` / `tsc`)
+    - **Automated Vitest Parity Test Suite:** สร้างชุดทดสอบ `src/test/i18nParity.test.ts` ตรวจสอบความสมบูรณ์ของคีย์คำแปลระหว่าง `en.json` และ `th.json` แบบ recursive ให้ตรงกัน 100%, ปราศจากค่าว่าง, และมีตัวแปร interpolation (`{{var}}`) ตรงกันทุกจุด ป้องกัน translation regressions ใน CI
+    - **Phased Implementation Rollout:** แบ่งการพัฒนาออกเป็น 2 เฟส:
+      - **Phase 1:** Core Infrastructure (Type definitions, `i18nParity.test.ts`, `src/utils/error.ts`), MainToolbar, StatusBar, ObjectBrowser, ConnectionTreeNode, ConnectionDialog, DriverForm, SqlEditor, ExecutionPlanDrawer, HistorySnippetsDrawer, DataGrid, GridBottomBar, CellDetailDrawer, CommandPaletteModal
+      - **Phase 2:** TableListTab, Structure Modals (`CreateTableModal`, `DropTableModal`, `RenameTableModal`, `TableMaintenanceModal`), Diagnostic Modals (`DatabaseMetricsModal`, `LockInspectorModal`, `SchemaDiffModal`, `AuditLogDrawer`, `ActivityMonitorModal`, `UserPrivilegeManagerModal`), Data Transfer Wizards (`DataImportWizardModal`, `DataExportWizardModal`, `ExportSqlModal`, `ImportSqlModal`, `CrossDbCopyModal`)
+
 
 
 

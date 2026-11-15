@@ -24,7 +24,9 @@ import {
   Copy,
   LayoutGrid,
   Wand2,
+  Languages,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
 import { openTableTab } from '../sidebar/tabHelpers';
@@ -156,6 +158,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   initialTables,
   platform,
 }) => {
+  const { t, i18n } = useTranslation();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [tables, setTables] = useState<TableItem[]>(initialTables || []);
@@ -295,6 +298,20 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       keywords: ['dark', 'light', 'appearance', 'mode', 'theme', 'color'],
       onSelect: () => {
         onToggleTheme?.();
+      },
+    });
+
+    items.push({
+      id: 'action-toggle-language',
+      title: t('dialogs.toggleLanguageCommand', 'Toggle Language / สลับภาษา'),
+      subtitle: i18n.language?.startsWith('th') ? 'Switch to English' : 'เปลี่ยนเป็นภาษาไทย (Thai)',
+      category: 'Actions',
+      icon: <Languages className="w-4 h-4 text-emerald-400" />,
+      keywords: ['language', 'locale', 'translate', 'thai', 'english', 'ภาษา', 'ไทย'],
+      onSelect: () => {
+        const nextLang = i18n.language?.startsWith('th') ? 'en' : 'th';
+        i18n.changeLanguage(nextLang);
+        onClose();
       },
     });
 
@@ -736,7 +753,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Type a command, table name, or database..."
+              placeholder={t('dialogs.commandPlaceholder', 'Type a command, table name, or database...')}
               className="w-full bg-transparent text-sm text-text placeholder:text-muted/60 focus:outline-none"
               autoComplete="off"
               autoCorrect="off"

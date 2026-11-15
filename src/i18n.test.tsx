@@ -121,7 +121,7 @@ describe('i18n Internationalization System', () => {
 
       expect(toolbarLangBtn).toHaveTextContent('ไทย');
       expect(screen.getByText('เชื่อมต่อ')).toBeInTheDocument();
-      expect(screen.getByText('คิวรีใหม่')).toBeInTheDocument();
+      expect(screen.getByText('Query ใหม่')).toBeInTheDocument();
       expect(screen.getByText('ตาราง')).toBeInTheDocument();
       expect(screen.getByText('เครื่องมือ')).toBeInTheDocument();
       expect(screen.getByText('สำรองข้อมูล')).toBeInTheDocument();

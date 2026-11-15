@@ -388,7 +388,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <Cpu className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.metrics', 'Database Metrics & Health')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">CPU, Memory, Cache Hit & Slow Queries</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.metricsDesc', 'CPU, Memory, Cache Hit & Slow Queries')}</span>
                     </div>
                   </button>
                 )}
@@ -405,7 +405,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <Activity className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.activityMonitor', 'Activity & Process Monitor')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">Live sessions, running queries & kill process</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.activityMonitorDesc', 'Live sessions, running queries & kill process')}</span>
                     </div>
                   </button>
                 )}
@@ -422,7 +422,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.locks', 'Lock Inspector & Deadlocks')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">Detect blocking transactions & lock chains</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.locksDesc', 'Detect blocking transactions & lock chains')}</span>
                     </div>
                   </button>
                 )}
@@ -446,7 +446,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <Network className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.erDiagram', 'Visual ER Diagram')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">Entity relationship graphs & schema relations</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.erDiagramDesc', 'Entity relationship graphs & schema relations')}</span>
                     </div>
                   </button>
                 )}
@@ -463,7 +463,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <Wand2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.queryBuilder', 'Visual Query Builder')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">Build SELECT queries visually without code</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.queryBuilderDesc', 'Build SELECT queries visually without code')}</span>
                     </div>
                   </button>
                 )}
@@ -480,7 +480,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <GitCompare className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.schemaDiff', 'Schema Compare & Diff')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">Compare structures & generate migration SQL</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.schemaDiffDesc', 'Compare structures & generate migration SQL')}</span>
                     </div>
                   </button>
                 )}
@@ -504,7 +504,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.auditLog', 'Security Audit Log')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">Tamper-evident logs of mutations & queries</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.auditLogDesc', 'Tamper-evident logs of mutations & queries')}</span>
                     </div>
                   </button>
                 )}
@@ -521,7 +521,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <Key className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.connectionSecurity', 'Connection SSL & Security')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">TLS certificates, encrypted vault & key lock</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.connectionSecurityDesc', 'TLS certificates, encrypted vault & key lock')}</span>
                     </div>
                   </button>
                 )}
@@ -538,7 +538,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <Users className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.userManagement', 'User & Privilege Manager')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">Database users, roles and table permissions</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.userManagementDesc', 'Database users, roles and table permissions')}</span>
                     </div>
                   </button>
                 )}
@@ -562,7 +562,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <History className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.queryHistory', 'Query History & Snippets')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">Executed statements history & reusable code snippets</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.queryHistoryDesc', 'Executed statements history & reusable code snippets')}</span>
                     </div>
                   </button>
                 )}
@@ -578,8 +578,11 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
           <button
             type="button"
             onClick={() => onEditConnection?.(activeConnection)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-panel border border-line text-xs hover:border-accent transition-all cursor-pointer shadow-sm"
-            title={`Active connection: ${activeConnection.name} (${activeConnection.driver}). Click to edit.`}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-panel border border-line text-xs hover:border-accent transition-all cursor-pointer shadow-sm min-h-[26px]"
+            title={t('toolbar.activeConnectionTitle', 'Active connection: {{name}} ({{driver}}). Click to edit.', {
+              name: activeConnection.name,
+              driver: activeConnection.driver,
+            })}
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
             <DbBadge driver={activeConnection.driver} />
@@ -588,7 +591,9 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
             </span>
           </button>
         ) : (
-          <span className="text-xs text-muted/70 italic hidden sm:inline">No connection selected</span>
+          <span className="text-xs text-muted/70 italic hidden sm:inline">
+            {t('toolbar.noConnectionSelected', 'No connection selected')}
+          </span>
         )}
 
         {/* Language switch button in toolbar */}
@@ -596,9 +601,9 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
           type="button"
           onClick={() => changeLanguage(currentLang === 'th' ? 'en' : 'th')}
           data-testid="toolbar-language-btn"
-          aria-label={currentLang === 'th' ? 'Switch to English' : 'Switch to Thai'}
+          aria-label={currentLang === 'th' ? t('toolbar.switchToEnglish', 'Switch to English') : t('toolbar.switchToThai', 'Switch to Thai')}
           title={currentLang === 'th' ? t('toolbar.switchToEnglish', 'Switch to English') : t('toolbar.switchToThai', 'Switch to Thai')}
-          className="h-7 px-2 flex items-center gap-1 rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-xs font-medium"
+          className="h-7 px-2 flex items-center gap-1 rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-xs font-medium min-h-[26px] py-0.5"
         >
           <Languages size={14} className="shrink-0" />
           <span>{currentLang === 'th' ? 'ไทย' : 'EN'}</span>

@@ -44,7 +44,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ className = '' }) => {
           <div className="flex items-center gap-1.5 truncate">
             <span
               className="font-mono text-text/80 truncate cursor-pointer hover:text-text"
-              title={`${lastQuery} (Click to copy)`}
+              title={t('status.clickToCopySql', '{{query}} (Click to copy)', { query: lastQuery })}
               onClick={handleCopyQuery}
             >
               {lastQuery}

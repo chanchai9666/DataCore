@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   History,
   Bookmark,
@@ -41,6 +42,7 @@ export const HistorySnippetsDrawer: React.FC<HistorySnippetsDrawerProps> = ({
   currentDatabase,
   onSelectSql,
 }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'history' | 'snippets'>(initialTab);
   const [historySearch, setHistorySearch] = useState('');
   const [snippetsSearch, setSnippetsSearch] = useState('');
@@ -191,7 +193,7 @@ export const HistorySnippetsDrawer: React.FC<HistorySnippetsDrawerProps> = ({
         <div className="flex items-center gap-2">
           <History size={18} className="text-blue-500" />
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-            Query History & Snippets
+            {t('editor.snippetDrawer.title', 'Query History & Snippets')}
           </h2>
         </div>
         <button
@@ -216,7 +218,7 @@ export const HistorySnippetsDrawer: React.FC<HistorySnippetsDrawerProps> = ({
           }`}
         >
           <History size={14} />
-          <span>History</span>
+          <span>{t('editor.snippetDrawer.historyTab', 'History')}</span>
           <span className="rounded-full bg-zinc-200 px-1.5 py-0.5 text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
             {history.length}
           </span>
@@ -232,7 +234,7 @@ export const HistorySnippetsDrawer: React.FC<HistorySnippetsDrawerProps> = ({
           }`}
         >
           <Bookmark size={14} />
-          <span>Snippets</span>
+          <span>{t('editor.snippetDrawer.snippetsTab', 'Snippets')}</span>
           <span className="rounded-full bg-zinc-200 px-1.5 py-0.5 text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
             {snippets.length}
           </span>
@@ -252,7 +254,7 @@ export const HistorySnippetsDrawer: React.FC<HistorySnippetsDrawerProps> = ({
                 />
                 <input
                   type="text"
-                  placeholder="Search history by SQL, DB, or error..."
+                  placeholder={t('editor.snippetDrawer.searchHistory', 'Search history by SQL, DB, or error...')}
                   value={historySearch}
                   onChange={(e) => setHistorySearch(e.target.value)}
                   className="w-full rounded border border-zinc-200 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
@@ -289,7 +291,7 @@ export const HistorySnippetsDrawer: React.FC<HistorySnippetsDrawerProps> = ({
                     }}
                     className="text-[11px] text-red-500 hover:underline"
                   >
-                    Clear All
+                    {t('editor.snippetDrawer.clearHistory', 'Clear All')}
                   </button>
                 )}
               </div>
@@ -299,7 +301,7 @@ export const HistorySnippetsDrawer: React.FC<HistorySnippetsDrawerProps> = ({
             <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
               {filteredHistory.length === 0 ? (
                 <div className="py-12 text-center text-xs text-zinc-400">
-                  No query history recorded yet
+                  {t('editor.snippetDrawer.noHistory', 'No query history recorded yet')}
                 </div>
               ) : (
                 filteredHistory.map((item) => (
@@ -427,7 +429,7 @@ export const HistorySnippetsDrawer: React.FC<HistorySnippetsDrawerProps> = ({
                   />
                   <input
                     type="text"
-                    placeholder="Search snippets by title, tag, or SQL..."
+                    placeholder={t('editor.snippetDrawer.searchSnippets', 'Search snippets by title, tag, or SQL...')}
                     value={snippetsSearch}
                     onChange={(e) => setSnippetsSearch(e.target.value)}
                     className="w-full rounded border border-zinc-200 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
@@ -466,7 +468,7 @@ export const HistorySnippetsDrawer: React.FC<HistorySnippetsDrawerProps> = ({
             <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
               {filteredSnippets.length === 0 ? (
                 <div className="py-12 text-center text-xs text-zinc-400">
-                  No SQL snippets found
+                  {t('editor.snippetDrawer.noSnippets', 'No SQL snippets found')}
                 </div>
               ) : (
                 filteredSnippets.map((snippet) => (

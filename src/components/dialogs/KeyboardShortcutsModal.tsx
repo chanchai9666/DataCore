@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   Keyboard,
@@ -213,6 +214,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
   onClose,
   platform: initialPlatform,
 }) => {
+  const { t } = useTranslation();
   const [platform, setPlatform] = useState<'mac' | 'windows'>(() =>
     initialPlatform ?? (detectIsMac() ? 'mac' : 'windows')
   );
@@ -292,7 +294,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
               </div>
               <div>
                 <Dialog.Title className="text-base font-semibold text-text flex items-center gap-2">
-                  <span>Keyboard Shortcuts</span>
+                  <span>{t('dialogs.shortcutsTitle', 'Keyboard Shortcuts')}</span>
                   <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/20">
                     {platform === 'mac' ? '⌘ /' : 'Ctrl + /'}
                   </span>
@@ -358,7 +360,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
               <input
                 type="text"
                 data-testid="shortcuts-search-input"
-                placeholder="Search shortcuts by action, key, or category..."
+                placeholder={t('dialogs.shortcutsSearchPlaceholder', 'Search shortcuts by action, key, or category...')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 text-xs rounded-lg border border-line bg-panel text-text placeholder:text-muted/60 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent transition-all"
