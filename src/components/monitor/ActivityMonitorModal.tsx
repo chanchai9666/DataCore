@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   Activity,
@@ -38,6 +39,7 @@ export const ActivityMonitorModal: React.FC<ActivityMonitorModalProps> = ({
   onClose,
   connectionId: propConnectionId,
 }) => {
+  const { t } = useTranslation();
   const { connections } = useConnectionStore();
 
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
@@ -174,7 +176,7 @@ export const ActivityMonitorModal: React.FC<ActivityMonitorModalProps> = ({
               <Activity className="w-5 h-5 text-emerald-400" />
               <div>
                 <Dialog.Title className="text-sm font-semibold text-text">
-                  Server Activity Monitor & Process List
+                  {t('tools.activityMonitorTitle', 'Server Activity Monitor & Process List')}
                 </Dialog.Title>
                 <Dialog.Description className="text-xs text-muted">
                   Inspect active client sessions, running queries, lock waits, and terminate problematic processes
@@ -267,7 +269,7 @@ export const ActivityMonitorModal: React.FC<ActivityMonitorModalProps> = ({
               <Search className="w-3.5 h-3.5 text-muted" />
               <input
                 type="text"
-                placeholder="Search query, user, PID..."
+                placeholder={t('tools.searchProcessesPlaceholder', 'Search query, user, PID...')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-transparent border-none outline-none text-xs text-text placeholder-muted/60 w-44"

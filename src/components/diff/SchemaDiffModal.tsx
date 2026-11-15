@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   GitCompare,
@@ -45,6 +46,7 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
   initialConnectionId,
   initialSchemaName,
 }) => {
+  const { t } = useTranslation();
   const { connections } = useConnectionStore();
 
   const [sourceConnId, setSourceConnId] = useState<string>('');
@@ -220,7 +222,7 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
             <div className="flex items-center gap-2.5">
               <GitCompare className="w-5 h-5 text-purple-400" />
               <div>
-                <h2 className="text-sm font-semibold text-text">Schema Diff & Synchronization</h2>
+                <h2 className="text-sm font-semibold text-text">{t('tools.schemaDiffTitle', 'Schema Diff & Synchronization')}</h2>
                 <p className="text-xs text-muted">
                   Compare database schemas, detect schema drift, and generate synchronized migration scripts
                 </p>
@@ -229,6 +231,7 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
             <button
               type="button"
               onClick={onClose}
+              aria-label={t('common.close', 'Close')}
               className="p-1.5 rounded text-muted hover:text-text hover:bg-white/10 transition-colors"
             >
               <X className="w-4 h-4" />
@@ -240,7 +243,7 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
             {/* Source Connection */}
             <div className="flex items-center gap-2 flex-1 min-w-[260px]">
               <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider shrink-0 w-14">
-                Source:
+                {t('tools.sourceLabel', 'Source:')}
               </span>
               <select
                 value={sourceConnId}
@@ -275,7 +278,7 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
             <button
               type="button"
               onClick={handleSwap}
-              title="Swap Source and Target"
+              title={t('tools.swapConnections', 'Swap Source and Target')}
               className="p-1.5 rounded-md hover:bg-white/10 text-muted hover:text-text transition-colors border border-line shrink-0"
             >
               <ArrowLeftRight className="w-4 h-4" />
@@ -284,7 +287,7 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
             {/* Target Connection */}
             <div className="flex items-center gap-2 flex-1 min-w-[260px]">
               <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider shrink-0 w-14">
-                Target:
+                {t('tools.targetLabel', 'Target:')}
               </span>
               <select
                 value={targetConnId}
@@ -326,12 +329,12 @@ export const SchemaDiffModal: React.FC<SchemaDiffModalProps> = ({
               {isLoading ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Comparing...</span>
+                  <span>{t('tools.comparing', 'Comparing...')}</span>
                 </>
               ) : (
                 <>
                   <GitCompare className="w-3.5 h-3.5" />
-                  <span>Compare Schemas</span>
+                  <span>{t('tools.compareSchemas', 'Compare Schemas')}</span>
                 </>
               )}
             </button>

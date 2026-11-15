@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { AlertTriangle, Trash2, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -25,6 +26,7 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const [cascade, setCascade] = useState(false);
   const [confirmName, setConfirmName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,7 +41,7 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
   const handleDrop = async (e: React.FormEvent) => {
     e.preventDefault();
     if (confirmName !== tableName) {
-      setError(`Please type "${tableName}" exactly to confirm.`);
+      setError(t('structure.confirmExactError', 'Please type "{{name}}" exactly to confirm.', { name: tableName }));
       return;
     }
 
@@ -61,13 +63,13 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
         await closeTab(t.id);
       }
 
-      toast.success(`Table "${fullDisplay}" dropped successfully`);
+      toast.success(t('structure.droppedSuccess', 'Table "{{name}}" dropped successfully', { name: fullDisplay }));
       onSuccess();
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
-      toast.error(`Failed to drop table: ${msg}`);
+      toast.error(t('structure.failedToDrop', 'Failed to drop table: {{error}}', { error: msg }));
     } finally {
       setLoading(false);
     }
@@ -86,7 +88,7 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
               <AlertTriangle className="w-5 h-5 flex-shrink-0" />
               <AlertDialog.Title asChild>
                 <h2 id="drop-table-title" className="text-sm font-semibold tracking-wide">
-                  Drop Table
+                  {t('structure.dropTableTitle', 'Drop Table')}
                 </h2>
               </AlertDialog.Title>
             </div>
@@ -94,7 +96,7 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Close dialog"
+                aria-label={t('common.close', 'Close dialog')}
                 className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -106,14 +108,14 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
             <AlertDialog.Description asChild>
               <div id="drop-table-description" className="text-xs text-zinc-600 dark:text-zinc-300 space-y-2">
                 <p>
-                  Are you sure you want to drop table{' '}
+                  {t('structure.dropTableConfirm', 'Are you sure you want to drop table')}{' '}
                   <span className="font-mono font-bold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/40 px-1 py-0.5 rounded">
                     {fullDisplay}
                   </span>
                   ?
                 </p>
                 <p className="text-red-600 dark:text-red-400">
-                  This action is permanent and cannot be undone. All data, indexes, and triggers associated with this table will be deleted.
+                  {t('structure.dropTableWarning', 'This action is permanent and cannot be undone. All data, indexes, and triggers associated with this table will be deleted.')}
                 </p>
               </div>
             </AlertDialog.Description>
@@ -126,13 +128,13 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
                   onChange={(e) => setCascade(e.target.checked)}
                   className="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-red-600 focus:ring-0 focus:ring-offset-0"
                 />
-                <span>Cascade drop dependent objects (foreign keys, views)</span>
+                <span>{t('structure.cascade', 'Cascade drop dependent objects (foreign keys, views)')}</span>
               </label>
             )}
 
             <div>
               <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                Type <span className="font-mono text-zinc-900 dark:text-zinc-200 font-semibold">{tableName}</span> to confirm:
+                {t('structure.typeToConfirm', 'Type {{name}} to confirm:', { name: tableName })}
               </label>
               <input
                 type="text"
@@ -147,7 +149,7 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
 
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-1">
-                SQL Statement:
+                {t('structure.sqlStatement', 'SQL Statement:')}
               </div>
               <pre className="text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-2 rounded font-mono text-red-700 dark:text-red-300 whitespace-pre-wrap select-all">
                 {sql}
@@ -171,7 +173,7 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
                   disabled={loading}
                   className="px-3 py-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
                 >
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </button>
               </AlertDialog.Cancel>
               <button
@@ -183,12 +185,12 @@ export const DropTableModal: React.FC<DropTableModalProps> = ({
                 {loading ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Dropping...</span>
+                    <span>{t('structure.dropping', 'Dropping...')}</span>
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Drop Table</span>
+                    <span>{t('structure.dropTableTitle', 'Drop Table')}</span>
                   </>
                 )}
               </button>

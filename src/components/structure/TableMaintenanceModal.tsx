@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Wrench,
   X,
@@ -79,6 +80,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const [selectedOp, setSelectedOp] = useState<TableMaintenanceOp>('analyze');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +137,24 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
     }
   };
 
+  const getOpName = (op: TableMaintenanceOp) => {
+    switch (op) {
+      case 'analyze': return t('structure.opAnalyze', 'Analyze');
+      case 'check': return t('structure.opCheck', 'Check Integrity');
+      case 'optimize': return t('structure.opOptimize', 'Optimize / Vacuum');
+      case 'reindex': return t('structure.opReindex', 'Reindex / Repair');
+    }
+  };
+
+  const getOpDesc = (op: TableMaintenanceOp) => {
+    switch (op) {
+      case 'analyze': return t('structure.opAnalyzeDesc', 'Update key distribution statistics to help the Query Planner choose the fastest Index.');
+      case 'check': return t('structure.opCheckDesc', 'Scan table and data file structure integrity for data corruption.');
+      case 'optimize': return t('structure.opOptimizeDesc', 'Reorganize data on disk (Defragmentation) and reclaim unused space for the OS.');
+      case 'reindex': return t('structure.opReindexDesc', 'Rebuild all indexes to resolve index bloat or repair corrupted table structures.');
+    }
+  };
+
   return (
     <div
       role="dialog"
@@ -149,7 +169,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
             <Wrench className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <div>
               <h2 id="maintenance-modal-title" className="text-sm font-semibold text-gray-900 dark:text-white">
-                Table Maintenance & Diagnostics
+                {t('structure.maintenanceTitle', 'Table Maintenance & Diagnostics')}
               </h2>
               <div className="text-[11px] text-gray-500 dark:text-gray-400 font-mono">
                 {fullDisplay} <span className="text-gray-400 dark:text-gray-500">({driver.toUpperCase()})</span>
@@ -160,7 +180,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={loading}
-            aria-label="Close dialog"
+            aria-label={t('common.close', 'Close dialog')}
             className="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 rounded hover:bg-gray-200 dark:hover:bg-[#333333] transition-colors"
           >
             <X className="w-4 h-4" />
@@ -179,7 +199,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
           {/* Operation Selector Tabs */}
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-              Select Operation
+              {t('structure.selectOperation', 'Select Operation')}
             </label>
             <div className="grid grid-cols-2 gap-2">
               {OPERATIONS.map((item) => {
@@ -204,15 +224,14 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
                       }`}
                     />
                     <div>
-                      <div className="text-xs font-semibold">{item.name}</div>
-                      <div className="text-[10px] text-gray-500 dark:text-gray-400">{item.nameTh}</div>
+                      <div className="text-xs font-semibold">{getOpName(item.op)}</div>
                     </div>
                   </button>
                 );
               })}
             </div>
             <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 px-1">
-              {OPERATIONS.find((o) => o.op === selectedOp)?.description}
+              {getOpDesc(selectedOp)}
             </p>
           </div>
 
@@ -220,7 +239,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
           <div>
             <div className="flex items-center space-x-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1">
               <Code2 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
-              <span>SQL Command</span>
+              <span>{t('structure.sqlCommand', 'SQL Command')}</span>
             </div>
             <pre className="p-2.5 text-xs font-mono bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#2d2d2d] rounded text-emerald-700 dark:text-emerald-300 overflow-x-auto whitespace-pre-wrap break-all select-all">
               {currentSql}
@@ -233,7 +252,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Execution Complete ({lastExecutedOp?.toUpperCase()})</span>
+                  <span>{t('structure.executionComplete', 'Execution Complete ({{op}})', { op: lastExecutedOp?.toUpperCase() })}</span>
                 </div>
                 <div className="flex items-center space-x-1 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
                   <Clock className="w-3 h-3 text-blue-500 dark:text-blue-400" />
@@ -270,7 +289,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
                 </div>
               ) : (
                 <p className="text-[11px] text-gray-500 dark:text-gray-400 italic">
-                  Command completed successfully with 0 diagnostic warning rows returned.
+                  {t('structure.maintenanceSuccess0Rows', 'Command completed successfully with 0 diagnostic warning rows returned.')}
                 </p>
               )}
             </div>
@@ -280,7 +299,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
         {/* Footer */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 dark:border-[#2d2d2d] bg-gray-50 dark:bg-[#252526]">
           <span className="text-[11px] text-gray-500 dark:text-gray-400">
-            Engine: <span className="font-mono text-gray-700 dark:text-gray-300">{driver}</span>
+            {t('tableList.engine', 'Engine')}: <span className="font-mono text-gray-700 dark:text-gray-300">{driver}</span>
           </span>
           <div className="flex items-center space-x-2">
             <button
@@ -289,7 +308,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
               disabled={loading}
               className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-200 dark:bg-[#2d2d2d] hover:bg-gray-300 dark:hover:bg-[#383838] transition-colors"
             >
-              Close
+              {t('common.close', 'Close')}
             </button>
             <button
               type="button"
@@ -303,7 +322,7 @@ export const TableMaintenanceModal: React.FC<TableMaintenanceModalProps> = ({
               ) : (
                 <Play className="w-3.5 h-3.5" />
               )}
-              <span>{loading ? 'Running...' : 'Execute'}</span>
+              <span>{loading ? t('structure.running', 'Running...') : t('structure.execute', 'Execute')}</span>
             </button>
           </div>
         </div>

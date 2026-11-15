@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Download, X, Loader2, FileCode, Database } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { dbApi } from '../../api/db';
 import { pickSqlExportFile, cancelTransfer } from '../../api/dataTransferApi';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -27,6 +28,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const connections = useConnectionStore((s) => s.connections);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>(connectionId);
   const [selectedSchemaName, setSelectedSchemaName] = useState<string>(schemaName || '');
@@ -84,7 +86,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
     if (loading && activeJobIdRef.current) {
       try {
         await cancelTransfer(activeJobIdRef.current);
-        toast.info('Export cancelled');
+        toast.info(t('transfer.exportCancelled', 'Export cancelled'));
       } catch (err) {
         console.error('Failed to cancel export:', err);
       }
@@ -131,7 +133,12 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
 
       const sizeKb = (result.fileSizeBytes / 1024).toFixed(1);
       toast.success(
-        `Exported ${result.totalTables} table(s), ${result.totalRows.toLocaleString()} rows (${sizeKb} KB) to SQL file.`
+        t('transfer.exportSuccessMsg', {
+          tables: result.totalTables,
+          rows: result.totalRows.toLocaleString(),
+          size: sizeKb,
+          defaultValue: `Exported ${result.totalTables} table(s), ${result.totalRows.toLocaleString()} rows (${sizeKb} KB) to SQL file.`,
+        })
       );
 
       if (onSuccess) {
@@ -141,7 +148,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
-      toast.error(`Export failed: ${msg}`);
+      toast.error(t('transfer.exportFailedMsg', { error: msg, defaultValue: `Export failed: ${msg}` }));
     } finally {
       setLoading(false);
     }
@@ -160,7 +167,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
           <div className="flex items-center space-x-2">
             <Download className="w-4 h-4 text-blue-500 dark:text-blue-400" />
             <h2 id="export-sql-title" className="text-sm font-semibold text-gray-900 dark:text-white">
-              Export as SQL Dump
+              {t('transfer.sqlExportTitle', 'Export as SQL Dump')}
             </h2>
           </div>
           <button
@@ -186,7 +193,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
             <div className="flex items-center justify-between text-xs font-semibold text-blue-700 dark:text-blue-300">
               <div className="flex items-center space-x-1.5">
                 <Database className="w-3.5 h-3.5" />
-                <span>Source Server & Database</span>
+                <span>{t('transfer.sourceServerDb', 'Source Server & Database')}</span>
               </div>
               {activeConn && <DbBadge driver={activeConn.driver} />}
             </div>
@@ -197,7 +204,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                   htmlFor="source-connection-select"
                   className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1"
                 >
-                  Connection:
+                  {t('transfer.connection', 'Connection:')}
                 </label>
                 <select
                   id="source-connection-select"
@@ -220,7 +227,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                   htmlFor="source-schema-input"
                   className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1"
                 >
-                  {isMysql ? 'Database / Schema:' : 'Schema:'}
+                  {isMysql ? t('transfer.dbSchema', 'Database / Schema:') : t('transfer.schema', 'Schema:')}
                 </label>
                 <input
                   id="source-schema-input"
@@ -248,30 +255,30 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
 
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-              Target Scope
+              {t('transfer.targetScope', 'Target Scope')}
             </label>
             <div className="px-3 py-2 text-xs font-mono bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded text-gray-700 dark:text-gray-300">
               {isSqlite
-                ? tableName || 'All database tables'
+                ? tableName || t('transfer.allDatabaseTables', 'All database tables')
                 : isMysql
                 ? tableName
                   ? selectedSchemaName
                     ? `${selectedSchemaName}.${tableName}`
                     : tableName
                   : selectedSchemaName
-                  ? `All tables in database '${selectedSchemaName}'`
-                  : 'All database tables'
+                  ? t('transfer.allTablesInDb', { name: selectedSchemaName, defaultValue: `All tables in database '${selectedSchemaName}'` })
+                  : t('transfer.allDatabaseTables', 'All database tables')
                 : tableName
                 ? `${selectedSchemaName ? selectedSchemaName + '.' : ''}${tableName}`
                 : selectedSchemaName
-                ? `All tables in schema '${selectedSchemaName}'`
-                : 'All database tables'}
+                ? t('transfer.allTablesInSchema', { name: selectedSchemaName, defaultValue: `All tables in schema '${selectedSchemaName}'` })
+                : t('transfer.allDatabaseTables', 'All database tables')}
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-              Dump Content
+              {t('transfer.dumpContent', 'Dump Content')}
             </label>
             <div className="grid grid-cols-3 gap-2">
               <button
@@ -285,7 +292,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                 }`}
               >
                 <FileCode className="w-4 h-4 mb-1" />
-                <span className="font-medium text-[11px]">Structure & Data</span>
+                <span className="font-medium text-[11px]">{t('transfer.structureAndData', 'Structure & Data')}</span>
               </button>
 
               <button
@@ -299,7 +306,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                 }`}
               >
                 <FileCode className="w-4 h-4 mb-1" />
-                <span className="font-medium text-[11px]">Structure Only</span>
+                <span className="font-medium text-[11px]">{t('transfer.structureOnly', 'Structure Only')}</span>
               </button>
 
               <button
@@ -313,7 +320,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                 }`}
               >
                 <FileCode className="w-4 h-4 mb-1" />
-                <span className="font-medium text-[11px]">Data Only</span>
+                <span className="font-medium text-[11px]">{t('transfer.dataOnly', 'Data Only')}</span>
               </button>
             </div>
           </div>
@@ -328,7 +335,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                 className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-xs text-gray-700 dark:text-gray-300">
-                Include DROP TABLE IF EXISTS statement
+                {t('transfer.includeDropTable', 'Include DROP TABLE IF EXISTS statement')}
               </span>
             </label>
           </div>
@@ -340,7 +347,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
               onClick={handleCancelExport}
               className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 hover:bg-gray-200 dark:bg-[#2d2d2d] dark:hover:bg-[#383838] transition-colors"
             >
-              Cancel
+              {t('common.cancel', 'Cancel')}
             </button>
             <button
               type="button"
@@ -349,7 +356,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
               className="inline-flex items-center space-x-1.5 px-4 py-1.5 text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-50 transition-colors shadow-sm"
             >
               {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <span>Choose File & Export...</span>
+              <span>{t('transfer.chooseFileAndExport', 'Choose File & Export...')}</span>
             </button>
           </div>
         </div>

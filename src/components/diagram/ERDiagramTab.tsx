@@ -20,6 +20,7 @@ import {
   Crosshair,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { save } from '@tauri-apps/plugin-dialog';
 import { saveTextFile } from '../../api/dataTransferApi';
 import {
@@ -43,6 +44,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
   schemaName,
   theme = 'dark',
 }) => {
+  const { t } = useTranslation();
   const [data, setData] = useState<ERDiagramData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -390,7 +392,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      toast.success('ER Diagram downloaded as SVG.');
+      toast.success(t('diagram.exportSvgSuccess', 'ER Diagram exported as SVG successfully'));
     }
   };
 
@@ -400,7 +402,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
     navigator.clipboard.writeText(sql);
     setCopiedDdl(true);
     setTimeout(() => setCopiedDdl(false), 2000);
-    toast.success('DDL Schema copied to clipboard.');
+    toast.success(t('diagram.copiedDdl', 'Copied SQL DDL to clipboard'));
   };
 
   // Filtered tables by search
@@ -443,8 +445,8 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-muted select-none">
         <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-3" />
-        <p className="text-sm font-medium text-text">Loading ER Diagram...</p>
-        <p className="text-xs text-muted/80 mt-1">Introspecting schema tables and foreign keys</p>
+        <p className="text-sm font-medium text-text">{t('diagram.loading', 'Loading ER Diagram...')}</p>
+        <p className="text-xs text-muted/80 mt-1">{t('diagram.introspecting', 'Introspecting schema tables and foreign keys')}</p>
       </div>
     );
   }
@@ -453,7 +455,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 select-none">
         <AlertCircle className="w-10 h-10 text-rose-500 mb-3" />
-        <h3 className="text-sm font-semibold text-text">Unable to build ER Diagram</h3>
+        <h3 className="text-sm font-semibold text-text">{t('diagram.unableToBuild', 'Unable to build ER Diagram')}</h3>
         <p className="text-xs text-muted mt-1 max-w-md text-center">{error}</p>
         <button
           type="button"
@@ -461,7 +463,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
           className="mt-4 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium flex items-center gap-1.5 transition-colors"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          <span>Retry</span>
+          <span>{t('common.retry', 'Retry')}</span>
         </button>
       </div>
     );
@@ -487,14 +489,14 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
             <Search className="w-3.5 h-3.5 text-muted" />
             <input
               type="text"
-              placeholder="Search tables or columns..."
+              placeholder={t('diagram.searchPlaceholder', 'Search tables or columns...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-transparent border-none outline-none text-xs text-text placeholder-muted/60 w-44"
             />
             {filteredTableIds && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-mono">
-                Matching: {filteredTableIds.size}
+                {t('diagram.matching', { count: filteredTableIds.size, defaultValue: `Matching: ${filteredTableIds.size}` })}
               </span>
             )}
           </div>
@@ -511,7 +513,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
               className="bg-transparent border-none outline-none text-xs text-text cursor-pointer max-w-[130px]"
             >
               <option value="" disabled className="bg-panel text-text">
-                Jump to table...
+                {t('diagram.jumpToTable', 'Jump to table...')}
               </option>
               {data.tables.map((t) => (
                 <option key={t.id} value={t.id} className="bg-panel text-text">
@@ -524,10 +526,16 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
           {/* Stats Badges */}
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-panel/90 backdrop-blur border border-line shadow-lg text-xs font-mono text-muted">
             <Layers className="w-3.5 h-3.5 text-purple-400" />
-            <span>{data.tables.length} tables</span>
+            <span>
+              {data.tables.length === 1
+                ? t('diagram.tableCount', { count: 1, defaultValue: '1 table' })
+                : t('diagram.tableCount_plural', { count: data.tables.length, defaultValue: `${data.tables.length} tables` })}
+            </span>
             <span className="text-muted/40">•</span>
             <Network className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{data.relationships.length} relations</span>
+            <span>
+              {t('diagram.relationCount', { count: data.relationships.length, defaultValue: `${data.relationships.length} relations` })}
+            </span>
           </div>
         </div>
 
@@ -538,11 +546,11 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
             type="button"
             data-testid="er-auto-layout"
             onClick={handleAutoLayout}
-            title="Auto-arrange tables"
+            title={t('diagram.autoArrange', 'Auto-arrange tables')}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-panel/90 backdrop-blur border border-line hover:border-accent hover:text-text shadow-lg text-xs font-medium text-muted transition-all"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Auto Layout</span>
+            <span>{t('diagram.autoLayout', 'Auto Layout')}</span>
           </button>
 
           {/* Zoom controls */}
@@ -551,7 +559,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
               type="button"
               data-testid="er-zoom-out"
               onClick={handleZoomOut}
-              title="Zoom Out"
+              title={t('diagram.zoomOut', 'Zoom Out')}
               className="p-1 hover:text-text hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors"
             >
               <ZoomOut className="w-3.5 h-3.5" />
@@ -560,7 +568,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
               type="button"
               data-testid="er-zoom-reset"
               onClick={handleZoomReset}
-              title="Reset Zoom to 100%"
+              title={t('diagram.resetZoom', 'Reset Zoom to 100%')}
               className="px-1.5 py-0.5 text-[11px] font-mono hover:text-text hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors"
             >
               {Math.round(zoom * 100)}%
@@ -569,7 +577,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
               type="button"
               data-testid="er-zoom-in"
               onClick={handleZoomIn}
-              title="Zoom In"
+              title={t('diagram.zoomIn', 'Zoom In')}
               className="p-1 hover:text-text hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors"
             >
               <ZoomIn className="w-3.5 h-3.5" />
@@ -577,7 +585,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
             <button
               type="button"
               onClick={handleFitView}
-              title="Fit to Screen"
+              title={t('diagram.fitView', 'Fit to Screen')}
               className="p-1 hover:text-text hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors border-l border-line/50 ml-0.5"
             >
               <Maximize2 className="w-3.5 h-3.5" />
@@ -593,7 +601,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white shadow-lg text-xs font-medium transition-all"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Export</span>
+              <span>{t('diagram.export', 'Export')}</span>
               <ChevronDown className="w-3 h-3 ml-0.5" />
             </button>
 
@@ -608,7 +616,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
                   className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
                 >
                   <Download className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Export as SVG Image</span>
+                  <span>{t('diagram.exportSvg', 'Export as SVG Image')}</span>
                 </button>
                 <button
                   type="button"
@@ -620,7 +628,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
                   ) : (
                     <Copy className="w-3.5 h-3.5 text-purple-400" />
                   )}
-                  <span>Copy SQL Schema (DDL)</span>
+                  <span>{t('diagram.copySqlSchema', 'Copy SQL Schema (DDL)')}</span>
                 </button>
               </div>
             )}

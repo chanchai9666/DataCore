@@ -922,6 +922,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
       - **Phase 1:** Core Infrastructure (Type definitions, `i18nParity.test.ts`, `src/utils/error.ts`), MainToolbar, StatusBar, ObjectBrowser, ConnectionTreeNode, ConnectionDialog, DriverForm, SqlEditor, ExecutionPlanDrawer, HistorySnippetsDrawer, DataGrid, GridBottomBar, CellDetailDrawer, CommandPaletteModal
       - **Phase 2:** TableListTab, Structure Modals (`CreateTableModal`, `DropTableModal`, `RenameTableModal`, `TableMaintenanceModal`), Diagnostic Modals (`DatabaseMetricsModal`, `LockInspectorModal`, `SchemaDiffModal`, `AuditLogDrawer`, `ActivityMonitorModal`, `UserPrivilegeManagerModal`), Data Transfer Wizards (`DataImportWizardModal`, `DataExportWizardModal`, `ExportSqlModal`, `ImportSqlModal`, `CrossDbCopyModal`)
 
+42. **Issue #150: Phase 2 UI Localization for Table Management, Diagnostic Modals, and Data Transfer Wizards (`docs/designs/comprehensive_ui_localization.md`)**
+    - **Table Structure & Designer Modals:** แปลและรองรับสองภาษา (EN/TH) ในหน้าต่างจัดการตาราง ได้แก่ `TableListTab.tsx`, `CreateTableModal.tsx`, `DropTableModal.tsx`, `RenameTableModal.tsx`, และ `TableMaintenanceModal.tsx`
+    - **Diagnostic & Performance Monitoring:** แปลและรองรับสองภาษาในหน้าต่างตรวจวัดและวิเคราะห์ ได้แก่ `DatabaseMetricsModal.tsx`, `TablePartitionsModal.tsx`, `LockInspectorModal.tsx`, `SchemaDiffModal.tsx`, `AuditLogDrawer.tsx`, `ActivityMonitorModal.tsx`, และ `UserPrivilegeManagerModal.tsx`
+    - **Data Transfer Wizards & Visual Tools:** แปลและรองรับสองภาษาในตัวช่วยนำเข้า/ส่งออกข้อมูล `DataImportWizardModal.tsx`, `DataExportWizardModal.tsx`, `ExportSqlModal.tsx`, `ImportSqlModal.tsx`, `CrossDbCopyModal.tsx`, `ERDiagramTab.tsx`, และ `VisualQueryBuilderTab.tsx`
+    - **Strict Parity & Lexicon Standard:** รักษาความสมบูรณ์ 100% ระหว่าง `en.json` และ `th.json` ด้วย `src/test/i18nParity.test.ts` พร้อมคงคำศัพท์เทคนิคฐานข้อมูลตามมาตรฐานสากลเสมอ
+
 
 
 

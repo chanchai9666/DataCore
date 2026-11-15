@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Search,
   RefreshCw,
@@ -82,6 +83,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
   onImportData,
   onDropTable,
 }) => {
+  const { t } = useTranslation();
   const isDark = propTheme
     ? propTheme === 'dark'
     : typeof document !== 'undefined'
@@ -329,7 +331,9 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <span className={`text-[11px] px-1.5 py-0.5 rounded ${
             theme === 'light' ? 'bg-gray-200 text-gray-700 font-medium' : 'bg-[#333333] text-gray-300'
           }`}>
-            {filteredAndSortedTables.length} {filteredAndSortedTables.length === 1 ? 'table' : 'tables'}
+            {filteredAndSortedTables.length === 1
+              ? t('tableList.tableCount', { count: 1 })
+              : t('tableList.tableCount_plural', { count: filteredAndSortedTables.length })}
           </span>
         </div>
 
@@ -338,7 +342,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search tables..."
+              placeholder={t('tableList.searchPlaceholder', 'Search tables...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={`text-xs pl-8 pr-3 py-1 rounded border focus:outline-none focus:border-blue-500 w-52 transition-colors ${
@@ -352,7 +356,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             onClick={fetchTables}
             disabled={loading}
-            title="Refresh tables metadata"
+            title={t('tableList.refreshTooltip', 'Refresh tables metadata')}
             className={`p-1 rounded transition-colors disabled:opacity-50 ${
               theme === 'light'
                 ? 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'
@@ -369,22 +373,22 @@ export const TableListTab: React.FC<TableListTabProps> = ({
         {loading && tables.length === 0 ? (
           <div className="flex items-center justify-center h-full text-xs text-gray-400 gap-2">
             <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
-            <span>Loading tables metadata...</span>
+            <span>{t('tableList.loading', 'Loading tables metadata...')}</span>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-            <p className="text-xs text-red-400 mb-2">Failed to load tables: {error}</p>
+            <p className="text-xs text-red-400 mb-2">{t('tableList.failedToLoad', 'Failed to load tables: {{error}}', { error })}</p>
             <button
               onClick={fetchTables}
               className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition-colors"
             >
-              Retry
+              {t('tableList.retry', 'Retry')}
             </button>
           </div>
         ) : filteredAndSortedTables.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-xs text-gray-400 p-4">
             <TableIcon className="w-8 h-8 text-gray-600 mb-2 stroke-1" />
-            <p>{searchQuery ? 'No tables match your search.' : 'No tables found in this schema.'}</p>
+            <p>{searchQuery ? t('tableList.noTablesMatch', 'No tables match your search.') : t('tableList.noTablesFound', 'No tables found in this schema.')}</p>
           </div>
         ) : (
           <table className="w-full text-left border-collapse text-xs">
@@ -399,7 +403,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                   className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none`}
                 >
                   <div className="flex items-center gap-1">
-                    <span>Name</span>
+                    <span>{t('tableList.nameHeader', 'Name')}</span>
                     <ArrowUpDown className="w-3 h-3 text-gray-400" />
                   </div>
                 </th>
@@ -408,7 +412,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                   className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none text-right`}
                 >
                   <div className="flex items-center justify-end gap-1">
-                    <span>Approx Rows</span>
+                    <span>{t('tableList.approxRowsHeader', 'Approx Rows')}</span>
                     <ArrowUpDown className="w-3 h-3 text-gray-400" />
                   </div>
                 </th>
@@ -417,23 +421,23 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                   className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none text-right`}
                 >
                   <div className="flex items-center justify-end gap-1">
-                    <span>Total Size</span>
+                    <span>{t('tableList.totalSizeHeader', 'Total Size')}</span>
                     <ArrowUpDown className="w-3 h-3 text-gray-400" />
                   </div>
                 </th>
-                <th className="py-2 px-3 font-medium text-right">Data Size</th>
-                <th className="py-2 px-3 font-medium text-right">Index Size</th>
+                <th className="py-2 px-3 font-medium text-right">{t('tableList.dataSizeHeader', 'Data Size')}</th>
+                <th className="py-2 px-3 font-medium text-right">{t('tableList.indexSizeHeader', 'Index Size')}</th>
                 <th
                   onClick={() => handleSort('engine')}
                   className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none`}
                 >
                   <div className="flex items-center gap-1">
-                    <span>Engine</span>
+                    <span>{t('tableList.engine', 'Engine')}</span>
                     <ArrowUpDown className="w-3 h-3 text-gray-400" />
                   </div>
                 </th>
-                <th className="py-2 px-3 font-medium">Collation</th>
-                <th className="py-2 px-3 font-medium text-right">Actions</th>
+                <th className="py-2 px-3 font-medium">{t('tableList.collation', 'Collation')}</th>
+                <th className="py-2 px-3 font-medium text-right">{t('tableList.actionsHeader', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className={`divide-y ${theme === 'light' ? 'divide-gray-100' : 'divide-[#2a2a2a]'}`}>
@@ -486,7 +490,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           e.stopPropagation();
                           handleOpenData(table.name);
                         }}
-                        title="Open Table Data"
+                        title={t('tableList.openData', 'Open Table Data')}
                         className={`p-1 rounded transition-colors ${
                           theme === 'light'
                             ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
@@ -500,7 +504,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           e.stopPropagation();
                           handleOpenStructure(table.name);
                         }}
-                        title="Design Table Structure"
+                        title={t('tableList.designStructure', 'Design Table Structure')}
                         className={`p-1 rounded transition-colors ${
                           theme === 'light'
                             ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
@@ -514,7 +518,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           e.stopPropagation();
                           handleTriggerDuplicate(table.name);
                         }}
-                        title="Duplicate Table"
+                        title={t('tableList.duplicateTable', 'Duplicate Table...')}
                         className={`p-1 rounded transition-colors ${
                           theme === 'light'
                             ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
@@ -528,7 +532,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           e.stopPropagation();
                           handleTriggerRenameTable(table.name);
                         }}
-                        title="Rename Table"
+                        title={t('sidebar.contextMenu.renameTable', 'Rename Table...')}
                         className={`p-1 rounded transition-colors ${
                           theme === 'light'
                             ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
@@ -542,7 +546,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           e.stopPropagation();
                           handleTriggerMaintenance(table.name);
                         }}
-                        title="Table Maintenance & Diagnostics"
+                        title={t('tableList.maintenance', 'Table Maintenance & Diagnostics...')}
                         className={`p-1 rounded transition-colors ${
                           theme === 'light'
                             ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
@@ -595,7 +599,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             }}
           >
             <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-            <span>Open Table Data</span>
+            <span>{t('tableList.openData', 'Open Table Data')}</span>
           </button>
 
           <button
@@ -610,7 +614,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             }}
           >
             <Wrench className="w-3.5 h-3.5 text-amber-500" />
-            <span>Design Table Structure</span>
+            <span>{t('tableList.designStructure', 'Design Table Structure')}</span>
           </button>
 
           <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
@@ -624,7 +628,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={() => handleTriggerDuplicate(contextMenu.table.name)}
           >
             <Copy className="w-3.5 h-3.5 text-purple-500" />
-            <span>Duplicate Table...</span>
+            <span>{t('tableList.duplicateTable', 'Duplicate Table...')}</span>
           </button>
 
           <button
@@ -636,7 +640,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={() => handleTriggerCopyTableToDb(contextMenu.table.name)}
           >
             <Share2 className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Copy Table to Database...</span>
+            <span>{t('transfer.crossDbTitle', 'Copy Table to Database...')}</span>
           </button>
 
           <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
@@ -650,7 +654,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={() => handleTriggerExportSql(contextMenu.table.name)}
           >
             <Download className="w-3.5 h-3.5 text-blue-500" />
-            <span>Export as SQL Dump...</span>
+            <span>{t('sidebar.contextMenu.exportSqlDump', 'Export as SQL Dump...')}</span>
           </button>
 
           <button
@@ -662,7 +666,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={() => handleTriggerExportData(contextMenu.table.name)}
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Export Table Data...</span>
+            <span>{t('sidebar.contextMenu.exportTableData', 'Export Table Data...')}</span>
           </button>
 
           <button
@@ -674,7 +678,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={() => handleTriggerImportSql(contextMenu.table.name)}
           >
             <FileCode className="w-3.5 h-3.5 text-blue-500" />
-            <span>Import as SQL Dump...</span>
+            <span>{t('sidebar.contextMenu.runSqlScript', 'Import as SQL Dump...')}</span>
           </button>
 
           <button
@@ -686,7 +690,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={() => handleTriggerImportData(contextMenu.table.name)}
           >
             <Upload className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Import Table Data...</span>
+            <span>{t('tableList.importData', 'Import Table Data...')}</span>
           </button>
 
           <button
@@ -698,7 +702,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={() => handleCopyName(contextMenu.table.name)}
           >
             <Copy className="w-3.5 h-3.5 text-gray-400" />
-            <span>Copy Table Name</span>
+            <span>{t('sidebar.contextMenu.copyName', 'Copy Table Name')}</span>
           </button>
 
           <button
@@ -710,7 +714,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={() => handleTriggerRenameTable(contextMenu.table.name)}
           >
             <Pencil className="w-3.5 h-3.5 text-blue-500" />
-            <span>Rename Table...</span>
+            <span>{t('sidebar.contextMenu.renameTable', 'Rename Table...')}</span>
           </button>
 
           <button
@@ -722,7 +726,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={() => handleTriggerMaintenance(contextMenu.table.name)}
           >
             <Wrench className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Table Maintenance...</span>
+            <span>{t('tableList.maintenance', 'Table Maintenance & Diagnostics...')}</span>
           </button>
 
           <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
@@ -736,7 +740,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={() => handleTriggerDropTable(contextMenu.table.name)}
           >
             <Trash2 className="w-3.5 h-3.5 text-red-500" />
-            <span>Drop Table</span>
+            <span>{t('tableList.dropTable', 'Drop Table')}</span>
           </button>
         </div>
       )}

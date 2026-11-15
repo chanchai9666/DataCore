@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pencil, X, Loader2, Code2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
@@ -24,6 +25,7 @@ export const RenameTableModal: React.FC<RenameTableModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const [newTableName, setNewTableName] = useState(tableName);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,11 +49,11 @@ export const RenameTableModal: React.FC<RenameTableModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!trimmed) {
-      setError('Please provide a new table name.');
+      setError(t('structure.provideNewTableName', 'Please provide a new table name.'));
       return;
     }
     if (trimmed === tableName) {
-      setError('The new table name must be different from the current name.');
+      setError(t('structure.differentNameError', 'The new table name must be different from the current name.'));
       return;
     }
 
@@ -77,7 +79,7 @@ export const RenameTableModal: React.FC<RenameTableModalProps> = ({
         });
       }
 
-      toast.success(`Table "${tableName}" renamed to "${trimmed}" successfully`);
+      toast.success(t('structure.renamedSuccess', 'Table "{{name}}" renamed to "{{newName}}" successfully', { name: tableName, newName: trimmed }));
       if (onSuccess) {
         onSuccess(trimmed);
       }
@@ -85,7 +87,7 @@ export const RenameTableModal: React.FC<RenameTableModalProps> = ({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
-      toast.error(`Failed to rename table: ${msg}`);
+      toast.error(t('structure.failedToRename', 'Failed to rename table: {{error}}', { error: msg }));
     } finally {
       setLoading(false);
     }
@@ -104,14 +106,14 @@ export const RenameTableModal: React.FC<RenameTableModalProps> = ({
           <div className="flex items-center space-x-2">
             <Pencil className="w-4 h-4 text-blue-500" />
             <h2 id="rename-table-modal-title" className="text-sm font-semibold text-zinc-900 dark:text-white">
-              Rename Table
+              {t('structure.renameTableTitle', 'Rename Table')}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            aria-label="Close dialog"
+            aria-label={t('common.close', 'Close dialog')}
             className="text-zinc-400 hover:text-zinc-600 dark:hover:text-white p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X className="w-4 h-4" />
@@ -128,7 +130,7 @@ export const RenameTableModal: React.FC<RenameTableModalProps> = ({
 
           <div>
             <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              Current Table
+              {t('structure.currentTable', 'Current Table')}
             </label>
             <div className="px-3 py-2 text-xs font-mono bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded text-zinc-800 dark:text-zinc-300 select-all">
               {fullDisplay}
@@ -140,7 +142,7 @@ export const RenameTableModal: React.FC<RenameTableModalProps> = ({
               htmlFor="new-table-name"
               className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1"
             >
-              New Table Name <span className="text-red-500">*</span>
+              {t('structure.newTableName', 'New Table Name')} <span className="text-red-500">*</span>
             </label>
             <input
               id="new-table-name"
@@ -158,7 +160,7 @@ export const RenameTableModal: React.FC<RenameTableModalProps> = ({
             <div>
               <div className="flex items-center space-x-1.5 text-xs text-zinc-600 dark:text-zinc-400 mb-1">
                 <Code2 className="w-3.5 h-3.5 text-blue-500" />
-                <span>SQL Preview</span>
+                <span>{t('structure.sqlPreview', 'SQL Preview')}</span>
               </div>
               <pre className="p-2.5 text-[11px] font-mono bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded text-blue-600 dark:text-blue-300 overflow-x-auto whitespace-pre-wrap break-all">
                 {previewSql}
@@ -174,7 +176,7 @@ export const RenameTableModal: React.FC<RenameTableModalProps> = ({
               disabled={loading}
               className="px-3.5 py-1.5 text-xs font-medium rounded text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 transition-colors"
             >
-              Cancel
+              {t('common.cancel', 'Cancel')}
             </button>
             <button
               type="submit"
@@ -182,7 +184,7 @@ export const RenameTableModal: React.FC<RenameTableModalProps> = ({
               className="inline-flex items-center space-x-1.5 px-4 py-1.5 text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-50 transition-colors shadow-sm"
             >
               {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <span>Rename</span>
+              <span>{t('structure.rename', 'Rename')}</span>
             </button>
           </div>
         </form>

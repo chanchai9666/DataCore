@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Activity,
   X,
@@ -31,6 +32,7 @@ export const DatabaseMetricsModal: React.FC<DatabaseMetricsModalProps> = ({
   onClose,
   onOpenMaintenance,
 }) => {
+  const { t } = useTranslation();
   const [metrics, setMetrics] = useState<BufferCacheMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -144,7 +146,7 @@ export const DatabaseMetricsModal: React.FC<DatabaseMetricsModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                Database Performance & Buffer Cache
+                {t('tools.metricsTitle', 'Database Performance & Buffer Cache')}
                 {databaseName && (
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                     {databaseName}
@@ -161,16 +163,16 @@ export const DatabaseMetricsModal: React.FC<DatabaseMetricsModalProps> = ({
               type="button"
               onClick={fetchMetrics}
               disabled={isLoading}
-              aria-label="Refresh Metrics"
+              aria-label={t('common.refresh', 'Refresh')}
               className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 shadow-2xs hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin text-blue-500' : ''}`} />
-              Refresh
+              {t('common.refresh', 'Refresh')}
             </button>
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close"
+              aria-label={t('common.close', 'Close')}
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             >
               <X className="h-5 w-5" />
@@ -186,7 +188,7 @@ export const DatabaseMetricsModal: React.FC<DatabaseMetricsModalProps> = ({
               <div className="flex items-center gap-2">
                 <Cpu className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                  Buffer Cache Hit Ratio
+                  {t('tools.cacheHitRatio', 'Buffer Cache Hit Ratio')}
                 </span>
               </div>
               <span
@@ -198,7 +200,7 @@ export const DatabaseMetricsModal: React.FC<DatabaseMetricsModalProps> = ({
                     : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
                 }`}
               >
-                {isHealthy ? 'Optimal Performance' : isWarning ? 'Moderate Disk I/O' : 'High Disk Latency'}
+                {isHealthy ? t('tools.optimalPerf', 'Optimal Performance') : isWarning ? t('tools.moderateDiskIO', 'Moderate Disk I/O') : t('tools.highDiskLatency', 'High Disk Latency')}
               </span>
             </div>
 
@@ -225,28 +227,28 @@ export const DatabaseMetricsModal: React.FC<DatabaseMetricsModalProps> = ({
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="rounded-lg border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
-              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Memory Cache Hits</div>
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{t('tools.memoryCacheHits', 'Memory Cache Hits')}</div>
               <div className="text-lg font-bold text-slate-800 dark:text-slate-100 font-mono mt-1">
                 {(metrics?.hitsInCache || 0).toLocaleString()}
               </div>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
-              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Disk I/O Reads</div>
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{t('tools.diskIOReads', 'Disk I/O Reads')}</div>
               <div className="text-lg font-bold text-slate-800 dark:text-slate-100 font-mono mt-1">
                 {(metrics?.readsFromDisk || 0).toLocaleString()}
               </div>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
-              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Transaction Commits</div>
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{t('tools.transactionCommits', 'Transaction Commits')}</div>
               <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 font-mono mt-1">
                 {(metrics?.commitsCount ?? 0).toLocaleString()}
               </div>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
-              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Deadlocks Count</div>
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{t('tools.deadlocksCount', 'Deadlocks Count')}</div>
               <div
                 className={`text-lg font-bold font-mono mt-1 ${
                   (metrics?.deadlocksCount || 0) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-slate-100'
@@ -261,9 +263,9 @@ export const DatabaseMetricsModal: React.FC<DatabaseMetricsModalProps> = ({
           <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3.5 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">
             <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <div className="font-semibold">Query Planner & Optimizer Tip</div>
+              <div className="font-semibold">{t('tools.optimizerTipTitle', 'Query Planner & Optimizer Tip')}</div>
               <p className="text-blue-700 dark:text-blue-300">
-                Keeping cache hit ratio above 99% ensures data pages stay hot in memory. Regular <strong>ANALYZE</strong> and <strong>VACUUM</strong> runs keep table histograms accurate for cost-based plan generation.
+                {t('tools.optimizerTipDesc', 'Keeping cache hit ratio above 99% ensures data pages stay hot in memory. Regular ANALYZE and VACUUM runs keep table histograms accurate for cost-based plan generation.')}
               </p>
             </div>
           </div>
@@ -278,7 +280,7 @@ export const DatabaseMetricsModal: React.FC<DatabaseMetricsModalProps> = ({
               className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               <Zap className="h-3.5 w-3.5 text-amber-500" />
-              Run Table Maintenance (ANALYZE / VACUUM)
+              {t('tools.runMaintenanceBtn', 'Run Table Maintenance (ANALYZE / VACUUM)')}
             </button>
           )}
           <div className="ml-auto">
@@ -287,7 +289,7 @@ export const DatabaseMetricsModal: React.FC<DatabaseMetricsModalProps> = ({
               onClick={onClose}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
-              Close
+              {t('common.close', 'Close')}
             </button>
           </div>
         </div>

@@ -18,6 +18,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import {
   buildSelectQuery,
   type SelectQueryConfig,
@@ -61,6 +62,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
   tableName: initialTableName,
   theme = 'dark',
 }) => {
+  const { t } = useTranslation();
   // Schema introspection state
   const [tables, setTables] = useState<ERTable[]>([]);
   const [isLoadingSchema, setIsLoadingSchema] = useState<boolean>(true);
@@ -399,18 +401,18 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-1.5 font-semibold text-sm">
             <Wand2 className="w-4 h-4 text-amber-400" />
-            <span>Visual Query Builder</span>
+            <span>{t('queryBuilder.title', 'Visual Query Builder')}</span>
           </div>
 
           <div className="h-4 w-px bg-gray-600/30" />
 
           {/* Base Table Selector */}
           <div className="flex items-center space-x-2 text-xs">
-            <span className="font-medium text-gray-400">Base Table:</span>
+            <span className="font-medium text-gray-400">{t('queryBuilder.baseTable', 'Base Table:')}</span>
             {isLoadingSchema ? (
               <div className="flex items-center space-x-1 text-gray-400">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Loading tables...</span>
+                <span>{t('queryBuilder.loadingTables', 'Loading tables...')}</span>
               </div>
             ) : (
               <select
@@ -429,7 +431,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                 }`}
               >
                 {tables.length === 0 ? (
-                  <option value="">No tables available</option>
+                  <option value="">{t('queryBuilder.noTables', 'No tables available')}</option>
                 ) : (
                   tables.map((t) => (
                     <option key={t.name} value={t.name}>
@@ -444,7 +446,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
               type="text"
               data-testid="qb-base-table-alias"
               aria-label="Table Alias"
-              placeholder="Alias (e.g. u)"
+              placeholder={t('queryBuilder.aliasPlaceholder', 'Alias (e.g. u)')}
               value={baseTableAlias}
               onChange={(e) => setBaseTableAlias(e.target.value)}
               className={`w-24 h-[30px] px-2 text-xs rounded border outline-none ${
@@ -474,7 +476,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
             data-testid="qb-refresh-schema-btn"
             onClick={loadSchema}
             disabled={isLoadingSchema}
-            title="Refresh database schema"
+            title={t('queryBuilder.refreshSchema', 'Refresh database schema')}
             className={`p-1.5 rounded transition-colors text-xs ${
               theme === 'dark' ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-200 text-gray-600'
             }`}
@@ -494,7 +496,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
             }`}
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy SQL'}</span>
+            <span>{copied ? t('common.copied', 'Copied') : t('queryBuilder.copySql', 'Copy SQL')}</span>
           </button>
 
           <button
@@ -505,7 +507,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
             className="inline-flex items-center space-x-1 px-2.5 py-1 text-xs font-medium rounded border border-blue-500/50 bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors"
           >
             <FileCode className="w-3.5 h-3.5" />
-            <span>Open in SQL Editor</span>
+            <span>{t('queryBuilder.openInEditor', 'Open in SQL Editor')}</span>
           </button>
 
           <button
@@ -520,7 +522,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
             ) : (
               <Play className="w-3.5 h-3.5 fill-current" />
             )}
-            <span>{isExecuting ? 'Running...' : 'Run Query'}</span>
+            <span>{isExecuting ? t('queryBuilder.running', 'Running...') : t('queryBuilder.runQuery', 'Run Query')}</span>
           </button>
         </div>
       </div>
@@ -550,9 +552,9 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-700/30">
                 <div className="flex items-center space-x-2">
                   <TableIcon className="w-4 h-4 text-blue-400" />
-                  <span className="font-semibold text-xs uppercase tracking-wider">Columns</span>
+                  <span className="font-semibold text-xs uppercase tracking-wider">{t('queryBuilder.columns', 'Columns')}</span>
                   <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-blue-500/20 text-blue-400">
-                    {columns.filter((c) => c.selected).length} / {columns.length} selected
+                    {t('queryBuilder.columnsSelected', { selected: columns.filter((c) => c.selected).length, total: columns.length, defaultValue: `${columns.filter((c) => c.selected).length} / ${columns.length} selected` })}
                   </span>
                 </div>
                 <div className="flex items-center space-x-2 text-xs">
@@ -562,7 +564,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                     onClick={handleSelectAllColumns}
                     className="hover:text-blue-400 transition-colors"
                   >
-                    Select All
+                    {t('queryBuilder.selectAll', 'Select All')}
                   </button>
                   <span className="text-gray-500">•</span>
                   <button
@@ -571,14 +573,14 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                     onClick={handleDeselectAllColumns}
                     className="hover:text-blue-400 transition-colors"
                   >
-                    Deselect All
+                    {t('queryBuilder.deselectAll', 'Deselect All')}
                   </button>
                 </div>
               </div>
 
               {columns.length === 0 ? (
                 <p className="text-xs text-gray-500 py-3 text-center">
-                  Select a Base Table above to choose columns.
+                  {t('queryBuilder.selectBaseTableFirst', 'Select a Base Table above to choose columns.')}
                 </p>
               ) : (
                 <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
@@ -629,7 +631,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                                 : 'bg-white border-gray-300 text-gray-700'
                             }`}
                           >
-                            <option value="">No Agg</option>
+                            <option value="">{t('queryBuilder.noAgg', 'No Agg')}</option>
                             <option value="COUNT">COUNT</option>
                             <option value="SUM">SUM</option>
                             <option value="AVG">AVG</option>
@@ -668,7 +670,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                 <div className="flex items-center space-x-2">
                   <Link2 className="w-4 h-4 text-purple-400" />
                   <span className="font-semibold text-xs uppercase tracking-wider">
-                    JOIN Tables ({joins.length})
+                    {t('queryBuilder.joinTables', { count: joins.length, defaultValue: `JOIN Tables (${joins.length})` })}
                   </span>
                 </div>
                 <button
@@ -678,13 +680,13 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                   className="inline-flex items-center space-x-1 px-2 py-0.5 text-xs rounded bg-purple-600 hover:bg-purple-500 text-white transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Add JOIN</span>
+                  <span>{t('queryBuilder.addJoin', 'Add JOIN')}</span>
                 </button>
               </div>
 
               {joins.length === 0 ? (
                 <p className="text-xs text-gray-500 py-2 text-center">
-                  No tables joined. Click &quot;Add JOIN&quot; to link related tables.
+                  {t('queryBuilder.noJoins', 'No tables joined. Click "Add JOIN" to link related tables.')}
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -773,7 +775,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                             type="button"
                             data-testid={`qb-remove-join-${idx}`}
                             onClick={() => handleRemoveJoin(idx)}
-                            title="Remove JOIN"
+                            title={t('queryBuilder.removeJoin', 'Remove JOIN')}
                             className="p-1 text-red-400 hover:text-red-300 hover:bg-red-950/30 rounded"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -846,7 +848,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                 <div className="flex items-center space-x-2">
                   <FilterIcon className="w-4 h-4 text-emerald-400" />
                   <span className="font-semibold text-xs uppercase tracking-wider">
-                    Filters / Conditions (WHERE)
+                    {t('queryBuilder.filters', 'Filters / Conditions (WHERE)')}
                   </span>
                   <button
                     type="button"
@@ -860,7 +862,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                         : 'bg-amber-600 text-white'
                     }`}
                   >
-                    Match: {filterConjunction}
+                    {t('queryBuilder.match', { conjunction: filterConjunction, defaultValue: `Match: ${filterConjunction}` })}
                   </button>
                 </div>
                 <button
@@ -870,13 +872,13 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                   className="inline-flex items-center space-x-1 px-2 py-0.5 text-xs rounded bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Add Condition</span>
+                  <span>{t('queryBuilder.addCondition', 'Add Condition')}</span>
                 </button>
               </div>
 
               {filters.length === 0 ? (
                 <p className="text-xs text-gray-500 py-2 text-center">
-                  No filter conditions. All rows will be returned.
+                  {t('queryBuilder.noFilters', 'No filter conditions. All rows will be returned.')}
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -988,8 +990,8 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                               }
                               className={`flex-1 min-w-[90px] h-[30px] px-2 text-xs rounded border outline-none font-mono ${
                                 theme === 'dark'
-                                  ? 'bg-[#11111b] border-gray-700 text-gray-200'
-                                  : 'bg-white border-gray-300 text-gray-800'
+                                ? 'bg-[#11111b] border-gray-700 text-gray-200'
+                                : 'bg-white border-gray-300 text-gray-800'
                               }`}
                             />
                           </>
@@ -999,7 +1001,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                           type="button"
                           data-testid={`qb-remove-filter-${idx}`}
                           onClick={() => handleRemoveFilter(idx)}
-                          title="Remove condition"
+                          title={t('queryBuilder.removeCondition', 'Remove condition')}
                           className="p-1 text-red-400 hover:text-red-300 hover:bg-red-950/30 rounded"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1021,7 +1023,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                 <div className="flex items-center space-x-2">
                   <ArrowUpDown className="w-4 h-4 text-cyan-400" />
                   <span className="font-semibold text-xs uppercase tracking-wider">
-                    Sorting & Pagination (ORDER BY & LIMIT)
+                    {t('queryBuilder.sortingAndPagination', 'Sorting & Pagination (ORDER BY & LIMIT)')}
                   </span>
                 </div>
                 <button
@@ -1031,14 +1033,14 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                   className="inline-flex items-center space-x-1 px-2 py-0.5 text-xs rounded bg-cyan-600 hover:bg-cyan-500 text-white transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Add Sort</span>
+                  <span>{t('queryBuilder.addSort', 'Add Sort')}</span>
                 </button>
               </div>
 
               <div className="space-y-2 mb-3">
                 {orderBy.length === 0 ? (
                   <p className="text-xs text-gray-500 py-1 text-center">
-                    No custom sort applied.
+                    {t('queryBuilder.noSort', 'No custom sort applied.')}
                   </p>
                 ) : (
                   orderBy.map((sort, idx) => (
@@ -1090,15 +1092,15 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                             : 'bg-white border-gray-300 text-cyan-600'
                         }`}
                       >
-                        <option value="ASC">ASC (Ascending)</option>
-                        <option value="DESC">DESC (Descending)</option>
+                        <option value="ASC">{t('queryBuilder.asc', 'ASC (Ascending)')}</option>
+                        <option value="DESC">{t('queryBuilder.desc', 'DESC (Descending)')}</option>
                       </select>
 
                       <button
                         type="button"
                         data-testid={`qb-remove-sort-${idx}`}
                         onClick={() => handleRemoveOrderBy(idx)}
-                        title="Remove sort"
+                        title={t('queryBuilder.removeSort', 'Remove sort')}
                         className="p-1 text-red-400 hover:text-red-300 hover:bg-red-950/30 rounded"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1111,7 +1113,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
               {/* Limit & Offset Inputs */}
               <div className="flex items-center space-x-4 pt-2 border-t border-gray-700/30 text-xs">
                 <div className="flex items-center space-x-1.5">
-                  <span className="font-medium text-gray-400">Limit:</span>
+                  <span className="font-medium text-gray-400">{t('queryBuilder.limit', 'Limit:')}</span>
                   <input
                     type="number"
                     data-testid="qb-limit-input"
@@ -1128,7 +1130,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-1.5">
-                  <span className="font-medium text-gray-400">Offset:</span>
+                  <span className="font-medium text-gray-400">{t('queryBuilder.offset', 'Offset:')}</span>
                   <input
                     type="number"
                     data-testid="qb-offset-input"
@@ -1157,8 +1159,8 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
             }`}
           >
             <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-gray-700/30 text-xs font-semibold text-gray-400">
-              <span className="uppercase tracking-wider">Live SQL Preview</span>
-              <span className="text-[10px] text-emerald-400 font-mono">Dialect: {driver}</span>
+              <span className="uppercase tracking-wider">{t('queryBuilder.liveSqlPreview', 'Live SQL Preview')}</span>
+              <span className="text-[10px] text-emerald-400 font-mono">{t('queryBuilder.dialect', { dialect: driver, defaultValue: `Dialect: ${driver}` })}</span>
             </div>
 
             <pre
@@ -1169,7 +1171,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                   : 'bg-white text-blue-900 border border-gray-300'
               }`}
             >
-              {liveSql || '-- Please select a base table to construct SQL'}
+              {liveSql || t('queryBuilder.selectBaseTablePlaceholder', '-- Please select a base table to construct SQL')}
             </pre>
           </div>
 
@@ -1182,7 +1184,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
             >
               <div className="flex items-center space-x-2 font-medium">
                 <Database className="w-3.5 h-3.5 text-blue-400" />
-                <span>Query Results</span>
+                <span>{t('queryBuilder.queryResults', 'Query Results')}</span>
               </div>
               {queryResult && (
                 <div className="text-[11px] font-mono text-gray-400 space-x-2">
@@ -1212,14 +1214,13 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
               ) : isExecuting ? (
                 <div className="flex-1 flex flex-col items-center justify-center space-y-2 text-gray-400">
                   <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
-                  <span className="text-xs">Executing query...</span>
+                  <span className="text-xs">{t('queryBuilder.executingQuery', 'Executing query...')}</span>
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-gray-500">
                   <Layers className="w-10 h-10 mb-2 opacity-30" />
                   <p className="text-xs">
-                    Configure your query on the left and click{' '}
-                    <strong className="text-emerald-500">Run Query</strong> to preview results here.
+                    {t('queryBuilder.emptyResultsHelp', 'Configure your query on the left and click Run Query to preview results here.')}
                   </p>
                 </div>
               )}

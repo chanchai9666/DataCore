@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowRightLeft, X, Loader2, ArrowRight, Database, Table, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
@@ -23,6 +24,7 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const connections = useConnectionStore((s) => s.connections);
 
   const [targetConnectionId, setTargetConnectionId] = useState<string>(sourceConnectionId);
@@ -194,12 +196,13 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
           <div className="flex items-center space-x-2">
             <ArrowRightLeft className="w-4 h-4 text-blue-500" />
             <h2 id="cross-db-copy-title" className="text-sm font-semibold text-zinc-900 dark:text-white">
-              Copy Table to Database (Cross-DB Transfer)
+              {t('transfer.crossDbTitle', 'Copy Table to Database (Cross-DB Transfer)')}
             </h2>
           </div>
           <button
             type="button"
             onClick={handleCancelOrClose}
+            aria-label={t('common.close', 'Close')}
             className="text-zinc-400 hover:text-zinc-600 dark:hover:text-white p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X className="w-4 h-4" />

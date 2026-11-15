@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Plus, Trash2, X, Loader2, Sparkles, Code2, AlertCircle, Layers } from 'lucide-react';
 import { toast } from 'sonner';
@@ -69,6 +70,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const isPostgres = !driver || driver.toLowerCase().includes('postgres');
   const isSqlite = driver?.toLowerCase() === 'sqlite';
 
@@ -277,13 +279,13 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
 
     try {
       await dbApi.executeDirectQuery(connectionId, sqlPreview);
-      toast.success(`Table "${cleanName}" created successfully`);
+      toast.success(t('structure.createdSuccess', 'Table "{{name}}" created successfully', { name: cleanName }));
       onSuccess(cleanName, targetSchema.trim() || undefined);
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
-      toast.error(`Failed to create table: ${msg}`);
+      toast.error(t('structure.failedToCreate', 'Failed to create table: {{error}}', { error: msg }));
     } finally {
       setLoading(false);
     }
@@ -307,7 +309,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
               <Plus className="w-5 h-5" />
               <Dialog.Title asChild>
                 <h2 id="create-table-title" className="text-base font-semibold text-text">
-                  Create New Table
+                  {t('structure.createTableTitle', 'Create New Table')}
                 </h2>
               </Dialog.Title>
             </div>
@@ -315,7 +317,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Close dialog"
+                aria-label={t('common.close', 'Close dialog')}
                 className="text-muted hover:text-text transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -332,7 +334,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Table Name <span className="text-red-500 dark:text-red-400">*</span>
+                {t('structure.tableName', 'Table Name')} <span className="text-red-500 dark:text-red-400">*</span>
               </label>
               <input
                 type="text"
@@ -340,7 +342,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                 required
                 value={tableName}
                 onChange={(e) => setTableName(e.target.value)}
-                placeholder="e.g. orders, users, products"
+                placeholder={t('structure.tableNamePlaceholder', 'e.g. orders, users, products')}
                 data-testid="create-table-name-input"
                 className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-3 py-1.5 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono"
               />
@@ -349,7 +351,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
             {isPostgres && (
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Schema
+                  {t('structure.schema', 'Schema')}
                 </label>
                 <input
                   type="text"
@@ -375,7 +377,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                   : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
               }`}
             >
-              <span>Columns ({columns.length})</span>
+              <span>{t('structure.columnsTab', 'Columns')} ({columns.length})</span>
             </button>
             <button
               type="button"
@@ -388,7 +390,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>Indexes ({indexes.length})</span>
+              <span>{t('structure.indexesTab', 'Indexes')} ({indexes.length})</span>
             </button>
           </div>
 
@@ -397,7 +399,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-                  Columns Configuration
+                  {t('structure.columnsConfig', 'Columns Configuration')}
                 </span>
                 <div className="flex items-center space-x-2">
                   <button
@@ -415,7 +417,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                     className="px-2.5 py-1 text-[11px] rounded bg-emerald-50 dark:bg-emerald-600/20 hover:bg-emerald-100 dark:hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 flex items-center space-x-1 border border-emerald-300 dark:border-emerald-500/30 transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Add Column</span>
+                    <span>{t('structure.addColumn', 'Add Column')}</span>
                   </button>
                 </div>
               </div>
@@ -425,12 +427,12 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-gray-100 dark:bg-gray-950/60 border-b border-gray-200 dark:border-gray-800 text-[11px] uppercase tracking-wider text-gray-600 dark:text-gray-400 select-none">
                     <tr>
-                      <th className="px-3 py-2 w-1/4">Name</th>
-                      <th className="px-3 py-2 w-1/5">Type</th>
-                      <th className="px-3 py-2 w-28">Length/Values</th>
-                      <th className="px-2 py-2 text-center w-12" title="Primary Key">PK</th>
-                      <th className="px-2 py-2 text-center w-16" title="Nullable">Nullable</th>
-                      <th className="px-3 py-2">Default</th>
+                      <th className="px-3 py-2 w-1/4">{t('tableList.nameHeader', 'Name')}</th>
+                      <th className="px-3 py-2 w-1/5">{t('structure.dataType', 'Data Type')}</th>
+                      <th className="px-3 py-2 w-28">{t('structure.length', 'Length / Precision')}</th>
+                      <th className="px-2 py-2 text-center w-12" title={t('structure.primaryKey', 'Primary Key')}>PK</th>
+                      <th className="px-2 py-2 text-center w-16" title={t('structure.nullable', 'Nullable')}>{t('structure.nullable', 'Nullable')}</th>
+                      <th className="px-3 py-2">{t('structure.defaultValue', 'Default Value')}</th>
                       <th className="px-2 py-2 text-center w-10"></th>
                     </tr>
                   </thead>
@@ -549,10 +551,10 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-                    Indexes Configuration
+                    {t('structure.indexesConfig', 'Indexes Configuration')}
                   </span>
                   <p className="text-[11px] text-gray-500">
-                    Define custom single or multi-column indexes for faster queries.
+                    {t('structure.indexesDesc', 'Define custom single or multi-column indexes for faster queries.')}
                   </p>
                 </div>
                 <button
@@ -562,16 +564,16 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                   className="px-2.5 py-1 text-[11px] rounded bg-emerald-50 dark:bg-emerald-600/20 hover:bg-emerald-100 dark:hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 flex items-center space-x-1 border border-emerald-300 dark:border-emerald-500/30 transition-colors"
                 >
                   <Plus className="w-3 h-3" />
-                  <span>Add Index</span>
+                  <span>{t('structure.addIndex', 'Add Index')}</span>
                 </button>
               </div>
 
               {indexes.length === 0 ? (
                 <div className="border border-dashed border-gray-300 dark:border-gray-800 rounded-lg p-6 text-center text-xs text-gray-500 bg-gray-50 dark:bg-gray-950/30">
                   <Layers className="w-8 h-8 text-gray-400 dark:text-gray-600 mx-auto mb-2 opacity-60" />
-                  <p>No custom indexes configured yet.</p>
+                  <p>{t('structure.noIndexesConfigured', 'No custom indexes configured yet.')}</p>
                   <p className="text-[11px] text-gray-400 dark:text-gray-600 mt-1">
-                    Primary key index is created automatically. Click "+ Add Index" to add secondary indexes.
+                    {t('structure.primaryKeyAutoIndex', 'Primary key index is created automatically. Click "+ Add Index" to add secondary indexes.')}
                   </p>
                 </div>
               ) : (
@@ -579,9 +581,9 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-gray-100 dark:bg-gray-950/60 border-b border-gray-200 dark:border-gray-800 text-[11px] uppercase tracking-wider text-gray-600 dark:text-gray-400 select-none">
                       <tr>
-                        <th className="px-3 py-2 w-1/3">Index Name</th>
-                        <th className="px-3 py-2">Indexed Columns</th>
-                        <th className="px-2 py-2 text-center w-20">Unique</th>
+                        <th className="px-3 py-2 w-1/3">{t('structure.indexName', 'Index Name')}</th>
+                        <th className="px-3 py-2">{t('structure.indexedColumns', 'Indexed Columns')}</th>
+                        <th className="px-2 py-2 text-center w-20">{t('structure.unique', 'Unique')}</th>
                         <th className="px-2 py-2 text-center w-10"></th>
                       </tr>
                     </thead>
@@ -680,13 +682,13 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
           <div className="space-y-1">
             <div className="flex items-center space-x-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
               <Code2 className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
-              <span>Live SQL Statement Preview</span>
+              <span>{t('structure.liveSqlPreview', 'Live SQL Statement Preview')}</span>
             </div>
             <pre
               data-testid="create-table-sql-preview"
               className="p-3 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded font-mono text-xs text-emerald-700 dark:text-emerald-300 overflow-x-auto max-h-36 whitespace-pre-wrap select-all"
             >
-              {sqlPreview || '-- Enter table name and columns to preview SQL --'}
+              {sqlPreview || t('structure.enterTableNameAndCols', '-- Enter table name and columns to preview SQL --')}
             </pre>
           </div>
 
@@ -710,7 +712,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                 disabled={loading}
                 className="px-4 py-2 text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
               >
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </button>
             </Dialog.Close>
             <button
@@ -722,12 +724,12 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Creating Table...</span>
+                  <span>{t('structure.creatingTable', 'Creating Table...')}</span>
                 </>
               ) : (
                 <>
                   <Plus className="w-4 h-4" />
-                  <span>Create Table</span>
+                  <span>{t('structure.createTableTitle', 'Create Table')}</span>
                 </>
               )}
             </button>

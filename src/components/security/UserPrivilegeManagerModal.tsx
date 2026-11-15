@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   Users,
@@ -39,6 +40,7 @@ export const UserPrivilegeManagerModal: React.FC<UserPrivilegeManagerModalProps>
   onClose,
   connectionId: propConnectionId,
 }) => {
+  const { t } = useTranslation();
   const { connections } = useConnectionStore();
 
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
@@ -247,7 +249,7 @@ export const UserPrivilegeManagerModal: React.FC<UserPrivilegeManagerModalProps>
               <Users className="w-5 h-5 text-indigo-400" />
               <div>
                 <Dialog.Title className="text-sm font-semibold text-text">
-                  Database Users, Roles & Privileges
+                  {t('tools.userManagerTitle', 'Database Users, Roles & Privileges')}
                 </Dialog.Title>
                 <Dialog.Description className="text-xs text-muted">
                   Manage database accounts, grant and revoke table/database privileges, and configure authentication
@@ -298,7 +300,7 @@ export const UserPrivilegeManagerModal: React.FC<UserPrivilegeManagerModalProps>
                   <Search className="w-3.5 h-3.5 text-muted" />
                   <input
                     type="text"
-                    placeholder="Search users..."
+                    placeholder={t('tools.searchUsersPlaceholder', 'Search users...')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="bg-transparent border-none outline-none text-xs text-text placeholder-muted/60 w-full"

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Layers, X, RefreshCw, Split } from 'lucide-react';
 import { dbApi } from '../../api/db';
 import {
@@ -24,6 +25,7 @@ export const TablePartitionsModal: React.FC<TablePartitionsModalProps> = ({
   driver = 'postgres',
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [partitions, setPartitions] = useState<TablePartitionInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -87,7 +89,7 @@ export const TablePartitionsModal: React.FC<TablePartitionsModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                Table Partitions
+                {t('tools.partitionsTitle', 'Table Partitions')}
                 <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-800 dark:text-slate-400 font-mono">
                   {tableName}
                 </span>
@@ -102,16 +104,16 @@ export const TablePartitionsModal: React.FC<TablePartitionsModalProps> = ({
               type="button"
               onClick={fetchPartitions}
               disabled={isLoading}
-              aria-label="Refresh Partitions"
+              aria-label={t('common.refresh', 'Refresh')}
               className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 shadow-2xs hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin text-blue-500' : ''}`} />
-              Refresh
+              {t('common.refresh', 'Refresh')}
             </button>
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close"
+              aria-label={t('common.close', 'Close')}
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             >
               <X className="h-5 w-5" />
@@ -125,10 +127,10 @@ export const TablePartitionsModal: React.FC<TablePartitionsModalProps> = ({
             <div className="flex flex-col items-center justify-center h-40 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 text-slate-400">
               <Layers className="h-9 w-9 text-slate-300 dark:text-slate-600 mb-2" />
               <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Standard Single Relation Table
+                {t('tools.singleRelationTable', 'Standard Single Relation Table')}
               </p>
               <p className="text-xs text-slate-500">
-                This table is not partitioned into sub-tables.
+                {t('tools.notPartitionedDesc', 'This table is not partitioned into sub-tables.')}
               </p>
             </div>
           ) : (
@@ -136,11 +138,11 @@ export const TablePartitionsModal: React.FC<TablePartitionsModalProps> = ({
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
                   <tr>
-                    <th className="px-3.5 py-2.5">Partition Name</th>
-                    <th className="px-3.5 py-2.5">Method</th>
-                    <th className="px-3.5 py-2.5">Bound / Expression</th>
-                    <th className="px-3.5 py-2.5">Estimated Rows</th>
-                    <th className="px-3.5 py-2.5">Data Size</th>
+                    <th className="px-3.5 py-2.5">{t('tools.partitionName', 'Partition Name')}</th>
+                    <th className="px-3.5 py-2.5">{t('tools.partitionMethod', 'Method')}</th>
+                    <th className="px-3.5 py-2.5">{t('tools.partitionBound', 'Bound / Expression')}</th>
+                    <th className="px-3.5 py-2.5">{t('tableList.approxRowsHeader', 'Estimated Rows')}</th>
+                    <th className="px-3.5 py-2.5">{t('tableList.dataSizeHeader', 'Data Size')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-[11px]">
@@ -166,7 +168,7 @@ export const TablePartitionsModal: React.FC<TablePartitionsModalProps> = ({
             onClick={onClose}
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
           >
-            Close
+            {t('common.close', 'Close')}
           </button>
         </div>
       </div>
