@@ -889,6 +889,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Screen Frame Throttling (rAF):** ใช้ `requestAnimationFrame` ควบคุมรอบการ dispatch พิกัด ช่วยให้ React render สอดคล้องกับอัตรา Refresh Rate ของหน้าจอ (60Hz/120Hz ProMotion) เฟรมเรตไม่ตก
     - **Hardware GPU Acceleration:** ใส่ `willChange: isDragging ? 'transform' : undefined` และยกเลเยอร์ของการ์ดที่ถูกลากด้วย `z-20 shadow-2xl` ลอยเหนือการ์ดอื่นๆ อย่างลื่นไหล
 
+37. **Issue #145: Deselect Table and Highlighted Relationships on Empty Canvas Click and Escape Key (`ERDiagramTab.tsx`)**
+    - **Deselect on Canvas Background Click:** เพิ่มการดักจับการคลิกบนพื้นที่ว่างของ Canvas เพื่อรีเซ็ต `setSelectedTableId(null)` ทำให้เส้นความสัมพันธ์ (SVG Connectors) และการ์ดตารางกลับสู่สถานะปกติทันที ไม่ค้างสว่าง
+    - **Pan vs Click Differentiation:** ตรวจวัดระยะการเลื่อนเมาส์ (Drag distance) ระหว่าง `mousedown` และ `mouseup` โดยหากเป็นการลากเพื่อ Pan มุมมองเกิน 5px ระบบจะคงสถานะ Selection เดิมไว้ แต่หากเป็นการคลิกปล่อยที่เดิม จะสั่ง Deselect ทันที
+    - **Keyboard Escape Support:** ดักจับการกดปุ่ม `Escape` บนคีย์บอร์ดเพื่อสั่งรีเซ็ตการเลือกตารางและล้างเส้นความสัมพันธ์ที่สว่างค้างอยู่ได้ทันทีตามมาตรฐาน Desktop GUI
+
 
 
 

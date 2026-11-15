@@ -76,6 +76,8 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const pendingMoveRef = useRef<{ clientX: number; clientY: number } | null>(null);
+  const isDraggingCanvasRef = useRef<boolean>(false);
+  const panStartClientRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Active sync refs to avoid tearing down and recreating window listeners
   const dataRef = useRef<ERDiagramData | null>(data);
@@ -108,6 +110,13 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
         const { clientX, clientY } = pendingMoveRef.current;
 
         if (isPanning) {
+          const moveDist = Math.hypot(
+            clientX - panStartClientRef.current.x,
+            clientY - panStartClientRef.current.y
+          );
+          if (moveDist > 5) {
+            isDraggingCanvasRef.current = true;
+          }
           setPan({
             x: clientX - panStartRef.current.x,
             y: clientY - panStartRef.current.y,
@@ -168,6 +177,9 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
       ) {
         e.preventDefault();
         setIsSpacePressed(true);
+      }
+      if (e.code === 'Escape') {
+        setSelectedTableId(null);
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -286,6 +298,9 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (draggingTableId) return;
 
+    panStartClientRef.current = { x: e.clientX, y: e.clientY };
+    isDraggingCanvasRef.current = false;
+
     const isMiddleClick = e.button === 1;
     const isSpacePan = isSpacePressed && e.button === 0;
     const isCanvasDirectClick =
@@ -300,6 +315,20 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
       if (isMiddleClick) e.preventDefault();
       setIsPanning(true);
       panStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+    }
+  };
+
+  const handleCanvasClick = (e: React.MouseEvent) => {
+    if (isDraggingCanvasRef.current) {
+      isDraggingCanvasRef.current = false;
+      return;
+    }
+
+    const isInteractive = (e.target as HTMLElement).closest(
+      '.table-card, button, select, input, .er-minimap'
+    );
+    if (!isInteractive) {
+      setSelectedTableId(null);
     }
   };
 
@@ -442,6 +471,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
     <div
       ref={containerRef}
       onMouseDown={handleMouseDown}
+      onClick={handleCanvasClick}
       onWheel={handleWheel}
       className="flex-1 flex flex-col relative overflow-hidden select-none bg-slate-100 dark:bg-[#0b0f17] text-text"
       style={{
@@ -707,7 +737,10 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
                 zIndex: isDragging ? 30 : isSelected ? 20 : 10,
                 willChange: isDragging ? 'transform' : undefined,
               }}
-              onClick={() => setSelectedTableId(table.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedTableId(table.id);
+              }}
               className={`absolute rounded-lg border shadow-xl bg-panel ${
                 isDragging
                   ? 'border-blue-500 ring-2 ring-blue-500/50 shadow-2xl transition-none cursor-grabbing'

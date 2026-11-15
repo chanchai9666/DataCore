@@ -301,4 +301,92 @@ describe('ERDiagramTab', () => {
     expect(card.className).not.toContain('transition-none');
     expect(card.style.zIndex).toBe('20');
   });
+
+  it('deselects selected table and dims relationships when clicking on empty canvas space', async () => {
+    const { container } = render(
+      <ERDiagramTab
+        connectionId="conn_1"
+        driver="sqlite"
+        schemaName="main"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('table-card-customers')).toBeInTheDocument();
+    });
+
+    const card = screen.getByTestId('table-card-customers');
+    const rootContainer = container.firstChild as HTMLElement;
+
+    // Click table card to select it
+    fireEvent.click(card);
+    expect(card.className).toContain('border-blue-500');
+
+    // Click on empty canvas background
+    fireEvent.click(rootContainer);
+
+    // Card should be deselected
+    expect(card.className).not.toContain('border-blue-500');
+  });
+
+  it('deselects selected table when pressing Escape key', async () => {
+    render(
+      <ERDiagramTab
+        connectionId="conn_1"
+        driver="sqlite"
+        schemaName="main"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('table-card-customers')).toBeInTheDocument();
+    });
+
+    const card = screen.getByTestId('table-card-customers');
+
+    // Click table card to select it
+    fireEvent.click(card);
+    expect(card.className).toContain('border-blue-500');
+
+    // Press Escape
+    fireEvent.keyDown(window, { code: 'Escape' });
+
+    // Card should be deselected
+    expect(card.className).not.toContain('border-blue-500');
+  });
+
+  it('preserves table selection when panning the canvas', async () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 1;
+    });
+
+    const { container } = render(
+      <ERDiagramTab
+        connectionId="conn_1"
+        driver="sqlite"
+        schemaName="main"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('table-card-customers')).toBeInTheDocument();
+    });
+
+    const card = screen.getByTestId('table-card-customers');
+    const rootContainer = container.firstChild as HTMLElement;
+
+    // Select customers
+    fireEvent.click(card);
+    expect(card.className).toContain('border-blue-500');
+
+    // Pan canvas: mousedown -> mousemove (>5px) -> mouseup -> click
+    fireEvent.mouseDown(rootContainer, { clientX: 200, clientY: 200, button: 0 });
+    fireEvent.mouseMove(window, { clientX: 250, clientY: 250 });
+    fireEvent.mouseUp(window);
+    fireEvent.click(rootContainer);
+
+    // Selection should be preserved because user was panning
+    expect(card.className).toContain('border-blue-500');
+  });
 });
