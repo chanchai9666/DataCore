@@ -882,6 +882,13 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
       - เพิ่ม IPC Command `save_text_file` ใน Rust พร้อมตรวจสอบความปลอดภัยผ่าน `validate_safe_transfer_path`
       - สลับจากการใช้เบราว์เซอร์ดาวน์โหลดอัตโนมัติมาเป็นการเปิด Native Save Dialog (`@tauri-apps/plugin-dialog`) ให้ผู้ใช้เลือกโฟลเดอร์ปลายทางและตั้งชื่อไฟล์ SVG ได้ตามต้องการ
 
+36. **Issue #144: Fix ER Diagram Card Dragging Jitter, Flickering, and Lag (`ERDiagramTab.tsx`)**
+    - **Remove CSS Transition on Transform:** ตัด `transition-all duration-200` ออกจากการ์ดตาราง โดยเปลี่ยนเป็น `transition-[border-color,box-shadow]` เพื่อไม่ให้เกิด animation delay 200ms บน `transform: translate(x, y)` ส่งผลให้การ์ดขยับตามพิกัดเมาส์ทันที 0ms ปราศจากอาการ rubber-banding หรือดีดกระตุก
+    - **Synchronized SVG Connectors:** แก้ปัญหาเส้นเชื่อมโยงกระพริบและหลุดออกจากการ์ด โดยการเคลื่อนที่ของทั้งการ์ดและเส้น SVG ทำงานสอดประสานกันแบบเรียลไทม์ 100%
+    - **Window-Level Drag Tracking:** ย้าย event listener ของ `mousemove` และ `mouseup` ไปที่ `window` ขณะที่ผู้ใช้กำลังลากการ์ดหรือแพน Canvas ป้องกันปัญหาการลากหลุดขอบการ์ดหรือปล่อยเมาส์นอกขอบ container แล้วการ์ดค้างติดเคอร์เซอร์
+    - **Screen Frame Throttling (rAF):** ใช้ `requestAnimationFrame` ควบคุมรอบการ dispatch พิกัด ช่วยให้ React render สอดคล้องกับอัตรา Refresh Rate ของหน้าจอ (60Hz/120Hz ProMotion) เฟรมเรตไม่ตก
+    - **Hardware GPU Acceleration:** ใส่ `willChange: isDragging ? 'transform' : undefined` และยกเลเยอร์ของการ์ดที่ถูกลากด้วย `z-20 shadow-2xl` ลอยเหนือการ์ดอื่นๆ อย่างลื่นไหล
+
 
 
 

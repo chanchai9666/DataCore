@@ -255,4 +255,50 @@ describe('ERDiagramTab', () => {
       );
     });
   });
+
+  it('smoothly drags table card with window-level events and without transform transition', async () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 1;
+    });
+
+    render(
+      <ERDiagramTab
+        connectionId="conn_1"
+        driver="sqlite"
+        schemaName="main"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('table-card-customers')).toBeInTheDocument();
+    });
+
+    const card = screen.getByTestId('table-card-customers');
+    const header = card.querySelector('.table-card-header')!;
+
+    // Initial position
+    expect(card.style.transform).toBe('translate(50px, 50px)');
+
+    // Start dragging
+    fireEvent.mouseDown(header, { clientX: 100, clientY: 100, button: 0 });
+
+    // Dragging state applied: elevated zIndex, transition-none, cursor-grabbing
+    expect(card.className).toContain('transition-none');
+    expect(card.style.zIndex).toBe('30');
+    expect(card.style.willChange).toBe('transform');
+
+    // Move mouse on window
+    fireEvent.mouseMove(window, { clientX: 180, clientY: 150 });
+
+    // Position updated smoothly to (50 + 80, 50 + 50) = (130, 100)
+    expect(card.style.transform).toBe('translate(130px, 100px)');
+
+    // Release mouse on window
+    fireEvent.mouseUp(window);
+
+    // Dragging state cleared
+    expect(card.className).not.toContain('transition-none');
+    expect(card.style.zIndex).toBe('20');
+  });
 });

@@ -74,6 +74,90 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
   const [isMiniMapOpen, setIsMiniMapOpen] = useState<boolean>(true);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const pendingMoveRef = useRef<{ clientX: number; clientY: number } | null>(null);
+
+  // Active sync refs to avoid tearing down and recreating window listeners
+  const dataRef = useRef<ERDiagramData | null>(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  const zoomRef = useRef<number>(zoom);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  const panRef = useRef<{ x: number; y: number }>(pan);
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
+
+  // Window-level dragging and panning handler with requestAnimationFrame throttling
+  useEffect(() => {
+    if (!isPanning && !draggingTableId) return;
+
+    const onWindowMouseMove = (e: MouseEvent) => {
+      pendingMoveRef.current = { clientX: e.clientX, clientY: e.clientY };
+
+      if (rafRef.current !== null) return;
+
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        if (!pendingMoveRef.current) return;
+        const { clientX, clientY } = pendingMoveRef.current;
+
+        if (isPanning) {
+          setPan({
+            x: clientX - panStartRef.current.x,
+            y: clientY - panStartRef.current.y,
+          });
+        } else if (draggingTableId && dataRef.current) {
+          const currentZoom = zoomRef.current;
+          const dx = (clientX - dragStartPosRef.current.mouseX) / currentZoom;
+          const dy = (clientY - dragStartPosRef.current.mouseY) / currentZoom;
+          const newX = Math.max(0, dragStartPosRef.current.tableX + dx);
+          const newY = Math.max(0, dragStartPosRef.current.tableY + dy);
+
+          const roundedX = Math.round(newX);
+          const roundedY = Math.round(newY);
+
+          setData((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              tables: prev.tables.map((t) =>
+                t.id === draggingTableId ? { ...t, x: roundedX, y: roundedY } : t
+              ),
+            };
+          });
+        }
+      });
+    };
+
+    const onWindowMouseUp = () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      pendingMoveRef.current = null;
+      setIsPanning(false);
+      setDraggingTableId(null);
+    };
+
+    window.addEventListener('mousemove', onWindowMouseMove, { passive: true });
+    window.addEventListener('mouseup', onWindowMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onWindowMouseMove);
+      window.removeEventListener('mouseup', onWindowMouseUp);
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      pendingMoveRef.current = null;
+    };
+  }, [isPanning, draggingTableId]);
 
   // Spacebar pan listener
   useEffect(() => {
@@ -219,32 +303,6 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      setPan({
-        x: e.clientX - panStartRef.current.x,
-        y: e.clientY - panStartRef.current.y,
-      });
-    } else if (draggingTableId && data) {
-      const dx = (e.clientX - dragStartPosRef.current.mouseX) / zoom;
-      const dy = (e.clientY - dragStartPosRef.current.mouseY) / zoom;
-      const newX = Math.max(0, dragStartPosRef.current.tableX + dx);
-      const newY = Math.max(0, dragStartPosRef.current.tableY + dy);
-
-      setData({
-        ...data,
-        tables: data.tables.map((t) =>
-          t.id === draggingTableId ? { ...t, x: Math.round(newX), y: Math.round(newY) } : t
-        ),
-      });
-    }
-  };
-
-  const handleMouseUp = () => {
-    setIsPanning(false);
-    setDraggingTableId(null);
-  };
-
   const handleWheel = (e: React.WheelEvent) => {
     // If wheel occurred inside a table card's scrollable body, ignore canvas zoom
     if ((e.target as HTMLElement).closest('.table-card-body')) {
@@ -258,6 +316,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
   // Start dragging a table card
   const handleTableMouseDown = (e: React.MouseEvent, table: ERTable) => {
     e.stopPropagation();
+    if (e.button !== 0) return;
     setDraggingTableId(table.id);
     setSelectedTableId(table.id);
     dragStartPosRef.current = {
@@ -383,12 +442,11 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
     <div
       ref={containerRef}
       onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
       onWheel={handleWheel}
       className="flex-1 flex flex-col relative overflow-hidden select-none bg-slate-100 dark:bg-[#0b0f17] text-text"
       style={{
-        cursor: isPanning ? 'grabbing' : isSpacePressed ? 'grab' : 'default',
+        cursor: isPanning || draggingTableId ? 'grabbing' : isSpacePressed ? 'grab' : 'default',
+        userSelect: isPanning || draggingTableId ? 'none' : undefined,
       }}
     >
       {/* Top Floating Control Bar */}
@@ -634,30 +692,38 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
         {data.tables.map((table) => {
           const isCollapsed = collapsedTables.has(table.id);
           const isSelected = selectedTableId === table.id;
+          const isDragging = draggingTableId === table.id;
           const isMatched =
             filteredTableIds === null || filteredTableIds.has(table.id);
 
           return (
             <div
               key={table.id}
+              data-testid={`table-card-${table.id}`}
               style={{
                 transform: `translate(${table.x}px, ${table.y}px)`,
                 width: '260px',
                 opacity: isMatched ? 1 : 0.25,
+                zIndex: isDragging ? 30 : isSelected ? 20 : 10,
+                willChange: isDragging ? 'transform' : undefined,
               }}
               onClick={() => setSelectedTableId(table.id)}
-              className={`absolute rounded-lg border shadow-xl bg-panel transition-all duration-200 ${
-                highlightedTableId === table.id
-                  ? 'border-amber-400 ring-4 ring-amber-400/50 shadow-amber-400/20 scale-[1.02]'
+              className={`absolute rounded-lg border shadow-xl bg-panel ${
+                isDragging
+                  ? 'border-blue-500 ring-2 ring-blue-500/50 shadow-2xl transition-none cursor-grabbing'
+                  : highlightedTableId === table.id
+                  ? 'border-amber-400 ring-4 ring-amber-400/50 shadow-amber-400/20 scale-[1.02] transition-[border-color,box-shadow,ring] duration-200'
                   : isSelected
-                  ? 'border-blue-500 ring-2 ring-blue-500/30 shadow-blue-500/10'
-                  : 'border-line hover:border-line-hover'
+                  ? 'border-blue-500 ring-2 ring-blue-500/30 shadow-blue-500/10 transition-[border-color,box-shadow,ring] duration-150'
+                  : 'border-line hover:border-line-hover transition-[border-color,box-shadow,ring] duration-150'
               }`}
             >
               {/* Table Card Header (Draggable) */}
               <div
                 onMouseDown={(e) => handleTableMouseDown(e, table)}
-                className="table-card-header flex items-center justify-between px-2.5 py-2 bg-black/10 dark:bg-white/5 rounded-t-lg border-b border-line cursor-grab active:cursor-grabbing"
+                className={`table-card-header flex items-center justify-between px-2.5 py-2 bg-black/10 dark:bg-white/5 rounded-t-lg border-b border-line ${
+                  isDragging ? 'cursor-grabbing' : 'cursor-grab active:cursor-grabbing'
+                }`}
               >
                 <div className="flex items-center gap-1.5 min-w-0">
                   <button
