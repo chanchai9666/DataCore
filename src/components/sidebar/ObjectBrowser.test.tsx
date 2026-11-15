@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ObjectBrowser } from './ObjectBrowser';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -17,6 +17,7 @@ vi.mock('../../api/db', () => ({
     getSchemaTree: vi.fn(),
     deleteConnection: vi.fn(),
     executeDirectQuery: vi.fn(),
+    executeQuery: vi.fn(),
   },
 }));
 
@@ -738,6 +739,96 @@ describe('ObjectBrowser', () => {
       await waitFor(() => {
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
       });
+    });
+
+    it('copies column name and copy column name with data type from context menu', async () => {
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+
+      vi.mocked(dbApi.executeDirectQuery).mockResolvedValue({
+        columns: [
+          { name: 'cid', data_type: 'integer', nullable: false },
+          { name: 'name', data_type: 'text', nullable: false },
+          { name: 'type', data_type: 'text', nullable: true },
+          { name: 'notnull', data_type: 'integer', nullable: false },
+          { name: 'dflt_value', data_type: 'text', nullable: true },
+          { name: 'pk', data_type: 'integer', nullable: false },
+        ],
+        rows: [
+          [0, 'id', 'INTEGER', '1', null, '1'],
+          [1, 'email', 'VARCHAR', '0', null, '0'],
+        ],
+        execution_time_ms: 1,
+      });
+
+      render(<ObjectBrowser />);
+      await expandToTables();
+
+      // Expand columns of users table
+      const userNode = await screen.findByTestId('tree-node-users');
+      const toggleColsBtn = within(userNode).getByTestId('btn-toggle-columns');
+      fireEvent.click(toggleColsBtn);
+
+      // Column id should appear
+      const idCol = await screen.findByText('id');
+      fireEvent.contextMenu(idCol);
+
+      // Context menu buttons should be present
+      const copyNameBtn = await screen.findByTestId('copy-column-name-btn');
+      expect(copyNameBtn).toBeInTheDocument();
+      expect(copyNameBtn).toHaveTextContent('Copy Column Name');
+
+      const copyTypeBtn = await screen.findByTestId('copy-column-name-type-btn');
+      expect(copyTypeBtn).toBeInTheDocument();
+      expect(copyTypeBtn).toHaveTextContent('Copy Name and Type');
+
+      // Click Copy Column Name
+      fireEvent.click(copyNameBtn);
+      expect(writeTextMock).toHaveBeenCalledWith('id');
+
+      // Now right click on email and test Copy Name and Type
+      const emailCol = await screen.findByText('email');
+      fireEvent.contextMenu(emailCol);
+
+      const copyTypeBtn2 = await screen.findByTestId('copy-column-name-type-btn');
+      fireEvent.click(copyTypeBtn2);
+      expect(writeTextMock).toHaveBeenCalledWith('email VARCHAR');
+    });
+
+    it('copies selected column name on Cmd+C or Ctrl+C shortcut', async () => {
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+
+      vi.mocked(dbApi.executeDirectQuery).mockResolvedValue({
+        columns: [
+          { name: 'cid', data_type: 'integer', nullable: false },
+          { name: 'name', data_type: 'text', nullable: false },
+          { name: 'type', data_type: 'text', nullable: true },
+          { name: 'notnull', data_type: 'integer', nullable: false },
+          { name: 'dflt_value', data_type: 'text', nullable: true },
+          { name: 'pk', data_type: 'integer', nullable: false },
+        ],
+        rows: [
+          [0, 'email', 'VARCHAR', '0', null, '0'],
+        ],
+        execution_time_ms: 1,
+      });
+
+      render(<ObjectBrowser />);
+      await expandToTables();
+
+      // Expand columns of users table
+      const userNode = await screen.findByTestId('tree-node-users');
+      const toggleColsBtn = within(userNode).getByTestId('btn-toggle-columns');
+      fireEvent.click(toggleColsBtn);
+
+      // Click to select email column
+      const emailCol = await screen.findByText('email');
+      fireEvent.click(emailCol);
+
+      // Press Cmd+C
+      fireEvent.keyDown(window, { key: 'c', metaKey: true });
+      expect(writeTextMock).toHaveBeenCalledWith('email');
     });
   });
 });

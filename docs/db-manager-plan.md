@@ -894,6 +894,14 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Pan vs Click Differentiation:** ตรวจวัดระยะการเลื่อนเมาส์ (Drag distance) ระหว่าง `mousedown` และ `mouseup` โดยหากเป็นการลากเพื่อ Pan มุมมองเกิน 5px ระบบจะคงสถานะ Selection เดิมไว้ แต่หากเป็นการคลิกปล่อยที่เดิม จะสั่ง Deselect ทันที
     - **Keyboard Escape Support:** ดักจับการกดปุ่ม `Escape` บนคีย์บอร์ดเพื่อสั่งรีเซ็ตการเลือกตารางและล้างเส้นความสัมพันธ์ที่สว่างค้างอยู่ได้ทันทีตามมาตรฐาน Desktop GUI
 
+38. **Issue #146: Copy Column Names and Data Types from Explorer Tree (`ObjectBrowser.tsx`, `ConnectionTreeNode.tsx`)**
+    - **Single & Multi-selection Support:** ปรับปรุง `handleClick` ใน `ConnectionTreeNode.tsx` ให้รองรับการเลือกแบบหลายคอลัมน์ด้วย `Cmd + Click` / `Ctrl + Click` (`node.selectMulti()` หรือ `node.deselect()`) และ `Shift + Click` (`node.selectContiguous()`) ผ่าน `react-arborist`
+    - **Keyboard Shortcut (`Cmd+C` / `Ctrl+C`):** ดักจับคีย์ลัดคัดลอกในพื้นที่ Explorer Tree เมื่อมีการเลือกคอลัมน์ โดยจะคัดลอกเฉพาะชื่อคอลัมน์ (`col1, col2, col3`) ลง Clipboard พร้อมแสดง Toast แจ้งเตือน
+    - **Context Menu Options on Column Nodes:**
+      - **Copy Column Name(s):** คัดลอกเฉพาะชื่อคอลัมน์ (เช่น `id, name, phone`)
+      - **Copy Name and Type(s):** คัดลอกชื่อพร้อมประเภทข้อมูล (เช่น `id varchar, name varchar, phone varchar`)
+      - ปรับปรุง `handleContextMenu` ให้คง Selection เดิมไว้หากคลิกขวาบนโหนดที่อยู่ในกลุ่มที่ถูกเลือกอยู่แล้ว
+
 
 
 

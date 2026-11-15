@@ -305,7 +305,18 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     context.onCloseContextMenu?.();
-    node.select();
+
+    if (e.metaKey || e.ctrlKey) {
+      if (node.isSelected) {
+        node.deselect();
+      } else {
+        node.selectMulti();
+      }
+    } else if (e.shiftKey) {
+      node.selectContiguous();
+    } else {
+      node.select();
+    }
 
     if (data.nodeType === 'connection') {
       useConnectionStore.getState().setActiveConnection(data.connectionId);
@@ -316,7 +327,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
     } else if (isTableOrView) {
       // Do nothing to toggle: clicking table or view row only selects it.
       // Columns are expanded via the dedicated Show Columns button or chevron arrow.
-    } else if (!isLeaf) {
+    } else if (!isLeaf && data.nodeType !== 'column') {
       node.toggle();
     }
   };
@@ -345,7 +356,9 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    node.select();
+    if (!node.isSelected) {
+      node.select();
+    }
     if (context.onContextMenuNode) {
       context.onContextMenuNode(e, data);
     }
@@ -370,8 +383,15 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         draggable={data.nodeType === 'column'}
         onDragStart={(e) => {
           if (data.nodeType === 'column') {
-            e.dataTransfer.setData('text/plain', data.name);
-            e.dataTransfer.setData('application/datacore-column', data.name);
+            const selectedColumnNodes = (node.tree?.selectedNodes || []).filter(
+              (n) => n.data.nodeType === 'column'
+            );
+            const dragText =
+              selectedColumnNodes.length > 1 && node.isSelected
+                ? selectedColumnNodes.map((n) => n.data.name).join(', ')
+                : data.name;
+            e.dataTransfer.setData('text/plain', dragText);
+            e.dataTransfer.setData('application/datacore-column', dragText);
           }
         }}
         className={`group flex items-center h-6 mx-1 px-1.5 w-full rounded-md cursor-pointer select-none text-xs transition-colors ${

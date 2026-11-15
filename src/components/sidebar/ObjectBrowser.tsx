@@ -1325,6 +1325,88 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     setContextMenu(null);
   }, []);
 
+  const getTargetColumns = useCallback((clickedNode: BrowserTreeNode): BrowserTreeNode[] => {
+    const selectedNodes = treeRef.current?.selectedNodes || [];
+    const selectedColumnNodes = selectedNodes
+      .filter((n) => n.data.nodeType === 'column')
+      .map((n) => n.data);
+
+    if (
+      selectedColumnNodes.length > 0 &&
+      selectedColumnNodes.some((c) => c.id === clickedNode.id)
+    ) {
+      return selectedColumnNodes;
+    }
+    return [clickedNode];
+  }, []);
+
+  const handleCopyColumnNames = useCallback((cols: BrowserTreeNode[]) => {
+    if (cols.length === 0) return;
+    const textToCopy = cols.map((c) => c.name).join(', ');
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(textToCopy);
+    }
+    if (cols.length === 1) {
+      toast.success(`Copied column "${textToCopy}" to clipboard`);
+    } else {
+      toast.success(`Copied ${cols.length} column names to clipboard`);
+    }
+    setContextMenu(null);
+  }, []);
+
+  const handleCopyColumnNamesAndTypes = useCallback((cols: BrowserTreeNode[]) => {
+    if (cols.length === 0) return;
+    const textToCopy = cols
+      .map((c) => (c.dataType ? `${c.name} ${c.dataType}` : c.name))
+      .join(', ');
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(textToCopy);
+    }
+    if (cols.length === 1) {
+      toast.success(`Copied column "${textToCopy}" to clipboard`);
+    } else {
+      toast.success(`Copied ${cols.length} columns with types to clipboard`);
+    }
+    setContextMenu(null);
+  }, []);
+
+  // Keyboard shortcut: Cmd+C / Ctrl+C to copy selected column name(s)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'c' || e.key === 'C')) {
+        const activeEl = document.activeElement;
+        // Do not intercept if user is typing in input, textarea, contenteditable, or code editor
+        if (
+          activeEl &&
+          (activeEl.tagName === 'INPUT' ||
+            activeEl.tagName === 'TEXTAREA' ||
+            activeEl.getAttribute('contenteditable') === 'true' ||
+            activeEl.closest('.monaco-editor'))
+        ) {
+          return;
+        }
+
+        if (
+          containerRef.current &&
+          (containerRef.current.contains(activeEl) || activeEl === document.body)
+        ) {
+          const selectedNodes = treeRef.current?.selectedNodes || [];
+          const selectedColumnNodes = selectedNodes
+            .filter((n) => n.data.nodeType === 'column')
+            .map((n) => n.data);
+
+          if (selectedColumnNodes.length > 0) {
+            e.preventDefault();
+            handleCopyColumnNames(selectedColumnNodes);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleCopyColumnNames]);
+
   const handleContextMenuNode = useCallback(
     (e: React.MouseEvent, node: BrowserTreeNode) => {
       setContextMenu({
@@ -1942,6 +2024,39 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               </button>
             </>
           )}
+
+          {/* Column Context Menu */}
+          {contextMenu.node.nodeType === 'column' && (() => {
+            const targetColumns = getTargetColumns(contextMenu.node);
+            const count = targetColumns.length;
+            return (
+              <>
+                <button
+                  type="button"
+                  data-testid="copy-column-name-btn"
+                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                  onClick={() => handleCopyColumnNames(targetColumns)}
+                >
+                  <Copy className="w-3.5 h-3.5 text-gray-400" />
+                  <span>
+                    {count > 1 ? `Copy Column Names (${count})` : 'Copy Column Name'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="copy-column-name-type-btn"
+                  className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                  onClick={() => handleCopyColumnNamesAndTypes(targetColumns)}
+                >
+                  <FileCode className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+                  <span>
+                    {count > 1 ? `Copy Names and Types (${count})` : 'Copy Name and Type'}
+                  </span>
+                </button>
+              </>
+            );
+          })()}
         </div>
       )}
 
