@@ -10,7 +10,6 @@ import { formatCellValue } from '../utils/cellFormatter';
 import { formatSqlLiteral } from './queryBuilder';
 import { dbApi } from './db';
 import {
-  getFetchForeignKeysSql,
   parseForeignKeysFromQueryResult,
   type TableForeignKeyStructure,
 } from '../components/structure/tableManagementHelpers';
@@ -263,6 +262,279 @@ export function buildERRelationships(
 }
 
 /**
+ * Fetches PostgreSQL schema tables, columns, PKs and FKs in 2 parallel bulk queries
+ */
+export async function fetchPostgresSchemaER(
+  connectionId: string,
+  schemaName?: string
+): Promise<{ tables: ERTable[]; relationships: ERRelationship[] }> {
+  const s = schemaName || 'public';
+  const schemaLit = formatSqlLiteral(s, 'postgres');
+
+  // Query 1: All columns with PK indicator across all BASE TABLES in schema
+  const colSql = `SELECT 
+    c.table_name,
+    c.column_name, 
+    c.data_type, 
+    c.is_nullable, 
+    CASE WHEN pk.column_name IS NOT NULL THEN 1 ELSE 0 END AS is_pk 
+  FROM information_schema.columns c 
+  JOIN information_schema.tables t
+    ON c.table_schema = t.table_schema
+    AND c.table_name = t.table_name
+  LEFT JOIN (
+    SELECT kcu.table_schema, kcu.table_name, kcu.column_name 
+    FROM information_schema.table_constraints tc 
+    JOIN information_schema.key_column_usage kcu 
+      ON tc.constraint_name = kcu.constraint_name 
+      AND tc.table_schema = kcu.table_schema 
+    WHERE tc.constraint_type = 'PRIMARY KEY'
+      AND tc.table_schema = ${schemaLit}
+  ) pk ON c.table_schema = pk.table_schema 
+      AND c.table_name = pk.table_name 
+      AND c.column_name = pk.column_name 
+  WHERE c.table_schema = ${schemaLit}
+    AND t.table_type = 'BASE TABLE'
+  ORDER BY c.table_name, c.ordinal_position;`;
+
+  // Query 2: All foreign keys across the schema
+  const fkSql = `SELECT
+    tc.table_name AS from_table,
+    kcu.column_name AS from_column,
+    ccu.table_name AS to_table,
+    ccu.column_name AS to_column,
+    tc.constraint_name,
+    rc.update_rule,
+    rc.delete_rule
+  FROM information_schema.table_constraints AS tc
+  JOIN information_schema.key_column_usage AS kcu
+    ON tc.constraint_name = kcu.constraint_name
+    AND tc.table_schema = kcu.table_schema
+  JOIN information_schema.constraint_column_usage AS ccu
+    ON ccu.constraint_name = tc.constraint_name
+    AND ccu.table_schema = tc.table_schema
+  LEFT JOIN information_schema.referential_constraints AS rc
+    ON rc.constraint_name = tc.constraint_name
+    AND rc.constraint_schema = tc.table_schema
+  WHERE tc.constraint_type = 'FOREIGN KEY'
+    AND tc.table_schema = ${schemaLit}
+  ORDER BY tc.table_name, kcu.ordinal_position;`;
+
+  const [colRes, fkRes] = await Promise.all([
+    dbApi.executeDirectQuery(connectionId, colSql),
+    dbApi.executeDirectQuery(connectionId, fkSql),
+  ]);
+
+  const getStr = (val: CellValue) => {
+    const str = formatCellValue(val);
+    return str === 'NULL' ? '' : str;
+  };
+
+  const tablesMap = new Map<string, ERColumn[]>();
+  const seenColsPerTable = new Map<string, Set<string>>();
+
+  for (const row of colRes.rows || []) {
+    const tName = getStr(row[0]);
+    const colName = getStr(row[1]);
+    if (!tName || !colName) continue;
+
+    if (!tablesMap.has(tName)) {
+      tablesMap.set(tName, []);
+      seenColsPerTable.set(tName, new Set());
+    }
+
+    const seenCols = seenColsPerTable.get(tName)!;
+    const lowerCol = colName.toLowerCase();
+    const dataType = getStr(row[2]);
+    const isNullable = getStr(row[3]).toUpperCase() === 'YES';
+    const isPk = getStr(row[4]) === '1' || Number(getStr(row[4])) > 0;
+
+    if (seenCols.has(lowerCol)) {
+      if (isPk) {
+        const existing = tablesMap.get(tName)!.find((c) => c.name.toLowerCase() === lowerCol);
+        if (existing) existing.isPrimaryKey = true;
+      }
+      continue;
+    }
+
+    seenCols.add(lowerCol);
+    tablesMap.get(tName)!.push({
+      name: colName,
+      dataType,
+      isPrimaryKey: isPk,
+      isNullable,
+    });
+  }
+
+  const relationships: ERRelationship[] = [];
+  for (const row of fkRes.rows || []) {
+    const fromTable = getStr(row[0]);
+    const fromColumn = getStr(row[1]);
+    const toTable = getStr(row[2]);
+    const toColumn = getStr(row[3]) || 'id';
+    const constraintName = getStr(row[4]);
+    const onUpdate = getStr(row[5]) || undefined;
+    const onDelete = getStr(row[6]) || undefined;
+
+    if (fromTable && toTable) {
+      relationships.push({
+        id: `${fromTable}_${constraintName || 'fk'}_${fromColumn}`,
+        fromTable,
+        fromColumn,
+        toTable,
+        toColumn,
+        constraintName: constraintName || undefined,
+        onUpdate: onUpdate === 'NO ACTION' ? undefined : (onUpdate as any),
+        onDelete: onDelete === 'NO ACTION' ? undefined : (onDelete as any),
+      });
+    }
+  }
+
+  const tables: ERTable[] = Array.from(tablesMap.entries()).map(([tName, cols]) => ({
+    id: tName,
+    name: tName,
+    schema: schemaName,
+    columns: cols,
+    x: 0,
+    y: 0,
+    isCollapsed: false,
+  }));
+
+  return { tables, relationships };
+}
+
+/**
+ * Fetches MySQL schema tables, columns, PKs and FKs in 3 parallel bulk queries
+ */
+export async function fetchMysqlSchemaER(
+  connectionId: string,
+  schemaName?: string
+): Promise<{ tables: ERTable[]; relationships: ERRelationship[] }> {
+  const schemaSql = schemaName ? formatSqlLiteral(schemaName, 'mysql') : 'DATABASE()';
+
+  const tableSql = `SELECT table_name FROM information_schema.tables WHERE table_schema = ${schemaSql} AND table_type = 'BASE TABLE' ORDER BY table_name;`;
+  const colSql = `SELECT table_name, column_name, data_type, is_nullable, column_key FROM information_schema.columns WHERE table_schema = ${schemaSql} ORDER BY table_name, ordinal_position;`;
+  const fkSql = `SELECT 
+    table_name AS from_table,
+    column_name AS from_column,
+    referenced_table_name AS to_table,
+    referenced_column_name AS to_column,
+    constraint_name
+  FROM information_schema.key_column_usage
+  WHERE table_schema = ${schemaSql}
+    AND referenced_table_name IS NOT NULL
+  ORDER BY table_name, ordinal_position;`;
+
+  const [tableRes, colRes, fkRes] = await Promise.all([
+    dbApi.executeDirectQuery(connectionId, tableSql),
+    dbApi.executeDirectQuery(connectionId, colSql),
+    dbApi.executeDirectQuery(connectionId, fkSql),
+  ]);
+
+  const getStr = (val: CellValue) => {
+    const str = formatCellValue(val);
+    return str === 'NULL' ? '' : str;
+  };
+
+  const tablesMap = new Map<string, ERColumn[]>();
+  for (const row of tableRes.rows || []) {
+    const tName = getStr(row[0]);
+    if (tName) tablesMap.set(tName, []);
+  }
+
+  for (const row of colRes.rows || []) {
+    const tName = getStr(row[0]);
+    const colName = getStr(row[1]);
+    if (!tName || !colName) continue;
+    if (!tablesMap.has(tName)) tablesMap.set(tName, []);
+
+    const dataType = getStr(row[2]);
+    const isNullable = getStr(row[3]).toUpperCase() === 'YES';
+    const isPk = getStr(row[4]).toUpperCase() === 'PRI';
+
+    tablesMap.get(tName)!.push({
+      name: colName,
+      dataType,
+      isPrimaryKey: isPk,
+      isNullable,
+    });
+  }
+
+  const relationships: ERRelationship[] = [];
+  for (const row of fkRes.rows || []) {
+    const fromTable = getStr(row[0]);
+    const fromColumn = getStr(row[1]);
+    const toTable = getStr(row[2]);
+    const toColumn = getStr(row[3]) || 'id';
+    const constraintName = getStr(row[4]);
+
+    if (fromTable && toTable) {
+      relationships.push({
+        id: `${fromTable}_${constraintName || 'fk'}_${fromColumn}`,
+        fromTable,
+        fromColumn,
+        toTable,
+        toColumn,
+        constraintName: constraintName || undefined,
+      });
+    }
+  }
+
+  const tables: ERTable[] = Array.from(tablesMap.entries()).map(([tName, cols]) => ({
+    id: tName,
+    name: tName,
+    schema: schemaName,
+    columns: cols,
+    x: 0,
+    y: 0,
+    isCollapsed: false,
+  }));
+
+  return { tables, relationships };
+}
+
+/**
+ * Fetches SQLite schema tables, columns, and foreign keys concurrently using Promise.all
+ */
+export async function fetchSqliteSchemaER(
+  connectionId: string
+): Promise<{ tables: ERTable[]; relationships: ERRelationship[] }> {
+  const tableRes = await dbApi.executeDirectQuery(
+    connectionId,
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;"
+  );
+  const tableNames = (tableRes.rows || []).map((r) => formatCellValue(r[0]));
+
+  const results = await Promise.all(
+    tableNames.map(async (tName) => {
+      const [colRes, fkRes] = await Promise.all([
+        dbApi.executeDirectQuery(connectionId, `PRAGMA table_info(${formatSqlLiteral(tName, 'sqlite')});`),
+        dbApi.executeDirectQuery(connectionId, `PRAGMA foreign_key_list(${formatSqlLiteral(tName, 'sqlite')});`),
+      ]);
+      const columns = parseSQLiteColumns(colRes);
+      const fks = parseForeignKeysFromQueryResult(fkRes, 'sqlite');
+      const relationships = buildERRelationships(tName, fks);
+      return {
+        table: {
+          id: tName,
+          name: tName,
+          columns,
+          x: 0,
+          y: 0,
+          isCollapsed: false,
+        },
+        relationships,
+      };
+    })
+  );
+
+  const tables: ERTable[] = results.map((r) => r.table);
+  const relationships: ERRelationship[] = results.flatMap((r) => r.relationships);
+
+  return { tables, relationships };
+}
+
+/**
  * Fetches tables, columns, and foreign keys for an entire schema/database to build ERDiagramData
  */
 export async function fetchERDiagramData(
@@ -271,102 +543,25 @@ export async function fetchERDiagramData(
   schemaName?: string
 ): Promise<ERDiagramData> {
   const d = (driver || '').toLowerCase();
-  let tableNames: string[] = [];
+  let tables: ERTable[] = [];
+  let allRelationships: ERRelationship[] = [];
 
-  // 1. Fetch table names
   if (d.includes('sqlite')) {
-    const res = await dbApi.executeDirectQuery(
-      connectionId,
-      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;"
-    );
-    tableNames = res.rows.map((r: CellValue[]) => formatCellValue(r[0]));
+    const res = await fetchSqliteSchemaER(connectionId);
+    tables = res.tables;
+    allRelationships = res.relationships;
   } else if (d.includes('mysql')) {
-    const schemaSql = schemaName ? formatSqlLiteral(schemaName, 'mysql') : 'DATABASE()';
-    const res = await dbApi.executeDirectQuery(
-      connectionId,
-      `SELECT table_name FROM information_schema.tables WHERE table_schema = ${schemaSql} AND table_type = 'BASE TABLE' ORDER BY table_name;`
-    );
-    tableNames = res.rows.map((r: CellValue[]) => formatCellValue(r[0]));
+    const res = await fetchMysqlSchemaER(connectionId, schemaName);
+    tables = res.tables;
+    allRelationships = res.relationships;
   } else {
-    // PostgreSQL
-    const s = schemaName || 'public';
-    const res = await dbApi.executeDirectQuery(
-      connectionId,
-      `SELECT table_name FROM information_schema.tables WHERE table_schema = ${formatSqlLiteral(s, 'postgres')} AND table_type = 'BASE TABLE' ORDER BY table_name;`
-    );
-    tableNames = res.rows.map((r: CellValue[]) => formatCellValue(r[0]));
+    // PostgreSQL / default
+    const res = await fetchPostgresSchemaER(connectionId, schemaName);
+    tables = res.tables;
+    allRelationships = res.relationships;
   }
 
-  const tables: ERTable[] = [];
-  const allRelationships: ERRelationship[] = [];
-
-  // 2. Fetch columns and foreign keys for each table
-  for (const tName of tableNames) {
-    let columns: ERColumn[] = [];
-
-    if (d.includes('sqlite')) {
-      const colRes = await dbApi.executeDirectQuery(connectionId, `PRAGMA table_info(${formatSqlLiteral(tName, 'sqlite')});`);
-      columns = parseSQLiteColumns(colRes);
-
-      const fkRes = await dbApi.executeDirectQuery(connectionId, `PRAGMA foreign_key_list(${formatSqlLiteral(tName, 'sqlite')});`);
-      const fks = parseForeignKeysFromQueryResult(fkRes, driver);
-      allRelationships.push(...buildERRelationships(tName, fks));
-    } else if (d.includes('mysql')) {
-      const schemaSql = schemaName ? formatSqlLiteral(schemaName, 'mysql') : 'DATABASE()';
-      const colRes = await dbApi.executeDirectQuery(
-        connectionId,
-        `SELECT column_name, data_type, is_nullable, column_key FROM information_schema.columns WHERE table_schema = ${schemaSql} AND table_name = ${formatSqlLiteral(tName, 'mysql')} ORDER BY ordinal_position;`
-      );
-      columns = parseMySQLColumns(colRes);
-
-      const fkSql = getFetchForeignKeysSql(driver, tName, schemaName);
-      const fkRes = await dbApi.executeDirectQuery(connectionId, fkSql);
-      const fks = parseForeignKeysFromQueryResult(fkRes, driver);
-      allRelationships.push(...buildERRelationships(tName, fks));
-    } else {
-      // PostgreSQL
-      const s = schemaName || 'public';
-      const colRes = await dbApi.executeDirectQuery(
-        connectionId,
-        `SELECT 
-          c.column_name, 
-          c.data_type, 
-          c.is_nullable, 
-          CASE WHEN pk.column_name IS NOT NULL THEN 1 ELSE 0 END AS is_pk 
-        FROM information_schema.columns c 
-        LEFT JOIN (
-          SELECT kcu.table_schema, kcu.table_name, kcu.column_name 
-          FROM information_schema.table_constraints tc 
-          JOIN information_schema.key_column_usage kcu 
-            ON tc.constraint_name = kcu.constraint_name 
-            AND tc.table_schema = kcu.table_schema 
-          WHERE tc.constraint_type = 'PRIMARY KEY'
-        ) pk ON c.table_schema = pk.table_schema 
-            AND c.table_name = pk.table_name 
-            AND c.column_name = pk.column_name 
-        WHERE c.table_name = ${formatSqlLiteral(tName, 'postgres')} AND c.table_schema = ${formatSqlLiteral(s, 'postgres')} 
-        ORDER BY c.ordinal_position;`
-      );
-      columns = parsePostgresColumns(colRes);
-
-      const fkSql = getFetchForeignKeysSql(driver, tName, schemaName);
-      const fkRes = await dbApi.executeDirectQuery(connectionId, fkSql);
-      const fks = parseForeignKeysFromQueryResult(fkRes, driver);
-      allRelationships.push(...buildERRelationships(tName, fks));
-    }
-
-    tables.push({
-      id: tName,
-      name: tName,
-      schema: schemaName,
-      columns,
-      x: 0,
-      y: 0,
-      isCollapsed: false,
-    });
-  }
-
-  // 3. Compute Auto Layout
+  // Compute Auto Layout
   const laidOutTables = computeAutoLayout(tables, allRelationships);
 
   return {

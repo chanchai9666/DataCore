@@ -147,3 +147,47 @@ fn test_validate_safe_transfer_path_invalid_extensions() {
     assert!(validate_safe_transfer_path(php_path.to_str().unwrap(), allowed).is_err());
     assert!(validate_safe_transfer_path(no_ext_path.to_str().unwrap(), allowed).is_err());
 }
+
+#[tokio::test]
+async fn test_save_text_file_success() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("test_diagram.svg");
+    let content = "<svg><rect width=\"100\" height=\"100\" /></svg>";
+
+    let res = crate::commands::transfer_commands::save_text_file(
+        file_path.to_str().unwrap().to_string(),
+        content.to_string(),
+    )
+    .await;
+
+    assert!(res.is_ok(), "Expected save_text_file to succeed: {:?}", res);
+    let written = std::fs::read_to_string(&file_path).unwrap();
+    assert_eq!(written, content);
+}
+
+#[tokio::test]
+async fn test_save_text_file_rejects_disallowed_extension() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("exploit.sh");
+
+    let res = crate::commands::transfer_commands::save_text_file(
+        file_path.to_str().unwrap().to_string(),
+        "echo 1".to_string(),
+    )
+    .await;
+
+    assert!(res.is_err());
+    let err = res.unwrap_err();
+    assert!(err.contains("not allowed"), "Unexpected error: {}", err);
+}
+
+#[tokio::test]
+async fn test_save_text_file_rejects_traversal() {
+    let res = crate::commands::transfer_commands::save_text_file(
+        "../../../etc/malicious.svg".to_string(),
+        "<svg></svg>".to_string(),
+    )
+    .await;
+
+    assert!(res.is_err());
+}

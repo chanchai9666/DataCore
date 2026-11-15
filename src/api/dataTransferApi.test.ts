@@ -10,6 +10,7 @@ import {
   pickExportFile,
   onTransferProgress,
   cancelTransfer,
+  saveTextFile,
 } from './dataTransferApi';
 import type { ExportOptions, ImportOptions } from '../types/dataTransfer';
 
@@ -29,6 +30,17 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 describe('dataTransferApi', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('calls invoke for saveTextFile', async () => {
+    vi.mocked(core.invoke).mockResolvedValueOnce(undefined);
+
+    await saveTextFile('/path/to/diagram.svg', '<svg></svg>');
+    expect(core.invoke).toHaveBeenCalledWith('save_text_file', {
+      filePath: '/path/to/diagram.svg',
+      file_path: '/path/to/diagram.svg',
+      content: '<svg></svg>',
+    });
   });
 
   it('calls invoke for previewImportFile', async () => {

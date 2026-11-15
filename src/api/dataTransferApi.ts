@@ -22,6 +22,17 @@ export const previewImportFile = async (
   });
 };
 
+export const saveTextFile = async (
+  filePath: string,
+  content: string
+): Promise<void> => {
+  return invoke<void>('save_text_file', {
+    filePath,
+    file_path: filePath,
+    content,
+  });
+};
+
 export const exportData = async (
   connectionId: string,
   sql: string,

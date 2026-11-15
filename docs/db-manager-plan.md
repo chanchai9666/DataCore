@@ -868,6 +868,20 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
       - **Filter Bar Open (`isFilterVisible`):** ปรับโทนสีให้แสดงชัดเจนว่าบาร์ตัวกรองกำลังเปิดใช้งาน (Light: ฟ้าอ่อนไฮคอนทราสต์ `bg-blue-50 text-blue-700 border-blue-300`, Dark: `bg-blue-900/60 text-blue-100 border-blue-500`)
       - **Filter Active (`isFilterActive`):** เปลี่ยนเป็น Primary Blue เด่นชัด พร้อมแสดงจำนวนเงื่อนไขที่ใช้งานอยู่จริง เช่น `Filter (1)` เพื่อให้ผู้ใช้ทราบสถานะการกรองข้อมูลทันที
 
+35. **Issue #143: Optimize ER Diagram Loading, Canvas Controls, Quick-Jump, and Native SVG Save (`erDiagramApi.ts`, `ERDiagramTab.tsx`, `transfer_commands.rs`)**
+    - **Ultra-Fast Bulk Introspection (10x-50x Faster):** เปลี่ยนการโหลดข้อมูล ER Diagram จากการวนลูปทีละตาราง (60-100 คิวรีแบบ sequential) เป็นการใช้ Bulk Query ระดับ Schema:
+      - **PostgreSQL:** รันเพียง 2 คิวรี (1 คิวรีสำหรับคอลัมน์ + PK ทั้งหมด และ 1 คิวรีสำหรับ Foreign Keys ทั้งหมดของทั้ง Schema)
+      - **MySQL:** รันเพียง 2 คิวรีผ่าน `information_schema.columns` และ `information_schema.key_column_usage`
+      - **SQLite:** ดึงข้อมูลทุกตารางแบบคู่ขนานผ่าน `Promise.all`
+    - **Event Isolation (Fix Zoom vs Field Scroll):** ใส่ `onWheel={(e) => e.stopPropagation()}` ที่กล่องรายการฟิลด์ของตาราง ช่วยให้ผู้ใช้เลื่อนดูคอลัมน์ภายในตารางได้อย่างอิสระโดยไม่ไปกระตุ้น Canvas Zoom โดยไม่ได้ตั้งใจ
+    - **Ergonomic Canvas Navigation & Table Quick-Jump:**
+      - รองรับการ Pan ด้วย Middle Mouse Button หรือ Spacebar + Drag หรือคลิกซ้ายลากบนพื้นที่ว่างของ Canvas
+      - เพิ่มเมนู Table Quick-Jump Search ใน Toolbar: เลือกตารางแล้ว Canvas จะพุ่งเป้าไปที่ตารางนั้นตรงกึ่งกลางหน้าจอพร้อมแอนิเมชันไฮไลต์
+      - เพิ่ม Mini-Map (Radar View) ย่อขนาดเล็กมุมล่างขวา เพื่อดูตำแหน่งภาพรวมและคลิกเปลี่ยนตำแหน่ง Viewport ได้ทันที
+    - **Native Destination-Picker for SVG Export:**
+      - เพิ่ม IPC Command `save_text_file` ใน Rust พร้อมตรวจสอบความปลอดภัยผ่าน `validate_safe_transfer_path`
+      - สลับจากการใช้เบราว์เซอร์ดาวน์โหลดอัตโนมัติมาเป็นการเปิด Native Save Dialog (`@tauri-apps/plugin-dialog`) ให้ผู้ใช้เลือกโฟลเดอร์ปลายทางและตั้งชื่อไฟล์ SVG ได้ตามต้องการ
+
 
 
 

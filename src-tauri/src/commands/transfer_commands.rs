@@ -345,3 +345,14 @@ pub async fn copy_table_cross_db(
     .await
     .map_err(|e| e.to_string())
 }
+
+const ALLOWED_TEXT_SAVE_EXTS: &[&str] = &[
+    "svg", "xml", "txt", "sql", "json", "csv", "tsv", "md", "html",
+];
+
+#[tauri::command]
+pub async fn save_text_file(file_path: String, content: String) -> Result<(), String> {
+    let safe_path = validate_safe_transfer_path(&file_path, ALLOWED_TEXT_SAVE_EXTS)?;
+    std::fs::write(&safe_path, content.as_bytes())
+        .map_err(|e| format!("Failed to write file '{}': {}", safe_path.display(), e))
+}

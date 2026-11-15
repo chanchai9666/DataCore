@@ -55,6 +55,7 @@ pub fn run() {
             import_sql,
             copy_table_cross_db,
             cancel_transfer,
+            save_text_file,
             simulate_query_impact,
             get_audit_logs,
             verify_audit_log_integrity,

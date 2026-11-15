@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   computeAutoLayout,
   exportERDiagramAsSvg,
@@ -7,7 +7,11 @@ import {
   parseMySQLColumns,
   parsePostgresColumns,
   buildERRelationships,
+  fetchPostgresSchemaER,
+  fetchMysqlSchemaER,
+  fetchERDiagramData,
 } from './erDiagramApi';
+import { dbApi } from './db';
 import type { ERTable, ERRelationship, ERDiagramData } from '../types/db';
 import type { QueryResult } from '../types/db';
 
@@ -267,6 +271,171 @@ describe('erDiagramApi', () => {
       expect(sql).toContain('CREATE TABLE "orders"');
       expect(sql).toContain('FOREIGN KEY ("user_id") REFERENCES "users" ("id")');
       expect(sql).toContain('ON DELETE CASCADE');
+    });
+  });
+
+  describe('Bulk Schema Introspection', () => {
+    beforeEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('fetches Postgres schema tables, columns, and foreign keys in bulk', async () => {
+      const mockColRes: QueryResult = {
+        columns: [
+          { name: 'table_name', data_type: 'varchar', nullable: false },
+          { name: 'column_name', data_type: 'varchar', nullable: false },
+          { name: 'data_type', data_type: 'varchar', nullable: false },
+          { name: 'is_nullable', data_type: 'varchar', nullable: false },
+          { name: 'is_pk', data_type: 'integer', nullable: false },
+        ],
+        rows: [
+          [{ Text: 'users' }, { Text: 'id' }, { Text: 'integer' }, { Text: 'NO' }, { Integer: 1 }],
+          [{ Text: 'users' }, { Text: 'email' }, { Text: 'varchar' }, { Text: 'NO' }, { Integer: 0 }],
+          [{ Text: 'orders' }, { Text: 'id' }, { Text: 'integer' }, { Text: 'NO' }, { Integer: 1 }],
+          [{ Text: 'orders' }, { Text: 'user_id' }, { Text: 'integer' }, { Text: 'NO' }, { Integer: 0 }],
+        ],
+        execution_time_ms: 1,
+      };
+
+      const mockFkRes: QueryResult = {
+        columns: [
+          { name: 'from_table', data_type: 'varchar', nullable: false },
+          { name: 'from_column', data_type: 'varchar', nullable: false },
+          { name: 'to_table', data_type: 'varchar', nullable: false },
+          { name: 'to_column', data_type: 'varchar', nullable: false },
+          { name: 'constraint_name', data_type: 'varchar', nullable: false },
+          { name: 'update_rule', data_type: 'varchar', nullable: true },
+          { name: 'delete_rule', data_type: 'varchar', nullable: true },
+        ],
+        rows: [
+          [
+            { Text: 'orders' },
+            { Text: 'user_id' },
+            { Text: 'users' },
+            { Text: 'id' },
+            { Text: 'fk_orders_user' },
+            { Text: 'CASCADE' },
+            { Text: 'SET NULL' },
+          ],
+        ],
+        execution_time_ms: 1,
+      };
+
+      const executeSpy = vi.spyOn(dbApi, 'executeDirectQuery').mockImplementation(async (_conn, sql) => {
+        if (sql.includes('information_schema.columns')) {
+          return mockColRes;
+        }
+        if (sql.includes('tc.constraint_type = \'FOREIGN KEY\'')) {
+          return mockFkRes;
+        }
+        return { columns: [], rows: [], execution_time_ms: 0 };
+      });
+
+      const { tables, relationships } = await fetchPostgresSchemaER('conn-1', 'public');
+
+      expect(executeSpy).toHaveBeenCalledTimes(2);
+      expect(tables).toHaveLength(2);
+      expect(tables[0].name).toBe('users');
+      expect(tables[0].columns).toHaveLength(2);
+      expect(tables[0].columns[0].isPrimaryKey).toBe(true);
+      expect(tables[1].name).toBe('orders');
+      expect(relationships).toHaveLength(1);
+      expect(relationships[0]).toMatchObject({
+        fromTable: 'orders',
+        fromColumn: 'user_id',
+        toTable: 'users',
+        toColumn: 'id',
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      });
+    });
+
+    it('fetches MySQL schema tables, columns, and foreign keys in bulk', async () => {
+      const mockTableRes: QueryResult = {
+        columns: [{ name: 'table_name', data_type: 'varchar', nullable: false }],
+        rows: [[{ Text: 'products' }], [{ Text: 'categories' }]],
+        execution_time_ms: 1,
+      };
+
+      const mockColRes: QueryResult = {
+        columns: [
+          { name: 'table_name', data_type: 'varchar', nullable: false },
+          { name: 'column_name', data_type: 'varchar', nullable: false },
+          { name: 'data_type', data_type: 'varchar', nullable: false },
+          { name: 'is_nullable', data_type: 'varchar', nullable: false },
+          { name: 'column_key', data_type: 'varchar', nullable: false },
+        ],
+        rows: [
+          [{ Text: 'products' }, { Text: 'id' }, { Text: 'int' }, { Text: 'NO' }, { Text: 'PRI' }],
+          [{ Text: 'products' }, { Text: 'category_id' }, { Text: 'int' }, { Text: 'YES' }, { Text: '' }],
+          [{ Text: 'categories' }, { Text: 'id' }, { Text: 'int' }, { Text: 'NO' }, { Text: 'PRI' }],
+        ],
+        execution_time_ms: 1,
+      };
+
+      const mockFkRes: QueryResult = {
+        columns: [
+          { name: 'from_table', data_type: 'varchar', nullable: false },
+          { name: 'from_column', data_type: 'varchar', nullable: false },
+          { name: 'to_table', data_type: 'varchar', nullable: false },
+          { name: 'to_column', data_type: 'varchar', nullable: false },
+          { name: 'constraint_name', data_type: 'varchar', nullable: false },
+        ],
+        rows: [
+          [{ Text: 'products' }, { Text: 'category_id' }, { Text: 'categories' }, { Text: 'id' }, { Text: 'fk_prod_cat' }],
+        ],
+        execution_time_ms: 1,
+      };
+
+      vi.spyOn(dbApi, 'executeDirectQuery').mockImplementation(async (_conn, sql) => {
+        if (sql.includes('information_schema.tables')) return mockTableRes;
+        if (sql.includes('information_schema.columns')) return mockColRes;
+        if (sql.includes('key_column_usage')) return mockFkRes;
+        return { columns: [], rows: [], execution_time_ms: 0 };
+      });
+
+      const { tables, relationships } = await fetchMysqlSchemaER('conn-1', 'shop_db');
+      expect(tables).toHaveLength(2);
+      expect(relationships).toHaveLength(1);
+      expect(relationships[0].fromTable).toBe('products');
+      expect(relationships[0].toTable).toBe('categories');
+    });
+
+    it('fetches SQLite schema concurrently and builds ER data', async () => {
+      const mockMasterRes: QueryResult = {
+        columns: [{ name: 'name', data_type: 'text', nullable: false }],
+        rows: [[{ Text: 'items' }]],
+        execution_time_ms: 1,
+      };
+      const mockInfoRes: QueryResult = {
+        columns: [
+          { name: 'cid', data_type: 'int', nullable: false },
+          { name: 'name', data_type: 'text', nullable: false },
+          { name: 'type', data_type: 'text', nullable: false },
+          { name: 'notnull', data_type: 'int', nullable: false },
+          { name: 'dflt', data_type: 'text', nullable: true },
+          { name: 'pk', data_type: 'int', nullable: false },
+        ],
+        rows: [[{ Integer: 0 }, { Text: 'id' }, { Text: 'INTEGER' }, { Integer: 1 }, null, { Integer: 1 }]],
+        execution_time_ms: 1,
+      };
+      const mockFkRes: QueryResult = {
+        columns: [],
+        rows: [],
+        execution_time_ms: 1,
+      };
+
+      vi.spyOn(dbApi, 'executeDirectQuery').mockImplementation(async (_conn, sql) => {
+        if (sql.includes('sqlite_master')) return mockMasterRes;
+        if (sql.includes('table_info')) return mockInfoRes;
+        if (sql.includes('foreign_key_list')) return mockFkRes;
+        return { columns: [], rows: [], execution_time_ms: 0 };
+      });
+
+      const diagram = await fetchERDiagramData('conn-sqlite', 'sqlite');
+      expect(diagram.tables).toHaveLength(1);
+      expect(diagram.tables[0].name).toBe('items');
+      expect(diagram.tables[0].columns[0].isPrimaryKey).toBe(true);
     });
   });
 });

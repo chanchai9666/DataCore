@@ -2,6 +2,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ERDiagramTab } from './ERDiagramTab';
 import * as erDiagramApi from '../../api/erDiagramApi';
+import * as dataTransferApi from '../../api/dataTransferApi';
+import * as dialog from '@tauri-apps/plugin-dialog';
 import type { ERDiagramData } from '../../types/db';
 
 vi.mock('../../api/erDiagramApi', async () => {
@@ -11,6 +13,14 @@ vi.mock('../../api/erDiagramApi', async () => {
     fetchERDiagramData: vi.fn(),
   };
 });
+
+vi.mock('../../api/dataTransferApi', () => ({
+  saveTextFile: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  save: vi.fn(),
+}));
 
 describe('ERDiagramTab', () => {
   const mockDiagramData: ERDiagramData = {
@@ -65,8 +75,8 @@ describe('ERDiagramTab', () => {
     expect(screen.getByText(/loading er diagram/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText('customers')).toBeInTheDocument();
-      expect(screen.getByText('orders')).toBeInTheDocument();
+      expect(screen.getAllByText('customers').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('orders').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('customer_id')).toBeInTheDocument();
     });
 
@@ -85,13 +95,13 @@ describe('ERDiagramTab', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('customers')).toBeInTheDocument();
+      expect(screen.getAllByText('customers').length).toBeGreaterThanOrEqual(1);
     });
 
     const searchInput = screen.getByPlaceholderText(/search tables/i);
     fireEvent.change(searchInput, { target: { value: 'order' } });
 
-    // Both tables exist in DOM, but filtered state highlights or counts
+    // Matching count indicator
     expect(screen.getByText(/matching: 1/i)).toBeInTheDocument();
   });
 
@@ -105,7 +115,7 @@ describe('ERDiagramTab', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('customers')).toBeInTheDocument();
+      expect(screen.getAllByText('customers').length).toBeGreaterThanOrEqual(1);
     });
 
     const zoomInBtn = screen.getByTestId('er-zoom-in');
@@ -134,12 +144,115 @@ describe('ERDiagramTab', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('customers')).toBeInTheDocument();
+      expect(screen.getAllByText('customers').length).toBeGreaterThanOrEqual(1);
     });
 
     const autoLayoutBtn = screen.getByTestId('er-auto-layout');
     fireEvent.click(autoLayoutBtn);
 
-    expect(screen.getByText('customers')).toBeInTheDocument();
+    expect(screen.getAllByText('customers').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('jumps to a selected table via quick-jump dropdown', async () => {
+    render(
+      <ERDiagramTab
+        connectionId="conn_1"
+        driver="sqlite"
+        schemaName="main"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('er-jump-select')).toBeInTheDocument();
+    });
+
+    const jumpSelect = screen.getByTestId('er-jump-select');
+    fireEvent.change(jumpSelect, { target: { value: 'orders' } });
+
+    expect((jumpSelect as HTMLSelectElement).value).toBe('orders');
+  });
+
+  it('stops wheel propagation inside table columns container to prevent canvas zooming', async () => {
+    render(
+      <ERDiagramTab
+        connectionId="conn_1"
+        driver="sqlite"
+        schemaName="main"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('table-columns-customers')).toBeInTheDocument();
+    });
+
+    const colContainer = screen.getByTestId('table-columns-customers');
+    const wheelEvent = new WheelEvent('wheel', { deltaY: -50, bubbles: true, cancelable: true });
+    const stopPropagationSpy = vi.spyOn(wheelEvent, 'stopPropagation');
+
+    colContainer.dispatchEvent(wheelEvent);
+    expect(stopPropagationSpy).toHaveBeenCalled();
+  });
+
+  it('toggles radar mini-map visibility', async () => {
+    render(
+      <ERDiagramTab
+        connectionId="conn_1"
+        driver="sqlite"
+        schemaName="main"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('er-minimap-card')).toBeInTheDocument();
+    });
+
+    // Collapse mini-map
+    const toggleBtn = screen.getByTestId('er-minimap-toggle');
+    fireEvent.click(toggleBtn);
+    expect(screen.queryByTestId('er-minimap-card')).not.toBeInTheDocument();
+    expect(screen.getByTestId('er-minimap-open')).toBeInTheDocument();
+
+    // Reopen mini-map
+    fireEvent.click(screen.getByTestId('er-minimap-open'));
+    expect(screen.getByTestId('er-minimap-card')).toBeInTheDocument();
+  });
+
+  it('exports SVG using native save dialog when destination is chosen', async () => {
+    vi.mocked(dialog.save).mockResolvedValue('/Users/chanchai/Desktop/main_er_diagram.svg');
+    vi.mocked(dataTransferApi.saveTextFile).mockResolvedValue(undefined);
+
+    render(
+      <ERDiagramTab
+        connectionId="conn_1"
+        driver="sqlite"
+        schemaName="main"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('er-export-btn')).toBeInTheDocument();
+    });
+
+    // Open export menu
+    fireEvent.click(screen.getByTestId('er-export-btn'));
+
+    // Click export SVG
+    const exportSvgOption = screen.getByText(/export as svg image/i);
+    fireEvent.click(exportSvgOption);
+
+    await waitFor(() => {
+      expect(dialog.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          defaultPath: 'main_er_diagram.svg',
+          filters: expect.arrayContaining([
+            expect.objectContaining({ extensions: ['svg'] }),
+          ]),
+        })
+      );
+      expect(dataTransferApi.saveTextFile).toHaveBeenCalledWith(
+        '/Users/chanchai/Desktop/main_er_diagram.svg',
+        expect.stringContaining('<svg')
+      );
+    });
   });
 });

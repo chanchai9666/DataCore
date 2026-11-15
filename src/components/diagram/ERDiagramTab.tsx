@@ -16,8 +16,12 @@ import {
   Check,
   AlertCircle,
   Loader2,
+  Map as MapIcon,
+  Crosshair,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { save } from '@tauri-apps/plugin-dialog';
+import { saveTextFile } from '../../api/dataTransferApi';
 import {
   fetchERDiagramData,
   computeAutoLayout,
@@ -61,12 +65,40 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
   // UI state
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [highlightedTableId, setHighlightedTableId] = useState<string | null>(null);
   const [hoveredRelId, setHoveredRelId] = useState<string | null>(null);
   const [collapsedTables, setCollapsedTables] = useState<Set<string>>(new Set());
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
   const [copiedDdl, setCopiedDdl] = useState<boolean>(false);
+  const [isSpacePressed, setIsSpacePressed] = useState<boolean>(false);
+  const [isMiniMapOpen, setIsMiniMapOpen] = useState<boolean>(true);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Spacebar pan listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.code === 'Space' &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)
+      ) {
+        e.preventDefault();
+        setIsSpacePressed(true);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
 
   // Load data
   const loadDiagram = useCallback(async () => {
@@ -145,10 +177,43 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
     });
   };
 
+  // Jump directly to center a table on canvas
+  const handleJumpToTable = useCallback(
+    (tableId: string) => {
+      if (!data || !containerRef.current) return;
+      const target = data.tables.find((t) => t.id === tableId);
+      if (!target) return;
+
+      setSelectedTableId(target.id);
+      setHighlightedTableId(target.id);
+      setTimeout(() => setHighlightedTableId(null), 2500);
+
+      const { clientWidth, clientHeight } = containerRef.current;
+      const cardWidth = 260;
+      const cardHeight = 160;
+      const targetX = clientWidth / 2 - (target.x + cardWidth / 2) * zoom;
+      const targetY = clientHeight / 2 - (target.y + cardHeight / 2) * zoom;
+      setPan({ x: Math.round(targetX), y: Math.round(targetY) });
+    },
+    [data, zoom]
+  );
+
   // Canvas Pan Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (draggingTableId) return;
-    if (e.target === containerRef.current || (e.target as HTMLElement).tagName === 'svg') {
+
+    const isMiddleClick = e.button === 1;
+    const isSpacePan = isSpacePressed && e.button === 0;
+    const isCanvasDirectClick =
+      e.button === 0 &&
+      !(e.target as HTMLElement).closest('.table-card') &&
+      !(e.target as HTMLElement).closest('button') &&
+      !(e.target as HTMLElement).closest('select') &&
+      !(e.target as HTMLElement).closest('input') &&
+      !(e.target as HTMLElement).closest('.er-minimap');
+
+    if (isMiddleClick || isSpacePan || isCanvasDirectClick) {
+      if (isMiddleClick) e.preventDefault();
       setIsPanning(true);
       panStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
     }
@@ -181,6 +246,10 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
   };
 
   const handleWheel = (e: React.WheelEvent) => {
+    // If wheel occurred inside a table card's scrollable body, ignore canvas zoom
+    if ((e.target as HTMLElement).closest('.table-card-body')) {
+      return;
+    }
     e.preventDefault();
     const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
     setZoom((z) => Math.min(2.5, Math.max(0.25, Math.round(z * zoomFactor * 100) / 100)));
@@ -200,19 +269,41 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
   };
 
   // Export handlers
-  const handleExportSvg = () => {
+  const handleExportSvg = async () => {
     if (!data) return;
     const svgStr = exportERDiagramAsSvg(data, theme);
-    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${schemaName || 'database'}_er_diagram.svg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success('ER Diagram exported as SVG.');
+    const defaultFilename = `${schemaName || 'database'}_er_diagram.svg`;
+
+    try {
+      const selectedPath = await save({
+        defaultPath: defaultFilename,
+        filters: [
+          {
+            name: 'Scalable Vector Graphics (*.svg)',
+            extensions: ['svg'],
+          },
+        ],
+      });
+
+      if (selectedPath) {
+        await saveTextFile(selectedPath, svgStr);
+        toast.success(`ER Diagram exported to ${selectedPath}`);
+        return;
+      }
+      return; // User cancelled dialog
+    } catch (err) {
+      console.warn('Native save dialog not available, falling back to browser download:', err);
+      const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = defaultFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('ER Diagram downloaded as SVG.');
+    }
   };
 
   const handleExportSql = () => {
@@ -296,7 +387,9 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
       className="flex-1 flex flex-col relative overflow-hidden select-none bg-slate-100 dark:bg-[#0b0f17] text-text"
-      style={{ cursor: isPanning ? 'grabbing' : 'default' }}
+      style={{
+        cursor: isPanning ? 'grabbing' : isSpacePressed ? 'grab' : 'default',
+      }}
     >
       {/* Top Floating Control Bar */}
       <div className="absolute top-3 left-3 right-3 z-30 flex items-center justify-between pointer-events-none">
@@ -316,6 +409,28 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
                 Matching: {filteredTableIds.size}
               </span>
             )}
+          </div>
+
+          {/* Quick Jump Table Selector */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-panel/90 backdrop-blur border border-line shadow-lg text-xs">
+            <Crosshair className="w-3.5 h-3.5 text-blue-400" />
+            <select
+              data-testid="er-jump-select"
+              value={selectedTableId || ''}
+              onChange={(e) => {
+                if (e.target.value) handleJumpToTable(e.target.value);
+              }}
+              className="bg-transparent border-none outline-none text-xs text-text cursor-pointer max-w-[130px]"
+            >
+              <option value="" disabled className="bg-panel text-text">
+                Jump to table...
+              </option>
+              {data.tables.map((t) => (
+                <option key={t.id} value={t.id} className="bg-panel text-text">
+                  {t.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Stats Badges */}
@@ -531,8 +646,10 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
                 opacity: isMatched ? 1 : 0.25,
               }}
               onClick={() => setSelectedTableId(table.id)}
-              className={`absolute rounded-lg border shadow-xl bg-panel transition-shadow duration-100 ${
-                isSelected
+              className={`absolute rounded-lg border shadow-xl bg-panel transition-all duration-200 ${
+                highlightedTableId === table.id
+                  ? 'border-amber-400 ring-4 ring-amber-400/50 shadow-amber-400/20 scale-[1.02]'
+                  : isSelected
                   ? 'border-blue-500 ring-2 ring-blue-500/30 shadow-blue-500/10'
                   : 'border-line hover:border-line-hover'
               }`}
@@ -540,7 +657,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
               {/* Table Card Header (Draggable) */}
               <div
                 onMouseDown={(e) => handleTableMouseDown(e, table)}
-                className="flex items-center justify-between px-2.5 py-2 bg-black/10 dark:bg-white/5 rounded-t-lg border-b border-line cursor-grab active:cursor-grabbing"
+                className="table-card-header flex items-center justify-between px-2.5 py-2 bg-black/10 dark:bg-white/5 rounded-t-lg border-b border-line cursor-grab active:cursor-grabbing"
               >
                 <div className="flex items-center gap-1.5 min-w-0">
                   <button
@@ -568,7 +685,11 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
 
               {/* Table Columns List */}
               {!isCollapsed && (
-                <div className="py-1 px-1 divide-y divide-line/30 max-h-72 overflow-y-auto">
+                <div
+                  data-testid={`table-columns-${table.id}`}
+                  onWheel={(e) => e.stopPropagation()}
+                  className="table-card-body py-1 px-1 divide-y divide-line/30 max-h-72 overflow-y-auto"
+                >
                   {table.columns.map((col) => {
                     const isRelated = relatedColumnKeys.has(`${table.name}.${col.name}`);
 
@@ -610,6 +731,149 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
             </div>
           );
         })}
+      </div>
+
+      {/* Mini-Map Radar Overview */}
+      <div className="er-minimap absolute bottom-4 right-4 z-30 pointer-events-auto flex flex-col items-end">
+        {isMiniMapOpen ? (
+          <div
+            data-testid="er-minimap-card"
+            className="w-48 h-36 rounded-lg bg-panel/95 backdrop-blur border border-line shadow-2xl flex flex-col overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-2 py-1 bg-black/5 dark:bg-white/5 border-b border-line text-[11px] text-muted font-medium">
+              <div className="flex items-center gap-1">
+                <MapIcon className="w-3 h-3 text-blue-400" />
+                <span>Radar Overview</span>
+              </div>
+              <button
+                type="button"
+                data-testid="er-minimap-toggle"
+                onClick={() => setIsMiniMapOpen(false)}
+                className="hover:text-text p-0.5 rounded text-[10px]"
+                title="Collapse Mini-Map"
+              >
+                ✕
+              </button>
+            </div>
+            <div
+              className="flex-1 relative cursor-crosshair overflow-hidden bg-slate-200/50 dark:bg-black/40"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+                const normX = clickX / rect.width;
+                const normY = clickY / rect.height;
+
+                let minX = Infinity,
+                  minY = Infinity,
+                  maxX = -Infinity,
+                  maxY = -Infinity;
+                data.tables.forEach((t) => {
+                  minX = Math.min(minX, t.x);
+                  minY = Math.min(minY, t.y);
+                  maxX = Math.max(maxX, t.x + 260);
+                  maxY = Math.max(maxY, t.y + 200);
+                });
+                minX = Math.min(minX, 0);
+                minY = Math.min(minY, 0);
+                maxX = Math.max(maxX, 1200);
+                maxY = Math.max(maxY, 800);
+                const worldW = maxX - minX + 200;
+                const worldH = maxY - minY + 200;
+
+                const targetWorldX = minX + normX * worldW;
+                const targetWorldY = minY + normY * worldH;
+
+                if (containerRef.current) {
+                  const { clientWidth, clientHeight } = containerRef.current;
+                  setPan({
+                    x: Math.round(clientWidth / 2 - targetWorldX * zoom),
+                    y: Math.round(clientHeight / 2 - targetWorldY * zoom),
+                  });
+                }
+              }}
+            >
+              <svg className="w-full h-full pointer-events-none">
+                {(() => {
+                  let minX = Infinity,
+                    minY = Infinity,
+                    maxX = -Infinity,
+                    maxY = -Infinity;
+                  data.tables.forEach((t) => {
+                    minX = Math.min(minX, t.x);
+                    minY = Math.min(minY, t.y);
+                    maxX = Math.max(maxX, t.x + 260);
+                    maxY = Math.max(maxY, t.y + 200);
+                  });
+                  minX = Math.min(minX, 0);
+                  minY = Math.min(minY, 0);
+                  maxX = Math.max(maxX, 1200);
+                  maxY = Math.max(maxY, 800);
+                  const worldW = maxX - minX + 200;
+                  const worldH = maxY - minY + 200;
+
+                  const toMiniX = (x: number) => ((x - minX + 100) / worldW) * 100;
+                  const toMiniY = (y: number) => ((y - minY + 100) / worldH) * 100;
+                  const toMiniW = (w: number) => (w / worldW) * 100;
+                  const toMiniH = (h: number) => (h / worldH) * 100;
+
+                  const containerW = containerRef.current?.clientWidth || 800;
+                  const containerH = containerRef.current?.clientHeight || 600;
+
+                  const vpWorldX = -pan.x / zoom;
+                  const vpWorldY = -pan.y / zoom;
+                  const vpWorldW = containerW / zoom;
+                  const vpWorldH = containerH / zoom;
+
+                  return (
+                    <>
+                      {data.tables.map((t) => {
+                        const isSelected = selectedTableId === t.id;
+                        return (
+                          <rect
+                            key={t.id}
+                            x={`${toMiniX(t.x)}%`}
+                            y={`${toMiniY(t.y)}%`}
+                            width={`${toMiniW(260)}%`}
+                            height={`${toMiniH(140)}%`}
+                            rx="1"
+                            className={
+                              isSelected
+                                ? 'fill-blue-500'
+                                : 'fill-slate-400 dark:fill-slate-600'
+                            }
+                          />
+                        );
+                      })}
+                      {/* Viewport Frame */}
+                      <rect
+                        x={`${Math.max(0, toMiniX(vpWorldX))}%`}
+                        y={`${Math.max(0, toMiniY(vpWorldY))}%`}
+                        width={`${Math.min(100, toMiniW(vpWorldW))}%`}
+                        height={`${Math.min(100, toMiniH(vpWorldH))}%`}
+                        fill="rgba(59, 130, 246, 0.18)"
+                        stroke="#3b82f6"
+                        strokeWidth="1.5"
+                        strokeDasharray="2 1"
+                      />
+                    </>
+                  );
+                })()}
+              </svg>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            data-testid="er-minimap-open"
+            onClick={() => setIsMiniMapOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-panel/90 backdrop-blur border border-line hover:border-accent shadow-lg text-xs font-medium text-muted hover:text-text transition-all"
+            title="Open Radar Mini-Map"
+          >
+            <MapIcon className="w-3.5 h-3.5 text-blue-400" />
+            <span>Mini-Map</span>
+          </button>
+        )}
       </div>
     </div>
   );
