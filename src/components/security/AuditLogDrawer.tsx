@@ -174,20 +174,20 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
         <div className="flex flex-col gap-2.5 border-b border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/60">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search queries, users, databases..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-8 pr-3 text-xs text-slate-800 shadow-2xs placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="w-full h-[34px] rounded-md border border-slate-300 bg-white pl-8 pr-3 text-xs text-slate-800 shadow-2xs placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               />
             </div>
 
             <select
               value={selectedAction}
               onChange={(e) => setSelectedAction(e.target.value as AuditActionType | 'ALL')}
-              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 shadow-2xs focus:border-blue-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              className="h-[34px] rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-700 shadow-2xs focus:border-blue-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               <option value="ALL">All Actions</option>
               <option value="QUERY">Query</option>
@@ -203,7 +203,7 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value as AuditStatus | 'ALL')}
-              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 shadow-2xs focus:border-blue-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              className="h-[34px] rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-700 shadow-2xs focus:border-blue-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               <option value="ALL">All Status</option>
               <option value="SUCCESS">Success</option>

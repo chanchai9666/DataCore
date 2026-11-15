@@ -448,7 +448,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                               value={col.name}
                               onChange={(e) => handleUpdateColumn(col.id, { name: e.target.value })}
                               data-testid={`column-name-input-${idx}`}
-                              className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                              className="w-full h-[28px] bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-blue-500"
                             />
                           </td>
 
@@ -458,7 +458,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                               value={col.baseType}
                               onChange={(e) => handleUpdateColumn(col.id, { baseType: e.target.value })}
                               data-testid={`column-type-select-${idx}`}
-                              className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500"
+                              className="w-full h-[28px] bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500"
                             >
                               {COMMON_TYPES.map((t) => (
                                 <option key={t} value={t}>
@@ -477,7 +477,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                               onChange={(e) => handleUpdateColumn(col.id, { length: e.target.value })}
                               placeholder={spec.lengthPlaceholder || 'N/A'}
                               data-testid={`column-length-input-${idx}`}
-                              className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-blue-500 disabled:opacity-40 disabled:bg-gray-100 dark:disabled:bg-gray-900"
+                              className="w-full h-[28px] bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-blue-500 disabled:opacity-40 disabled:bg-gray-100 dark:disabled:bg-gray-900"
                             />
                           </td>
 
@@ -518,7 +518,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
                               }
                               placeholder={spec.defaultPlaceholder || 'NULL'}
                               data-testid={`column-default-input-${idx}`}
-                              className="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                              className="w-full h-[28px] bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded px-2 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-blue-500"
                             />
                           </td>
 

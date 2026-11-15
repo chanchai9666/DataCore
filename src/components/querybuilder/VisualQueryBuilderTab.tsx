@@ -422,7 +422,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                   setBaseTableAlias('');
                   setJoins([]);
                 }}
-                className={`px-2.5 py-1 text-xs font-medium rounded border outline-none ${
+                className={`h-[30px] px-2.5 text-xs font-medium rounded border outline-none ${
                   theme === 'dark'
                     ? 'bg-[#11111b] border-gray-700 text-gray-100 focus:border-amber-500'
                     : 'bg-white border-gray-300 text-gray-800 focus:border-amber-500'
@@ -447,7 +447,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
               placeholder="Alias (e.g. u)"
               value={baseTableAlias}
               onChange={(e) => setBaseTableAlias(e.target.value)}
-              className={`w-24 px-2 py-1 text-xs rounded border outline-none ${
+              className={`w-24 h-[30px] px-2 text-xs rounded border outline-none ${
                 theme === 'dark'
                   ? 'bg-[#11111b] border-gray-700 text-gray-200 placeholder-gray-500'
                   : 'bg-white border-gray-300 text-gray-800 placeholder-gray-400'
@@ -711,10 +711,10 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                               value={join.type}
                               onChange={(e) =>
                                 handleUpdateJoin(idx, {
-                                  type: e.target.value as QueryJoinType,
+                                   type: e.target.value as QueryJoinType,
                                 })
                               }
-                              className={`px-2 py-1 font-mono font-semibold rounded border outline-none ${
+                              className={`h-[30px] px-2 font-mono font-semibold rounded border outline-none ${
                                 theme === 'dark'
                                   ? 'bg-[#11111b] border-gray-700 text-purple-400'
                                   : 'bg-white border-gray-300 text-purple-600'
@@ -739,7 +739,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                                   rightColumn: newTargetObj?.columns[0]?.name || 'id',
                                 });
                               }}
-                              className={`px-2 py-1 font-medium rounded border outline-none ${
+                              className={`h-[30px] px-2 font-medium rounded border outline-none ${
                                 theme === 'dark'
                                   ? 'bg-[#11111b] border-gray-700 text-gray-200'
                                   : 'bg-white border-gray-300 text-gray-800'
@@ -761,7 +761,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                               onChange={(e) =>
                                 handleUpdateJoin(idx, { alias: e.target.value })
                               }
-                              className={`w-28 px-2 py-1 text-xs rounded border outline-none font-mono ${
+                              className={`w-28 h-[30px] px-2 text-xs rounded border outline-none font-mono ${
                                 theme === 'dark'
                                   ? 'bg-[#11111b] border-gray-700 text-gray-200'
                                   : 'bg-white border-gray-300 text-gray-800'
@@ -912,7 +912,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                               table: matched?.table,
                             });
                           }}
-                          className={`px-2 py-1 font-mono rounded border outline-none ${
+                          className={`h-[30px] px-2 font-mono rounded border outline-none ${
                             theme === 'dark'
                               ? 'bg-[#11111b] border-gray-700 text-gray-200'
                               : 'bg-white border-gray-300 text-gray-800'
@@ -935,7 +935,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                               operator: e.target.value as QueryFilterOperator,
                             })
                           }
-                          className={`px-2 py-1 font-mono font-medium rounded border outline-none ${
+                          className={`h-[30px] px-2 font-mono font-medium rounded border outline-none ${
                             theme === 'dark'
                               ? 'bg-[#11111b] border-gray-700 text-emerald-400'
                               : 'bg-white border-gray-300 text-emerald-600'
@@ -966,7 +966,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                             onChange={(e) =>
                               handleUpdateFilter(idx, { value: e.target.value })
                             }
-                            className={`flex-1 min-w-[90px] px-2 py-1 text-xs rounded border outline-none font-mono ${
+                            className={`flex-1 min-w-[90px] h-[30px] px-2 text-xs rounded border outline-none font-mono ${
                               theme === 'dark'
                                 ? 'bg-[#11111b] border-gray-700 text-gray-200'
                                 : 'bg-white border-gray-300 text-gray-800'
@@ -986,7 +986,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                               onChange={(e) =>
                                 handleUpdateFilter(idx, { valueTo: e.target.value })
                               }
-                              className={`flex-1 min-w-[90px] px-2 py-1 text-xs rounded border outline-none font-mono ${
+                              className={`flex-1 min-w-[90px] h-[30px] px-2 text-xs rounded border outline-none font-mono ${
                                 theme === 'dark'
                                   ? 'bg-[#11111b] border-gray-700 text-gray-200'
                                   : 'bg-white border-gray-300 text-gray-800'
@@ -1062,7 +1062,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                             table: matched?.table,
                           });
                         }}
-                        className={`px-2 py-1 font-mono rounded border outline-none ${
+                        className={`h-[30px] px-2 font-mono rounded border outline-none ${
                           theme === 'dark'
                             ? 'bg-[#11111b] border-gray-700 text-gray-200'
                             : 'bg-white border-gray-300 text-gray-800'
@@ -1084,7 +1084,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                             direction: e.target.value as 'ASC' | 'DESC',
                           })
                         }
-                        className={`px-2 py-1 font-mono font-bold rounded border outline-none ${
+                        className={`h-[30px] px-2 font-mono font-bold rounded border outline-none ${
                           theme === 'dark'
                             ? 'bg-[#11111b] border-gray-700 text-cyan-400'
                             : 'bg-white border-gray-300 text-cyan-600'
@@ -1119,7 +1119,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                     min={0}
                     value={limit}
                     onChange={(e) => setLimit(Math.max(0, parseInt(e.target.value) || 0))}
-                    className={`w-20 px-2 py-1 text-xs font-mono rounded border outline-none ${
+                    className={`w-20 h-[30px] px-2 text-xs font-mono rounded border outline-none ${
                       theme === 'dark'
                         ? 'bg-[#11111b] border-gray-700 text-gray-200'
                         : 'bg-white border-gray-300 text-gray-800'
@@ -1136,7 +1136,7 @@ export const VisualQueryBuilderTab: React.FC<VisualQueryBuilderTabProps> = ({
                     min={0}
                     value={offset}
                     onChange={(e) => setOffset(Math.max(0, parseInt(e.target.value) || 0))}
-                    className={`w-20 px-2 py-1 text-xs font-mono rounded border outline-none ${
+                    className={`w-20 h-[30px] px-2 text-xs font-mono rounded border outline-none ${
                       theme === 'dark'
                         ? 'bg-[#11111b] border-gray-700 text-gray-200'
                         : 'bg-white border-gray-300 text-gray-800'

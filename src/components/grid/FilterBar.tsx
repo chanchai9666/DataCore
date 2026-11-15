@@ -255,7 +255,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               <select
                 value={cond.column || columns[0]?.name || ''}
                 onChange={(e) => handleConditionChange(cond.id, { column: e.target.value })}
-                className={`${inputCls} border rounded px-2 py-0.5 text-xs focus:outline-none focus:border-blue-500`}
+                className={`h-[28px] ${inputCls} border rounded px-2 text-xs focus:outline-none focus:border-blue-500`}
               >
                 {columns.map((col) => (
                   <option key={col.name} value={col.name}>
@@ -270,7 +270,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 onChange={(e) =>
                   handleConditionChange(cond.id, { operator: e.target.value as FilterOperator })
                 }
-                className={`${inputCls} border rounded px-2 py-0.5 text-xs focus:outline-none focus:border-blue-500 font-mono`}
+                className={`h-[28px] ${inputCls} border rounded px-2 text-xs focus:outline-none focus:border-blue-500 font-mono`}
               >
                 {AVAILABLE_OPERATORS.map((op) => (
                   <option key={op} value={op}>
@@ -287,7 +287,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 value={isNullOp ? '' : cond.value}
                 onChange={(e) => handleConditionChange(cond.id, { value: e.target.value })}
                 onKeyDown={handleKeyDown}
-                className={`flex-1 ${inputCls} border rounded px-2 py-0.5 text-xs focus:outline-none focus:border-blue-500 ${
+                className={`flex-1 h-[28px] ${inputCls} border rounded px-2 text-xs focus:outline-none focus:border-blue-500 ${
                   isNullOp ? 'opacity-50 cursor-not-allowed italic' : ''
                 }`}
               />

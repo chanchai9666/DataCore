@@ -902,6 +902,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
       - **Copy Name and Type(s):** คัดลอกชื่อพร้อมประเภทข้อมูล (เช่น `id varchar, name varchar, phone varchar`)
       - ปรับปรุง `handleContextMenu` ให้คง Selection เดิมไว้หากคลิกขวาบนโหนดที่อยู่ในกลุ่มที่ถูกเลือกอยู่แล้ว
 
+39. **Issue #147: Equalize Dropdown and Textbox Heights across Form Controls (`AuditLogDrawer.tsx`, `VisualQueryBuilderTab.tsx`, `FilterBar.tsx`, `CreateTableModal.tsx`)**
+    - **AuditLogDrawer Search & Filter Height Alignment:** กำหนด Explicit Height `h-[34px]` ควบคู่กันบน Search Input Textbox และ Select Dropdowns (`All Actions`, `All Status`) เพื่อแก้ปัญหา WebKit บน macOS ละเลย padding บน Native Select จน Dropdown หดสั้นเหลือเพียง 27px เทียบกับ Textbox 45px
+    - **Search Icon Precision Centering:** ปรับตำแหน่งไอคอน `<Search>` ด้วย `top-1/2 -translate-y-1/2` แทนการฮาร์ดโค้ด `top-2.5` เพื่อให้อยู่กึ่งกลางแนวตั้งเป๊ะสมบูรณ์
+    - **Query Builder & Filter Bar Height Normalization:** กำหนด Explicit Height บน Form Controls คู่ขนานกันใน `VisualQueryBuilderTab.tsx` (`h-[30px]`), `FilterBar.tsx` (`h-[28px]`), และ `CreateTableModal.tsx` (`h-[30px]`) ให้มีความสูงเท่ากันทุกจุด 100%
+
 
 
 

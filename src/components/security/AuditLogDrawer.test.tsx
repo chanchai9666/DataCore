@@ -76,4 +76,15 @@ describe('AuditLogDrawer', () => {
       fireEvent.click(verifyBtn);
     });
   });
+
+  it('renders search input and dropdown selects with matching h-[34px] height', () => {
+    render(<AuditLogDrawer isOpen={true} onClose={onClose} />);
+    const searchInput = screen.getByPlaceholderText(/Search queries, users/);
+    expect(searchInput.className).toContain('h-[34px]');
+
+    const selects = screen.getAllByRole('combobox');
+    expect(selects).toHaveLength(2);
+    expect(selects[0].className).toContain('h-[34px]');
+    expect(selects[1].className).toContain('h-[34px]');
+  });
 });
