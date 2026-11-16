@@ -67,6 +67,23 @@ export const errorLineTheme = EditorView.baseTheme({
   },
 });
 
+export const editorFullHeightTheme = EditorView.theme({
+  '&': {
+    height: '100%',
+  },
+  '.cm-scroller': {
+    overflow: 'auto',
+    height: '100%',
+  },
+  '.cm-content': {
+    minHeight: '100%',
+    cursor: 'text',
+  },
+  '.cm-gutters': {
+    minHeight: '100%',
+  },
+});
+
 export const errorLineField = StateField.define<DecorationSet>({
   create() {
     return Decoration.none;
@@ -1054,13 +1071,29 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         />
       )}
 
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+      <div
+        data-testid="sql-editor-container"
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          minHeight: 0,
+          cursor: 'text',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        onClick={() => {
+          const view = editorViewRef.current ?? editorRef.current?.view;
+          if (view && !view.hasFocus) {
+            view.focus();
+          }
+        }}
+      >
         <CodeMirror
           ref={editorRef}
           value={tab.queryContent}
           theme={activeTheme}
           height="100%"
-          extensions={[sqlExtension, runKeymap, errorLineField, errorLineTheme]}
+          extensions={[sqlExtension, runKeymap, errorLineField, errorLineTheme, editorFullHeightTheme]}
           onChange={handleEditorChange}
           onCreateEditor={(view) => {
             editorViewRef.current = view;

@@ -984,6 +984,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - Focus Trap และ Keyboard Navigation (Esc, Tab, Enter) ใน Dialogs และ Drawers ผ่าน Radix UI Dialog
   - เพิ่ม ARIA Live Region (`role="status"`, `aria-live="polite"`, `aria-atomic="true"`) สำหรับ Screen Reader บน `StatusBar` และ `role="alert"`, `aria-live="assertive"` บน `SqlEditor` Error Callout Panel
 
+### Phase 39: Editor Ergonomics & Polish (Issue #157) [Completed]
+- **39.1 Click Anywhere to Focus Query Editor [Completed]:**
+  - เพิ่ม CodeMirror extension `editorFullHeightTheme` กำหนด `.cm-content` และ `.cm-gutters` ให้มี `minHeight: 100%` และ `cursor: text` พร้อม `.cm-scroller` `height: 100%`
+  - เพิ่ม Event Handler บน `sql-editor-container` เพื่อดักการคลิกบนพื้นที่ว่างใดๆ ใต้ข้อความ แล้วส่งโฟกัสเคอร์เซอร์ไปยังบรรทัดที่ 1 / ตำแหน่งข้อความทันทีโดยไม่ต้องเล็งคลิกที่แถว 1 เท่านั้น
+
 
 
 

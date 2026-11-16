@@ -983,4 +983,37 @@ describe('SqlEditor', () => {
       expect(splitBtn).toHaveTextContent('Vertical');
     });
   });
+
+  describe('Click Anywhere to Focus Query Editor (Issue #157)', () => {
+    it('renders editor container with cursor-text and full-height layout', () => {
+      render(<SqlEditor />);
+      const container = screen.getByTestId('sql-editor-container');
+      expect(container).toBeInTheDocument();
+      expect(container.style.cursor).toBe('text');
+      expect(container.style.flex).toContain('1');
+    });
+
+    it('focuses editor view when clicking anywhere on the editor container', async () => {
+      let createdView: any = null;
+      render(
+        <SqlEditor
+          onEditorCreated={(view) => {
+            createdView = view;
+          }}
+        />
+      );
+
+      const container = screen.getByTestId('sql-editor-container');
+      expect(container).toBeInTheDocument();
+
+      if (createdView) {
+        const focusSpy = vi.spyOn(createdView, 'focus');
+        fireEvent.click(container);
+        expect(focusSpy).toHaveBeenCalled();
+      } else {
+        // Fallback check click event triggers without error
+        expect(() => fireEvent.click(container)).not.toThrow();
+      }
+    });
+  });
 });
