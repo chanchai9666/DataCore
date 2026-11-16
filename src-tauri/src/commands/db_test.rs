@@ -863,3 +863,43 @@ async fn test_vault_keychain_opt_in_commands_lifecycle() {
     store.vault().set_keychain_opt_in(false).expect("disable keychain opt-in");
     assert!(!store.vault().is_keychain_opt_in());
 }
+
+#[tokio::test]
+async fn test_open_session_idempotent() {
+    let dir = tempdir().expect("create temp dir");
+    let store_file = dir.path().join("connections.json");
+    let store = ConnectionStore::new(&store_file);
+    let session_mgr = SessionManager::new();
+
+    let config = ConnectionConfig {
+        id: "conn-idem".to_string(),
+        name: "Idempotent SQLite".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: ":memory:".to_string(),
+        user: None,
+        folder: None,
+        ssl_mode: None,
+        ssl_certs: None,
+        ssh_tunnel: None,
+        timeout_seconds: None,
+        auto_reconnect: None,
+        environment: None,
+        read_only: None,
+    };
+    save_connection_impl(&store, &config, None).expect("save connection config");
+
+    // First call opens session
+    open_session_impl(&store, &session_mgr, "conn-idem", "tab-idem")
+        .await
+        .expect("open session tab-idem first time");
+    assert!(session_mgr.has_session("tab-idem").await);
+    assert_eq!(session_mgr.active_session_count().await, 1);
+
+    // Second call should return Ok(()) immediately without error
+    open_session_impl(&store, &session_mgr, "conn-idem", "tab-idem")
+        .await
+        .expect("open session tab-idem second time (idempotent)");
+    assert_eq!(session_mgr.active_session_count().await, 1);
+}

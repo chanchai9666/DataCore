@@ -160,11 +160,35 @@ describe('SqlEditor', () => {
       activeTabId: 'tab-test-1',
     });
 
+    vi.spyOn(dbApi, 'openSession').mockResolvedValue(undefined);
     vi.spyOn(dbApi, 'executeQuery').mockResolvedValue(mockQueryResult);
     vi.spyOn(dbApi, 'cancelQuery').mockResolvedValue(undefined);
     vi.spyOn(dbApi, 'setAutocommit').mockResolvedValue(undefined);
     vi.spyOn(dbApi, 'commitTransaction').mockResolvedValue(undefined);
     vi.spyOn(dbApi, 'rollbackTransaction').mockResolvedValue(undefined);
+  });
+
+  it('ensures session is opened before executing query', async () => {
+    const callOrder: string[] = [];
+    vi.spyOn(dbApi, 'openSession').mockImplementation(async () => {
+      callOrder.push('openSession');
+    });
+    vi.spyOn(dbApi, 'executeQuery').mockImplementation(async () => {
+      callOrder.push('executeQuery');
+      return mockQueryResult;
+    });
+
+    render(<SqlEditor />);
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    await waitFor(() => {
+      expect(callOrder).toEqual(['openSession', 'executeQuery']);
+      expect(dbApi.openSession).toHaveBeenCalledWith('conn-1', 'tab-test-1');
+      expect(dbApi.executeQuery).toHaveBeenCalledWith('tab-test-1', 'SELECT * FROM users LIMIT 1000;');
+    });
   });
 
   it('renders editor with SQL content from active tab', () => {

@@ -1,5 +1,6 @@
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { dbApi } from '../../api/db';
 
 export interface OpenTableTabParams {
   connectionId: string;
@@ -142,6 +143,11 @@ export function openQueryTab({
     title: `Query (${title})`,
     autoCommit: true,
     queryContent: initialQuery,
+  });
+
+  // Eagerly pre-warm session in background
+  dbApi.openSession?.(connectionId, queryTabId)?.catch?.((err) => {
+    console.debug('Eager session pre-warm failed:', err);
   });
 }
 

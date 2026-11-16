@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   openQueryTab,
   openTableTab,
@@ -9,6 +9,13 @@ import {
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import type { ConnectionConfig } from '../../types/db';
+import { dbApi } from '../../api/db';
+
+vi.mock('../../api/db', () => ({
+  dbApi: {
+    openSession: vi.fn().mockResolvedValue(undefined),
+  },
+}));
 
 describe('tabHelpers', () => {
   beforeEach(() => {
@@ -110,6 +117,17 @@ describe('tabHelpers', () => {
       expect(tabs).toHaveLength(1);
       expect(tabs[0].queryContent).toBe('');
       expect(tabs[0].title).toBe('Query (Postgres DB)');
+    });
+
+    it('eagerly calls openSession to pre-warm backend connection', () => {
+      openQueryTab({
+        connectionId: 'conn-pg-1',
+        tableName: 'users',
+      });
+
+      const tabs = useTabStore.getState().tabs;
+      expect(tabs).toHaveLength(1);
+      expect(dbApi.openSession).toHaveBeenCalledWith('conn-pg-1', tabs[0].id);
     });
   });
 

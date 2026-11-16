@@ -17,6 +17,7 @@ vi.mock('../../api/db', () => ({
     getSchemaTree: vi.fn(),
     getObjectDdl: vi.fn(),
     deleteConnection: vi.fn(),
+    openSession: vi.fn().mockResolvedValue(undefined),
     executeDirectQuery: vi.fn(),
     executeQuery: vi.fn(),
   },

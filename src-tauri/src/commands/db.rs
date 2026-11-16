@@ -53,6 +53,10 @@ pub async fn open_session_impl(
     connection_id: &str,
     tab_id: &str,
 ) -> Result<(), AppError> {
+    if session_mgr.has_session(tab_id).await {
+        return Ok(());
+    }
+
     let mut config = store
         .get(connection_id)?
         .ok_or_else(|| AppError::NotFound(format!("Connection '{}' not found", connection_id)))?;

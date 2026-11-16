@@ -45,23 +45,70 @@ export const deleteConnection = async (connectionId: string): Promise<void> => {
   });
 };
 
+const inFlightSessions = new Map<string, Promise<void>>();
+const establishedSessions = new Set<string>();
+
+export const clearSessionCache = (tabId?: string, connectionId?: string): void => {
+  if (tabId) {
+    for (const key of Array.from(establishedSessions)) {
+      if (key.endsWith(`:${tabId}`)) establishedSessions.delete(key);
+    }
+    for (const key of Array.from(inFlightSessions.keys())) {
+      if (key.endsWith(`:${tabId}`)) inFlightSessions.delete(key);
+    }
+    return;
+  }
+  if (connectionId) {
+    for (const key of Array.from(establishedSessions)) {
+      if (key.startsWith(`${connectionId}:`)) establishedSessions.delete(key);
+    }
+    for (const key of Array.from(inFlightSessions.keys())) {
+      if (key.startsWith(`${connectionId}:`)) inFlightSessions.delete(key);
+    }
+    return;
+  }
+  inFlightSessions.clear();
+  establishedSessions.clear();
+};
+
 export const openSession = async (
   connectionId: string,
   tabId: string
 ): Promise<void> => {
-  return invoke<void>('open_session', {
-    connectionId,
-    tabId,
-  });
+  const key = `${connectionId}:${tabId}`;
+  if (establishedSessions.has(key)) {
+    return;
+  }
+  const existing = inFlightSessions.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const promise = (async () => {
+    try {
+      await invoke<void>('open_session', {
+        connectionId,
+        tabId,
+      });
+      establishedSessions.add(key);
+    } finally {
+      inFlightSessions.delete(key);
+    }
+  })();
+
+  inFlightSessions.set(key, promise);
+  return promise;
 };
 
 export const closeSession = async (tabId: string): Promise<void> => {
+  clearSessionCache(tabId);
   return invoke<void>('close_session', {
     tabId,
   });
 };
 
 export const disconnectConnection = async (connectionId: string): Promise<number> => {
+  clearSessionCache(undefined, connectionId);
   return invoke<number>('disconnect_connection', {
     connectionId,
   });
@@ -336,6 +383,7 @@ export const dbApi = {
   deleteStoredPassword,
   setSessionPassword,
   clearSessionPassword,
+  clearSessionCache,
   openSession,
   closeSession,
   disconnectConnection,

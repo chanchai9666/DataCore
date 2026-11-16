@@ -499,6 +499,15 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     return sql({ dialect, schema: schemaMap, upperCaseKeywords: true });
   }, [connection?.driver, schemaMap]);
 
+  // Ensure database session is ready before any session-dependent operations
+  const ensureSession = useCallback(async () => {
+    const currentTab = useTabStore.getState().tabs.find((t) => t.id === targetTabId) ?? tab;
+    const connId = currentTab?.connectionId || connection?.id;
+    if (connId && targetTabId) {
+      await dbApi.openSession(connId, targetTabId);
+    }
+  }, [targetTabId, tab, connection?.id]);
+
   // Execute query handler
   const handleRunQuery = useCallback(
     async (viewParam?: EditorView) => {
@@ -551,6 +560,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         }
 
         try {
+          await ensureSession();
           const statements = splitSqlStatements(sqlToRun);
           if (statements.length > 1) {
             const allResults: QueryResult[] = [];
@@ -732,7 +742,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
 
       await executeSql(modifiedSql, isLimited);
     },
-    [targetTabId, tab, onQueryResult, onError, safeLimit, connection?.driver, isReadOnly]
+    [targetTabId, tab, onQueryResult, onError, safeLimit, connection?.driver, isReadOnly, ensureSession]
   );
 
   const handleDismissError = useCallback(() => {
@@ -830,6 +840,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     async (enabled: boolean) => {
       if (!targetTabId) return;
       try {
+        await ensureSession();
         await dbApi.setAutocommit(targetTabId, enabled);
         setAutoCommitStore(targetTabId, enabled);
       } catch (err: unknown) {
@@ -838,13 +849,14 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         onError?.(err);
       }
     },
-    [targetTabId, setAutoCommitStore, onError]
+    [targetTabId, setAutoCommitStore, onError, ensureSession]
   );
 
   // Commit Transaction
   const handleCommit = useCallback(async () => {
     if (!targetTabId) return;
     try {
+      await ensureSession();
       await dbApi.commitTransaction(targetTabId);
       toast.success('Transaction committed');
     } catch (err: unknown) {
@@ -853,12 +865,13 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       toast.error(`Commit failed: ${msg}`);
       onError?.(err);
     }
-  }, [targetTabId, onError]);
+  }, [targetTabId, onError, ensureSession]);
 
   // Rollback Transaction
   const handleRollback = useCallback(async () => {
     if (!targetTabId) return;
     try {
+      await ensureSession();
       await dbApi.rollbackTransaction(targetTabId);
       toast.info('Transaction rolled back');
     } catch (err: unknown) {
@@ -867,7 +880,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       toast.error(`Rollback failed: ${msg}`);
       onError?.(err);
     }
-  }, [targetTabId, onError]);
+  }, [targetTabId, onError, ensureSession]);
 
   // Change Isolation Level
   const handleChangeIsolationLevel = useCallback(
@@ -876,6 +889,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       setIsolationLevel(level);
       const sql = buildSetIsolationLevelSql(level, connection?.driver || 'postgres');
       try {
+        await ensureSession();
         await dbApi.executeQuery(targetTabId, sql);
         toast.success(`Transaction isolation set to ${level}`);
         useAuditLogStore.getState().addLog({
@@ -889,7 +903,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         toast.error(`Failed to set isolation level: ${msg}`);
       }
     },
-    [targetTabId, connection?.driver, connection?.name]
+    [targetTabId, connection?.driver, connection?.name, ensureSession]
   );
 
   // Explain query handler
@@ -929,6 +943,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       setErrorMessage(null);
 
       try {
+        await ensureSession();
         const result = await dbApi.executeQuery(targetTabId, explainSql);
         setPlanResult(result);
         setIsAnalyzing(analyze);
@@ -943,7 +958,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         setIsRunning(false);
       }
     },
-    [targetTabId, tab, connection?.driver, onError]
+    [targetTabId, tab, connection?.driver, onError, ensureSession]
   );
 
   const handleEditorChange = useCallback(

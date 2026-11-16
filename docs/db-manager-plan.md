@@ -993,7 +993,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - ปลดล็อก `Cmd+/` ใน `useShortcuts.ts` ให้ปล่อยผ่าน (not intercepted) เพื่อให้ CodeMirror ใน `SqlEditor.tsx` ทำหน้าที่ Toggle Line Comment (`--`) บนบรรทัดหรือข้อความที่เลือกผ่าน `toggleComment` จาก `@codemirror/commands`
   - อัปเดตรายการคีย์ลัดใน `KeyboardShortcutsModal`, `MainToolbar` (ปุ่มคีย์ลัดพร้อม aria-label/title `Keyboard Shortcuts (⌘?)`), และ Localization ทั้งภาษาไทยและภาษาอังกฤษ
 
-### Phase 40: Toolbar Connection State Guarding & Disconnected Safety Checks (Issue #159) [In Progress]
+### Phase 40: Toolbar Connection State Guarding & Disconnected Safety Checks (Issue #159) [Completed]
 - **40.1 Toolbar Buttons Disabled State When Disconnected:**
   - ปรับปรุงการตรวจสอบสถานะการเชื่อมต่อบน `MainToolbar.tsx` ให้ผูกกับ `connectedConnectionIds` จาก `useConnectionStore`
   - กำหนดให้ปุ่ม **Query ใหม่ (New Query)**, **ตาราง (Table)**, **เครื่องมือ (Tools)**, **สำรองข้อมูล (Backup)**, **นำเข้า (Import)** และ **ส่งออก (Export)** ถูก `disabled` ทันทีเมื่อไม่มีการเชื่อมต่อกับฐานข้อมูล (`connectedConnectionIds` เป็นค่าว่าง หรือ connection ปัจจุบันไม่ได้อยู่ใน `connectedConnectionIds`)
@@ -1004,6 +1004,19 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - เพิ่ม Guard ใน `handleNewQuery`, `handleOpenTable` (`App.tsx`) และคีย์ลัด `Cmd+T` (`useShortcuts.ts`) ไม่ให้เปิดแท็บบน connection ที่ยังไม่ได้เชื่อมต่อ
 - **40.4 Global System Actions in Command Palette:**
   - เพิ่ม "Check for Updates..." และ "Export Diagnostic Bundle..." เข้าสู่ Command Palette (`⌘K`) เพื่อให้เรียกใช้งานได้ตลอดเวลาแม้ไม่ได้เชื่อมต่อฐานข้อมูล
+
+### Phase 41: Database Session Readiness & Race Condition Elimination (Issue #160) [Completed]
+- **41.1 In-Flight Promise Deduplication & Session Cache in dbApi (`src/api/db.ts`):**
+  - เพิ่ม `inFlightSessions` Map และ `establishedSessions` Set เพื่อป้องกันการยิง `open_session` ซ้ำซ้อนขณะที่ connection handshake กำลังทำงานอยู่
+  - คืนค่า Promise เดียวกันเมื่อมีการเรียก `openSession(connectionId, tabId)` พร้อมกันหลายจุด
+  - เคลียร์ Cache อย่างถูกต้องเมื่อเรียก `closeSession` หรือ `disconnectConnection`
+- **41.2 Pre-execution Session Guarantee in SqlEditor (`src/components/editor/SqlEditor.tsx`):**
+  - เพิ่ม `ensureSession` helper ก่อนรัน `executeSql`, `handleExplain`, `handleToggleAutoCommit`, และ `handleSetIsolationLevel`
+  - ป้องกันข้อผิดพลาด `Session for tab '...' not found` เมื่อผู้ใช้กด Run (⌘Enter) ทันทีหลังเปิดแท็บ
+- **41.3 Eager Session Pre-warming (`src/components/sidebar/tabHelpers.ts`):**
+  - เริ่มเปิด Session เบื้องหลังล่วงหน้าทันทีที่ผู้ใช้คลิกเปิดแท็บ Query ผ่าน `openQueryTab` ก่อนที่ component จะ render เสร็จ
+- **41.4 Backend Session Idempotency (`src-tauri/src/commands/db.rs`):**
+  - ตรวจสอบ `session_mgr.has_session(tab_id)` ใน `open_session_impl` เพื่อคืนค่า `Ok(())` ทันทีหาก session ถูกเปิดไว้เรียบร้อยแล้ว
 
 
 
