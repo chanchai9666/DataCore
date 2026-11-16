@@ -418,3 +418,22 @@ fn test_vault_lock_and_clear_cache_zeroizes_secrets_in_memory() {
     vault.unlock(master_pass).expect("unlock vault");
     assert_eq!(vault.get_password("conn-prod-1").unwrap().as_deref(), Some("ProdSuperSecretPassword!"));
 }
+
+#[test]
+fn test_vault_keychain_opt_in_lifecycle() {
+    let dir = tempdir().expect("create temp dir");
+    let vault = Vault::new(dir.path());
+
+    // By default, opt-in is false (isolated local vault)
+    assert_eq!(vault.is_keychain_opt_in(), false);
+
+    // Enable opt-in
+    vault.set_keychain_opt_in(true).expect("enable keychain opt-in");
+    assert_eq!(vault.is_keychain_opt_in(), true);
+    assert!(dir.path().join(".vault.keychain_opt_in").exists());
+
+    // Disable opt-in
+    vault.set_keychain_opt_in(false).expect("disable keychain opt-in");
+    assert_eq!(vault.is_keychain_opt_in(), false);
+    assert!(!dir.path().join(".vault.keychain_opt_in").exists());
+}

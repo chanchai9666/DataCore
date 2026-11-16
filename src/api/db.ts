@@ -249,6 +249,26 @@ export const simulateQueryImpact = async (
   });
 };
 
+export const isVaultKeychainEnabled = async (): Promise<boolean> => {
+  return invoke<boolean>('vault_is_keychain_enabled');
+};
+
+export const setVaultKeychainEnabled = async (enabled: boolean): Promise<void> => {
+  return invoke<void>('vault_set_keychain_enabled', { enabled });
+};
+
+export const hasVaultMasterPassword = async (): Promise<boolean> => {
+  return invoke<boolean>('vault_has_master_password');
+};
+
+export const unlockVault = async (password?: string): Promise<boolean> => {
+  return invoke<boolean>('vault_unlock', { password: password ?? null });
+};
+
+export const lockVault = async (): Promise<void> => {
+  return invoke<void>('vault_lock');
+};
+
 export {
   getAuditLogs,
   verifyAuditLogIntegrity,
@@ -283,4 +303,9 @@ export const dbApi = {
   copyTableCrossDb,
   cancelTransfer,
   simulateQueryImpact,
+  isVaultKeychainEnabled,
+  setVaultKeychainEnabled,
+  hasVaultMasterPassword,
+  unlockVault,
+  lockVault,
 };

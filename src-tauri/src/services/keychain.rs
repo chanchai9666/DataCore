@@ -272,6 +272,60 @@ impl Vault {
         self.clear_cache();
     }
 
+    pub fn is_keychain_opt_in(&self) -> bool {
+        self.vault_dir.join(".vault.keychain_opt_in").exists()
+    }
+
+    pub fn set_keychain_opt_in(&self, enabled: bool) -> Result<(), AppError> {
+        let flag_path = self.vault_dir.join(".vault.keychain_opt_in");
+        if enabled {
+            if !self.vault_dir.exists() {
+                fs::create_dir_all(&self.vault_dir)?;
+                set_secure_dir_permissions(&self.vault_dir)?;
+            }
+            fs::write(&flag_path, b"1")?;
+            set_secure_permissions(&flag_path)?;
+
+            // If master password is currently unlocked in memory, save it to keychain
+            let pwd_guard = self
+                .master_password
+                .read()
+                .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
+            if let Some(pwd) = pwd_guard.as_ref() {
+                let _ = crate::services::macos_keychain::save_to_macos_keychain(
+                    crate::services::macos_keychain::KEYCHAIN_SERVICE_DEFAULT,
+                    crate::services::macos_keychain::KEYCHAIN_ACCOUNT_MASTER_KEK,
+                    pwd.as_str(),
+                );
+            }
+        } else {
+            if flag_path.exists() {
+                let _ = fs::remove_file(&flag_path);
+            }
+            let _ = crate::services::macos_keychain::delete_from_macos_keychain(
+                crate::services::macos_keychain::KEYCHAIN_SERVICE_DEFAULT,
+                crate::services::macos_keychain::KEYCHAIN_ACCOUNT_MASTER_KEK,
+            );
+        }
+        Ok(())
+    }
+
+    pub fn unlock_from_macos_keychain(&self) -> Result<bool, AppError> {
+        if !self.is_keychain_opt_in() {
+            return Ok(false);
+        }
+
+        if let Ok(Some(secret)) = crate::services::macos_keychain::get_from_macos_keychain(
+            crate::services::macos_keychain::KEYCHAIN_SERVICE_DEFAULT,
+            crate::services::macos_keychain::KEYCHAIN_ACCOUNT_MASTER_KEK,
+        ) {
+            if self.unlock(&secret).is_ok() {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub fn set_master_password(&self, password: &str) -> Result<(), AppError> {
         if password.is_empty() {
             return Err(AppError::Other(
@@ -336,6 +390,14 @@ impl Vault {
             .write()
             .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
         *guard = Some(Zeroizing::new(password.to_string()));
+
+        if self.is_keychain_opt_in() {
+            let _ = crate::services::macos_keychain::save_to_macos_keychain(
+                crate::services::macos_keychain::KEYCHAIN_SERVICE_DEFAULT,
+                crate::services::macos_keychain::KEYCHAIN_ACCOUNT_MASTER_KEK,
+                password,
+            );
+        }
 
         Ok(())
     }
@@ -416,6 +478,11 @@ impl Vault {
             .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
         *guard = None;
 
+        let _ = crate::services::macos_keychain::delete_from_macos_keychain(
+            crate::services::macos_keychain::KEYCHAIN_SERVICE_DEFAULT,
+            crate::services::macos_keychain::KEYCHAIN_ACCOUNT_MASTER_KEK,
+        );
+
         Ok(())
     }
 
@@ -449,14 +516,27 @@ impl Vault {
                     .master_password
                     .read()
                     .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
-                match pwd_guard.as_ref() {
-                    Some(pwd) => return decrypt_master_key_v2(&key_bytes, pwd.as_str()),
-                    None => {
-                        return Err(AppError::Other(
-                            "Vault is locked: Master password required".to_string(),
-                        ));
+                if let Some(pwd) = pwd_guard.as_ref() {
+                    return decrypt_master_key_v2(&key_bytes, pwd.as_str());
+                }
+                drop(pwd_guard);
+
+                // Auto-unlock via macOS Keychain if opt-in enabled
+                if self.is_keychain_opt_in() {
+                    if let Ok(true) = self.unlock_from_macos_keychain() {
+                        let retry_guard = self
+                            .master_password
+                            .read()
+                            .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
+                        if let Some(pwd) = retry_guard.as_ref() {
+                            return decrypt_master_key_v2(&key_bytes, pwd.as_str());
+                        }
                     }
                 }
+
+                return Err(AppError::Other(
+                    "Vault is locked: Master password required".to_string(),
+                ));
             }
 
             // 2. Version 1 Format: 4-byte Magic "DCV1" + 32-byte obfuscated key = 36 bytes
@@ -730,4 +810,19 @@ pub fn unlock_vault(password: &str) -> Result<(), AppError> {
 /// Lock the default vault and clear sensitive data from in-memory cache
 pub fn lock_vault() {
     default_vault().lock();
+}
+
+/// Check if macOS keychain opt-in is enabled for the default vault
+pub fn is_keychain_opt_in() -> bool {
+    default_vault().is_keychain_opt_in()
+}
+
+/// Enable or disable macOS keychain opt-in for the default vault
+pub fn set_keychain_opt_in(enabled: bool) -> Result<(), AppError> {
+    default_vault().set_keychain_opt_in(enabled)
+}
+
+/// Attempt to unlock the default vault using credentials from macOS Keychain
+pub fn unlock_vault_from_keychain() -> Result<bool, AppError> {
+    default_vault().unlock_from_macos_keychain()
 }

@@ -544,6 +544,49 @@ pub async fn delete_stored_password(
 }
 
 #[tauri::command]
+pub async fn vault_is_keychain_enabled(
+    store: State<'_, ConnectionStore>,
+) -> Result<bool, String> {
+    Ok(store.vault().is_keychain_opt_in())
+}
+
+#[tauri::command]
+pub async fn vault_set_keychain_enabled(
+    store: State<'_, ConnectionStore>,
+    enabled: bool,
+) -> Result<(), String> {
+    store.vault().set_keychain_opt_in(enabled).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn vault_has_master_password(
+    store: State<'_, ConnectionStore>,
+) -> Result<bool, String> {
+    store.vault().has_master_password().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn vault_unlock(
+    store: State<'_, ConnectionStore>,
+    password: Option<String>,
+) -> Result<bool, String> {
+    if let Some(pwd) = password {
+        store.vault().unlock(&pwd).map_err(|e| e.to_string())?;
+        Ok(true)
+    } else {
+        store.vault().unlock_from_macos_keychain().map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn vault_lock(
+    store: State<'_, ConnectionStore>,
+) -> Result<(), String> {
+    store.vault().lock();
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn open_session(
     store: State<'_, ConnectionStore>,
     session_mgr: State<'_, SessionManager>,

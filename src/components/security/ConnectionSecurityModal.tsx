@@ -40,11 +40,21 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
 }) => {
   const [tlsInfo, setTlsInfo] = useState<TlsStatusInfo | null>(null);
   const [atRestInfo, setAtRestInfo] = useState<AtRestEncryptionInfo | null>(null);
+  const [isKeychainOptIn, setIsKeychainOptIn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTogglingKeychain, setIsTogglingKeychain] = useState(false);
 
   const fetchSecurityStatus = async () => {
     setIsLoading(true);
     const d = driver?.toLowerCase() || 'postgres';
+
+    // 0. Vault Keychain status
+    try {
+      const enabled = await dbApi.isVaultKeychainEnabled?.();
+      setIsKeychainOptIn(Boolean(enabled));
+    } catch {
+      // Keep default false
+    }
 
     // 1. In-transit TLS
     const tlsSql = buildGetTlsStatusSql(d);
@@ -122,6 +132,19 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleToggleKeychain = async () => {
+    try {
+      setIsTogglingKeychain(true);
+      const nextState = !isKeychainOptIn;
+      await dbApi.setVaultKeychainEnabled?.(nextState);
+      setIsKeychainOptIn(nextState);
+    } catch (err) {
+      console.error('Failed to toggle macOS Keychain opt-in:', err);
+    } finally {
+      setIsTogglingKeychain(false);
     }
   };
 
@@ -258,15 +281,45 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-start gap-2.5 rounded-lg bg-white p-3 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60">
-                <KeyRound className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <div className="font-medium text-slate-800 dark:text-slate-200">
-                    Local Credential Vault (AES-256-GCM)
+              <div className="flex items-start justify-between gap-2.5 rounded-lg bg-white p-3 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60">
+                <div className="flex items-start gap-2.5">
+                  <KeyRound className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="font-medium text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      Local Credential Vault (AES-256-GCM)
+                      <span className="rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 px-1.5 py-0.2">
+                        POSIX 0600
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Passphrases are sealed in <code className="text-slate-700 dark:text-slate-300">~/.datacore/vault.enc</code>. Zero OS popup prompts by default.
+                    </p>
+                    <div className="pt-1.5 flex items-center gap-2 text-[11px]">
+                      <span className="text-slate-600 dark:text-slate-300 font-medium">
+                        macOS Keychain & Touch ID Sync (Opt-In):
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isKeychainOptIn}
+                        aria-label="Toggle macOS Keychain Sync"
+                        onClick={handleToggleKeychain}
+                        disabled={isTogglingKeychain}
+                        className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+                          isKeychainOptIn ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            isKeychainOptIn ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                      <span className="text-[10px] text-slate-400">
+                        {isKeychainOptIn ? 'Enabled (Touch ID Ready)' : 'Disabled (Isolated Vault)'}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Saved connection passwords are cryptographically sealed in <code className="text-slate-700 dark:text-slate-300">~/.datacore/vault.enc</code> with POSIX permission 0600. OS Keychain prompts are bypassed for seamless authorization.
-                  </p>
                 </div>
               </div>
 

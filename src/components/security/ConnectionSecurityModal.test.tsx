@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { ConnectionSecurityModal } from './ConnectionSecurityModal';
 import { dbApi } from '../../api/db';
 
 vi.mock('../../api/db', () => ({
   dbApi: {
     executeDirectQuery: vi.fn(),
+    isVaultKeychainEnabled: vi.fn(),
+    setVaultKeychainEnabled: vi.fn(),
   },
 }));
 
@@ -98,6 +100,42 @@ describe('ConnectionSecurityModal', () => {
     await waitFor(() => {
       expect(screen.getByText('Unencrypted at Rest')).toBeDefined();
       expect(screen.getByText(/InnoDB tablespace encryption is disabled/i)).toBeDefined();
+    });
+  });
+
+  it('renders macOS Keychain toggle and handles opt-in state switching', async () => {
+    vi.mocked(dbApi.executeDirectQuery).mockResolvedValue({
+      columns: [],
+      rows: [],
+      execution_time_ms: 1,
+    });
+    vi.mocked(dbApi.isVaultKeychainEnabled).mockResolvedValue(false);
+    vi.mocked(dbApi.setVaultKeychainEnabled).mockResolvedValue(undefined);
+
+    render(
+      <ConnectionSecurityModal
+        isOpen={true}
+        connectionId="conn-1"
+        driver="sqlite"
+        onClose={onClose}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: /toggle macos keychain sync/i })).toBeInTheDocument();
+    });
+
+    const toggle = screen.getByRole('switch', { name: /toggle macos keychain sync/i });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByText(/Disabled \(Isolated Vault\)/i)).toBeInTheDocument();
+
+    // Click toggle to enable
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(dbApi.setVaultKeychainEnabled).toHaveBeenCalledWith(true);
+      expect(toggle).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByText(/Enabled \(Touch ID Ready\)/i)).toBeInTheDocument();
     });
   });
 });

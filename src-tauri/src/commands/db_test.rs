@@ -830,3 +830,32 @@ async fn test_simulate_query_impact_delete_and_update() {
     .await;
     assert!(err_res.is_err(), "Simulation of invalid query must return error");
 }
+
+#[tokio::test]
+async fn test_vault_keychain_opt_in_commands_lifecycle() {
+    let dir = tempdir().expect("create temp dir");
+    let store_file = dir.path().join("connections.json");
+    let store = ConnectionStore::new(&store_file);
+
+    // Initial state: keychain opt-in should be false (zero-popup local vault default)
+    assert_eq!(store.vault().is_keychain_opt_in(), false);
+    assert_eq!(store.vault().has_master_password().unwrap(), false);
+
+    // Enable keychain opt-in
+    store.vault().set_keychain_opt_in(true).expect("enable keychain opt-in");
+    assert_eq!(store.vault().is_keychain_opt_in(), true);
+
+    // Set master password and lock
+    let master_pass = "TestMasterPassword!2026";
+    store.vault().set_master_password(master_pass).expect("set master password");
+    assert_eq!(store.vault().has_master_password().unwrap(), true);
+
+    store.vault().lock();
+
+    // Unlock with explicit master password
+    store.vault().unlock(master_pass).expect("unlock vault with password");
+
+    // Disable keychain opt-in
+    store.vault().set_keychain_opt_in(false).expect("disable keychain opt-in");
+    assert_eq!(store.vault().is_keychain_opt_in(), false);
+}
