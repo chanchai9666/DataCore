@@ -29,6 +29,7 @@ import {
 } from './components/sidebar/tabHelpers';
 import { useShortcuts } from './hooks/useShortcuts';
 import type { ConnectionConfig } from './types/db';
+import { restoreWorkspaceState, saveWorkspaceDebounced } from './utils/workspacePersistence';
 
 export function App() {
   const { loadConnections, setActiveConnection, activeConnectionId, connections } = useConnectionStore();
@@ -92,10 +93,20 @@ export function App() {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  // Load saved connections on application mount
+  // Load saved connections and restore workspace state on application mount
   useEffect(() => {
     loadConnections();
+    restoreWorkspaceState();
   }, [loadConnections]);
+
+  // Debounced auto-save workspace state on tabs or active connection changes
+  useEffect(() => {
+    saveWorkspaceDebounced({
+      tabs,
+      activeTabId,
+      activeConnectionId,
+    });
+  }, [tabs, activeTabId, activeConnectionId]);
 
   // Sync dark class on document root / body
   useEffect(() => {

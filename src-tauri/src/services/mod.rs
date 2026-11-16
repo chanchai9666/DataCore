@@ -9,6 +9,7 @@ pub mod ssh_tunnel;
 pub mod path_guard;
 pub mod audit_logger;
 pub mod macos_keychain;
+pub mod workspace_store;
 
 pub use connection_store::*;
 pub use data_transfer::*;
@@ -21,6 +22,7 @@ pub use ssh_tunnel::*;
 pub use path_guard::*;
 pub use audit_logger::*;
 pub use macos_keychain::*;
+pub use workspace_store::*;
 
 #[cfg(test)]
 mod connection_store_test;

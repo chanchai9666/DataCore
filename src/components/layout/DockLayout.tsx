@@ -39,6 +39,7 @@ import { detectErrorType } from '../../utils/sqlErrorParser';
 import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
 import type { ConnectionConfig, QueryResult, Tab, TableFilterState, TableSortState } from '../../types/db';
+import { saveWorkspaceDebounced } from '../../utils/workspacePersistence';
 
 export interface DockLayoutProps {
   theme?: 'dark' | 'light';
@@ -90,6 +91,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('datacore-sidebar-collapsed', String(collapsed));
     }
+    saveWorkspaceDebounced({ sidebarCollapsed: collapsed });
   }, []);
 
   // Listen for global toggle-sidebar keybinding (Cmd+B / Ctrl+B)
@@ -100,6 +102,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem('datacore-sidebar-collapsed', String(next));
         }
+        saveWorkspaceDebounced({ sidebarCollapsed: next });
         return next;
       });
     };
@@ -867,6 +870,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('datacore-sidebar-width', String(currentWidth));
       }
+      saveWorkspaceDebounced({ sidebarWidth: currentWidth });
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };

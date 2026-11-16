@@ -18,7 +18,7 @@ pub const KEY_HEADER_V1: &[u8; 4] = b"DCV1";
 pub const KEY_HEADER_V2: &[u8; 4] = b"DCV2";
 
 #[cfg(unix)]
-fn set_secure_permissions(path: &Path) -> Result<(), AppError> {
+pub(crate) fn set_secure_permissions(path: &Path) -> Result<(), AppError> {
     use std::os::unix::fs::PermissionsExt;
     let metadata = fs::metadata(path)?;
     let mut perms = metadata.permissions();
@@ -28,12 +28,12 @@ fn set_secure_permissions(path: &Path) -> Result<(), AppError> {
 }
 
 #[cfg(not(unix))]
-fn set_secure_permissions(_path: &Path) -> Result<(), AppError> {
+pub(crate) fn set_secure_permissions(_path: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
 #[cfg(unix)]
-fn set_secure_dir_permissions(path: &Path) -> Result<(), AppError> {
+pub(crate) fn set_secure_dir_permissions(path: &Path) -> Result<(), AppError> {
     use std::os::unix::fs::PermissionsExt;
     let metadata = fs::metadata(path)?;
     let mut perms = metadata.permissions();
@@ -43,7 +43,7 @@ fn set_secure_dir_permissions(path: &Path) -> Result<(), AppError> {
 }
 
 #[cfg(not(unix))]
-fn set_secure_dir_permissions(_path: &Path) -> Result<(), AppError> {
+pub(crate) fn set_secure_dir_permissions(_path: &Path) -> Result<(), AppError> {
     Ok(())
 }
 

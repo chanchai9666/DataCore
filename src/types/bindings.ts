@@ -214,3 +214,25 @@ export type TableFilterState_Serialize = {
 };
 
 export type Value = null | boolean | number | string | Value[] | { [key in string]: Value };
+
+export type WorkspaceState = WorkspaceState_Serialize | WorkspaceState_Deserialize;
+
+export type WorkspaceState_Deserialize = {
+	activeConnectionId?: string | null,
+	tabs?: Value[],
+	activeTabId?: string | null,
+	sidebarWidth?: number | null,
+	sidebarCollapsed?: boolean | null,
+	sqlEditorRatio?: number | null,
+	customSettings?: Value | null,
+};
+
+export type WorkspaceState_Serialize = {
+	activeConnectionId: string | null,
+	tabs: Value[],
+	activeTabId: string | null,
+	sidebarWidth: number | null,
+	sidebarCollapsed: boolean | null,
+	sqlEditorRatio: number | null,
+	customSettings: Value | null,
+};

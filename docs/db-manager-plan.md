@@ -943,7 +943,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **34.6 PII Sensitive Column Masking [Completed]:** สร้างระบบตรวจจับข้อมูลอ่อนไหวอัตโนมัติ (`src/utils/piiDetector.ts`) ครอบคลุม Passwords, Secrets, Tokens, Identifiers (SSN, Citizen ID), Financial (Cards, CVV), และ Contact (Email, Phone) พร้อมปุ่ม Toggle บน DataGrid Bottom Bar และระบบป้องกันการคัดลอก PII ใน Clipboard
 
 ### Phase 35: UX/UI Ergonomics & Workspace Persistence (Issue #152 - P1)
-- **35.1 Session & Workspace State Persistence:** บันทึกและกู้คืน Document Tabs, Active Connection, SQL Drafts, Splitter Ratio และ Data Grid Column Widths อัตโนมัติ
+- **35.1 Session & Workspace State Persistence [Completed]:** บันทึกและกู้คืน Document Tabs, Active Connection, SQL Drafts, Splitter Ratio และ Data Grid Column Widths อัตโนมัติ โดยใช้ Atomic Write บนไฟล์ `~/.datacore/workspace_state.json` สิทธิ์ 0600 พร้อม Debounced auto-save (500ms) และ Hydration กู้คืนสถานะ tabs, active connection, sidebar width/collapsed
 - **35.2 Data Grid Ergonomics & Foreign Key Popover:** รองรับการกด ⌘+Click / Peek เพื่อดูข้อมูลแถวปลายทางของ Foreign Key ทันที และ Rich Cell Detail Drawer (JSON Tree, Local Time, Image Preview)
 - **35.3 Data Grid 'Copy As' Context Menu:** เมนูคลิกขวาคัดลอกข้อมูลเป็น SQL INSERT, JSON, Markdown Table, และ SQL `IN (...)`
 - **35.4 Keyboard Shortcut Presets & Command Palette:** รองรับ Keymap Presets (DataCore, TablePlus, DataGrip, VS Code) และ Jump Search ใน Command Palette (⌘K)

@@ -164,7 +164,8 @@ fn test_specta_typescript_export() {
         .typ::<super::query::FilterCondition>()
         .typ::<super::query::TableFilterState>()
         .typ::<super::connection::ConnectionConfig>()
-        .typ::<super::connection::SshTunnelConfig>();
+        .typ::<super::connection::SshTunnelConfig>()
+        .typ::<super::workspace::WorkspaceState>();
 
     builder
         .export(

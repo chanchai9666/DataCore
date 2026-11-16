@@ -23,6 +23,7 @@ Thumbs.db
 
 # Superpowers scratch
 .superpowers/
+.perch/
 
 # Environment files
 .env

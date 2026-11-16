@@ -1,8 +1,8 @@
 use tauri::State;
 use crate::drivers::SchemaNode;
 use crate::error::AppError;
-use crate::models::{ConnectionConfig, DatabaseDriver, ImpactSimulationResult, QueryResult};
-use crate::services::{AuditLogEntryInput, AuditLogger, ConnectionStore};
+use crate::models::{ConnectionConfig, DatabaseDriver, ImpactSimulationResult, QueryResult, WorkspaceState};
+use crate::services::{AuditLogEntryInput, AuditLogger, ConnectionStore, WorkspaceStore};
 use crate::session::SessionManager;
 
 // ============================================================================
@@ -739,4 +739,26 @@ pub async fn simulate_query_impact(
     simulate_query_impact_impl(&store, &session_mgr, &connection_id, &sql)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_workspace_state(
+    workspace_store: State<'_, WorkspaceStore>,
+) -> Result<Option<WorkspaceState>, String> {
+    workspace_store.load().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn save_workspace_state(
+    workspace_store: State<'_, WorkspaceStore>,
+    state: WorkspaceState,
+) -> Result<(), String> {
+    workspace_store.save(&state).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn clear_workspace_state(
+    workspace_store: State<'_, WorkspaceStore>,
+) -> Result<(), String> {
+    workspace_store.clear().map_err(|e| e.to_string())
 }

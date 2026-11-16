@@ -1,10 +1,12 @@
 pub mod connection;
 pub mod query;
 pub mod transfer;
+pub mod workspace;
 
 pub use connection::*;
 pub use query::*;
 pub use transfer::*;
+pub use workspace::*;
 
 #[cfg(test)]
 mod query_test;

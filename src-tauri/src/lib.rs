@@ -26,6 +26,7 @@ pub fn run() {
         .manage(ConnectionStore::default())
         .manage(SessionManager::default())
         .manage(AuditLogger::default())
+        .manage(WorkspaceStore::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             test_connection,
@@ -62,6 +63,9 @@ pub fn run() {
             cancel_transfer,
             save_text_file,
             simulate_query_impact,
+            get_workspace_state,
+            save_workspace_state,
+            clear_workspace_state,
             get_audit_logs,
             verify_audit_log_integrity,
             clear_audit_logs,
