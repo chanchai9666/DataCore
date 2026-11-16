@@ -262,6 +262,31 @@ async fn test_sqlite_table_filter_sanitization() {
             err_msg
         );
     }
+
+    // 3. Structured JSON AST Filter verification
+    let structured_filter = r#"{
+        "enabled": true,
+        "conjunction": "AND",
+        "conditions": [
+            {"column": "name", "operator": "=", "value": "Alice"}
+        ]
+    }"#;
+    let ast_res = conn
+        .fetch_table_data(None, "test_filter", 10, 0, Some(structured_filter), None, None)
+        .await
+        .expect("structured ast filter should succeed");
+    assert_eq!(ast_res.rows.len(), 1);
+    assert_eq!(ast_res.rows[0][1], CellValue::Text("Alice".to_string()));
+
+    // Malicious column in structured filter must be rejected
+    let malicious_ast = r#"{
+        "enabled": true,
+        "conjunction": "AND",
+        "conditions": [
+            {"column": "name; DROP TABLE test_filter; --", "operator": "=", "value": "Alice"}
+        ]
+    }"#;
+    assert!(conn.fetch_table_data(None, "test_filter", 10, 0, Some(malicious_ast), None, None).await.is_err());
 }
 
 #[tokio::test]

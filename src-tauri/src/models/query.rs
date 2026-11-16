@@ -263,3 +263,36 @@ impl ImpactSimulationResult {
         }
     }
 }
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_conjunction() -> String {
+    "AND".to_string()
+}
+
+/// A structured single filter condition.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FilterCondition {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub column: String,
+    pub operator: String,
+    #[serde(default)]
+    pub value: Option<String>,
+}
+
+/// A structured table filter AST representing conjunction and a list of conditions.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TableFilterState {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_conjunction")]
+    pub conjunction: String,
+    #[serde(default)]
+    pub conditions: Vec<FilterCondition>,
+}
+

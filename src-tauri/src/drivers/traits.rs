@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use crate::error::AppError;
-use crate::models::query::QueryResult;
+use crate::models::query::{QueryResult, TableFilterState};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -170,9 +170,169 @@ pub fn validate_table_filter(filter: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Validates that an identifier (such as column name) is safe from SQL injection.
+pub fn validate_safe_column_identifier(name: &str) -> Result<(), AppError> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidInput("Column name cannot be empty".to_string()));
+    }
+    // Block dangerous SQL syntax in column names
+    if trimmed.contains('\0')
+        || trimmed.contains(';')
+        || trimmed.contains("--")
+        || trimmed.contains("/*")
+        || trimmed.contains("*/")
+        || trimmed.contains('\'')
+        || trimmed.contains('"')
+        || trimmed.contains('`')
+    {
+        return Err(AppError::InvalidInput(format!("Invalid column identifier: '{}'", name)));
+    }
+    Ok(())
+}
+
+/// Builds a safe WHERE clause supporting both Structured JSON AST (`TableFilterState`)
+/// and validated Raw SQL filter clauses.
+pub fn build_safe_where_clause(filter: Option<&str>, driver: &str) -> Result<String, AppError> {
+    let f = match filter {
+        Some(s) if !s.trim().is_empty() => s.trim(),
+        _ => return Ok(String::new()),
+    };
+
+    // 1. Check if filter is a structured JSON AST representation
+    if f.starts_with('{') {
+        if let Ok(ast) = serde_json::from_str::<TableFilterState>(f) {
+            if !ast.enabled {
+                return Ok(String::new());
+            }
+
+            let conjunction = if ast.conjunction.eq_ignore_ascii_case("OR") {
+                "OR"
+            } else {
+                "AND"
+            };
+
+            let mut conditions_sql = Vec::new();
+            for cond in ast.conditions {
+                let col = cond.column.trim();
+                if col.is_empty() {
+                    continue;
+                }
+                validate_safe_column_identifier(col)?;
+
+                let quoted_col = if driver == "mysql" {
+                    format!("`{}`", col)
+                } else {
+                    format!("\"{}\"", col)
+                };
+
+                let op_upper = cond.operator.trim().to_ascii_uppercase();
+                match op_upper.as_str() {
+                    "IS NULL" => conditions_sql.push(format!("{} IS NULL", quoted_col)),
+                    "IS NOT NULL" => conditions_sql.push(format!("{} IS NOT NULL", quoted_col)),
+                    "=" | "!=" | "<>" | ">" | "<" | ">=" | "<=" => {
+                        let raw_val = cond.value.as_deref().unwrap_or("").trim();
+                        // Check numeric literal (without leading zero loss)
+                        let is_numeric = !raw_val.is_empty()
+                            && !raw_val.starts_with('0')
+                            && !raw_val.starts_with("-0")
+                            && raw_val.parse::<f64>().is_ok();
+
+                        let formatted_val = if is_numeric {
+                            raw_val.to_string()
+                        } else {
+                            let escaped = raw_val.replace('\'', "''");
+                            let final_val = if driver == "mysql" {
+                                escaped.replace('\\', "\\\\")
+                            } else {
+                                escaped
+                            };
+                            format!("'{}'", final_val)
+                        };
+                        let op = if op_upper == "<>" { "!=" } else { &op_upper };
+                        conditions_sql.push(format!("{} {} {}", quoted_col, op, formatted_val));
+                    }
+                    "LIKE" | "NOT LIKE" => {
+                        let raw_val = cond.value.as_deref().unwrap_or("").trim();
+                        let escaped = raw_val.replace('\'', "''");
+                        let final_val = if driver == "mysql" {
+                            escaped.replace('\\', "\\\\")
+                        } else {
+                            escaped
+                        };
+                        let pattern = if final_val.contains('%') || final_val.contains('_') {
+                            final_val
+                        } else {
+                            format!("%{}%", final_val)
+                        };
+                        conditions_sql.push(format!("{} {} '{}'", quoted_col, op_upper, pattern));
+                    }
+                    _ => {
+                        return Err(AppError::InvalidInput(format!(
+                            "Unsupported filter operator: '{}'",
+                            cond.operator
+                        )));
+                    }
+                }
+            }
+
+            if conditions_sql.is_empty() {
+                return Ok(String::new());
+            }
+
+            return Ok(format!(" WHERE {}", conditions_sql.join(&format!(" {} ", conjunction))));
+        }
+    }
+
+    // 2. Fallback: Raw SQL Filter Clause (protected by validate_table_filter)
+    validate_table_filter(f)?;
+    Ok(format!(" WHERE {}", f))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_build_safe_where_clause_structured_ast() {
+        let json_filter = r#"{
+            "enabled": true,
+            "conjunction": "AND",
+            "conditions": [
+                {"column": "age", "operator": ">=", "value": "18"},
+                {"column": "status", "operator": "=", "value": "active"},
+                {"column": "name", "operator": "LIKE", "value": "John"}
+            ]
+        }"#;
+
+        let where_clause = build_safe_where_clause(Some(json_filter), "sqlite").expect("parse structured filter");
+        assert_eq!(where_clause, " WHERE \"age\" >= 18 AND \"status\" = 'active' AND \"name\" LIKE '%John%'");
+
+        let mysql_where = build_safe_where_clause(Some(json_filter), "mysql").expect("parse mysql filter");
+        assert_eq!(mysql_where, " WHERE `age` >= 18 AND `status` = 'active' AND `name` LIKE '%John%'");
+    }
+
+    #[test]
+    fn test_build_safe_where_clause_structured_ast_rejects_column_injection() {
+        let malicious_col = r#"{
+            "enabled": true,
+            "conjunction": "AND",
+            "conditions": [
+                {"column": "id; DROP TABLE users; --", "operator": "=", "value": "1"}
+            ]
+        }"#;
+        assert!(build_safe_where_clause(Some(malicious_col), "sqlite").is_err());
+    }
+
+    #[test]
+    fn test_build_safe_where_clause_raw_fallback() {
+        let raw = "status = 'active'";
+        let res = build_safe_where_clause(Some(raw), "sqlite").expect("raw filter");
+        assert_eq!(res, " WHERE status = 'active'");
+
+        let malicious_raw = "1=1; DROP TABLE users;";
+        assert!(build_safe_where_clause(Some(malicious_raw), "sqlite").is_err());
+    }
 
     #[test]
     fn test_validate_table_filter_allows_keywords_in_string_literals() {
