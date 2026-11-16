@@ -112,7 +112,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const currentLang = i18n.language?.startsWith('th') ? 'th' : 'en';
-  const { connections, activeConnectionId } = useConnectionStore();
+  const { connections, activeConnectionId, connectedConnectionIds } = useConnectionStore();
   const { tabs, activeTabId } = useTabStore();
   const [activeDropdown, setActiveDropdown] = useState<'import' | 'export' | 'tools' | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -120,6 +120,9 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
   const activeConnection = connections.find((c) => c.id === resolvedConnectionId);
+  const isConnected = Boolean(
+    resolvedConnectionId && connectedConnectionIds.includes(resolvedConnectionId)
+  );
 
   // Close dropdown on click outside or escape
   useEffect(() => {
@@ -188,10 +191,10 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       label: t('toolbar.newQuery', 'New Query'),
       icon: Terminal,
       onClick: () => onNewQuery?.(),
-      disabled: !activeConnection,
-      title: activeConnection
+      disabled: !isConnected,
+      title: isConnected
         ? t('toolbar.newQueryTitle', 'Open new SQL query editor (⌘T)')
-        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
+        : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
       testId: 'toolbar-query-btn',
     },
     {
@@ -199,10 +202,10 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       label: t('toolbar.table', 'Table'),
       icon: Table,
       onClick: () => onOpenTable?.(),
-      disabled: !activeConnection,
-      title: activeConnection
+      disabled: !isConnected,
+      title: isConnected
         ? t('toolbar.tableTitle', 'Open table list view or designer')
-        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
+        : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
       testId: 'toolbar-table-btn',
     },
     {
@@ -210,10 +213,10 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       label: t('toolbar.tools', 'Tools'),
       icon: Wrench,
       onClick: handleToolsClick,
-      disabled: !activeConnection && !onCheckUpdates && !onExportDiagnosticBundle,
-      title: activeConnection || onCheckUpdates || onExportDiagnosticBundle
+      disabled: !isConnected,
+      title: isConnected
         ? t('toolbar.toolsTitle', 'Database tools, performance metrics & audit logs')
-        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
+        : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
       testId: 'toolbar-tools-btn',
     },
     {
@@ -221,10 +224,10 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       label: t('toolbar.backup', 'Backup'),
       icon: Archive,
       onClick: () => onBackup?.(),
-      disabled: !activeConnection,
-      title: activeConnection
+      disabled: !isConnected,
+      title: isConnected
         ? t('toolbar.backupTitle', 'Backup / Dump database')
-        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
+        : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
       testId: 'toolbar-backup-btn',
     },
     {
@@ -232,10 +235,10 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       label: t('toolbar.import', 'Import'),
       icon: Upload,
       onClick: handleImportClick,
-      disabled: !activeConnection,
-      title: activeConnection
+      disabled: !isConnected,
+      title: isConnected
         ? t('toolbar.importTitle', 'Import data or SQL script')
-        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
+        : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
       testId: 'toolbar-import-btn',
     },
     {
@@ -243,10 +246,10 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       label: t('toolbar.export', 'Export'),
       icon: Download,
       onClick: handleExportClick,
-      disabled: !activeConnection,
-      title: activeConnection
+      disabled: !isConnected,
+      title: isConnected
         ? t('toolbar.exportTitle', 'Export table or query results')
-        : t('toolbar.selectConnectionFirst', 'Select a connection first'),
+        : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
       testId: 'toolbar-export-btn',
     },
   ];
@@ -633,11 +636,21 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
               driver: activeConnection.driver,
             })}
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span
+              data-testid="toolbar-connection-status-dot"
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                isConnected ? 'bg-emerald-500' : 'bg-muted/40'
+              }`}
+            />
             <DbBadge driver={activeConnection.driver} />
             <span className="font-medium text-text max-w-[150px] truncate">
               {activeConnection.name}
             </span>
+            {!isConnected && (
+              <span className="text-[10px] text-muted italic ml-1">
+                ({t('status.disconnected', 'Disconnected')})
+              </span>
+            )}
           </button>
         ) : (
           <span className="text-xs text-muted/70 italic hidden sm:inline">

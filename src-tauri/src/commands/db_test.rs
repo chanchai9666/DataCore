@@ -842,17 +842,17 @@ async fn test_vault_keychain_opt_in_commands_lifecycle() {
     let store = ConnectionStore::new(&store_file);
 
     // Initial state: keychain opt-in should be false (zero-popup local vault default)
-    assert_eq!(store.vault().is_keychain_opt_in(), false);
-    assert_eq!(store.vault().has_master_password().unwrap(), false);
+    assert!(!store.vault().is_keychain_opt_in());
+    assert!(!store.vault().has_master_password().unwrap());
 
     // Enable keychain opt-in
     store.vault().set_keychain_opt_in(true).expect("enable keychain opt-in");
-    assert_eq!(store.vault().is_keychain_opt_in(), true);
+    assert!(store.vault().is_keychain_opt_in());
 
     // Set master password and lock
     let master_pass = "TestMasterPassword!2026";
     store.vault().set_master_password(master_pass).expect("set master password");
-    assert_eq!(store.vault().has_master_password().unwrap(), true);
+    assert!(store.vault().has_master_password().unwrap());
 
     store.vault().lock();
 
@@ -861,5 +861,5 @@ async fn test_vault_keychain_opt_in_commands_lifecycle() {
 
     // Disable keychain opt-in
     store.vault().set_keychain_opt_in(false).expect("disable keychain opt-in");
-    assert_eq!(store.vault().is_keychain_opt_in(), false);
+    assert!(!store.vault().is_keychain_opt_in());
 }

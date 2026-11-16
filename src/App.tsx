@@ -34,7 +34,7 @@ import type { ConnectionConfig } from './types/db';
 import { restoreWorkspaceState, saveWorkspaceDebounced } from './utils/workspacePersistence';
 
 export function App() {
-  const { loadConnections, setActiveConnection, activeConnectionId, connections } = useConnectionStore();
+  const { loadConnections, setActiveConnection, activeConnectionId, connectedConnectionIds, connections } = useConnectionStore();
   const { tabs, activeTabId } = useTabStore();
   const [isConnectionDialogOpen, setIsConnectionDialogOpen] = useState(false);
   const [connectionToEdit, setConnectionToEdit] = useState<ConnectionConfig | null>(null);
@@ -63,6 +63,9 @@ export function App() {
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
+  const isDbConnected = Boolean(
+    resolvedConnectionId && connectedConnectionIds.includes(resolvedConnectionId)
+  );
   const activeConnection = connections.find((c) => c.id === resolvedConnectionId);
 
   // Theme initialization: restore from localStorage or system preference
@@ -184,48 +187,48 @@ export function App() {
   };
 
   const handleNewQuery = () => {
-    if (activeConnectionId) {
+    if (activeConnectionId && connectedConnectionIds.includes(activeConnectionId)) {
       openQueryTab({ connectionId: activeConnectionId });
     }
   };
 
   const handleOpenTable = () => {
-    if (activeConnectionId) {
+    if (activeConnectionId && connectedConnectionIds.includes(activeConnectionId)) {
       openTableListTab({ connectionId: activeConnectionId });
     }
   };
 
   const handleBackup = () => {
-    if (activeConnectionId) {
+    if (activeConnectionId && connectedConnectionIds.includes(activeConnectionId)) {
       setIsBackupModalOpen(true);
     }
   };
 
   const handleImportSql = () => {
-    if (activeConnectionId) {
+    if (activeConnectionId && connectedConnectionIds.includes(activeConnectionId)) {
       setIsImportSqlModalOpen(true);
     }
   };
 
   const handleImportData = () => {
-    if (resolvedConnectionId) {
+    if (resolvedConnectionId && connectedConnectionIds.includes(resolvedConnectionId)) {
       setIsImportWizardOpen(true);
     } else {
-      toast.info('Please select or connect to a database first.');
+      toast.info('Please connect to a database first.');
     }
   };
 
   const handleExportSql = () => {
-    if (activeConnectionId) {
+    if (activeConnectionId && connectedConnectionIds.includes(activeConnectionId)) {
       setIsExportSqlModalOpen(true);
     }
   };
 
   const handleExportData = () => {
-    if (resolvedConnectionId) {
+    if (resolvedConnectionId && connectedConnectionIds.includes(resolvedConnectionId)) {
       setIsExportWizardOpen(true);
     } else {
-      toast.info('Please select or connect to a database first.');
+      toast.info('Please connect to a database first.');
     }
   };
 
@@ -264,18 +267,22 @@ export function App() {
         onExportSql={handleExportSql}
         onExportData={handleExportData}
         onOpenMetrics={() => {
-          if (resolvedConnectionId) setIsMetricsModalOpen(true);
+          if (isDbConnected) setIsMetricsModalOpen(true);
         }}
         onOpenLocks={() => {
-          if (resolvedConnectionId) setIsLocksModalOpen(true);
+          if (isDbConnected) setIsLocksModalOpen(true);
         }}
-        onOpenAuditLog={() => setIsAuditLogDrawerOpen(true)}
+        onOpenAuditLog={() => {
+          if (isDbConnected) setIsAuditLogDrawerOpen(true);
+        }}
         onOpenSecurity={() => {
-          if (resolvedConnectionId) setIsSecurityModalOpen(true);
+          if (isDbConnected) setIsSecurityModalOpen(true);
         }}
-        onOpenHistory={() => setIsHistoryDrawerOpen(true)}
+        onOpenHistory={() => {
+          if (isDbConnected) setIsHistoryDrawerOpen(true);
+        }}
         onOpenERDiagram={() => {
-          if (resolvedConnectionId) {
+          if (isDbConnected && resolvedConnectionId) {
             openERDiagramTab({
               connectionId: resolvedConnectionId,
               schemaName: activeTab?.schemaName,
@@ -283,7 +290,7 @@ export function App() {
           }
         }}
         onOpenQueryBuilder={() => {
-          if (resolvedConnectionId) {
+          if (isDbConnected && resolvedConnectionId) {
             openQueryBuilderTab({
               connectionId: resolvedConnectionId,
               tableName: activeTab?.tableName,
@@ -291,11 +298,15 @@ export function App() {
             });
           }
         }}
-        onOpenSchemaDiff={() => setIsSchemaDiffModalOpen(true)}
-        onOpenActivityMonitor={() => {
-          if (resolvedConnectionId) setIsActivityMonitorModalOpen(true);
+        onOpenSchemaDiff={() => {
+          if (isDbConnected) setIsSchemaDiffModalOpen(true);
         }}
-        onOpenUserManager={() => setIsUserManagerModalOpen(true)}
+        onOpenActivityMonitor={() => {
+          if (isDbConnected) setIsActivityMonitorModalOpen(true);
+        }}
+        onOpenUserManager={() => {
+          if (isDbConnected) setIsUserManagerModalOpen(true);
+        }}
         onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
         onCheckUpdates={() => setIsUpdateCheckerOpen(true)}
         onExportDiagnosticBundle={() => setIsDiagnosticBundleOpen(true)}
@@ -541,21 +552,31 @@ export function App() {
         onExportSql={handleExportSql}
         onImportSql={handleImportSql}
         onOpenMetrics={() => {
-          if (resolvedConnectionId) setIsMetricsModalOpen(true);
+          if (isDbConnected) setIsMetricsModalOpen(true);
         }}
         onOpenLocks={() => {
-          if (resolvedConnectionId) setIsLocksModalOpen(true);
+          if (isDbConnected) setIsLocksModalOpen(true);
         }}
-        onOpenAuditLog={() => setIsAuditLogDrawerOpen(true)}
+        onOpenAuditLog={() => {
+          if (isDbConnected) setIsAuditLogDrawerOpen(true);
+        }}
         onOpenSecurity={() => {
-          if (resolvedConnectionId) setIsSecurityModalOpen(true);
+          if (isDbConnected) setIsSecurityModalOpen(true);
         }}
-        onOpenHistory={() => setIsHistoryDrawerOpen(true)}
-        onOpenSchemaDiff={() => setIsSchemaDiffModalOpen(true)}
+        onOpenHistory={() => {
+          if (isDbConnected) setIsHistoryDrawerOpen(true);
+        }}
+        onOpenSchemaDiff={() => {
+          if (isDbConnected) setIsSchemaDiffModalOpen(true);
+        }}
         onOpenActivityMonitor={() => {
-          if (resolvedConnectionId) setIsActivityMonitorModalOpen(true);
+          if (isDbConnected) setIsActivityMonitorModalOpen(true);
         }}
-        onOpenUserManager={() => setIsUserManagerModalOpen(true)}
+        onOpenUserManager={() => {
+          if (isDbConnected) setIsUserManagerModalOpen(true);
+        }}
+        onCheckUpdates={() => setIsUpdateCheckerOpen(true)}
+        onExportDiagnosticBundle={() => setIsDiagnosticBundleOpen(true)}
         onSelectConnection={(connId) => {
           setActiveConnection(connId);
         }}

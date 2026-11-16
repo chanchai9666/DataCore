@@ -200,16 +200,16 @@ fn test_master_password_set_and_verify_lifecycle() {
     let vault = Vault::new(dir.path());
 
     // Initially, no master password is set
-    assert_eq!(vault.has_master_password().unwrap(), false);
-    assert_eq!(vault.verify_master_password("AnyPassword").unwrap(), false);
+    assert!(!vault.has_master_password().unwrap());
+    assert!(!vault.verify_master_password("AnyPassword").unwrap());
 
     // Set master password
     let master_pass = "VaultMasterKeyPass!99";
     vault.set_master_password(master_pass).expect("set master password");
 
-    assert_eq!(vault.has_master_password().unwrap(), true);
-    assert_eq!(vault.verify_master_password(master_pass).unwrap(), true);
-    assert_eq!(vault.verify_master_password("IncorrectPass").unwrap(), false);
+    assert!(vault.has_master_password().unwrap());
+    assert!(vault.verify_master_password(master_pass).unwrap());
+    assert!(!vault.verify_master_password("IncorrectPass").unwrap());
 
     // Verify key file format on disk
     let key_file = dir.path().join(".vault.key");
@@ -237,7 +237,7 @@ fn test_locked_vault_requires_master_password_and_unlock_error_handling() {
 
     // Simulate brand new application session (new Vault instance without password)
     let locked_vault = Vault::new(dir.path());
-    assert_eq!(locked_vault.has_master_password().unwrap(), true);
+    assert!(locked_vault.has_master_password().unwrap());
 
     // Attempting to get password without unlocking must fail with locked error
     let locked_get = locked_vault.get_password("conn-locked");
@@ -283,9 +283,9 @@ fn test_change_master_password() {
     vault.change_master_password(old_pass, new_pass).expect("change master password");
 
     // Old password no longer verifies
-    assert_eq!(vault.verify_master_password(old_pass).unwrap(), false);
+    assert!(!vault.verify_master_password(old_pass).unwrap());
     // New password verifies
-    assert_eq!(vault.verify_master_password(new_pass).unwrap(), true);
+    assert!(vault.verify_master_password(new_pass).unwrap());
 
     // Reload in brand new session
     let session2 = Vault::with_master_password(dir.path(), new_pass);
@@ -300,12 +300,12 @@ fn test_migration_from_machine_mode_to_master_password_mode() {
 
     // Save passwords in default machine mode (DCV1)
     machine_vault.save_password("mysql-prod", "MySQLP@ssword2026").expect("save in machine mode");
-    assert_eq!(machine_vault.has_master_password().unwrap(), false);
+    assert!(!machine_vault.has_master_password().unwrap());
 
     // Enable master password on existing vault
     let master_pwd = "NewMasterGuardPassword!";
     machine_vault.set_master_password(master_pwd).expect("upgrade to master password mode");
-    assert_eq!(machine_vault.has_master_password().unwrap(), true);
+    assert!(machine_vault.has_master_password().unwrap());
 
     // Check key file upgraded to DCV2
     let key_file = dir.path().join(".vault.key");
@@ -337,7 +337,7 @@ fn test_remove_master_password_reverts_to_machine_mode() {
 
     // Remove master password with correct password succeeds
     vault.remove_master_password(master_pwd).expect("remove master password");
-    assert_eq!(vault.has_master_password().unwrap(), false);
+    assert!(!vault.has_master_password().unwrap());
 
     // Verify key file is DCV1
     let key_file = dir.path().join(".vault.key");
@@ -425,15 +425,15 @@ fn test_vault_keychain_opt_in_lifecycle() {
     let vault = Vault::new(dir.path());
 
     // By default, opt-in is false (isolated local vault)
-    assert_eq!(vault.is_keychain_opt_in(), false);
+    assert!(!vault.is_keychain_opt_in());
 
     // Enable opt-in
     vault.set_keychain_opt_in(true).expect("enable keychain opt-in");
-    assert_eq!(vault.is_keychain_opt_in(), true);
+    assert!(vault.is_keychain_opt_in());
     assert!(dir.path().join(".vault.keychain_opt_in").exists());
 
     // Disable opt-in
     vault.set_keychain_opt_in(false).expect("disable keychain opt-in");
-    assert_eq!(vault.is_keychain_opt_in(), false);
+    assert!(!vault.is_keychain_opt_in());
     assert!(!dir.path().join(".vault.keychain_opt_in").exists());
 }

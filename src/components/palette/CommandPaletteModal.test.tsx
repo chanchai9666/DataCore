@@ -411,4 +411,28 @@ describe('CommandPaletteModal Component', () => {
     fireEvent.click(presetItem);
     expect(onOpenShortcuts).toHaveBeenCalledTimes(1);
   });
+
+  it('triggers onCheckUpdates and onExportDiagnosticBundle from system commands in palette', () => {
+    const onCheckUpdates = vi.fn();
+    const onExportDiagnosticBundle = vi.fn();
+    render(
+      <CommandPaletteModal
+        isOpen={true}
+        onClose={() => {}}
+        onCheckUpdates={onCheckUpdates}
+        onExportDiagnosticBundle={onExportDiagnosticBundle}
+      />
+    );
+
+    const input = screen.getByTestId('command-palette-input');
+    fireEvent.change(input, { target: { value: 'update' } });
+    const updateItem = screen.getByTestId('palette-item-action-check-updates');
+    fireEvent.click(updateItem);
+    expect(onCheckUpdates).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(input, { target: { value: 'diagnostic' } });
+    const diagnosticItem = screen.getByTestId('palette-item-action-diagnostic-bundle');
+    fireEvent.click(diagnosticItem);
+    expect(onExportDiagnosticBundle).toHaveBeenCalledTimes(1);
+  });
 });

@@ -993,6 +993,19 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - ปลดล็อก `Cmd+/` ใน `useShortcuts.ts` ให้ปล่อยผ่าน (not intercepted) เพื่อให้ CodeMirror ใน `SqlEditor.tsx` ทำหน้าที่ Toggle Line Comment (`--`) บนบรรทัดหรือข้อความที่เลือกผ่าน `toggleComment` จาก `@codemirror/commands`
   - อัปเดตรายการคีย์ลัดใน `KeyboardShortcutsModal`, `MainToolbar` (ปุ่มคีย์ลัดพร้อม aria-label/title `Keyboard Shortcuts (⌘?)`), และ Localization ทั้งภาษาไทยและภาษาอังกฤษ
 
+### Phase 40: Toolbar Connection State Guarding & Disconnected Safety Checks (Issue #159) [In Progress]
+- **40.1 Toolbar Buttons Disabled State When Disconnected:**
+  - ปรับปรุงการตรวจสอบสถานะการเชื่อมต่อบน `MainToolbar.tsx` ให้ผูกกับ `connectedConnectionIds` จาก `useConnectionStore`
+  - กำหนดให้ปุ่ม **Query ใหม่ (New Query)**, **ตาราง (Table)**, **เครื่องมือ (Tools)**, **สำรองข้อมูล (Backup)**, **นำเข้า (Import)** และ **ส่งออก (Export)** ถูก `disabled` ทันทีเมื่อไม่มีการเชื่อมต่อกับฐานข้อมูล (`connectedConnectionIds` เป็นค่าว่าง หรือ connection ปัจจุบันไม่ได้อยู่ใน `connectedConnectionIds`)
+  - ปรับสถานะจุดสีและข้อความใน Connection Badge มุมขวาบนของ Toolbar ให้แสดงจุดสีเขียวเมื่อเชื่อมต่อจริงเท่านั้น หากเลือก connection ที่ไม่ได้เชื่อมต่อจะแสดงจุดสีเทาพร้อมข้อความ `(Disconnected)`
+- **40.2 StatusBar Connection Indicator Accuracy:**
+  - อัปเดต `StatusBar.tsx` ให้แสดงสถานะ `Connected` พร้อมจุดสีเขียวเฉพาะเมื่อ `activeConnectionId` มีอยู่ใน `connectedConnectionIds` เท่านั้น หากเลือก connection แต่ยังไม่ได้เชื่อมต่อจริงจะแสดง `Disconnected`
+- **40.3 App & Shortcut Guards:**
+  - เพิ่ม Guard ใน `handleNewQuery`, `handleOpenTable` (`App.tsx`) และคีย์ลัด `Cmd+T` (`useShortcuts.ts`) ไม่ให้เปิดแท็บบน connection ที่ยังไม่ได้เชื่อมต่อ
+- **40.4 Global System Actions in Command Palette:**
+  - เพิ่ม "Check for Updates..." และ "Export Diagnostic Bundle..." เข้าสู่ Command Palette (`⌘K`) เพื่อให้เรียกใช้งานได้ตลอดเวลาแม้ไม่ได้เชื่อมต่อฐานข้อมูล
+
+
 
 
 

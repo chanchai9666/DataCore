@@ -12,10 +12,13 @@ export interface StatusBarProps {
 export const StatusBar: React.FC<StatusBarProps> = ({ className = '' }) => {
   const { t, i18n } = useTranslation();
   const { lastQuery, executionTimeMs, rowCount, selectedCellInfo, statusMessage } = useStatusStore();
-  const { connections, activeConnectionId } = useConnectionStore();
+  const { connections, activeConnectionId, connectedConnectionIds } = useConnectionStore();
   const [copied, setCopied] = useState(false);
 
   const activeConnection = connections.find((c) => c.id === activeConnectionId);
+  const isConnected = Boolean(
+    activeConnectionId && connectedConnectionIds.includes(activeConnectionId)
+  );
   const currentLang = i18n.language?.startsWith('th') ? 'th' : 'en';
 
   const handleCopyQuery = () => {
@@ -98,10 +101,17 @@ export const StatusBar: React.FC<StatusBarProps> = ({ className = '' }) => {
                 {activeConnection.environment.toUpperCase()}
               </span>
             )}
-            <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-              <span>{t('status.connected', 'Connected')}</span>
-            </div>
+            {isConnected ? (
+              <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <span>{t('status.connected', 'Connected')}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-muted/60">
+                <span className="text-text/70">{activeConnection.name}</span>
+                <span>({t('status.disconnected', 'Disconnected')})</span>
+              </div>
+            )}
           </div>
         ) : (
           <span className="text-muted/60">{t('status.disconnected', 'Disconnected')}</span>

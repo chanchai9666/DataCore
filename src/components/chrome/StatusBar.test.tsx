@@ -52,13 +52,25 @@ describe('StatusBar Component', () => {
     expect(writeTextMock).toHaveBeenCalledWith('SELECT id FROM orders;');
   });
 
-  it('displays Connected status when an active connection exists', () => {
+  it('displays Connected status when an active connection exists and is connected', () => {
     useConnectionStore.setState({
       connections: [{ id: 'c1', name: 'Local DB', driver: 'sqlite', database: 'main.db' }],
       activeConnectionId: 'c1',
+      connectedConnectionIds: ['c1'],
     });
     render(<StatusBar />);
     expect(screen.getByText('Connected')).toBeInTheDocument();
+  });
+
+  it('displays Disconnected status when an active connection is selected but not connected', () => {
+    useConnectionStore.setState({
+      connections: [{ id: 'c1', name: 'Local DB', driver: 'sqlite', database: 'main.db' }],
+      activeConnectionId: 'c1',
+      connectedConnectionIds: [],
+    });
+    render(<StatusBar />);
+    expect(screen.getByText('(Disconnected)')).toBeInTheDocument();
+    expect(screen.queryByText('Connected')).not.toBeInTheDocument();
   });
 
   it('displays environment badge in status bar when active connection has environment', () => {

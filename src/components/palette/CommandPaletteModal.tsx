@@ -25,6 +25,8 @@ import {
   LayoutGrid,
   Wand2,
   Languages,
+  RefreshCw,
+  FileJson,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useConnectionStore } from '../../stores/connectionStore';
@@ -82,6 +84,8 @@ export interface CommandPaletteModalProps {
   onOpenSchemaDiff?: () => void;
   onOpenActivityMonitor?: () => void;
   onOpenUserManager?: () => void;
+  onCheckUpdates?: () => void;
+  onExportDiagnosticBundle?: () => void;
   onSelectConnection?: (connectionId: string) => void;
   // For testing / overrides
   initialTables?: TableItem[];
@@ -156,6 +160,8 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   onOpenSchemaDiff,
   onOpenActivityMonitor,
   onOpenUserManager,
+  onCheckUpdates,
+  onExportDiagnosticBundle,
   onSelectConnection,
   initialTables,
   platform,
@@ -542,6 +548,34 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         onOpenShortcuts?.();
       },
     });
+
+    if (onCheckUpdates) {
+      items.push({
+        id: 'action-check-updates',
+        title: 'Check for Updates...',
+        subtitle: 'Check for new releases, changelogs, and update app',
+        category: 'Actions',
+        icon: <RefreshCw className="w-4 h-4 text-sky-400" />,
+        keywords: ['update', 'check for updates', 'version', 'upgrade', 'release'],
+        onSelect: () => {
+          onCheckUpdates();
+        },
+      });
+    }
+
+    if (onExportDiagnosticBundle) {
+      items.push({
+        id: 'action-diagnostic-bundle',
+        title: 'Export Diagnostic Bundle...',
+        subtitle: 'Sanitized system info, logs, and diagnostics for troubleshooting',
+        category: 'Actions',
+        icon: <FileJson className="w-4 h-4 text-amber-400" />,
+        keywords: ['diagnostic', 'bundle', 'export', 'debug', 'system info', 'logs', 'troubleshoot'],
+        onSelect: () => {
+          onExportDiagnosticBundle();
+        },
+      });
+    }
 
     // 2. Tables & Views
     for (const table of tables) {

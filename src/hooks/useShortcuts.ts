@@ -30,6 +30,7 @@ export function useShortcuts({
   const activeTabId = useTabStore((s) => s.activeTabId);
   const closeTab = useTabStore((s) => s.closeTab);
   const activeConnectionId = useConnectionStore((s) => s.activeConnectionId);
+  const connectedConnectionIds = useConnectionStore((s) => s.connectedConnectionIds);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -188,7 +189,7 @@ export function useShortcuts({
       // Cmd+T: New Query Tab
       if (e.key.toLowerCase() === 't' && !e.shiftKey && !e.altKey) {
         e.preventDefault();
-        if (activeConnectionId) {
+        if (activeConnectionId && connectedConnectionIds.includes(activeConnectionId)) {
           openQueryTab({ connectionId: activeConnectionId });
         }
         return;
@@ -210,6 +211,7 @@ export function useShortcuts({
     activeTabId,
     closeTab,
     activeConnectionId,
+    connectedConnectionIds,
     onNewConnection,
     onToggleTheme,
     onOpenShortcuts,

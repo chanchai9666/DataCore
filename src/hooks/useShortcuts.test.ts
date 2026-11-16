@@ -43,6 +43,38 @@ describe('useShortcuts Hook', () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
+  it('does NOT open query tab with Cmd+T when connection is not connected', () => {
+    useConnectionStore.setState({
+      activeConnectionId: 'conn-1',
+      connectedConnectionIds: [],
+    });
+
+    renderHook(() => useShortcuts());
+
+    const initialTabsCount = useTabStore.getState().tabs.length;
+    const event = new KeyboardEvent('keydown', { key: 't', metaKey: true, cancelable: true });
+    window.dispatchEvent(event);
+
+    expect(useTabStore.getState().tabs.length).toBe(initialTabsCount);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('opens query tab with Cmd+T when connection is connected', () => {
+    useConnectionStore.setState({
+      activeConnectionId: 'conn-1',
+      connectedConnectionIds: ['conn-1'],
+    });
+
+    renderHook(() => useShortcuts());
+
+    const initialTabsCount = useTabStore.getState().tabs.length;
+    const event = new KeyboardEvent('keydown', { key: 't', metaKey: true, cancelable: true });
+    window.dispatchEvent(event);
+
+    expect(useTabStore.getState().tabs.length).toBe(initialTabsCount + 1);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
   it('triggers onOpenShortcuts when Cmd+Shift+/ or Cmd+? is pressed', () => {
     const onOpenShortcuts = vi.fn();
     renderHook(() => useShortcuts({ onOpenShortcuts }));

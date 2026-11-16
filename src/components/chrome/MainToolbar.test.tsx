@@ -17,6 +17,7 @@ describe('MainToolbar Component', () => {
     useConnectionStore.setState({
       connections: [mockConn],
       activeConnectionId: null,
+      connectedConnectionIds: [],
       loading: false,
       error: null,
     });
@@ -45,18 +46,53 @@ describe('MainToolbar Component', () => {
     expect(onConnect).toHaveBeenCalledTimes(1);
   });
 
-  it('disables query and table buttons when no active connection is present', () => {
+  it('disables query, table, tools, backup, import, export when no active connection is present', () => {
     render(<MainToolbar />);
     expect(screen.getByRole('button', { name: /new query/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /table/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /tools/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /backup/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /import/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /export/i })).toBeDisabled();
   });
 
-  it('enables query button and displays active connection badge when connected', () => {
-    useConnectionStore.setState({ activeConnectionId: 'c1' });
+  it('disables query, table, tools, backup, import, export when connection is selected but not connected to database', () => {
+    useConnectionStore.setState({
+      activeConnectionId: 'c1',
+      connectedConnectionIds: [],
+    });
+    render(<MainToolbar />);
+    expect(screen.getByRole('button', { name: /new query/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /table/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /tools/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /backup/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /import/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /export/i })).toBeDisabled();
+
+    // Check status dot and disconnected text in connection pill
+    const statusDot = screen.getByTestId('toolbar-connection-status-dot');
+    expect(statusDot.className).toContain('bg-muted/40');
+    expect(screen.getByText('(Disconnected)')).toBeInTheDocument();
+  });
+
+  it('enables buttons and displays active connected badge when connected', () => {
+    useConnectionStore.setState({
+      activeConnectionId: 'c1',
+      connectedConnectionIds: ['c1'],
+    });
     render(<MainToolbar />);
     expect(screen.getByRole('button', { name: /new query/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /table/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /tools/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /backup/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /import/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /export/i })).not.toBeDisabled();
+
     expect(screen.getByText('Production DB')).toBeInTheDocument();
     expect(screen.getByTestId('db-badge')).toHaveTextContent('PG');
+    const statusDot = screen.getByTestId('toolbar-connection-status-dot');
+    expect(statusDot.className).toContain('bg-emerald-500');
+    expect(screen.queryByText('(Disconnected)')).not.toBeInTheDocument();
   });
 
   it('toggles theme when theme button is clicked', () => {
@@ -68,7 +104,7 @@ describe('MainToolbar Component', () => {
   });
 
   it('triggers onOpenTable when Table button is clicked', () => {
-    useConnectionStore.setState({ activeConnectionId: 'c1' });
+    useConnectionStore.setState({ activeConnectionId: 'c1', connectedConnectionIds: ['c1'] });
     const onOpenTable = vi.fn();
     render(<MainToolbar onOpenTable={onOpenTable} />);
     const tableBtn = screen.getByTestId('toolbar-table-btn');
@@ -77,7 +113,7 @@ describe('MainToolbar Component', () => {
   });
 
   it('triggers onBackup when Backup button is clicked', () => {
-    useConnectionStore.setState({ activeConnectionId: 'c1' });
+    useConnectionStore.setState({ activeConnectionId: 'c1', connectedConnectionIds: ['c1'] });
     const onBackup = vi.fn();
     render(<MainToolbar onBackup={onBackup} />);
     const backupBtn = screen.getByTestId('toolbar-backup-btn');
@@ -86,7 +122,7 @@ describe('MainToolbar Component', () => {
   });
 
   it('opens Import dropdown and triggers onImportData and onImportSql', () => {
-    useConnectionStore.setState({ activeConnectionId: 'c1' });
+    useConnectionStore.setState({ activeConnectionId: 'c1', connectedConnectionIds: ['c1'] });
     const onImportData = vi.fn();
     const onImportSql = vi.fn();
     render(<MainToolbar onImportData={onImportData} onImportSql={onImportSql} />);
@@ -109,7 +145,7 @@ describe('MainToolbar Component', () => {
   });
 
   it('opens Export dropdown and triggers onExportData and onExportSql', () => {
-    useConnectionStore.setState({ activeConnectionId: 'c1' });
+    useConnectionStore.setState({ activeConnectionId: 'c1', connectedConnectionIds: ['c1'] });
     const onExportData = vi.fn();
     const onExportSql = vi.fn();
     render(<MainToolbar onExportData={onExportData} onExportSql={onExportSql} />);
@@ -132,7 +168,7 @@ describe('MainToolbar Component', () => {
   });
 
   it('opens Tools dropdown and triggers diagnostics callbacks', () => {
-    useConnectionStore.setState({ activeConnectionId: 'c1' });
+    useConnectionStore.setState({ activeConnectionId: 'c1', connectedConnectionIds: ['c1'] });
     const onOpenMetrics = vi.fn();
     const onOpenLocks = vi.fn();
     const onOpenAuditLog = vi.fn();
@@ -209,7 +245,8 @@ describe('MainToolbar Component', () => {
     expect(onOpenUserManager).toHaveBeenCalledTimes(1);
   });
 
-  it('triggers onCheckUpdates and onExportDiagnosticBundle from tools dropdown', () => {
+  it('triggers onCheckUpdates and onExportDiagnosticBundle from tools dropdown when connected', () => {
+    useConnectionStore.setState({ activeConnectionId: 'c1', connectedConnectionIds: ['c1'] });
     const onCheckUpdates = vi.fn();
     const onExportDiagnosticBundle = vi.fn();
 
