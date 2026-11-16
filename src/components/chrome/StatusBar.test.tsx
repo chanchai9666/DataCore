@@ -61,6 +61,18 @@ describe('StatusBar Component', () => {
     expect(screen.getByText('Connected')).toBeInTheDocument();
   });
 
+  it('displays environment badge in status bar when active connection has environment', () => {
+    useConnectionStore.setState({
+      connections: [{ id: 'c-prod', name: 'Prod DB', driver: 'postgres', database: 'prod_db', environment: 'production' }],
+      activeConnectionId: 'c-prod',
+    });
+    render(<StatusBar />);
+    const badge = screen.getByTestId('status-env-badge');
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent('PRODUCTION');
+    expect(badge.className).toContain('text-red-500');
+  });
+
   it('updates metrics when switching active tab ID in status store', () => {
     useStatusStore.getState().setTabStatus('tab-users', {
       lastQuery: 'SELECT * FROM users;',

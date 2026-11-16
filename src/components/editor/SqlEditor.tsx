@@ -1136,6 +1136,8 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           isOpen={true}
           sql={pendingDangerousQuery.sql}
           analysis={pendingDangerousQuery.analysis}
+          environment={connection?.environment}
+          connectionName={connection?.name}
           onConfirm={pendingDangerousQuery.onConfirm}
           onCancel={() => setPendingDangerousQuery(null)}
         />

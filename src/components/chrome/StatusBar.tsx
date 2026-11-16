@@ -83,9 +83,25 @@ export const StatusBar: React.FC<StatusBarProps> = ({ className = '' }) => {
         )}
 
         {activeConnection ? (
-          <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-            <span>{t('status.connected', 'Connected')}</span>
+          <div className="flex items-center gap-1.5">
+            {activeConnection.environment && (
+              <span
+                data-testid="status-env-badge"
+                className={`text-[9px] font-bold px-1.5 py-0.5 rounded leading-none ${
+                  activeConnection.environment.toLowerCase() === 'production'
+                    ? 'bg-red-500/20 text-red-500 dark:text-red-400 border border-red-500/30'
+                    : activeConnection.environment.toLowerCase() === 'staging'
+                    ? 'bg-amber-500/20 text-amber-500 dark:text-amber-400 border border-amber-500/30'
+                    : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                }`}
+              >
+                {activeConnection.environment.toUpperCase()}
+              </span>
+            )}
+            <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <span>{t('status.connected', 'Connected')}</span>
+            </div>
           </div>
         ) : (
           <span className="text-muted/60">{t('status.disconnected', 'Disconnected')}</span>

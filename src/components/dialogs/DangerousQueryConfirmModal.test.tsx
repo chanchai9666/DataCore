@@ -43,4 +43,44 @@ describe('DangerousQueryConfirmModal', () => {
     fireEvent.click(executeBtn);
     expect(onConfirm).toHaveBeenCalled();
   });
+
+  it('enforces Production Safe Mode with required confirmation text in production environment', () => {
+    const handleConfirm = vi.fn();
+    const handleCancel = vi.fn();
+
+    render(
+      <DangerousQueryConfirmModal
+        isOpen={true}
+        sql="DROP TABLE production_orders;"
+        environment="production"
+        connectionName="Main Prod DB"
+        analysis={{ isDangerous: true, riskLevel: 'CRITICAL', reason: 'Destructive drop command detected' }}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
+    );
+
+    // Banner and Safe Mode indicator
+    expect(screen.getByTestId('production-safe-mode-banner')).toBeInTheDocument();
+    expect(screen.getByText(/Target connection "Main Prod DB" is in PRODUCTION/i)).toBeInTheDocument();
+    expect(screen.getByText('PRODUCTION')).toBeInTheDocument();
+
+    const executeBtn = screen.getByRole('button', { name: /execute anyway/i });
+    // Initially disabled in production
+    expect(executeBtn).toBeDisabled();
+    fireEvent.click(executeBtn);
+    expect(handleConfirm).not.toHaveBeenCalled();
+
+    // Type incorrect confirmation text
+    const input = screen.getByTestId('safe-mode-confirm-input');
+    fireEvent.change(input, { target: { value: 'yes' } });
+    expect(executeBtn).toBeDisabled();
+
+    // Type exact "CONFIRM"
+    fireEvent.change(input, { target: { value: 'CONFIRM' } });
+    expect(executeBtn).not.toBeDisabled();
+
+    fireEvent.click(executeBtn);
+    expect(handleConfirm).toHaveBeenCalledTimes(1);
+  });
 });
