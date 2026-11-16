@@ -33,6 +33,9 @@ argon2 = "0.5"
 rand = "0.10.3"
 sha2 = "0.10"
 zeroize = { version = "1.8", features = ["derive"] }
+specta = { version = "=2.0.0-rc.28", features = ["derive", "serde_json"] }
+specta-typescript = "0.0.15"
+tauri-specta = { version = "=2.0.0-rc.29", features = ["javascript", "typescript"] }
 
 [profile.release]
 codegen-units = 1

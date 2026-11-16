@@ -934,9 +934,9 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 แผนงานยกระดับความสามารถของ DataCore ต่อยอดสู่ระดับ Production Enterprise-Grade ครอบคลุมด้านความปลอดภัย, ความสะดวกในการใช้งาน, การจัดการ Database Objects ขั้นสูง, การขยาย Database Engines และมาตรฐานการเผยแพร่แอปบน macOS:
 
-### Phase 34: Security Hardening, Type-Safe IPC & Production Guardrails (Issue #151 - P0)
+### Phase 34: Security Hardening, Type-Safe IPC & Production Guardrails (Issue #151 - P0) [Completed]
 - **34.1 In-Memory Secret Zeroization (`zeroize`) [Completed]:** ติดตั้ง crate `zeroize` และห่อหุ้ม Master Password, Vault Cache, Connection Password, และ SSH Passphrase ด้วย `Zeroizing` พร้อม Implement `Drop` เพื่อล้างหน่วยความจำทันทีที่ Lock หรือ Disconnect
-- **34.2 Type-Safe IPC Contract (`tauri-specta`):** ติดตั้ง `tauri-specta` สร้าง TypeScript Bindings จาก `#[tauri::command]` อัตโนมัติ ป้องกัน IPC type drift
+- **34.2 Type-Safe IPC Contract (`tauri-specta`) [Completed]:** ติดตั้ง `specta` และ `tauri-specta` พร้อมคำสั่ง `pnpm bindings` สร้าง TypeScript Bindings จาก Rust Struct Models อัตโนมัติ (`src/types/bindings.ts`) ป้องกัน IPC type drift
 - **34.3 Structured / Parameterized Filter Builder & AST [Completed]:** ออกแบบ `FilterCondition` AST แทนการต่อ String `WHERE` ป้องกัน SQL Injection อย่างเด็ดขาด พร้อม validation
 - **34.4 Opt-in macOS Keychain & Biometric (Touch ID) [Completed]:** สร้างโมดูล `src-tauri/src/services/macos_keychain.rs` และเชื่อมโยงกับ Vault จัดเก็บ Master KEK พร้อม Toggle Opt-in ใน Connection Security Modal โดยคง Local Encrypted Vault (DCV2) เป็นค่าเริ่มต้นแบบ Zero-popup
 - **34.5 Production Environment Guardrails & Safe Mode [Completed]:** เพิ่มแถบสีระบุ Environment (`local`, `staging`, `production`) และระบบ Safe Mode บังคับพิมพ์ยืนยันก่อนรันคำสั่งแก้ไข/ลบข้อมูลที่มีความเสี่ยงสูง

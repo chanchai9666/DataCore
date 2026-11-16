@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum DatabaseDriver {
     #[default]
@@ -12,7 +13,7 @@ pub enum DatabaseDriver {
     Mysql,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SshTunnelConfig {
     #[serde(default)]
@@ -28,7 +29,7 @@ pub struct SshTunnelConfig {
     pub passphrase: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SslCertConfig {
     #[serde(alias = "ca_cert_path")]
@@ -39,7 +40,7 @@ pub struct SslCertConfig {
     pub client_key_path: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Type)]
 pub struct ConnectionConfig {
     pub id: String,
     pub name: String,

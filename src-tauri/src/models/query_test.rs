@@ -152,3 +152,26 @@ fn test_column_meta_pk_auto_increment_serialization() {
     assert_eq!(simple_col.is_primary_key, None);
     assert_eq!(simple_col.is_auto_increment, None);
 }
+
+#[test]
+fn test_specta_typescript_export() {
+    let builder = tauri_specta::Builder::<tauri::Wry>::new()
+        .dangerously_cast_bigints_to_number()
+        .typ::<super::query::CellValue>()
+        .typ::<super::query::ColumnMeta>()
+        .typ::<super::query::QueryResult>()
+        .typ::<super::query::ImpactSimulationResult>()
+        .typ::<super::query::FilterCondition>()
+        .typ::<super::query::TableFilterState>()
+        .typ::<super::connection::ConnectionConfig>()
+        .typ::<super::connection::SshTunnelConfig>();
+
+    builder
+        .export(
+            specta_typescript::Typescript::default(),
+            "../src/types/bindings.ts",
+        )
+        .expect("export typescript bindings");
+
+    assert!(std::path::Path::new("../src/types/bindings.ts").exists());
+}

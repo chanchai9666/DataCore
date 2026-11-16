@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 /// Represents any database column value in a unified, type-safe data contract.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Type)]
 pub enum CellValue {
     Null,
     Text(String),
@@ -159,7 +160,7 @@ impl From<serde_json::Value> for CellValue {
 }
 
 /// Metadata description for a single column in query results.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 pub struct ColumnMeta {
     pub name: String,
     pub data_type: String,
@@ -193,7 +194,7 @@ impl ColumnMeta {
 }
 
 /// Unified query result payload returned from Rust backend to frontend.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Type)]
 pub struct QueryResult {
     pub columns: Vec<ColumnMeta>,
     pub rows: Vec<Vec<CellValue>>,
@@ -227,7 +228,7 @@ impl QueryResult {
 }
 
 /// Simulation result for impact preview before running DELETE or UPDATE queries.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 pub struct ImpactSimulationResult {
     pub is_mutation: bool,
     pub table_name: Option<String>,
@@ -273,7 +274,7 @@ fn default_conjunction() -> String {
 }
 
 /// A structured single filter condition.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FilterCondition {
     #[serde(default)]
@@ -285,7 +286,7 @@ pub struct FilterCondition {
 }
 
 /// A structured table filter AST representing conjunction and a list of conditions.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TableFilterState {
     #[serde(default = "default_true")]
