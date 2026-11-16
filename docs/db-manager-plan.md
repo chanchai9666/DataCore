@@ -963,10 +963,8 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **Native TDS Driver:** เชื่อมต่อผ่าน `tiberius` crate พร้อมรองรับ SQL Server Authentication (Username/Password), Port เริ่มต้น 1433, และ TLS Encryption (`trust_server_certificate`)
   - **Schema Introspection:** ดึง Schemas (`sys.schemas`), Tables (`sys.tables`), Views (`sys.views`), และ Columns (`INFORMATION_SCHEMA.COLUMNS`)
   - **Query Execution:** รัน T-SQL queries และ Pagination ด้วย `OFFSET ... ROWS FETCH NEXT ... ROWS ONLY`
-- **37.3 Local-First AI SQL Assistant (Opt-in) [Completed]:**
-  - **Local-First Privacy Guard:** รองรับ OpenAI-compatible Local Endpoints (Ollama บน `http://localhost:11434/v1`, LM Studio บน `http://localhost:1234/v1`) โดยส่งเฉพาะ Schema Metadata (Table names, Column names & data types) ป้องกันการส่ง Row Data จริงออกภายนอกอย่างเด็ดขาด 100%
-  - **AI Capabilities:** Natural Language to SQL Generation, SQL Query Optimization & Explain Plan Assistant, และ Query Error Diagnoser
-  - **Opt-in Store & UI:** `aiStore.ts` และ `AiAssistantDrawer` สลับโหมดสนทนา / แนะนำ SQL และปุ่ม Insert เข้า Query Editor ทันที พร้อมระบบสลับโมเดล Local (เช่น `sqlcoder`, `llama3`, `deepseek-coder`) และปุ่มเปิด AI บน MainToolbar
+- **37.3 Local-First AI Assistant [Removed - Issue #156]:**
+  - ฟีเจอร์ AI Assistant (aiStore, AiAssistantDrawer และ Toolbar Button) ถูกถอดออกเพื่อคงความเรียบง่าย คลีน รวดเร็ว และโฟกัสกับเครื่องมือการจัดการฐานข้อมูลหลักระดับมืออาชีพโดยไม่มีส่วนประกอบ AI รบกวนหน้าต่างการทำงาน
 
 ### Phase 38: Distribution, Auto-Updater & Accessibility Standards (Issue #155 - P1) [Completed]
 - **38.1 macOS Hardened Runtime, Code Signing & Notarization [Completed]:**

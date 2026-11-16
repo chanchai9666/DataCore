@@ -25,13 +25,11 @@ import {
   Keyboard,
   Languages,
   Wand2,
-  Sparkles,
   RefreshCw,
   FileJson,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useAiStore } from '../../stores/aiStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
 import { DbBadge } from '../sidebar/DbBadge';
@@ -658,19 +656,6 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
         >
           <Languages size={14} className="shrink-0" />
           <span>{currentLang === 'th' ? 'ไทย' : 'EN'}</span>
-        </button>
-
-        {/* Local AI Assistant Toggle */}
-        <button
-          type="button"
-          onClick={() => useAiStore.getState().toggleOpen()}
-          data-testid="toolbar-ai-btn"
-          aria-label="Local AI Assistant"
-          title="Local AI Assistant (Ollama / LM Studio)"
-          className="h-7 px-2 flex items-center gap-1 rounded text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 transition-colors text-xs font-medium"
-        >
-          <Sparkles size={14} className="shrink-0" />
-          <span className="hidden sm:inline">AI</span>
         </button>
 
         {onOpenShortcuts && (

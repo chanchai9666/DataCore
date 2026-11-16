@@ -3,7 +3,6 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MainToolbar } from './MainToolbar';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
-import { useAiStore } from '../../stores/aiStore';
 import type { ConnectionConfig } from '../../types/db';
 
 describe('MainToolbar Component', () => {
@@ -246,14 +245,5 @@ describe('MainToolbar Component', () => {
     expect(shortcutsBtn).toHaveAttribute('aria-label', 'Keyboard Shortcuts (⌘/)');
     fireEvent.click(shortcutsBtn);
     expect(onOpenShortcuts).toHaveBeenCalledTimes(1);
-  });
-
-  it('triggers AI Assistant drawer toggle when AI button is clicked', () => {
-    const toggleSpy = vi.spyOn(useAiStore.getState(), 'toggleOpen');
-
-    render(<MainToolbar onConnect={vi.fn()} />);
-    const aiBtn = screen.getByTestId('toolbar-ai-btn');
-    fireEvent.click(aiBtn);
-    expect(toggleSpy).toHaveBeenCalled();
   });
 });

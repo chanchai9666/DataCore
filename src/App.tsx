@@ -20,7 +20,6 @@ import { KeyboardShortcutsModal } from './components/dialogs/KeyboardShortcutsMo
 import { CommandPaletteModal } from './components/palette/CommandPaletteModal';
 import { UpdateCheckerModal } from './components/dialogs/UpdateCheckerModal';
 import { DiagnosticBundleModal } from './components/dialogs/DiagnosticBundleModal';
-import { AiAssistantDrawer } from './components/ai/AiAssistantDrawer';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
 import {
@@ -559,21 +558,6 @@ export function App() {
         onOpenUserManager={() => setIsUserManagerModalOpen(true)}
         onSelectConnection={(connId) => {
           setActiveConnection(connId);
-        }}
-      />
-
-      {/* Local-First AI SQL Assistant Drawer */}
-      <AiAssistantDrawer
-        onInsertSql={(sql) => {
-          const { activeTabId, updateTab } = useTabStore.getState();
-          if (activeTabId) {
-            updateTab(activeTabId, { queryContent: sql });
-          } else if (resolvedConnectionId) {
-            openQueryTab({
-              connectionId: resolvedConnectionId,
-              initialQuery: sql,
-            });
-          }
         }}
       />
 
