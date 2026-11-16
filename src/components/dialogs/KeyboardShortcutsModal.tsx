@@ -39,8 +39,8 @@ export const SHORTCUTS_LIST: ShortcutItem[] = [
     id: 'general-shortcuts',
     title: 'Show Keyboard Shortcuts Cheat Sheet',
     category: 'General',
-    macKeys: ['⌘', '/'],
-    winKeys: ['Ctrl', '/'],
+    macKeys: ['⌘', '⇧', '/'],
+    winKeys: ['Ctrl', 'Shift', '/'],
     description: 'Open this cheat sheet modal (or press ?)',
   },
   {
@@ -581,7 +581,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
               </kbd>
               <span>or</span>
               <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-black/10 dark:bg-white/10 border border-line">
-                {platform === 'mac' ? '⌘/' : 'Ctrl+/'}
+                {platform === 'mac' ? '⌘?' : 'Ctrl+Shift+/'}
               </kbd>
               <span>to dismiss</span>
             </span>

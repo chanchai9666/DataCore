@@ -43,15 +43,32 @@ describe('useShortcuts Hook', () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
-  it('triggers onOpenShortcuts when Cmd+/ is pressed', () => {
+  it('triggers onOpenShortcuts when Cmd+Shift+/ or Cmd+? is pressed', () => {
     const onOpenShortcuts = vi.fn();
     renderHook(() => useShortcuts({ onOpenShortcuts }));
 
-    const event = new KeyboardEvent('keydown', { key: '/', metaKey: true, cancelable: true });
-    window.dispatchEvent(event);
+    const eventWithQuestion = new KeyboardEvent('keydown', { key: '?', metaKey: true, shiftKey: true, cancelable: true });
+    window.dispatchEvent(eventWithQuestion);
 
     expect(onOpenShortcuts).toHaveBeenCalledTimes(1);
-    expect(event.defaultPrevented).toBe(true);
+    expect(eventWithQuestion.defaultPrevented).toBe(true);
+
+    const eventWithSlashShift = new KeyboardEvent('keydown', { key: '/', metaKey: true, shiftKey: true, cancelable: true });
+    window.dispatchEvent(eventWithSlashShift);
+
+    expect(onOpenShortcuts).toHaveBeenCalledTimes(2);
+    expect(eventWithSlashShift.defaultPrevented).toBe(true);
+  });
+
+  it('does NOT intercept Cmd+/ without Shift to allow code editor line comment', () => {
+    const onOpenShortcuts = vi.fn();
+    renderHook(() => useShortcuts({ onOpenShortcuts }));
+
+    const event = new KeyboardEvent('keydown', { key: '/', metaKey: true, shiftKey: false, cancelable: true });
+    window.dispatchEvent(event);
+
+    expect(onOpenShortcuts).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
   });
 
   it('triggers onOpenShortcuts when ? is pressed without modifiers when not in input', () => {

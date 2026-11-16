@@ -242,7 +242,7 @@ describe('MainToolbar Component', () => {
     render(<MainToolbar onOpenShortcuts={onOpenShortcuts} />);
     const shortcutsBtn = screen.getByTestId('toolbar-shortcuts-btn');
     expect(shortcutsBtn).toBeInTheDocument();
-    expect(shortcutsBtn).toHaveAttribute('aria-label', 'Keyboard Shortcuts (⌘/)');
+    expect(shortcutsBtn).toHaveAttribute('aria-label', 'Keyboard Shortcuts (⌘?)');
     fireEvent.click(shortcutsBtn);
     expect(onOpenShortcuts).toHaveBeenCalledTimes(1);
   });

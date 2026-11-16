@@ -81,7 +81,7 @@
     "queryHistory": "ประวัติ Query & Snippet",
     "queryHistoryDesc": "ประวัติการรัน Query และชุดโค้ด SQL Snippet ที่ใช้ซ้ำได้",
     "shortcuts": "คีย์ลัด",
-    "shortcutsTitle": "คีย์ลัดแป้นพิมพ์ (⌘/)",
+    "shortcutsTitle": "คีย์ลัดแป้นพิมพ์ (⌘?)",
     "lightMode": "เปลี่ยนเป็น Light Mode",
     "darkMode": "เปลี่ยนเป็น Dark Mode",
     "language": "ภาษา",

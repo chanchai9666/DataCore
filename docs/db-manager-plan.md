@@ -984,10 +984,14 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - Focus Trap และ Keyboard Navigation (Esc, Tab, Enter) ใน Dialogs และ Drawers ผ่าน Radix UI Dialog
   - เพิ่ม ARIA Live Region (`role="status"`, `aria-live="polite"`, `aria-atomic="true"`) สำหรับ Screen Reader บน `StatusBar` และ `role="alert"`, `aria-live="assertive"` บน `SqlEditor` Error Callout Panel
 
-### Phase 39: Editor Ergonomics & Polish (Issue #157) [Completed]
-- **39.1 Click Anywhere to Focus Query Editor [Completed]:**
+### Phase 39: Editor Ergonomics & Polish (Issue #157, #158) [Completed]
+- **39.1 Click Anywhere to Focus Query Editor [Completed - Issue #157]:**
   - เพิ่ม CodeMirror extension `editorFullHeightTheme` กำหนด `.cm-content` และ `.cm-gutters` ให้มี `minHeight: 100%` และ `cursor: text` พร้อม `.cm-scroller` `height: 100%`
   - เพิ่ม Event Handler บน `sql-editor-container` เพื่อดักการคลิกบนพื้นที่ว่างใดๆ ใต้ข้อความ แล้วส่งโฟกัสเคอร์เซอร์ไปยังบรรทัดที่ 1 / ตำแหน่งข้อความทันทีโดยไม่ต้องเล็งคลิกที่แถว 1 เท่านั้น
+- **39.2 Resolve Cmd+/ Shortcut Collision (SQL Line Comment vs Cheat Sheet) [Completed - Issue #158]:**
+  - ย้ายคีย์ลัดสำหรับเปิด Shortcuts Cheat Sheet Modal เป็น `Cmd+Shift+/` (`⌘?` / `Ctrl+Shift+/`) หรือกด `?` ตอนไม่ได้อยู่ในช่อง input ตามมาตรฐานแอป macOS
+  - ปลดล็อก `Cmd+/` ใน `useShortcuts.ts` ให้ปล่อยผ่าน (not intercepted) เพื่อให้ CodeMirror ใน `SqlEditor.tsx` ทำหน้าที่ Toggle Line Comment (`--`) บนบรรทัดหรือข้อความที่เลือกผ่าน `toggleComment` จาก `@codemirror/commands`
+  - อัปเดตรายการคีย์ลัดใน `KeyboardShortcutsModal`, `MainToolbar` (ปุ่มคีย์ลัดพร้อม aria-label/title `Keyboard Shortcuts (⌘?)`), และ Localization ทั้งภาษาไทยและภาษาอังกฤษ
 
 
 

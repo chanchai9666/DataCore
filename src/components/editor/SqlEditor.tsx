@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { EditorView, Decoration, keymap, type DecorationSet } from '@codemirror/view';
 import { Prec, StateField, StateEffect } from '@codemirror/state';
+import { toggleComment } from '@codemirror/commands';
 import { sql, SQLite, PostgreSQL, MySQL, StandardSQL } from '@codemirror/lang-sql';
 import {
   AlertCircle,
@@ -786,7 +787,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     }
   }, [targetTabId, tab, connection?.driver, setQueryContent]);
 
-  // Keymap extension for Cmd+Enter / Ctrl+Enter and Cmd+Shift+F / Ctrl+Shift+F
+  // Keymap extension for Cmd+Enter / Ctrl+Enter, Cmd+Shift+F, and Cmd+/ (Toggle Line Comment)
   const runKeymap = useMemo(() => {
     return Prec.highest(
       keymap.of([
@@ -803,6 +804,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
             handleFormatSql();
             return true;
           },
+        },
+        {
+          key: 'Mod-/',
+          run: toggleComment,
         },
       ])
     );

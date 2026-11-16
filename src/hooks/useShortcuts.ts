@@ -75,8 +75,9 @@ export function useShortcuts({
         return;
       }
 
-      // Cmd+/ or Ctrl+/: Open Keyboard Shortcuts Cheat Sheet Modal
-      if (e.key === '/' || e.key === '?') {
+      // Cmd+Shift+/ or Cmd+? or Ctrl+Shift+? : Open Keyboard Shortcuts Cheat Sheet Modal
+      // Notice: Cmd+/ without shift is intentionally NOT intercepted here so that code editors (CodeMirror) can use it for Toggle Line Comment.
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
         e.preventDefault();
         onOpenShortcuts?.();
         return;

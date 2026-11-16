@@ -142,4 +142,17 @@ describe('KeyboardShortcutsModal Component', () => {
       expect(item.category).toBeTruthy();
     }
   });
+
+  it('defines distinct keybindings for cheat sheet and SQL line comment (Issue #158)', () => {
+    const cheatSheetItem = SHORTCUTS_LIST.find((item) => item.id === 'general-shortcuts');
+    const commentItem = SHORTCUTS_LIST.find((item) => item.id === 'editor-comment');
+
+    expect(cheatSheetItem).toBeDefined();
+    expect(cheatSheetItem?.macKeys).toEqual(['⌘', '⇧', '/']);
+    expect(cheatSheetItem?.winKeys).toEqual(['Ctrl', 'Shift', '/']);
+
+    expect(commentItem).toBeDefined();
+    expect(commentItem?.macKeys).toEqual(['⌘', '/']);
+    expect(commentItem?.winKeys).toEqual(['Ctrl', '/']);
+  });
 });

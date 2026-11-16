@@ -1016,4 +1016,46 @@ describe('SqlEditor', () => {
       }
     });
   });
+
+  describe('Toggle Line Comment Shortcut (Issue #158)', () => {
+    it('supports toggling SQL comment with toggleComment command in editor', async () => {
+      let createdView: any = null;
+      useTabStore.setState({
+        tabs: [
+          {
+            id: 'tab-comment',
+            title: 'Comment Tab',
+            type: 'query',
+            connectionId: 'conn-1',
+            queryContent: 'SELECT 1;',
+            autoCommit: true,
+          },
+        ],
+        activeTabId: 'tab-comment',
+      });
+
+      render(
+        <SqlEditor
+          tabId="tab-comment"
+          onEditorCreated={(view) => {
+            createdView = view;
+          }}
+        />
+      );
+
+      expect(createdView).not.toBeNull();
+      if (createdView) {
+        const { toggleComment } = await import('@codemirror/commands');
+        act(() => {
+          toggleComment(createdView);
+        });
+        expect(createdView.state.doc.toString()).toBe('-- SELECT 1;');
+
+        act(() => {
+          toggleComment(createdView);
+        });
+        expect(createdView.state.doc.toString()).toBe('SELECT 1;');
+      }
+    });
+  });
 });

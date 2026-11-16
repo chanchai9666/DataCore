@@ -12,6 +12,7 @@
     "bindings": "cargo test --manifest-path src-tauri/Cargo.toml test_specta_typescript_export -- --nocapture"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
