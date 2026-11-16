@@ -928,6 +928,43 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
     - **Data Transfer Wizards & Visual Tools:** แปลและรองรับสองภาษาในตัวช่วยนำเข้า/ส่งออกข้อมูล `DataImportWizardModal.tsx`, `DataExportWizardModal.tsx`, `ExportSqlModal.tsx`, `ImportSqlModal.tsx`, `CrossDbCopyModal.tsx`, `ERDiagramTab.tsx`, และ `VisualQueryBuilderTab.tsx`
     - **Strict Parity & Lexicon Standard:** รักษาความสมบูรณ์ 100% ระหว่าง `en.json` และ `th.json` ด้วย `src/test/i18nParity.test.ts` พร้อมคงคำศัพท์เทคนิคฐานข้อมูลตามมาตรฐานสากลเสมอ
 
+---
+
+## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)
+
+แผนงานยกระดับความสามารถของ DataCore ต่อยอดสู่ระดับ Production Enterprise-Grade ครอบคลุมด้านความปลอดภัย, ความสะดวกในการใช้งาน, การจัดการ Database Objects ขั้นสูง, การขยาย Database Engines และมาตรฐานการเผยแพร่แอปบน macOS:
+
+### Phase 34: Security Hardening, Type-Safe IPC & Production Guardrails (Issue #151 - P0)
+- **34.1 In-Memory Secret Zeroization (`zeroize`):** ติดตั้ง crate `zeroize` และห่อหุ้ม Master Password, Vault Cache, Connection Password, และ SSH Passphrase ด้วย `Zeroizing` พร้อม Implement `Drop` เพื่อล้างหน่วยความจำทันทีที่ Lock หรือ Disconnect
+- **34.2 Type-Safe IPC Contract (`tauri-specta`):** ติดตั้ง `tauri-specta` สร้าง TypeScript Bindings จาก `#[tauri::command]` อัตโนมัติ ป้องกัน IPC type drift
+- **34.3 Structured / Parameterized Filter Builder & AST:** ออกแบบ `FilterCondition` AST แทนการต่อ String `WHERE` ป้องกัน SQL Injection อย่างเด็ดขาด
+- **34.4 Opt-in macOS Keychain & Biometric (Touch ID):** เพิ่มตัวเลือกเก็บ Master KEK ใน macOS Keychain พร้อมปลดล็อกด้วย Touch ID โดยคง Local Vault (DCV2) เป็นค่าเริ่มต้นแบบ Zero-popup
+- **34.5 Production Environment Guardrails & Safe Mode:** เพิ่มแถบสีระบุ Environment (`local`, `staging`, `production`) และระบบ Safe Mode บังคับพิมพ์ยืนยันก่อนรันคำสั่งแก้ไข/ลบข้อมูลที่มีความเสี่ยงสูง
+- **34.6 PII Sensitive Column Masking:** ตรวจจับและปกปิดข้อมูลอ่อนไหวอัตโนมัติ พร้อม Presentation / Screen-Share Safe Mode
+
+### Phase 35: UX/UI Ergonomics & Workspace Persistence (Issue #152 - P1)
+- **35.1 Session & Workspace State Persistence:** บันทึกและกู้คืน Document Tabs, Active Connection, SQL Drafts, Splitter Ratio และ Data Grid Column Widths อัตโนมัติ
+- **35.2 Data Grid Ergonomics & Foreign Key Popover:** รองรับการกด ⌘+Click / Peek เพื่อดูข้อมูลแถวปลายทางของ Foreign Key ทันที และ Rich Cell Detail Drawer (JSON Tree, Local Time, Image Preview)
+- **35.3 Data Grid 'Copy As' Context Menu:** เมนูคลิกขวาคัดลอกข้อมูลเป็น SQL INSERT, JSON, Markdown Table, และ SQL `IN (...)`
+- **35.4 Keyboard Shortcut Presets & Command Palette:** รองรับ Keymap Presets (DataCore, TablePlus, DataGrip, VS Code) และ Jump Search ใน Command Palette (⌘K)
+
+### Phase 36: Deep Object Browser & Native Backup/Restore Suite (Issue #153 - P1)
+- **36.1 Deep Object Browser Tree:** รองรับการสำรวจ Triggers, Stored Procedures, Functions, Sequences, และ Custom Types/Enums พร้อมดู Source DDL
+- **36.2 Native Backup & Restore Wrapper Service:** Service ฝั่ง Rust สำหรับเชื่อมต่อ CLI `pg_dump`, `pg_restore`, `mysqldump`, `sqlite3` พร้อม UI Wizard และ Live Progress Streaming
+- **36.3 Query Explain History & Plan Diff:** บันทึก Snapshot ของ `EXPLAIN ANALYZE` และหน้าต่างเปรียบเทียบ Visual Plan Diff Before/After
+
+### Phase 37: Engine Expansion & Local-First AI Assistant (Issue #154 - P2)
+- **37.1 Embedded Analytics Engine (DuckDB):** รองรับการเปิดและคิวรีไฟล์ `.parquet`, `.csv`, `.duckdb` ได้โดยตรงแบบ High-Performance
+- **37.2 Microsoft SQL Server (MSSQL):** ไดรเวอร์เชื่อมต่อ MSSQL ผ่าน `tiberius` crate พร้อมรองรับ Windows/SQL Server Authentication
+- **37.3 Local-First AI SQL Assistant (Opt-in):** เชื่อมต่อ OpenAI-compatible Local Endpoint (Ollama, LM Studio) บน `localhost` โดยส่งเฉพาะ Schema Metadata เพื่อความเป็นส่วนตัว 100%
+
+### Phase 38: Distribution, Auto-Updater & Accessibility Standards (Issue #155 - P1)
+- **38.1 macOS Hardened Runtime, Code Signing & Notarization:** จัดเตรียม `entitlements.plist` และ GitHub Actions Release Workflow สำหรับ Apple Notarization
+- **38.2 Auto-Updater Integration (`tauri-plugin-updater`):** ตรวจสอบและอัปเดตเวอร์ชันใหม่อัตโนมัติด้วย Cryptographic Signature
+- **38.3 Diagnostic Bundle Export:** รวม System Info, App Logs, และ Sanitized Config สำหรับการซัพพอร์ต
+- **38.4 WCAG 2.1 AA Accessibility Audit:** ตรวจสอบ Focus Trap, Keyboard Nav, High-Contrast Theme และ Screen Reader Support
+
+
 
 
 
