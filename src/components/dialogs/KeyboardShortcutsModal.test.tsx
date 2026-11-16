@@ -114,6 +114,20 @@ describe('KeyboardShortcutsModal Component', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('switches keymap presets when preset button is clicked', () => {
+    render(<KeyboardShortcutsModal isOpen={true} onClose={() => {}} platform="mac" />);
+
+    expect(screen.getByTestId('keymap-preset-selector')).toBeInTheDocument();
+    const tableplusBtn = screen.getByTestId('preset-btn-tableplus');
+    expect(tableplusBtn).toBeInTheDocument();
+
+    fireEvent.click(tableplusBtn);
+
+    // Run query shortcut in TablePlus should display TablePlus keymap description
+    expect(screen.getByText(/Execute query \(TablePlus keymap\)/i)).toBeInTheDocument();
+    expect(screen.getByText('R')).toBeInTheDocument();
+  });
+
   it('detectIsMac returns true for Mac platform strings and false for others', () => {
     expect(detectIsMac('mac')).toBe(true);
     expect(detectIsMac('windows')).toBe(false);

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Copy, Check, Code, Edit2, Save, Eye } from 'lucide-react';
+import { X, Copy, Check, Code, Edit2, Save, Eye, Clock, Calendar, Image as ImageIcon, Network } from 'lucide-react';
 import { CellValue } from '../../types/db';
 import { extractCellValue } from './gridUtils';
+import { detectDateTime, detectImage } from './cellDetailHelpers';
+import { JsonTreeView } from './JsonTreeView';
 
 export interface CellDetailDrawerProps {
   isOpen: boolean;
@@ -14,8 +16,13 @@ export interface CellDetailDrawerProps {
     isStaged?: boolean;
     rowIndex?: number;
     colIndex?: number;
+    foreignKeyInfo?: {
+      foreignTable: string;
+      foreignColumn: string;
+    };
   } | null;
   onSaveValue?: (newValue: unknown) => void;
+  onNavigateToForeignKey?: (foreignTable: string, foreignColumn: string, value: unknown) => void;
 }
 
 export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
@@ -23,9 +30,10 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
   onClose,
   cellInfo,
   onSaveValue,
+  onNavigateToForeignKey,
 }) => {
   const [copied, setCopied] = useState(false);
-  const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
+  const [viewMode, setViewMode] = useState<'formatted' | 'raw' | 'tree'>('formatted');
   const [isEditing, setIsEditing] = useState(Boolean(onSaveValue));
   const [editValue, setEditValue] = useState('');
   const [isNull, setIsNull] = useState(false);
@@ -120,19 +128,34 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
   // Prepare display and copy representations
   let formattedText = extracted.displayString;
   let isJson = false;
+  let parsedJsonObject: unknown = null;
 
   if (extracted.type === 'json' && extracted.rawValue !== null) {
     isJson = true;
     try {
-      const obj =
+      parsedJsonObject =
         typeof extracted.rawValue === 'string'
           ? JSON.parse(extracted.rawValue)
           : extracted.rawValue;
-      formattedText = JSON.stringify(obj, null, 2);
+      formattedText = JSON.stringify(parsedJsonObject, null, 2);
     } catch {
       formattedText = extracted.displayString;
     }
+  } else if (typeof extracted.rawValue === 'string') {
+    const s = extracted.rawValue.trim();
+    if ((s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']'))) {
+      try {
+        parsedJsonObject = JSON.parse(s);
+        isJson = true;
+        formattedText = JSON.stringify(parsedJsonObject, null, 2);
+      } catch {
+        // Not valid JSON
+      }
+    }
   }
+
+  const dateTimeInfo = detectDateTime(extracted.rawValue);
+  const imageInfo = detectImage(extracted.rawValue);
 
   const rawText =
     typeof extracted.rawValue === 'object' && extracted.rawValue !== null
@@ -143,7 +166,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
     ? isNull
       ? 'NULL'
       : editValue
-    : viewMode === 'formatted'
+    : viewMode === 'formatted' || viewMode === 'tree'
     ? formattedText
     : rawText;
 
@@ -344,22 +367,77 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
             </>
           )}
 
-          {isJson && (
+          {isJson && !isEditing && (
+            <div style={{ display: 'inline-flex', borderRadius: '4px', border: '1px solid var(--border-color, #444444)', overflow: 'hidden' }}>
+              <button
+                type="button"
+                onClick={() => setViewMode('formatted')}
+                data-testid="view-formatted-btn"
+                title="Formatted JSON"
+                style={{
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  backgroundColor: viewMode === 'formatted' ? '#2563eb' : 'var(--btn-bg, #2e2e2e)',
+                  color: viewMode === 'formatted' ? '#ffffff' : 'var(--text-secondary, #cccccc)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: viewMode === 'formatted' ? 600 : 400,
+                }}
+              >
+                Formatted
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('tree')}
+                data-testid="view-tree-btn"
+                title="Interactive Tree View"
+                style={{
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  backgroundColor: viewMode === 'tree' ? '#2563eb' : 'var(--btn-bg, #2e2e2e)',
+                  color: viewMode === 'tree' ? '#ffffff' : 'var(--text-secondary, #cccccc)',
+                  borderLeft: '1px solid var(--border-color, #444444)',
+                  borderRight: '1px solid var(--border-color, #444444)',
+                  borderTop: 'none',
+                  borderBottom: 'none',
+                  cursor: 'pointer',
+                  fontWeight: viewMode === 'tree' ? 600 : 400,
+                }}
+              >
+                Tree
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('raw')}
+                data-testid="view-raw-btn"
+                title="Raw JSON"
+                style={{
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  backgroundColor: viewMode === 'raw' ? '#2563eb' : 'var(--btn-bg, #2e2e2e)',
+                  color: viewMode === 'raw' ? '#ffffff' : 'var(--text-secondary, #cccccc)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: viewMode === 'raw' ? 600 : 400,
+                }}
+              >
+                Raw
+              </button>
+            </div>
+          )}
+
+          {isJson && isEditing && (
             <button
               type="button"
               onClick={() => {
-                if (isEditing) {
-                  try {
-                    const parsed = JSON.parse(editValue);
-                    setEditValue(JSON.stringify(parsed, null, 2));
-                  } catch {
-                    // Ignore parse error
-                  }
-                } else {
-                  setViewMode(viewMode === 'formatted' ? 'raw' : 'formatted');
+                try {
+                  const parsed = JSON.parse(editValue);
+                  setEditValue(JSON.stringify(parsed, null, 2));
+                } catch {
+                  // Ignore parse error
                 }
               }}
-              title={isEditing ? 'Format JSON' : `Switch to ${viewMode === 'formatted' ? 'Raw' : 'Formatted'}`}
+              title="Format JSON"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -374,7 +452,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
               }}
             >
               <Code size={12} />
-              {isEditing ? 'Format JSON' : viewMode === 'formatted' ? 'Raw' : 'Format'}
+              Format JSON
             </button>
           )}
 
@@ -464,6 +542,129 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
           flexDirection: 'column',
         }}
       >
+        {/* Foreign Key Banner if present */}
+        {cellInfo.foreignKeyInfo && (
+          <div
+            data-testid="fk-info-banner"
+            style={{
+              padding: '8px 12px',
+              marginBottom: '12px',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#93c5fd' }}>
+              <Network size={14} />
+              <span>
+                Foreign Key → <strong>{cellInfo.foreignKeyInfo.foreignTable}</strong>(
+                {cellInfo.foreignKeyInfo.foreignColumn})
+              </span>
+            </div>
+            {onNavigateToForeignKey && (
+              <button
+                type="button"
+                data-testid="fk-navigate-btn"
+                onClick={() =>
+                  onNavigateToForeignKey(
+                    cellInfo.foreignKeyInfo!.foreignTable,
+                    cellInfo.foreignKeyInfo!.foreignColumn,
+                    extracted.rawValue
+                  )
+                }
+                style={{
+                  padding: '2px 8px',
+                  fontSize: '11px',
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
+                Jump to Record
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Date & Time Intelligence Banner */}
+        {dateTimeInfo && !isEditing && (
+          <div
+            data-testid="datetime-intelligence"
+            style={{
+              padding: '10px 12px',
+              marginBottom: '12px',
+              backgroundColor: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: '6px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              fontSize: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8', fontWeight: 600 }}>
+              <Calendar size={13} />
+              <span>Date & Time Info</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', color: '#cbd5e1', fontSize: '11px' }}>
+              <div>
+                <span style={{ color: '#94a3b8' }}>Local: </span>
+                <span style={{ fontFamily: 'monospace' }}>{dateTimeInfo.localFormatted}</span>
+              </div>
+              <div>
+                <span style={{ color: '#94a3b8' }}>UTC: </span>
+                <span style={{ fontFamily: 'monospace' }}>{dateTimeInfo.utcFormatted}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#a7f3d0' }}>
+                <Clock size={11} />
+                <span>{dateTimeInfo.relativeFormatted}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Image Preview Box */}
+        {imageInfo && !isEditing && (
+          <div
+            data-testid="image-preview"
+            style={{
+              padding: '10px',
+              marginBottom: '12px',
+              backgroundColor: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: '6px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              alignItems: 'center',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', width: '100%', color: '#f472b6', fontSize: '11px', fontWeight: 600 }}>
+              <ImageIcon size={13} />
+              <span>Image Preview</span>
+            </div>
+            <img
+              src={imageInfo.src}
+              alt="Cell thumbnail preview"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '180px',
+                objectFit: 'contain',
+                borderRadius: '4px',
+                border: '1px solid #475569',
+                backgroundColor: '#0f172a',
+              }}
+            />
+          </div>
+        )}
+
         {isEditing ? (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
             {cellInfo.isStaged && cellInfo.originalValue !== undefined && (
@@ -570,6 +771,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
           >
             NULL
           </div>
+        ) : viewMode === 'tree' && parsedJsonObject ? (
+          <JsonTreeView data={parsedJsonObject} />
         ) : (
           <pre
             style={{

@@ -8,6 +8,7 @@ import {
 } from './CommandPaletteModal';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
+import { useSnippetStore } from '../../stores/snippetStore';
 import { dbApi } from '../../api/db';
 import type { SchemaNode, ConnectionConfig } from '../../types/db';
 
@@ -91,6 +92,7 @@ describe('detectIsMac utility', () => {
 describe('CommandPaletteModal Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useSnippetStore.getState().resetToDefaults();
     useConnectionStore.setState({
       connections: mockConnections,
       activeConnectionId: 'conn-1',
@@ -380,5 +382,33 @@ describe('CommandPaletteModal Component', () => {
       expect(dbApi.getSchemaTree).toHaveBeenCalledWith('conn-1');
       expect(screen.getByText('products')).toBeInTheDocument();
     });
+  });
+
+  it('filters Snippets & Templates when using $ prefix or clicking snippets pill', () => {
+    render(<CommandPaletteModal isOpen={true} onClose={() => {}} />);
+
+    const snippetsPill = screen.getByTestId('filter-pill-snippets');
+    expect(snippetsPill).toBeInTheDocument();
+
+    fireEvent.click(snippetsPill);
+    const input = screen.getByTestId('command-palette-input') as HTMLInputElement;
+    expect(input.value).toBe('$ ');
+
+    // Snippets category should be active
+    expect(screen.getByText('Snippets & Templates')).toBeInTheDocument();
+  });
+
+  it('invokes onOpenShortcuts when selecting Switch Keyboard Shortcut Preset', () => {
+    const onOpenShortcuts = vi.fn();
+    render(<CommandPaletteModal isOpen={true} onClose={() => {}} onOpenShortcuts={onOpenShortcuts} />);
+
+    const input = screen.getByTestId('command-palette-input');
+    fireEvent.change(input, { target: { value: 'preset' } });
+
+    const presetItem = screen.getByTestId('palette-item-action-switch-keymap-preset');
+    expect(presetItem).toBeInTheDocument();
+
+    fireEvent.click(presetItem);
+    expect(onOpenShortcuts).toHaveBeenCalledTimes(1);
   });
 });

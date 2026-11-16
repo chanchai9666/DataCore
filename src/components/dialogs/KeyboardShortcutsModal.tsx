@@ -10,7 +10,9 @@ import {
   Code2,
   Table2,
   Sparkles,
+  Sliders,
 } from 'lucide-react';
+import { useShortcutStore, KeymapPreset, KEYMAP_PRESET_CONFIGS } from '../../stores/shortcutStore';
 
 export type ShortcutCategory = 'General' | 'Navigation' | 'Query Editor' | 'Data Grid';
 
@@ -220,6 +222,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ShortcutCategory | 'All'>('All');
+  const { preset, setPreset } = useShortcutStore();
 
   // Sync if prop changes
   useEffect(() => {
@@ -238,10 +241,40 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
 
   const categories: ShortcutCategory[] = ['General', 'Navigation', 'Query Editor', 'Data Grid'];
 
+  // Dynamic shortcuts mapped according to active Keymap Preset
+  const dynamicShortcutsList = useMemo(() => {
+    const config = KEYMAP_PRESET_CONFIGS[preset] || KEYMAP_PRESET_CONFIGS.datacore;
+    return SHORTCUTS_LIST.map((item) => {
+      if (item.id === 'editor-run-query') {
+        return {
+          ...item,
+          macKeys: config.runQuery.mac,
+          winKeys: config.runQuery.win,
+          description: `Execute query (${config.name} keymap)`,
+        };
+      }
+      if (item.id === 'nav-new-query-tab') {
+        return {
+          ...item,
+          macKeys: config.newQuery.mac,
+          winKeys: config.newQuery.win,
+        };
+      }
+      if (item.id === 'general-command-palette') {
+        return {
+          ...item,
+          macKeys: config.commandPalette.mac,
+          winKeys: config.commandPalette.win,
+        };
+      }
+      return item;
+    });
+  }, [preset]);
+
   // Filter shortcuts
   const filteredShortcuts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return SHORTCUTS_LIST.filter((item) => {
+    return dynamicShortcutsList.filter((item) => {
       // Category filter
       if (selectedCategory !== 'All' && item.category !== selectedCategory) {
         return false;
@@ -257,7 +290,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
 
       return inTitle || inDesc || inCategory || inKeys;
     });
-  }, [searchQuery, selectedCategory, platform]);
+  }, [searchQuery, selectedCategory, platform, dynamicShortcutsList]);
 
   // Group filtered shortcuts by category
   const groupedShortcuts = useMemo(() => {
@@ -350,6 +383,42 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
                   <X className="w-4 h-4" />
                 </button>
               </Dialog.Close>
+            </div>
+          </div>
+
+          {/* Keymap Preset Selector */}
+          <div
+            data-testid="keymap-preset-selector"
+            className="flex items-center justify-between px-4 py-2 border-b border-line bg-panel/80 text-xs shrink-0"
+          >
+            <div className="flex items-center gap-2 text-muted">
+              <Sliders className="w-3.5 h-3.5 text-accent" />
+              <span className="font-medium text-text">Preset:</span>
+              <span className="text-[11px] text-muted truncate max-w-[200px]">
+                {KEYMAP_PRESET_CONFIGS[preset]?.name}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              {(['datacore', 'tableplus', 'datagrip', 'vscode'] as KeymapPreset[]).map((p) => {
+                const isSelected = preset === p;
+                const config = KEYMAP_PRESET_CONFIGS[p];
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    data-testid={`preset-btn-${p}`}
+                    onClick={() => setPreset(p)}
+                    title={config.description}
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                      isSelected
+                        ? 'bg-accent text-white shadow-xs'
+                        : 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    {config.name.split(' ')[0]}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

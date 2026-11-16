@@ -9,7 +9,7 @@ import DataEditor, {
   type EditableGridCell,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
-import { Eye, Loader2, Database, CheckCircle2, AlertCircle, Filter, Download, X } from 'lucide-react';
+import { Eye, Loader2, Database, CheckCircle2, AlertCircle, Filter, Download, X, ChevronRight } from 'lucide-react';
 import { QueryResult, CellValue, TableFilterState, TableSortState } from '../../types/db';
 import { CellDetailDrawer } from './CellDetailDrawer';
 import { FilterBar } from './FilterBar';
@@ -21,10 +21,19 @@ import { useConnectionStore } from '../../stores/connectionStore';
 import { createGridColumns, createCellContent } from './gridUtils';
 import { sanitizeEditedCellValue } from './tableEditHelpers';
 import { showConfirmDialog } from '../../utils/dialog';
-import { formatSelectionAsText } from './clipboardUtils';
+import {
+  formatSelectionAsText,
+  formatSelectionAsSqlInsert,
+  formatSelectionAsJson,
+  formatSelectionAsMarkdownTable,
+  formatSelectionAsSqlInClause,
+  formatSelectionAsCsv,
+} from './clipboardUtils';
 import { toast } from 'sonner';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { ExportModal } from '../transfer/ExportModal';
+import { ForeignKeyPeekPopover } from './ForeignKeyPeekPopover';
+import type { TableForeignKeyStructure } from '../../api/queryBuilder';
 
 export interface DataGridProps {
   data: QueryResult | null;
@@ -64,6 +73,9 @@ export interface DataGridProps {
   isMasked?: boolean;
   onToggleMask?: () => void;
   defaultMasked?: boolean;
+  foreignKeys?: TableForeignKeyStructure[];
+  onNavigateToRecord?: (foreignTable: string, foreignColumn: string, value: unknown) => void;
+  onPeekForeignKey?: (foreignTable: string, foreignColumn: string, value: unknown) => Promise<Record<string, unknown> | null>;
 }
 
 export const DataGrid: React.FC<DataGridProps> = ({
@@ -104,6 +116,9 @@ export const DataGrid: React.FC<DataGridProps> = ({
   isMasked: isMaskedProp,
   onToggleMask: onToggleMaskProp,
   defaultMasked = true,
+  foreignKeys,
+  onNavigateToRecord,
+  onPeekForeignKey,
 }) => {
   const connection = useConnectionStore((state) =>
     connectionId ? state.connections.find((c) => c.id === connectionId) : undefined
@@ -117,6 +132,13 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
   const [selectedCell, setSelectedCell] = useState<Item | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [fkPopoverInfo, setFkPopoverInfo] = useState<{
+    isOpen: boolean;
+    targetTable: string;
+    targetColumn: string;
+    value: unknown;
+    position: { x: number; y: number };
+  } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -380,6 +402,15 @@ export const DataGrid: React.FC<DataGridProps> = ({
       }
     }
 
+    const colName = columnMeta?.name;
+    const matchedFk = foreignKeys?.find((fk) => colName && fk.columnNames.includes(colName));
+    const foreignKeyInfo = matchedFk
+      ? {
+          foreignTable: matchedFk.foreignTableName,
+          foreignColumn: matchedFk.foreignColumnNames[0] || 'id',
+        }
+      : undefined;
+
     return {
       columnName: columnMeta ? columnMeta.name : `Column ${colIdx + 1}`,
       dataType: columnMeta ? columnMeta.data_type : 'UNKNOWN',
@@ -388,17 +419,38 @@ export const DataGrid: React.FC<DataGridProps> = ({
       isStaged,
       rowIndex: rowIdx,
       colIndex: colIdx,
+      foreignKeyInfo,
     };
-  }, [data, selectedCell, tableChanges, baseRowsCount]);
+  }, [data, selectedCell, tableChanges, baseRowsCount, foreignKeys]);
 
   const handleCellActivated = useCallback((cell: Item) => {
     setSelectedCell(cell);
     setDrawerOpen(true);
   }, []);
 
-  const handleCellClicked = useCallback((cell: Item) => {
-    setSelectedCell(cell);
-  }, []);
+  const handleCellClicked = useCallback(
+    (cell: Item, event?: { metaKey?: boolean; ctrlKey?: boolean; bounds?: { x: number; y: number } }) => {
+      setSelectedCell(cell);
+
+      if ((event?.metaKey || event?.ctrlKey) && foreignKeys && foreignKeys.length > 0 && data) {
+        const [colIdx, rowIdx] = cell;
+        const colName = data.columns[colIdx]?.name;
+        const matchedFk = foreignKeys.find((fk) => colName && fk.columnNames.includes(colName));
+        if (matchedFk) {
+          const rowData = data.rows[rowIdx];
+          const rawValue = rowData ? rowData[colIdx] : null;
+          setFkPopoverInfo({
+            isOpen: true,
+            targetTable: matchedFk.foreignTableName,
+            targetColumn: matchedFk.foreignColumnNames[0] || 'id',
+            value: rawValue,
+            position: event.bounds ? { x: event.bounds.x, y: event.bounds.y } : { x: 300, y: 300 },
+          });
+        }
+      }
+    },
+    [data, foreignKeys]
+  );
 
   const handleInspectClick = () => {
     if (!selectedCell && rowsCount > 0 && columns.length > 0) {
@@ -584,6 +636,68 @@ export const DataGrid: React.FC<DataGridProps> = ({
       }
     },
     [data, gridSelection, selectedCell, activeIsMasked]
+  );
+
+  const handleCopyAs = useCallback(
+    (format: 'insert' | 'json' | 'markdown' | 'in' | 'csv') => {
+      if (!data || !data.rows.length || !data.columns.length) return;
+      let sel = gridSelection;
+      if (
+        sel.columns.length === 0 &&
+        sel.rows.length === 0 &&
+        !sel.current?.cell &&
+        !sel.current?.range
+      ) {
+        const cell = selectedCell ?? [0, 0];
+        sel = {
+          ...sel,
+          current: {
+            cell,
+            range: { x: cell[0], y: cell[1], width: 1, height: 1 },
+            rangeStack: [],
+          },
+        };
+      }
+
+      let text: string | null = null;
+      let label = '';
+
+      switch (format) {
+        case 'insert':
+          text = formatSelectionAsSqlInsert(sel, data, tableName || 'my_table', activeIsMasked);
+          label = 'SQL INSERT';
+          break;
+        case 'json':
+          text = formatSelectionAsJson(sel, data, activeIsMasked);
+          label = 'JSON';
+          break;
+        case 'markdown':
+          text = formatSelectionAsMarkdownTable(sel, data, activeIsMasked);
+          label = 'Markdown Table';
+          break;
+        case 'in':
+          text = formatSelectionAsSqlInClause(sel, data, activeIsMasked);
+          label = 'SQL IN (...)';
+          break;
+        case 'csv':
+          text = formatSelectionAsCsv(sel, data, true, activeIsMasked);
+          label = 'CSV';
+          break;
+      }
+
+      if (text !== null && navigator?.clipboard?.writeText) {
+        navigator.clipboard
+          .writeText(text)
+          .then(() => {
+            toast.success(`Copied as ${label}`);
+          })
+          .catch((err) => {
+            console.error(`Failed to copy as ${label}`, err);
+            toast.error(`Failed to copy as ${label}`);
+          });
+      }
+    },
+    [data, gridSelection, selectedCell, activeIsMasked, tableName]
   );
 
   const handleContainerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -925,6 +1039,57 @@ export const DataGrid: React.FC<DataGridProps> = ({
                   <span>Copy with Headers</span>
                   <span className="text-gray-400 text-[10px]">⇧⌘C</span>
                 </ContextMenu.Item>
+                <ContextMenu.Sub>
+                  <ContextMenu.SubTrigger
+                    data-testid="ctx-menu-copy-as"
+                    className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-blue-50 dark:hover:bg-[#094771] hover:text-blue-600 dark:hover:text-white cursor-pointer outline-none"
+                  >
+                    <span>Copy As</span>
+                    <ChevronRight size={12} className="text-gray-400" />
+                  </ContextMenu.SubTrigger>
+                  <ContextMenu.Portal>
+                    <ContextMenu.SubContent
+                      data-testid="ctx-menu-copy-as-content"
+                      className="z-50 min-w-[160px] bg-white dark:bg-[#252526] text-gray-800 dark:text-white border border-gray-200 dark:border-[#3e3e42] rounded-md shadow-xl py-1 px-1 text-xs select-none"
+                    >
+                      <ContextMenu.Item
+                        data-testid="ctx-menu-copy-insert"
+                        className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-blue-50 dark:hover:bg-[#094771] hover:text-blue-600 dark:hover:text-white cursor-pointer outline-none"
+                        onSelect={() => handleCopyAs('insert')}
+                      >
+                        <span>SQL INSERT</span>
+                      </ContextMenu.Item>
+                      <ContextMenu.Item
+                        data-testid="ctx-menu-copy-json"
+                        className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-blue-50 dark:hover:bg-[#094771] hover:text-blue-600 dark:hover:text-white cursor-pointer outline-none"
+                        onSelect={() => handleCopyAs('json')}
+                      >
+                        <span>JSON</span>
+                      </ContextMenu.Item>
+                      <ContextMenu.Item
+                        data-testid="ctx-menu-copy-markdown"
+                        className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-blue-50 dark:hover:bg-[#094771] hover:text-blue-600 dark:hover:text-white cursor-pointer outline-none"
+                        onSelect={() => handleCopyAs('markdown')}
+                      >
+                        <span>Markdown Table</span>
+                      </ContextMenu.Item>
+                      <ContextMenu.Item
+                        data-testid="ctx-menu-copy-in"
+                        className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-blue-50 dark:hover:bg-[#094771] hover:text-blue-600 dark:hover:text-white cursor-pointer outline-none"
+                        onSelect={() => handleCopyAs('in')}
+                      >
+                        <span>SQL IN (...)</span>
+                      </ContextMenu.Item>
+                      <ContextMenu.Item
+                        data-testid="ctx-menu-copy-csv"
+                        className="px-2 py-1.5 flex items-center justify-between rounded hover:bg-blue-50 dark:hover:bg-[#094771] hover:text-blue-600 dark:hover:text-white cursor-pointer outline-none"
+                        onSelect={() => handleCopyAs('csv')}
+                      >
+                        <span>CSV</span>
+                      </ContextMenu.Item>
+                    </ContextMenu.SubContent>
+                  </ContextMenu.Portal>
+                </ContextMenu.Sub>
                 <ContextMenu.Separator className="h-px bg-gray-200 dark:bg-[#3e3e42] my-1" />
                 <ContextMenu.Item
                   data-testid="ctx-menu-select-all"
@@ -991,7 +1156,22 @@ export const DataGrid: React.FC<DataGridProps> = ({
         onClose={() => setDrawerOpen(false)}
         cellInfo={activeCellInfo}
         onSaveValue={effectiveIsEditable && (isEditable || Boolean(onCellEdited)) ? handleSaveDrawerValue : undefined}
+        onNavigateToForeignKey={onNavigateToRecord}
       />
+
+      {/* Foreign Key Peek Popover */}
+      {fkPopoverInfo && (
+        <ForeignKeyPeekPopover
+          isOpen={fkPopoverInfo.isOpen}
+          onClose={() => setFkPopoverInfo(null)}
+          targetTable={fkPopoverInfo.targetTable}
+          targetColumn={fkPopoverInfo.targetColumn}
+          value={fkPopoverInfo.value}
+          position={fkPopoverInfo.position}
+          onNavigate={onNavigateToRecord}
+          onPeek={onPeekForeignKey}
+        />
+      )}
 
       {/* Export Modal */}
       {connectionId && tableName && (

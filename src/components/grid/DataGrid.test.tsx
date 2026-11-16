@@ -45,6 +45,12 @@ vi.mock('@glideapps/glide-data-grid', async () => {
           >
             Close Search
           </button>
+          <button
+            data-testid="mock-cell-cmd-click"
+            onClick={(e) => props.onCellClicked?.([0, 0], { ...e, metaKey: true, bounds: { x: 150, y: 150 } })}
+          >
+            Cell Cmd Click
+          </button>
         </div>
       );
     },
@@ -412,6 +418,98 @@ describe('CellDetailDrawer', () => {
     const editBtn = screen.getByRole('button', { name: /^edit$/i });
     fireEvent.click(editBtn);
     expect(screen.getByPlaceholderText('Enter value...')).toBeInTheDocument();
+  });
+
+  it('renders interactive JSON Tree View when Tree view mode is selected', () => {
+    render(
+      <CellDetailDrawer
+        isOpen={true}
+        onClose={() => {}}
+        cellInfo={{
+          columnName: 'metadata',
+          dataType: 'JSON',
+          value: { Json: { role: 'admin', settings: { theme: 'dark' } } },
+          rowIndex: 0,
+        }}
+      />
+    );
+
+    const treeBtn = screen.getByTestId('view-tree-btn');
+    expect(treeBtn).toBeInTheDocument();
+
+    fireEvent.click(treeBtn);
+    expect(screen.getByTestId('json-tree-view')).toBeInTheDocument();
+    expect(screen.getByText('"role":')).toBeInTheDocument();
+    expect(screen.getByText('"admin"')).toBeInTheDocument();
+  });
+
+  it('renders Date & Time Intelligence box when cell is an ISO timestamp', () => {
+    render(
+      <CellDetailDrawer
+        isOpen={true}
+        onClose={() => {}}
+        cellInfo={{
+          columnName: 'created_at',
+          dataType: 'TIMESTAMPTZ',
+          value: '2026-11-16T10:30:00.000Z',
+          rowIndex: 0,
+        }}
+      />
+    );
+
+    const dtBanner = screen.getByTestId('datetime-intelligence');
+    expect(dtBanner).toBeInTheDocument();
+    expect(screen.getByText('Date & Time Info')).toBeInTheDocument();
+    expect(dtBanner).toHaveTextContent('2026-11-16T10:30:00.000Z');
+  });
+
+  it('renders Image Preview when cell is a base64 image data URI', () => {
+    const dataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+    render(
+      <CellDetailDrawer
+        isOpen={true}
+        onClose={() => {}}
+        cellInfo={{
+          columnName: 'photo',
+          dataType: 'TEXT',
+          value: dataUri,
+          rowIndex: 0,
+        }}
+      />
+    );
+
+    const imgPreview = screen.getByTestId('image-preview');
+    expect(imgPreview).toBeInTheDocument();
+    const img = screen.getByAltText('Cell thumbnail preview');
+    expect(img).toHaveAttribute('src', dataUri);
+  });
+
+  it('renders Foreign Key Info and triggers onNavigateToForeignKey when clicked', () => {
+    const onNavigateToForeignKey = vi.fn();
+    render(
+      <CellDetailDrawer
+        isOpen={true}
+        onClose={() => {}}
+        cellInfo={{
+          columnName: 'user_id',
+          dataType: 'INTEGER',
+          value: 42,
+          rowIndex: 0,
+          foreignKeyInfo: {
+            foreignTable: 'users',
+            foreignColumn: 'id',
+          },
+        }}
+        onNavigateToForeignKey={onNavigateToForeignKey}
+      />
+    );
+
+    expect(screen.getByTestId('fk-info-banner')).toBeInTheDocument();
+    expect(screen.getByText(/Foreign Key →/i)).toBeInTheDocument();
+
+    const jumpBtn = screen.getByTestId('fk-navigate-btn');
+    fireEvent.click(jumpBtn);
+    expect(onNavigateToForeignKey).toHaveBeenCalledWith('users', 'id', 42);
   });
 });
 
@@ -1019,11 +1117,38 @@ describe('DataGrid', () => {
 
       expect(await screen.findByTestId('ctx-menu-copy')).toBeInTheDocument();
       expect(screen.getByTestId('ctx-menu-copy-headers')).toBeInTheDocument();
+      expect(screen.getByTestId('ctx-menu-copy-as')).toBeInTheDocument();
       expect(screen.getByTestId('ctx-menu-select-all')).toBeInTheDocument();
       expect(screen.getByTestId('ctx-menu-find')).toBeInTheDocument();
 
       fireEvent.click(screen.getByTestId('ctx-menu-copy'));
       expect(writeTextMock).toHaveBeenCalled();
+    });
+
+    it('renders Copy As sub-options and triggers copy formatting', async () => {
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+
+      render(<DataGrid data={mockQueryResult} tableName="test_users" />);
+      const editor = screen.getByTestId('mock-data-editor');
+
+      fireEvent.contextMenu(editor);
+
+      const copyAsTrigger = await screen.findByTestId('ctx-menu-copy-as');
+      expect(copyAsTrigger).toBeInTheDocument();
+
+      // In Radix UI, pressing ArrowRight or click on SubTrigger opens SubContent
+      fireEvent.keyDown(copyAsTrigger, { key: 'ArrowRight' });
+
+      const insertOption = await screen.findByTestId('ctx-menu-copy-insert');
+      expect(insertOption).toBeInTheDocument();
+      expect(screen.getByTestId('ctx-menu-copy-json')).toBeInTheDocument();
+      expect(screen.getByTestId('ctx-menu-copy-markdown')).toBeInTheDocument();
+      expect(screen.getByTestId('ctx-menu-copy-in')).toBeInTheDocument();
+      expect(screen.getByTestId('ctx-menu-copy-csv')).toBeInTheDocument();
+
+      fireEvent.click(insertOption);
+      expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO test_users'));
     });
   });
 
@@ -1106,6 +1231,41 @@ describe('DataGrid', () => {
       fireEvent.keyDown(container, { key: 'c', metaKey: true });
 
       expect(writeTextMock).toHaveBeenCalledWith('1\t••••••••');
+    });
+  });
+
+  describe('Foreign Key Peek and Navigation in DataGrid', () => {
+    it('opens ForeignKeyPeekPopover on Cmd+Click on foreign key cell and allows jumping', () => {
+      const onNavigateToRecord = vi.fn();
+      const mockForeignKeys = [
+        {
+          name: 'fk_users',
+          columnNames: ['id'],
+          foreignTableName: 'users',
+          foreignColumnNames: ['id'],
+        },
+      ];
+
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          foreignKeys={mockForeignKeys}
+          onNavigateToRecord={onNavigateToRecord}
+        />
+      );
+
+      // Trigger cell Cmd+Click
+      const cmdClickBtn = screen.getByTestId('mock-cell-cmd-click');
+      fireEvent.click(cmdClickBtn);
+
+      expect(screen.getByTestId('fk-peek-popover')).toBeInTheDocument();
+      expect(screen.getByText('Foreign Key Reference')).toBeInTheDocument();
+      expect(screen.getByText('users')).toBeInTheDocument();
+
+      const jumpBtn = screen.getByRole('button', { name: /jump to record/i });
+      fireEvent.click(jumpBtn);
+
+      expect(onNavigateToRecord).toHaveBeenCalledWith('users', 'id', expect.anything());
     });
   });
 });

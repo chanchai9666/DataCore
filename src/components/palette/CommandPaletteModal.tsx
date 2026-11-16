@@ -29,11 +29,13 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
-import { openTableTab } from '../sidebar/tabHelpers';
+import { useSnippetStore } from '../../stores/snippetStore';
+import { useShortcutStore, KEYMAP_PRESET_CONFIGS } from '../../stores/shortcutStore';
+import { openTableTab, openQueryTab } from '../sidebar/tabHelpers';
 import { dbApi } from '../../api/db';
 import type { SchemaNode } from '../../types/db';
 
-export type CommandPaletteCategory = 'Actions' | 'Tables & Views' | 'Connections';
+export type CommandPaletteCategory = 'Actions' | 'Tables & Views' | 'Snippets & Templates' | 'Connections';
 
 export interface TableItem {
   name: string;
@@ -172,6 +174,8 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
 
   const { connections, activeConnectionId, setActiveConnection } = useConnectionStore();
   const { tabs, activeTabId } = useTabStore();
+  const snippets = useSnippetStore((s) => s.snippets);
+  const preset = useShortcutStore((s) => s.preset);
 
   const resolvedConnectionId = useMemo(() => {
     const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -527,6 +531,18 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       },
     });
 
+    items.push({
+      id: 'action-switch-keymap-preset',
+      title: 'Switch Keyboard Shortcut Preset',
+      subtitle: `Current: ${KEYMAP_PRESET_CONFIGS[useShortcutStore.getState().preset]?.name || 'DataCore'} (DataCore, TablePlus, DataGrip, VS Code)`,
+      category: 'Actions',
+      icon: <Sliders className="w-4 h-4 text-pink-400" />,
+      keywords: ['preset', 'keymap', 'shortcuts', 'keyboard', 'tableplus', 'datagrip', 'vscode'],
+      onSelect: () => {
+        onOpenShortcuts?.();
+      },
+    });
+
     // 2. Tables & Views
     for (const table of tables) {
       const isView = table.type === 'view';
@@ -555,6 +571,27 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
               connectionId: resolvedConnectionId,
               tableName: table.name,
               schemaName: table.schemaName,
+            });
+          }
+        },
+      });
+    }
+
+    // 3. Snippets & SQL Templates
+    for (const snip of snippets) {
+      items.push({
+        id: `snippet-${snip.id}`,
+        title: snip.title,
+        subtitle: `${snip.description || snip.sql.slice(0, 60)} • Press Enter to open in editor`,
+        category: 'Snippets & Templates',
+        icon: <Code2 className="w-4 h-4 text-emerald-400" />,
+        badge: 'SNIPPET',
+        keywords: [snip.title, snip.description || '', snip.sql, 'snippet', 'sql', 'template', 'query'],
+        onSelect: () => {
+          if (resolvedConnectionId) {
+            openQueryTab({
+              connectionId: resolvedConnectionId,
+              initialQuery: snip.sql,
             });
           }
         },
@@ -617,6 +654,8 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     onOpenTable,
     onSelectConnection,
     setActiveConnection,
+    snippets,
+    preset,
   ]);
 
   // Filtering & Search
@@ -630,6 +669,9 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       cleanQuery = cleanQuery.slice(1).trim();
     } else if (cleanQuery.startsWith('@') || cleanQuery.startsWith('#')) {
       categoryFilter = 'Tables & Views';
+      cleanQuery = cleanQuery.slice(1).trim();
+    } else if (cleanQuery.startsWith('$') || cleanQuery.startsWith('!')) {
+      categoryFilter = 'Snippets & Templates';
       cleanQuery = cleanQuery.slice(1).trim();
     } else if (cleanQuery.startsWith('/') || cleanQuery.startsWith(':')) {
       categoryFilter = 'Connections';
@@ -655,6 +697,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     const categoryOrder: CommandPaletteCategory[] = [
       'Actions',
       'Tables & Views',
+      'Snippets & Templates',
       'Connections',
     ];
 
@@ -786,7 +829,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
               data-testid="filter-pill-all"
               onClick={() => setQuery('')}
               className={`px-2 py-0.5 rounded text-[11px] transition-colors ${
-                !query.startsWith('>') && !query.startsWith('@') && !query.startsWith('/')
+                !query.startsWith('>') && !query.startsWith('@') && !query.startsWith('/') && !query.startsWith('$')
                   ? 'bg-accent/15 text-accent font-medium'
                   : 'text-muted hover:text-text hover:bg-panel'
               }`}
@@ -816,6 +859,18 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
               }`}
             >
               @ Tables
+            </button>
+            <button
+              type="button"
+              data-testid="filter-pill-snippets"
+              onClick={() => setQuery('$ ')}
+              className={`px-2 py-0.5 rounded text-[11px] transition-colors ${
+                query.startsWith('$') || query.startsWith('!')
+                  ? 'bg-accent/15 text-accent font-medium'
+                  : 'text-muted hover:text-text hover:bg-panel'
+              }`}
+            >
+              $ Snippets
             </button>
             <button
               type="button"

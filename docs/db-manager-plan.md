@@ -944,9 +944,9 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ### Phase 35: UX/UI Ergonomics & Workspace Persistence (Issue #152 - P1)
 - **35.1 Session & Workspace State Persistence [Completed]:** บันทึกและกู้คืน Document Tabs, Active Connection, SQL Drafts, Splitter Ratio และ Data Grid Column Widths อัตโนมัติ โดยใช้ Atomic Write บนไฟล์ `~/.datacore/workspace_state.json` สิทธิ์ 0600 พร้อม Debounced auto-save (500ms) และ Hydration กู้คืนสถานะ tabs, active connection, sidebar width/collapsed
-- **35.2 Data Grid Ergonomics & Foreign Key Popover:** รองรับการกด ⌘+Click / Peek เพื่อดูข้อมูลแถวปลายทางของ Foreign Key ทันที และ Rich Cell Detail Drawer (JSON Tree, Local Time, Image Preview)
-- **35.3 Data Grid 'Copy As' Context Menu:** เมนูคลิกขวาคัดลอกข้อมูลเป็น SQL INSERT, JSON, Markdown Table, และ SQL `IN (...)`
-- **35.4 Keyboard Shortcut Presets & Command Palette:** รองรับ Keymap Presets (DataCore, TablePlus, DataGrip, VS Code) และ Jump Search ใน Command Palette (⌘K)
+- **35.2 Data Grid Ergonomics & Foreign Key Popover [Completed]:** รองรับการกด ⌘+Click / Peek เพื่อดูข้อมูลแถวปลายทางของ Foreign Key ทันทีผ่าน `ForeignKeyPeekPopover` พร้อมปุ่ม Jump to Record และ Rich Cell Detail Drawer รองรับ Interactive JSON Tree View, Date & Time Intelligence (Local, UTC, Relative), Image Preview, และ Foreign Key Reference
+- **35.3 Data Grid 'Copy As' Context Menu [Completed]:** เมนูคลิกขวา Context Menu "Copy As >" คัดลอกข้อมูลเป็น SQL INSERT, JSON, Markdown Table, SQL `IN (...)`, และ RFC-4180 CSV พร้อมรองรับ PII Sensitive Data Masking
+- **35.4 Keyboard Shortcut Presets & Command Palette [Completed]:** ระบบ Keymap Presets (`shortcutStore.ts`) รองรับพรีเซ็ต DataCore, TablePlus, DataGrip, VS Code พร้อมตัวเลือกสลับ Preset บน `KeyboardShortcutsModal` และ Jump Search ใน Command Palette (⌘K) รองรับ Prefix Filters (`>` Actions, `@` Tables & Views, `$` Snippets & Templates, `/` Connections) เชื่อมโยงกับ `snippetStore`
 
 ### Phase 36: Deep Object Browser & Native Backup/Restore Suite (Issue #153 - P1)
 - **36.1 Deep Object Browser Tree:** รองรับการสำรวจ Triggers, Stored Procedures, Functions, Sequences, และ Custom Types/Enums พร้อมดู Source DDL
