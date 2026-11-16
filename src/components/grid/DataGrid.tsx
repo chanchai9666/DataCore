@@ -61,6 +61,9 @@ export interface DataGridProps {
   isAutoCommit?: boolean;
   onToggleAutoCommit?: () => void;
   onCommitChanges?: (tableKey: string) => void;
+  isMasked?: boolean;
+  onToggleMask?: () => void;
+  defaultMasked?: boolean;
 }
 
 export const DataGrid: React.FC<DataGridProps> = ({
@@ -98,12 +101,19 @@ export const DataGrid: React.FC<DataGridProps> = ({
   isAutoCommit: isAutoCommitProp,
   onToggleAutoCommit: onToggleAutoCommitProp,
   onCommitChanges,
+  isMasked: isMaskedProp,
+  onToggleMask: onToggleMaskProp,
+  defaultMasked = true,
 }) => {
   const connection = useConnectionStore((state) =>
     connectionId ? state.connections.find((c) => c.id === connectionId) : undefined
   );
   const effectiveReadOnly = isReadOnlyProp ?? Boolean(connection?.readOnly || connection?.read_only);
   const effectiveIsEditable = isEditable && !effectiveReadOnly;
+
+  const [internalIsMasked, setInternalIsMasked] = useState(defaultMasked);
+  const activeIsMasked = isMaskedProp !== undefined ? isMaskedProp : internalIsMasked;
+  const handleToggleMask = onToggleMaskProp ?? (() => setInternalIsMasked((prev) => !prev));
 
   const [selectedCell, setSelectedCell] = useState<Item | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -297,7 +307,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
         const addedIdx = row - baseRowsCount;
         const addedRow = tableChanges?.addedRows?.[addedIdx];
         const rawVal = addedRow ? (addedRow[columnMeta.name] as CellValue) : null;
-        const cell = createCellContent(rawVal, columnMeta);
+        const cell = createCellContent(rawVal, columnMeta, activeIsMasked);
         return {
           ...cell,
           themeOverride: {
@@ -313,7 +323,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
       const cellEdit = tableChanges?.cellEdits?.[cellEditKey];
 
       const rawVal = cellEdit ? (cellEdit.newValue as CellValue) : data.rows[row]?.[col];
-      let cell = createCellContent(rawVal, columnMeta);
+      let cell = createCellContent(rawVal, columnMeta, activeIsMasked);
 
       if (isDeleted) {
         cell = {
@@ -335,7 +345,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
       return cell;
     },
-    [data, baseRowsCount, tableChanges, theme]
+    [data, baseRowsCount, tableChanges, theme, activeIsMasked]
   );
 
   const activeCellInfo = useMemo(() => {
@@ -556,7 +566,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
           },
         };
       }
-      const text = formatSelectionAsText(sel, data, includeHeaders);
+      const text = formatSelectionAsText(sel, data, includeHeaders, activeIsMasked);
       if (text !== null) {
         if (navigator?.clipboard?.writeText) {
           navigator.clipboard
@@ -573,7 +583,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
         }
       }
     },
-    [data, gridSelection, selectedCell]
+    [data, gridSelection, selectedCell, activeIsMasked]
   );
 
   const handleContainerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -971,6 +981,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
         pendingCount={pendingCount}
         onCommit={handleCommitChanges}
         onDiscard={handleDiscardChanges}
+        isMasked={activeIsMasked}
+        onToggleMask={handleToggleMask}
       />
 
       {/* Detail Drawer */}

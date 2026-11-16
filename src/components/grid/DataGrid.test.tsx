@@ -5,7 +5,7 @@ import { PaginationBar } from './PaginationBar';
 import { CellDetailDrawer } from './CellDetailDrawer';
 import { createGridColumns, createCellContent } from './gridUtils';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
-import { QueryResult } from '../../types/db';
+import { QueryResult, ColumnMeta } from '../../types/db';
 import * as tauriDialog from '@tauri-apps/plugin-dialog';
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -1054,6 +1054,58 @@ describe('DataGrid', () => {
       // Read-Only badge must be rendered
       expect(screen.getByTestId('grid-readonly-badge')).toBeInTheDocument();
       expect(screen.getByText('Read-Only')).toBeInTheDocument();
+    });
+  });
+
+  describe('Sensitive Data Masking (PII Protection)', () => {
+    it('masks sensitive column data in createCellContent when isMasked is true', () => {
+      const passwordCol: ColumnMeta = { name: 'password', data_type: 'TEXT', nullable: false };
+      const emailCol: ColumnMeta = { name: 'email', data_type: 'VARCHAR', nullable: true };
+      const normalCol: ColumnMeta = { name: 'username', data_type: 'TEXT', nullable: false };
+
+      const maskedPw = createCellContent('mysecretpassword', passwordCol, true) as { displayData?: string };
+      expect(maskedPw.displayData).toBe('••••••••');
+
+      const unmaskedPw = createCellContent('mysecretpassword', passwordCol, false) as { displayData?: string };
+      expect(unmaskedPw.displayData).toBe('mysecretpassword');
+
+      const maskedEmail = createCellContent('john.doe@example.com', emailCol, true) as { displayData?: string };
+      expect(maskedEmail.displayData).toBe('j••••••e@example.com');
+
+      const normal = createCellContent('johndoe', normalCol, true) as { displayData?: string };
+      expect(normal.displayData).toBe('johndoe');
+    });
+
+    it('renders sensitive data mask toggle in DataGrid and toggles masking', () => {
+      render(<DataGrid data={mockQueryResult} defaultMasked={true} />);
+      const toggleBtn = screen.getByTestId('grid-mask-toggle');
+      expect(toggleBtn).toBeInTheDocument();
+      expect(toggleBtn).toHaveTextContent(/masked/i);
+
+      fireEvent.click(toggleBtn);
+      expect(toggleBtn).toHaveTextContent(/unmasked/i);
+    });
+
+    it('copies masked values when grid is in masked mode', async () => {
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+
+      const piiData: QueryResult = {
+        columns: [
+          { name: 'id', data_type: 'INTEGER', nullable: false },
+          { name: 'api_token', data_type: 'TEXT', nullable: false },
+        ],
+        rows: [[1, 'ghp_secretToken12345']],
+        execution_time_ms: 1,
+      };
+
+      render(<DataGrid data={piiData} defaultMasked={true} />);
+      const container = screen.getByTestId('data-grid-container');
+
+      fireEvent.keyDown(container, { key: 'a', metaKey: true });
+      fireEvent.keyDown(container, { key: 'c', metaKey: true });
+
+      expect(writeTextMock).toHaveBeenCalledWith('1\t••••••••');
     });
   });
 });

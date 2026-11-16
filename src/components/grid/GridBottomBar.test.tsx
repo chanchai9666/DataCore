@@ -79,4 +79,21 @@ describe('GridBottomBar Component', () => {
     rerender(<GridBottomBar isAutoCommit={false} onToggleAutoCommit={onToggle} />);
     expect(toggleBtn).toHaveTextContent(/staging mode/i);
   });
+
+  it('renders sensitive data mask toggle and triggers callback', () => {
+    const onToggleMask = vi.fn();
+    const { rerender } = render(
+      <GridBottomBar isMasked={true} onToggleMask={onToggleMask} />
+    );
+
+    const maskBtn = screen.getByTestId('grid-mask-toggle');
+    expect(maskBtn).toHaveTextContent(/masked/i);
+
+    fireEvent.click(maskBtn);
+    expect(onToggleMask).toHaveBeenCalledTimes(1);
+
+    // Re-render unmasked
+    rerender(<GridBottomBar isMasked={false} onToggleMask={onToggleMask} />);
+    expect(maskBtn).toHaveTextContent(/unmasked/i);
+  });
 });

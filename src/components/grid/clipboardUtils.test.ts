@@ -82,4 +82,31 @@ describe('formatSelectionAsText', () => {
       'id\tname\tage\n1\tAlice\t25\n2\tBob\tNULL\n3\tCharlie\t30'
     );
   });
+
+  it('masks sensitive columns when isMasked is true', () => {
+    const piiData: QueryResult = {
+      columns: [
+        { name: 'id', data_type: 'integer', nullable: false },
+        { name: 'password', data_type: 'text', nullable: false },
+        { name: 'email', data_type: 'text', nullable: false },
+      ],
+      rows: [
+        [1, 'secret123', 'admin@example.com'],
+      ],
+      rows_affected: 1,
+      execution_time_ms: 1,
+    };
+
+    const selection: GridSelection = {
+      columns: CompactSelection.fromSingleSelection(0).add(1).add(2),
+      rows: CompactSelection.fromSingleSelection(0),
+      current: undefined,
+    };
+
+    const unmasked = formatSelectionAsText(selection, piiData, false, false);
+    expect(unmasked).toBe('1\tsecret123\tadmin@example.com');
+
+    const masked = formatSelectionAsText(selection, piiData, false, true);
+    expect(masked).toBe('1\t••••••••\ta•••n@example.com');
+  });
 });

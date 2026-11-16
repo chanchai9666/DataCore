@@ -15,6 +15,8 @@ import {
   Zap,
   Edit3,
   Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 export interface GridBottomBarProps {
@@ -50,6 +52,10 @@ export interface GridBottomBarProps {
   // View Mode
   viewMode?: 'grid' | 'form';
   onViewModeChange?: (mode: 'grid' | 'form') => void;
+
+  // Sensitive Data Masking (PII Protection)
+  isMasked?: boolean;
+  onToggleMask?: () => void;
 }
 
 export const GridBottomBar: React.FC<GridBottomBarProps> = ({
@@ -74,6 +80,8 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
   onPageSizeChange,
   viewMode = 'grid',
   onViewModeChange,
+  isMasked = false,
+  onToggleMask,
 }) => {
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
 
@@ -280,6 +288,28 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
         <span className="text-[11px] text-muted hidden md:inline">
           {totalRows.toLocaleString()} rows
         </span>
+
+        {onToggleMask && (
+          <button
+            type="button"
+            onClick={onToggleMask}
+            aria-label={isMasked ? 'Reveal sensitive data' : 'Mask sensitive data'}
+            title={
+              isMasked
+                ? 'Sensitive data masked (Click to reveal)'
+                : 'Sensitive data visible (Click to mask PII)'
+            }
+            data-testid="grid-mask-toggle"
+            className={`px-1.5 py-0.5 rounded flex items-center gap-1 border transition-colors text-[11px] ${
+              isMasked
+                ? 'bg-amber-500/10 text-amber-500 border-amber-500/30 font-medium'
+                : 'border-line text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10'
+            }`}
+          >
+            {isMasked ? <EyeOff size={12} /> : <Eye size={12} />}
+            <span className="hidden sm:inline">{isMasked ? 'Masked' : 'Unmasked'}</span>
+          </button>
+        )}
 
         {onViewModeChange && (
           <div className="flex items-center border border-line rounded overflow-hidden">

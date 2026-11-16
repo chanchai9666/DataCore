@@ -1,5 +1,6 @@
 import { GridCell, GridCellKind, GridColumn } from '@glideapps/glide-data-grid';
 import { CellValue, ColumnMeta, TableSortState } from '../../types/db';
+import { isSensitiveColumn, maskCellValue } from '../../utils/piiDetector';
 
 export function createGridColumns(
   columns: ColumnMeta[],
@@ -136,7 +137,8 @@ export function extractCellValue(val: CellValue): ExtractedCellValue {
 
 export function createCellContent(
   val: CellValue,
-  _column?: ColumnMeta
+  column?: ColumnMeta,
+  isMasked: boolean = false
 ): GridCell {
   const extracted = extractCellValue(val);
 
@@ -156,8 +158,26 @@ export function createCellContent(
     };
   }
 
+  const isSensitive = Boolean(isMasked && column && isSensitiveColumn(column.name));
+  const finalDisplay = isSensitive
+    ? maskCellValue(extracted.displayString, column?.name)
+    : extracted.displayString;
+
   if (extracted.type === 'number') {
     const num = Number(extracted.rawValue);
+    if (isSensitive) {
+      return {
+        kind: GridCellKind.Text,
+        data: finalDisplay,
+        displayData: finalDisplay,
+        allowOverlay: true,
+        readonly: false,
+        themeOverride: {
+          textDark: '#9ca3af',
+          textMedium: '#9ca3af',
+        },
+      };
+    }
     return {
       kind: GridCellKind.Number,
       data: isNaN(num) ? 0 : num,
@@ -171,22 +191,30 @@ export function createCellContent(
     const isTrue = extracted.rawValue === true;
     return {
       kind: GridCellKind.Text,
-      data: extracted.displayString,
-      displayData: extracted.displayString,
+      data: finalDisplay,
+      displayData: finalDisplay,
       allowOverlay: false,
       readonly: false,
-      themeOverride: {
-        textDark: isTrue ? '#10b981' : '#ef4444',
-        textMedium: isTrue ? '#10b981' : '#ef4444',
-      },
+      themeOverride: isSensitive
+        ? { textDark: '#9ca3af', textMedium: '#9ca3af' }
+        : {
+            textDark: isTrue ? '#10b981' : '#ef4444',
+            textMedium: isTrue ? '#10b981' : '#ef4444',
+          },
     };
   }
 
   return {
     kind: GridCellKind.Text,
-    data: extracted.displayString,
-    displayData: extracted.displayString,
+    data: finalDisplay,
+    displayData: finalDisplay,
     allowOverlay: true,
     readonly: false,
+    ...(isSensitive && {
+      themeOverride: {
+        textDark: '#9ca3af',
+        textMedium: '#9ca3af',
+      },
+    }),
   };
 }

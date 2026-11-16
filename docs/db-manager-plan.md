@@ -935,12 +935,12 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 แผนงานยกระดับความสามารถของ DataCore ต่อยอดสู่ระดับ Production Enterprise-Grade ครอบคลุมด้านความปลอดภัย, ความสะดวกในการใช้งาน, การจัดการ Database Objects ขั้นสูง, การขยาย Database Engines และมาตรฐานการเผยแพร่แอปบน macOS:
 
 ### Phase 34: Security Hardening, Type-Safe IPC & Production Guardrails (Issue #151 - P0)
-- **34.1 In-Memory Secret Zeroization (`zeroize`):** ติดตั้ง crate `zeroize` และห่อหุ้ม Master Password, Vault Cache, Connection Password, และ SSH Passphrase ด้วย `Zeroizing` พร้อม Implement `Drop` เพื่อล้างหน่วยความจำทันทีที่ Lock หรือ Disconnect
+- **34.1 In-Memory Secret Zeroization (`zeroize`) [Completed]:** ติดตั้ง crate `zeroize` และห่อหุ้ม Master Password, Vault Cache, Connection Password, และ SSH Passphrase ด้วย `Zeroizing` พร้อม Implement `Drop` เพื่อล้างหน่วยความจำทันทีที่ Lock หรือ Disconnect
 - **34.2 Type-Safe IPC Contract (`tauri-specta`):** ติดตั้ง `tauri-specta` สร้าง TypeScript Bindings จาก `#[tauri::command]` อัตโนมัติ ป้องกัน IPC type drift
-- **34.3 Structured / Parameterized Filter Builder & AST:** ออกแบบ `FilterCondition` AST แทนการต่อ String `WHERE` ป้องกัน SQL Injection อย่างเด็ดขาด
+- **34.3 Structured / Parameterized Filter Builder & AST [Completed]:** ออกแบบ `FilterCondition` AST แทนการต่อ String `WHERE` ป้องกัน SQL Injection อย่างเด็ดขาด พร้อม validation
 - **34.4 Opt-in macOS Keychain & Biometric (Touch ID):** เพิ่มตัวเลือกเก็บ Master KEK ใน macOS Keychain พร้อมปลดล็อกด้วย Touch ID โดยคง Local Vault (DCV2) เป็นค่าเริ่มต้นแบบ Zero-popup
-- **34.5 Production Environment Guardrails & Safe Mode:** เพิ่มแถบสีระบุ Environment (`local`, `staging`, `production`) และระบบ Safe Mode บังคับพิมพ์ยืนยันก่อนรันคำสั่งแก้ไข/ลบข้อมูลที่มีความเสี่ยงสูง
-- **34.6 PII Sensitive Column Masking:** ตรวจจับและปกปิดข้อมูลอ่อนไหวอัตโนมัติ พร้อม Presentation / Screen-Share Safe Mode
+- **34.5 Production Environment Guardrails & Safe Mode [Completed]:** เพิ่มแถบสีระบุ Environment (`local`, `staging`, `production`) และระบบ Safe Mode บังคับพิมพ์ยืนยันก่อนรันคำสั่งแก้ไข/ลบข้อมูลที่มีความเสี่ยงสูง
+- **34.6 PII Sensitive Column Masking [Completed]:** สร้างระบบตรวจจับข้อมูลอ่อนไหวอัตโนมัติ (`src/utils/piiDetector.ts`) ครอบคลุม Passwords, Secrets, Tokens, Identifiers (SSN, Citizen ID), Financial (Cards, CVV), และ Contact (Email, Phone) พร้อมปุ่ม Toggle บน DataGrid Bottom Bar และระบบป้องกันการคัดลอก PII ใน Clipboard
 
 ### Phase 35: UX/UI Ergonomics & Workspace Persistence (Issue #152 - P1)
 - **35.1 Session & Workspace State Persistence:** บันทึกและกู้คืน Document Tabs, Active Connection, SQL Drafts, Splitter Ratio และ Data Grid Column Widths อัตโนมัติ

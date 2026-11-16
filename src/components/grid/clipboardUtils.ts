@@ -1,15 +1,21 @@
 import { GridSelection } from '@glideapps/glide-data-grid';
 import { QueryResult, CellValue } from '../../types/db';
 import { extractCellValue } from './gridUtils';
+import { isSensitiveColumn, maskCellValue } from '../../utils/piiDetector';
 
-export function formatCellValue(val: unknown): string {
-  return extractCellValue(val as CellValue).displayString;
+export function formatCellValue(val: unknown, columnName?: string, isMasked: boolean = false): string {
+  const extracted = extractCellValue(val as CellValue);
+  if (isMasked && columnName && isSensitiveColumn(columnName)) {
+    return maskCellValue(extracted.displayString, columnName);
+  }
+  return extracted.displayString;
 }
 
 export function formatSelectionAsText(
   selection: GridSelection,
   data: QueryResult,
-  includeHeaders: boolean = false
+  includeHeaders: boolean = false,
+  isMasked: boolean = false
 ): string | null {
   if (!data || !data.rows || data.rows.length === 0 || !data.columns || data.columns.length === 0) {
     return null;
@@ -68,7 +74,9 @@ export function formatSelectionAsText(
   for (const r of targetRows) {
     const rowData = data.rows[r];
     if (!rowData) continue;
-    const rowStr = targetCols.map((c) => formatCellValue(rowData[c])).join('\t');
+    const rowStr = targetCols
+      .map((c) => formatCellValue(rowData[c], data.columns[c]?.name, isMasked))
+      .join('\t');
     lines.push(rowStr);
   }
 
