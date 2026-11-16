@@ -7,6 +7,7 @@ use aes_gcm::{
     Aes256Gcm,
 };
 use rand::RngExt;
+use zeroize::{Zeroize, Zeroizing};
 use crate::error::AppError;
 
 pub const SERVICE_NAME: &str = "datacore";
@@ -80,12 +81,12 @@ fn get_machine_identifier() -> String {
     format!("{}:{}:datacore-vault-salt", user, host)
 }
 
-/// Derive a 256-bit Key Encryption Key (KEK) using Argon2id
-pub fn derive_kek_argon2(password: &str, salt: &[u8]) -> Result<[u8; KEY_LEN], AppError> {
+/// Derive a 256-bit Key Encryption Key (KEK) using Argon2id wrapped in Zeroizing for memory safety
+pub fn derive_kek_argon2(password: &str, salt: &[u8]) -> Result<Zeroizing<[u8; KEY_LEN]>, AppError> {
     let argon2 = argon2::Argon2::default();
-    let mut kek = [0u8; KEY_LEN];
+    let mut kek = Zeroizing::new([0u8; KEY_LEN]);
     argon2
-        .hash_password_into(password.as_bytes(), salt, &mut kek)
+        .hash_password_into(password.as_bytes(), salt, kek.as_mut())
         .map_err(|e| AppError::Other(format!("Argon2id KEK derivation failed: {}", e)))?;
     Ok(kek)
 }
@@ -99,7 +100,7 @@ pub fn encrypt_master_key_v2(
     rand::rng().fill(&mut salt);
 
     let kek = derive_kek_argon2(password, &salt)?;
-    let cipher = Aes256Gcm::new_from_slice(&kek)
+    let cipher = Aes256Gcm::new_from_slice(kek.as_ref())
         .map_err(|e| AppError::Other(format!("Failed to initialize KEK cipher: {}", e)))?;
 
     let mut nonce_bytes = [0u8; NONCE_LEN];
@@ -120,11 +121,11 @@ pub fn encrypt_master_key_v2(
     Ok(payload)
 }
 
-/// Decrypt an 80-byte DCV2 payload to recover the 32-byte Vault Master Key
+/// Decrypt an 80-byte DCV2 payload to recover the 32-byte Vault Master Key wrapped in Zeroizing
 pub fn decrypt_master_key_v2(
     key_bytes: &[u8],
     password: &str,
-) -> Result<[u8; KEY_LEN], AppError> {
+) -> Result<Zeroizing<[u8; KEY_LEN]>, AppError> {
     let expected_len = 4 + SALT_LEN + NONCE_LEN + KEY_LEN + 16;
     if key_bytes.len() != expected_len || &key_bytes[..4] != KEY_HEADER_V2 {
         return Err(AppError::Other(
@@ -137,30 +138,35 @@ pub fn decrypt_master_key_v2(
     let ciphertext = &key_bytes[4 + SALT_LEN + NONCE_LEN..];
 
     let kek = derive_kek_argon2(password, salt)?;
-    let cipher = Aes256Gcm::new_from_slice(&kek)
+    let cipher = Aes256Gcm::new_from_slice(kek.as_ref())
         .map_err(|e| AppError::Other(format!("Failed to initialize KEK cipher: {}", e)))?;
     let nonce = nonce_bytes
         .try_into()
         .map_err(|e| AppError::Other(format!("Invalid nonce: {}", e)))?;
 
-    let decrypted = cipher
+    let mut decrypted = cipher
         .decrypt(nonce, ciphertext)
         .map_err(|_| AppError::Other("Invalid master password or corrupted key".to_string()))?;
 
     if decrypted.len() != KEY_LEN {
+        decrypted.zeroize();
         return Err(AppError::Other("Corrupted decrypted key length".to_string()));
     }
-    let mut key = [0u8; KEY_LEN];
+    let mut key = Zeroizing::new([0u8; KEY_LEN]);
     key.copy_from_slice(&decrypted);
+    decrypted.zeroize();
     Ok(key)
 }
+
+pub type MasterPasswordHolder = Arc<RwLock<Option<Zeroizing<String>>>>;
+pub type VaultCache = Arc<RwLock<Option<HashMap<String, Zeroizing<String>>>>>;
 
 #[derive(Debug, Clone)]
 pub struct Vault {
     vault_dir: PathBuf,
     machine_id: Option<String>,
-    master_password: Arc<RwLock<Option<String>>>,
-    cache: Arc<RwLock<Option<HashMap<String, String>>>>,
+    master_password: MasterPasswordHolder,
+    cache: VaultCache,
 }
 
 impl Vault {
@@ -197,7 +203,7 @@ impl Vault {
         Self {
             vault_dir: dir.as_ref().to_path_buf(),
             machine_id: None,
-            master_password: Arc::new(RwLock::new(Some(master_password.to_string()))),
+            master_password: Arc::new(RwLock::new(Some(Zeroizing::new(master_password.to_string())))),
             cache: Arc::new(RwLock::new(None)),
         }
     }
@@ -208,7 +214,11 @@ impl Vault {
 
     pub fn clear_cache(&self) {
         if let Ok(mut guard) = self.cache.write() {
-            *guard = None;
+            if let Some(mut map) = guard.take() {
+                for (_, mut v) in map.drain() {
+                    v.zeroize();
+                }
+            }
         }
     }
 
@@ -248,14 +258,16 @@ impl Vault {
             .master_password
             .write()
             .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
-        *guard = Some(password.to_string());
+        *guard = Some(Zeroizing::new(password.to_string()));
         self.clear_cache();
         Ok(())
     }
 
     pub fn lock(&self) {
         if let Ok(mut guard) = self.master_password.write() {
-            *guard = None;
+            if let Some(mut pwd) = guard.take() {
+                pwd.zeroize();
+            }
         }
         self.clear_cache();
     }
@@ -282,7 +294,7 @@ impl Vault {
                     .read()
                     .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
                 if let Some(existing_pwd) = pwd_guard.as_ref() {
-                    decrypt_master_key_v2(&key_bytes, existing_pwd)?
+                    decrypt_master_key_v2(&key_bytes, existing_pwd.as_str())?
                 } else {
                     return Err(AppError::Other(
                         "Vault is locked by an existing master password. Use change_master_password or unlock first."
@@ -292,23 +304,23 @@ impl Vault {
             } else if key_bytes.len() == 4 + KEY_LEN && &key_bytes[..4] == KEY_HEADER_V1 {
                 // DCV1 format: de-obfuscate using machine key
                 let mdk = self.derive_machine_key();
-                let mut key = [0u8; KEY_LEN];
+                let mut key = Zeroizing::new([0u8; KEY_LEN]);
                 for i in 0..KEY_LEN {
                     key[i] = key_bytes[4 + i] ^ mdk[i];
                 }
                 key
             } else if key_bytes.len() == KEY_LEN {
-                let mut key = [0u8; KEY_LEN];
+                let mut key = Zeroizing::new([0u8; KEY_LEN]);
                 key.copy_from_slice(&key_bytes);
                 key
             } else {
-                let mut key = [0u8; KEY_LEN];
-                rand::rng().fill(&mut key);
+                let mut key = Zeroizing::new([0u8; KEY_LEN]);
+                rand::rng().fill(key.as_mut());
                 key
             }
         } else {
-            let mut key = [0u8; KEY_LEN];
-            rand::rng().fill(&mut key);
+            let mut key = Zeroizing::new([0u8; KEY_LEN]);
+            rand::rng().fill(key.as_mut());
             key
         };
 
@@ -323,7 +335,7 @@ impl Vault {
             .master_password
             .write()
             .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
-        *guard = Some(password.to_string());
+        *guard = Some(Zeroizing::new(password.to_string()));
 
         Ok(())
     }
@@ -367,7 +379,7 @@ impl Vault {
             .master_password
             .write()
             .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
-        *guard = Some(new_password.to_string());
+        *guard = Some(Zeroizing::new(new_password.to_string()));
 
         Ok(())
     }
@@ -407,19 +419,19 @@ impl Vault {
         Ok(())
     }
 
-    fn derive_machine_key(&self) -> [u8; KEY_LEN] {
+    fn derive_machine_key(&self) -> Zeroizing<[u8; KEY_LEN]> {
         use sha2::{Digest, Sha256};
         let machine_id = self.machine_id.clone().unwrap_or_else(get_machine_identifier);
         let mut hasher = Sha256::new();
         hasher.update(b"datacore-machine-secret-v1:");
         hasher.update(machine_id.as_bytes());
         let result = hasher.finalize();
-        let mut key = [0u8; KEY_LEN];
+        let mut key = Zeroizing::new([0u8; KEY_LEN]);
         key.copy_from_slice(&result);
         key
     }
 
-    fn get_or_create_key(&self) -> Result<[u8; KEY_LEN], AppError> {
+    fn get_or_create_key(&self) -> Result<Zeroizing<[u8; KEY_LEN]>, AppError> {
         if !self.vault_dir.exists() {
             fs::create_dir_all(&self.vault_dir)?;
             set_secure_dir_permissions(&self.vault_dir)?;
@@ -438,7 +450,7 @@ impl Vault {
                     .read()
                     .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
                 match pwd_guard.as_ref() {
-                    Some(pwd) => return decrypt_master_key_v2(&key_bytes, pwd),
+                    Some(pwd) => return decrypt_master_key_v2(&key_bytes, pwd.as_str()),
                     None => {
                         return Err(AppError::Other(
                             "Vault is locked: Master password required".to_string(),
@@ -450,7 +462,7 @@ impl Vault {
             // 2. Version 1 Format: 4-byte Magic "DCV1" + 32-byte obfuscated key = 36 bytes
             if key_bytes.len() == 4 + KEY_LEN && &key_bytes[..4] == KEY_HEADER_V1 {
                 let mdk = self.derive_machine_key();
-                let mut key = [0u8; KEY_LEN];
+                let mut key = Zeroizing::new([0u8; KEY_LEN]);
                 for i in 0..KEY_LEN {
                     key[i] = key_bytes[4 + i] ^ mdk[i];
                 }
@@ -459,7 +471,7 @@ impl Vault {
 
             // 3. Legacy Format: 32-byte raw AES key without magic header (Auto-migrate to DCV1)
             if key_bytes.len() == KEY_LEN {
-                let mut legacy_key = [0u8; KEY_LEN];
+                let mut legacy_key = Zeroizing::new([0u8; KEY_LEN]);
                 legacy_key.copy_from_slice(&key_bytes);
 
                 let mdk = self.derive_machine_key();
@@ -481,15 +493,15 @@ impl Vault {
         }
 
         // Generate fresh cryptographically secure 256-bit key
-        let mut key_bytes = [0u8; KEY_LEN];
-        rand::rng().fill(&mut key_bytes);
+        let mut key_bytes = Zeroizing::new([0u8; KEY_LEN]);
+        rand::rng().fill(key_bytes.as_mut());
 
         let pwd_guard = self
             .master_password
             .read()
             .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
         let payload = if let Some(pwd) = pwd_guard.as_ref() {
-            encrypt_master_key_v2(&key_bytes, pwd)?
+            encrypt_master_key_v2(&key_bytes, pwd.as_str())?
         } else {
             // Obfuscate with machine-derived secret and write with DCV1 header
             let mdk = self.derive_machine_key();
@@ -510,7 +522,7 @@ impl Vault {
         Ok(key_bytes)
     }
 
-    fn load_vault_from_disk(&self) -> Result<HashMap<String, String>, AppError> {
+    fn load_vault_from_disk(&self) -> Result<HashMap<String, Zeroizing<String>>, AppError> {
         let vault_file = self.vault_dir.join("vault.enc");
 
         if !vault_file.exists() {
@@ -518,7 +530,7 @@ impl Vault {
         }
 
         let key = self.get_or_create_key()?;
-        let cipher = Aes256Gcm::new_from_slice(&key)
+        let cipher = Aes256Gcm::new_from_slice(key.as_ref())
             .map_err(|e| AppError::Other(format!("Failed to initialize cipher: {}", e)))?;
 
         let file_data = fs::read(&vault_file)?;
@@ -531,27 +543,34 @@ impl Vault {
             .map_err(|e| AppError::Other(format!("Invalid nonce: {}", e)))?;
         let ciphertext = &file_data[NONCE_LEN..];
 
-        let plaintext = cipher
+        let mut plaintext = cipher
             .decrypt(nonce, ciphertext)
             .map_err(|e| AppError::Other(format!("Failed to decrypt vault: {}", e)))?;
 
-        let map: HashMap<String, String> =
+        let raw_map: HashMap<String, String> =
             serde_json::from_slice(&plaintext).unwrap_or_default();
+        plaintext.zeroize();
+
+        let map: HashMap<String, Zeroizing<String>> = raw_map
+            .into_iter()
+            .map(|(k, v)| (k, Zeroizing::new(v)))
+            .collect();
 
         Ok(map)
     }
 
-    fn save_vault_to_disk(&self, map: &HashMap<String, String>) -> Result<(), AppError> {
+    fn save_vault_to_disk(&self, map: &HashMap<String, Zeroizing<String>>) -> Result<(), AppError> {
         if !self.vault_dir.exists() {
             fs::create_dir_all(&self.vault_dir)?;
             set_secure_dir_permissions(&self.vault_dir)?;
         }
 
         let key = self.get_or_create_key()?;
-        let cipher = Aes256Gcm::new_from_slice(&key)
+        let cipher = Aes256Gcm::new_from_slice(key.as_ref())
             .map_err(|e| AppError::Other(format!("Failed to initialize cipher: {}", e)))?;
 
-        let plaintext = serde_json::to_vec(map)?;
+        let plain_map: HashMap<&str, &str> = map.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let mut plaintext = serde_json::to_vec(&plain_map)?;
         let mut nonce_bytes = [0u8; NONCE_LEN];
         rand::rng().fill(&mut nonce_bytes);
         let nonce = (&nonce_bytes[..])
@@ -561,6 +580,7 @@ impl Vault {
         let ciphertext = cipher
             .encrypt(nonce, plaintext.as_ref())
             .map_err(|e| AppError::Other(format!("Failed to encrypt vault: {}", e)))?;
+        plaintext.zeroize();
 
         let mut output = Vec::with_capacity(NONCE_LEN + ciphertext.len());
         output.extend_from_slice(&nonce_bytes);
@@ -588,7 +608,7 @@ impl Vault {
         }
 
         if let Some(ref mut map) = *guard {
-            map.insert(connection_id.to_string(), password.to_string());
+            map.insert(connection_id.to_string(), Zeroizing::new(password.to_string()));
             self.save_vault_to_disk(map)?;
         }
 
@@ -602,7 +622,7 @@ impl Vault {
                 .read()
                 .map_err(|e| AppError::Other(format!("Vault lock error: {}", e)))?;
             if let Some(ref map) = *guard {
-                return Ok(map.get(connection_id).cloned());
+                return Ok(map.get(connection_id).map(|s| s.as_str().to_string()));
             }
         }
 
@@ -615,7 +635,7 @@ impl Vault {
             *guard = Some(self.load_vault_from_disk()?);
         }
 
-        Ok(guard.as_ref().and_then(|map| map.get(connection_id).cloned()))
+        Ok(guard.as_ref().and_then(|map| map.get(connection_id).map(|s| s.as_str().to_string())))
     }
 
     pub fn delete_password(&self, connection_id: &str) -> Result<(), AppError> {
@@ -629,12 +649,21 @@ impl Vault {
         }
 
         if let Some(ref mut map) = *guard {
-            if map.remove(connection_id).is_some() {
+            if let Some(mut removed) = map.remove(connection_id) {
+                removed.zeroize();
                 self.save_vault_to_disk(map)?;
             }
         }
 
         Ok(())
+    }
+}
+
+impl Drop for Vault {
+    fn drop(&mut self) {
+        if Arc::strong_count(&self.master_password) == 1 {
+            self.lock();
+        }
     }
 }
 

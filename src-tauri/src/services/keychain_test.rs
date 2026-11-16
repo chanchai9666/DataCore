@@ -180,7 +180,7 @@ fn test_argon2id_kek_derivation_and_aes_gcm_direct() {
     assert_eq!(&payload[..4], KEY_HEADER_V2);
 
     let decrypted = decrypt_master_key_v2(&payload, password).expect("decrypt master key");
-    assert_eq!(decrypted, original_master_key);
+    assert_eq!(decrypted.as_ref(), &original_master_key);
 
     // 4. Decrypt with wrong password must return error
     let wrong_result = decrypt_master_key_v2(&payload, "WrongMasterPassword!");
@@ -382,4 +382,39 @@ fn test_vault_creates_directory_with_0700_permissions() {
 
     let pass = vault.get_password("conn-test-fresh-dir").expect("get password");
     assert_eq!(pass.as_deref(), Some("pass123"));
+}
+
+#[test]
+fn test_vault_lock_and_clear_cache_zeroizes_secrets_in_memory() {
+    let dir = tempdir().expect("create temp dir");
+    let vault = Vault::new(dir.path());
+
+    let master_pass = "VaultMasterZeroizePass!456";
+    vault.set_master_password(master_pass).expect("set master password");
+
+    // Save secrets in vault
+    vault.save_password("conn-prod-1", "ProdSuperSecretPassword!").expect("save pass");
+    vault.save_password("conn-prod-2", "ProdSuperSecretPassword2!").expect("save pass 2");
+
+    // Read back to populate memory cache
+    assert_eq!(vault.get_password("conn-prod-1").unwrap().as_deref(), Some("ProdSuperSecretPassword!"));
+
+    // Clear cache only
+    vault.clear_cache();
+
+    // Since master password is still in memory, get_password should successfully reload from disk
+    assert_eq!(vault.get_password("conn-prod-1").unwrap().as_deref(), Some("ProdSuperSecretPassword!"));
+
+    // Now lock vault
+    vault.lock();
+
+    // After lock, master password and cache must be wiped/zeroized, so reading password must fail with locked error
+    let locked_res = vault.get_password("conn-prod-1");
+    assert!(locked_res.is_err(), "Accessing vault after lock must fail");
+    let err_msg = locked_res.unwrap_err().to_string();
+    assert!(err_msg.contains("Vault is locked") || err_msg.contains("Master password required"));
+
+    // Unlock again with correct password
+    vault.unlock(master_pass).expect("unlock vault");
+    assert_eq!(vault.get_password("conn-prod-1").unwrap().as_deref(), Some("ProdSuperSecretPassword!"));
 }

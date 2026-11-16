@@ -5,6 +5,7 @@ use base64::Engine;
 use futures::TryStreamExt;
 use sqlx::{Column, Connection, Either, Row, TypeInfo, ValueRef};
 use tokio::sync::Mutex;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
@@ -17,7 +18,7 @@ pub struct MySqlConnection {
     ssh_tunnel: Arc<Mutex<Option<SshTunnelHandle>>>,
     database_name: String,
     config: ConnectionConfig,
-    password: Option<String>,
+    password: Option<Zeroizing<String>>,
     connect_options: Arc<Mutex<sqlx::mysql::MySqlConnectOptions>>,
     connection_id: Arc<AtomicU64>,
     in_manual_tx: Arc<AtomicBool>,
@@ -114,7 +115,7 @@ impl MySqlConnection {
             ssh_tunnel: Arc::new(Mutex::new(tunnel_handle)),
             database_name: config.database.clone(),
             config: config.clone(),
-            password: password.map(|s| s.to_string()),
+            password: password.map(|s| Zeroizing::new(s.to_string())),
             connect_options: Arc::new(Mutex::new(options)),
             connection_id: Arc::new(AtomicU64::new(connection_id)),
             in_manual_tx: Arc::new(AtomicBool::new(false)),
@@ -297,7 +298,7 @@ impl DatabaseConnection for MySqlConnection {
                 let in_tx = self.in_manual_tx.load(Ordering::SeqCst);
                 if auto_reconnect && !in_tx && Self::is_disconnect_error(&err) {
                     if let Ok((new_conn, new_opts, new_cid, new_tunnel)) =
-                        Self::establish_raw(&self.config, self.password.as_deref()).await
+                        Self::establish_raw(&self.config, self.password.as_ref().map(|s| s.as_str())).await
                     {
                         *conn = new_conn;
                         *self.connect_options.lock().await = new_opts;
@@ -443,5 +444,13 @@ impl DatabaseConnection for MySqlConnection {
         let sql = if enabled { "SET autocommit = 1;" } else { "SET autocommit = 0;" };
         self.execute_query(sql).await?;
         Ok(())
+    }
+}
+
+impl Drop for MySqlConnection {
+    fn drop(&mut self) {
+        if let Some(ref mut pwd) = self.password {
+            pwd.zeroize();
+        }
     }
 }

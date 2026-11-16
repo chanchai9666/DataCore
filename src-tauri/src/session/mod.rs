@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::drivers::mysql::MySqlConnection;
 use crate::drivers::postgres::PostgresConnection;
@@ -19,8 +20,8 @@ pub struct SessionEntry {
 #[derive(Clone, Default)]
 pub struct SessionManager {
     sessions: Arc<RwLock<HashMap<String, SessionEntry>>>,
-    session_passwords: Arc<RwLock<HashMap<String, String>>>,
-    session_ssh_passphrases: Arc<RwLock<HashMap<String, String>>>,
+    session_passwords: Arc<RwLock<HashMap<String, Zeroizing<String>>>>,
+    session_ssh_passphrases: Arc<RwLock<HashMap<String, Zeroizing<String>>>>,
 }
 
 impl SessionManager {
@@ -32,40 +33,56 @@ impl SessionManager {
         }
     }
 
-    /// Stores password temporarily in RAM for the lifetime of this session/connection
+    /// Stores password temporarily in RAM for the lifetime of this session/connection wrapped in Zeroizing
     pub async fn set_session_password(&self, connection_id: impl Into<String>, password: impl Into<String>) {
         let mut map = self.session_passwords.write().await;
-        map.insert(connection_id.into(), password.into());
+        map.insert(connection_id.into(), Zeroizing::new(password.into()));
     }
 
     /// Retrieves in-memory RAM password for a connection
     pub async fn get_session_password(&self, connection_id: &str) -> Option<String> {
         let map = self.session_passwords.read().await;
-        map.get(connection_id).cloned()
+        map.get(connection_id).map(|s| s.as_str().to_string())
     }
 
-    /// Clears in-memory RAM password for a connection
+    /// Clears and zeroizes in-memory RAM password for a connection
     pub async fn clear_session_password(&self, connection_id: &str) {
         let mut map = self.session_passwords.write().await;
-        map.remove(connection_id);
+        if let Some(mut pwd) = map.remove(connection_id) {
+            pwd.zeroize();
+        }
     }
 
-    /// Stores SSH passphrase temporarily in RAM for the lifetime of this session/connection
+    /// Stores SSH passphrase temporarily in RAM for the lifetime of this session/connection wrapped in Zeroizing
     pub async fn set_session_ssh_passphrase(&self, connection_id: impl Into<String>, passphrase: impl Into<String>) {
         let mut map = self.session_ssh_passphrases.write().await;
-        map.insert(connection_id.into(), passphrase.into());
+        map.insert(connection_id.into(), Zeroizing::new(passphrase.into()));
     }
 
     /// Retrieves in-memory RAM SSH passphrase for a connection
     pub async fn get_session_ssh_passphrase(&self, connection_id: &str) -> Option<String> {
         let map = self.session_ssh_passphrases.read().await;
-        map.get(connection_id).cloned()
+        map.get(connection_id).map(|s| s.as_str().to_string())
     }
 
-    /// Clears in-memory RAM SSH passphrase for a connection
+    /// Clears and zeroizes in-memory RAM SSH passphrase for a connection
     pub async fn clear_session_ssh_passphrase(&self, connection_id: &str) {
         let mut map = self.session_ssh_passphrases.write().await;
-        map.remove(connection_id);
+        if let Some(mut phrase) = map.remove(connection_id) {
+            phrase.zeroize();
+        }
+    }
+
+    /// Wipes and zeroizes all temporary in-memory session secrets
+    pub async fn clear_all_session_secrets(&self) {
+        let mut pwds = self.session_passwords.write().await;
+        for (_, mut p) in pwds.drain() {
+            p.zeroize();
+        }
+        let mut phrases = self.session_ssh_passphrases.write().await;
+        for (_, mut p) in phrases.drain() {
+            p.zeroize();
+        }
     }
 
     /// Factory method to create a database connection based on config and optional password
