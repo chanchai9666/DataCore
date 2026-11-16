@@ -17,6 +17,9 @@ import {
   Key,
   Link2,
   Columns3,
+  ListOrdered,
+  Tag,
+  Zap,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { openTableTab, openQueryTab, openTableListTab } from './tabHelpers';
@@ -30,6 +33,7 @@ export type BrowserNodeType =
   | 'folder'
   | 'table'
   | 'view'
+  | 'materialized_view'
   | 'column'
   | 'index'
   | 'foreign_key'
@@ -37,6 +41,8 @@ export type BrowserNodeType =
   | 'trigger'
   | 'function'
   | 'procedure'
+  | 'sequence'
+  | 'custom_type'
   | 'error'
   | 'loading'
   | 'empty';
@@ -226,6 +232,18 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         if (data.name.startsWith('Views')) {
           return <Eye className="w-4 h-4 text-purple-400 shrink-0" data-testid="icon-folder" />;
         }
+        if (data.name.startsWith('Functions')) {
+          return <Wrench className="w-4 h-4 text-indigo-400 shrink-0" data-testid="icon-folder" />;
+        }
+        if (data.name.startsWith('Triggers')) {
+          return <Zap className="w-4 h-4 text-orange-400 shrink-0" data-testid="icon-folder" />;
+        }
+        if (data.name.startsWith('Sequences')) {
+          return <ListOrdered className="w-4 h-4 text-teal-400 shrink-0" data-testid="icon-folder" />;
+        }
+        if (data.name.startsWith('Custom Types') || data.name.startsWith('Types')) {
+          return <Tag className="w-4 h-4 text-violet-400 shrink-0" data-testid="icon-folder" />;
+        }
         if (data.name.startsWith('System')) {
           return <Folder className="w-4 h-4 text-gray-400 shrink-0" data-testid="icon-folder" />;
         }
@@ -234,6 +252,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       case 'table':
         return <TableIcon className="w-4 h-4 text-emerald-400 shrink-0" data-testid="icon-table" />;
       case 'view':
+      case 'materialized_view':
         return <Eye className="w-4 h-4 text-purple-400 shrink-0" data-testid="icon-view" />;
       case 'column': {
         if (data.isPrimaryKey) {
@@ -257,10 +276,14 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       case 'foreign_key':
         return <Link2 className="w-3.5 h-3.5 text-blue-400 shrink-0" data-testid="icon-fk" />;
       case 'trigger':
-        return <Play className="w-3.5 h-3.5 text-orange-400 shrink-0" data-testid="icon-trigger" />;
+        return <Zap className="w-3.5 h-3.5 text-orange-400 shrink-0" data-testid="icon-trigger" />;
       case 'function':
       case 'procedure':
         return <Wrench className="w-3.5 h-3.5 text-indigo-400 shrink-0" data-testid="icon-function" />;
+      case 'sequence':
+        return <ListOrdered className="w-3.5 h-3.5 text-teal-400 shrink-0" data-testid="icon-sequence" />;
+      case 'custom_type':
+        return <Tag className="w-3.5 h-3.5 text-violet-400 shrink-0" data-testid="icon-customtype" />;
       default:
         return <Folder className="w-4 h-4 text-gray-400 shrink-0" />;
     }

@@ -9,6 +9,9 @@ import type {
   SqlImportResult,
   CrossDbCopyTableOptions,
   CrossDbCopyResult,
+  NativeCliStatus,
+  NativeBackupOptions,
+  NativeRestoreOptions,
 } from '../types/dataTransfer';
 import { splitSqlStatements } from './sqlSplitter';
 
@@ -155,6 +158,20 @@ export const getSchemaTree = async (
   });
 };
 
+export const getObjectDdl = async (
+  connectionId: string,
+  schema: string | null | undefined,
+  objectName: string,
+  objectType: string
+): Promise<string> => {
+  return invoke<string>('get_object_ddl', {
+    connectionId,
+    schema: schema ?? null,
+    objectName,
+    objectType,
+  });
+};
+
 export const getStoredPassword = async (
   connectionId: string
 ): Promise<string | null> => {
@@ -249,6 +266,40 @@ export const simulateQueryImpact = async (
   });
 };
 
+export const checkNativeCliAvailability = async (
+  connectionId: string
+): Promise<NativeCliStatus> => {
+  return invoke<NativeCliStatus>('check_native_cli_availability', {
+    connectionId,
+  });
+};
+
+export const startNativeBackup = async (
+  taskId: string,
+  options: NativeBackupOptions
+): Promise<number> => {
+  return invoke<number>('start_native_backup', {
+    taskId,
+    options,
+  });
+};
+
+export const startNativeRestore = async (
+  taskId: string,
+  options: NativeRestoreOptions
+): Promise<number> => {
+  return invoke<number>('start_native_restore', {
+    taskId,
+    options,
+  });
+};
+
+export const cancelNativeTask = async (taskId: string): Promise<void> => {
+  return invoke<void>('cancel_native_task', {
+    taskId,
+  });
+};
+
 export const isVaultKeychainEnabled = async (): Promise<boolean> => {
   return invoke<boolean>('vault_is_keychain_enabled');
 };
@@ -296,6 +347,7 @@ export const dbApi = {
   commitTransaction,
   rollbackTransaction,
   getSchemaTree,
+  getObjectDdl,
   getTableListMetadata,
   duplicateTable,
   exportSql,
@@ -303,6 +355,10 @@ export const dbApi = {
   copyTableCrossDb,
   cancelTransfer,
   simulateQueryImpact,
+  checkNativeCliAvailability,
+  startNativeBackup,
+  startNativeRestore,
+  cancelNativeTask,
   isVaultKeychainEnabled,
   setVaultKeychainEnabled,
   hasVaultMasterPassword,

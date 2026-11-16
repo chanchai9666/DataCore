@@ -391,7 +391,7 @@ impl DatabaseConnection for MySqlConnection {
         let sql = "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_type, table_name;";
         let query_res = self.execute_query(sql).await?;
 
-        let mut tables = Vec::new();
+        let mut children = Vec::new();
         for row in query_res.rows {
             let table_name = row.first().and_then(|c| c.as_text()).unwrap_or("").to_string();
             let table_type = row.get(1).and_then(|c| c.as_text()).unwrap_or("BASE TABLE");
@@ -403,11 +403,41 @@ impl DatabaseConnection for MySqlConnection {
             };
 
             let node = SchemaNode::new(table_name, node_type);
-            tables.push(node);
+            children.push(node);
+        }
+
+        // Fetch routines (functions & procedures)
+        let routine_sql = "SELECT ROUTINE_NAME, ROUTINE_TYPE FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = DATABASE() ORDER BY ROUTINE_TYPE, ROUTINE_NAME;";
+        if let Ok(routine_res) = self.execute_query(routine_sql).await {
+            for row in routine_res.rows {
+                let routine_name = row.first().and_then(|c| c.as_text()).unwrap_or("").to_string();
+                let r_type = row.get(1).and_then(|c| c.as_text()).unwrap_or("FUNCTION");
+                let node_type = if r_type.contains("PROCEDURE") {
+                    SchemaNodeType::Procedure
+                } else {
+                    SchemaNodeType::Function
+                };
+                let node = SchemaNode::new(routine_name, node_type);
+                children.push(node);
+            }
+        }
+
+        // Fetch triggers
+        let trigger_sql = "SELECT TRIGGER_NAME, EVENT_OBJECT_TABLE FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() ORDER BY TRIGGER_NAME;";
+        if let Ok(trigger_res) = self.execute_query(trigger_sql).await {
+            for row in trigger_res.rows {
+                let trigger_name = row.first().and_then(|c| c.as_text()).unwrap_or("").to_string();
+                let tbl_name = row.get(1).and_then(|c| c.as_text()).unwrap_or("").to_string();
+                let mut node = SchemaNode::new(trigger_name, SchemaNodeType::Trigger);
+                if !tbl_name.is_empty() {
+                    node = node.with_meta("table_name", tbl_name);
+                }
+                children.push(node);
+            }
         }
 
         let root = SchemaNode::new(&self.database_name, SchemaNodeType::Database)
-            .with_children(tables);
+            .with_children(children);
         Ok(vec![root])
     }
 
@@ -438,6 +468,32 @@ impl DatabaseConnection for MySqlConnection {
         let sql = if enabled { "SET autocommit = 1;" } else { "SET autocommit = 0;" };
         self.execute_query(sql).await?;
         Ok(())
+    }
+
+    async fn get_object_ddl(&self, _schema: Option<&str>, name: &str, object_type: &str) -> Result<String, AppError> {
+        let safe_name = name.replace('`', "``");
+        let lower_type = object_type.to_lowercase();
+
+        let query = if lower_type.contains("procedure") {
+            format!("SHOW CREATE PROCEDURE `{}`;", safe_name)
+        } else if lower_type.contains("function") {
+            format!("SHOW CREATE FUNCTION `{}`;", safe_name)
+        } else if lower_type.contains("trigger") {
+            format!("SHOW CREATE TRIGGER `{}`;", safe_name)
+        } else if lower_type.contains("view") {
+            format!("SHOW CREATE VIEW `{}`;", safe_name)
+        } else {
+            format!("SHOW CREATE TABLE `{}`;", safe_name)
+        };
+
+        let res = self.execute_query(&query).await?;
+        if let Some(row) = res.rows.into_iter().next() {
+            // MySQL SHOW CREATE outputs the SQL in column 1 (for table/view/procedure/function) or column 2 (for trigger)
+            if let Some(ddl) = row.get(2).and_then(|c| c.as_text()).or_else(|| row.get(1).and_then(|c| c.as_text())) {
+                return Ok(ddl.to_string());
+            }
+        }
+        Err(AppError::NotFound(format!("Could not generate DDL for '{}'", name)))
     }
 }
 

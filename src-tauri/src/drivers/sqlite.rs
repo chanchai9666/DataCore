@@ -385,19 +385,30 @@ impl DatabaseConnection for SqliteConnection {
     async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError> {
         let conn = self.conn.lock().await;
         let mut stmt = conn.prepare(
-            "SELECT type, name, tbl_name FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY type, name;"
+            "SELECT type, name, tbl_name, sql FROM sqlite_master WHERE type IN ('table', 'view', 'trigger') AND name NOT LIKE 'sqlite_%' ORDER BY type, name;"
         )?;
         let mut rows = stmt.query([])?;
         let mut children = Vec::new();
         while let Some(row) = rows.next()? {
             let type_str: String = row.get(0)?;
             let name: String = row.get(1)?;
-            let node_type = if type_str == "view" {
-                SchemaNodeType::View
-            } else {
-                SchemaNodeType::Table
+            let tbl_name: Option<String> = row.get(2).ok();
+            let sql_ddl: Option<String> = row.get(3).ok();
+
+            let node_type = match type_str.as_str() {
+                "view" => SchemaNodeType::View,
+                "trigger" => SchemaNodeType::Trigger,
+                _ => SchemaNodeType::Table,
             };
-            children.push(SchemaNode::new(name, node_type).with_schema("main"));
+
+            let mut node = SchemaNode::new(name, node_type).with_schema("main");
+            if let Some(ddl) = sql_ddl {
+                node = node.with_meta("ddl", ddl);
+            }
+            if let Some(target_table) = tbl_name {
+                node = node.with_meta("table_name", target_table);
+            }
+            children.push(node);
         }
         let db_node = SchemaNode::new(&self.database_name, SchemaNodeType::Database)
             .with_children(children);
@@ -445,5 +456,18 @@ impl DatabaseConnection for SqliteConnection {
             conn.execute_batch("COMMIT;")?;
         }
         Ok(())
+    }
+
+    async fn get_object_ddl(&self, _schema: Option<&str>, name: &str, _object_type: &str) -> Result<String, AppError> {
+        let conn = self.conn.lock().await;
+        let mut stmt = conn.prepare("SELECT sql FROM sqlite_master WHERE name = ?;")?;
+        let mut rows = stmt.query([name])?;
+        if let Some(row) = rows.next()? {
+            let sql: Option<String> = row.get(0)?;
+            if let Some(s) = sql {
+                return Ok(s);
+            }
+        }
+        Err(AppError::NotFound(format!("Object '{}' not found in schema", name)))
     }
 }

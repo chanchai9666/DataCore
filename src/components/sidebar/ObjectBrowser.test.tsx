@@ -15,6 +15,7 @@ vi.mock('../../api/db', () => ({
   dbApi: {
     getConnections: vi.fn(),
     getSchemaTree: vi.fn(),
+    getObjectDdl: vi.fn(),
     deleteConnection: vi.fn(),
     executeDirectQuery: vi.fn(),
     executeQuery: vi.fn(),
@@ -829,6 +830,66 @@ describe('ObjectBrowser', () => {
       // Press Cmd+C
       fireEvent.keyDown(window, { key: 'c', metaKey: true });
       expect(writeTextMock).toHaveBeenCalledWith('email');
+    });
+  });
+
+  describe('Deep Object Browser Tree & DDL', () => {
+    it('renders triggers and functions folders and opens DDL in query tab when clicking View DDL', async () => {
+      vi.mocked(dbApi.getSchemaTree).mockResolvedValueOnce([
+        {
+          name: 'test_db',
+          node_type: 'database',
+          children: [
+            { name: 'orders', node_type: 'table' },
+            { name: 'update_timestamp', node_type: 'function' },
+            { name: 'trg_order_audit', node_type: 'trigger' },
+            { name: 'order_id_seq', node_type: 'sequence' },
+          ],
+        },
+      ]);
+
+      vi.mocked(dbApi.getObjectDdl).mockResolvedValueOnce(
+        'CREATE TRIGGER trg_order_audit AFTER INSERT ON orders BEGIN SELECT 1; END;'
+      );
+
+      render(<ObjectBrowser />);
+
+      // Double-click connection to connect & load tree
+      const connNode = await screen.findByTestId('tree-node-Production SQLite');
+      fireEvent.doubleClick(connNode);
+
+      // Expand database node
+      const dbNode = await screen.findByTestId('tree-node-test_db');
+      fireEvent.click(dbNode);
+
+      // Verify folders appear
+      const trgFolder = await screen.findByTestId('tree-node-Triggers (1)');
+      expect(trgFolder).toBeInTheDocument();
+
+      const fnFolder = await screen.findByTestId('tree-node-Functions & Procedures (1)');
+      expect(fnFolder).toBeInTheDocument();
+
+      const seqFolder = await screen.findByTestId('tree-node-Sequences (1)');
+      expect(seqFolder).toBeInTheDocument();
+
+      // Expand Triggers folder
+      fireEvent.click(trgFolder);
+      const trgNode = await screen.findByTestId('tree-node-trg_order_audit');
+      expect(trgNode).toBeInTheDocument();
+
+      // Right-click on trigger node
+      fireEvent.contextMenu(trgNode);
+
+      // Click "View DDL / Source"
+      const viewDdlBtn = await screen.findByTestId('view-object-ddl-btn');
+      expect(viewDdlBtn).toBeInTheDocument();
+      fireEvent.click(viewDdlBtn);
+
+      await waitFor(() => {
+        expect(dbApi.getObjectDdl).toHaveBeenCalledWith('conn-1', undefined, 'trg_order_audit', 'trigger');
+        const tabs = useTabStore.getState().tabs;
+        expect(tabs.some((t) => t.type === 'query' && t.queryContent?.includes('CREATE TRIGGER trg_order_audit'))).toBe(true);
+      });
     });
   });
 });

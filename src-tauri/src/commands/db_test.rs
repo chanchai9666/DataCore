@@ -381,6 +381,10 @@ async fn test_schema_tree_uses_dedicated_connection_independent_of_tab_transacti
     let db_node = &tree[0];
     assert!(db_node.children.iter().any(|c| c.name == "customers"));
 
+    // Test get_object_ddl_impl
+    let ddl = get_object_ddl_impl(&store, "file-db-schema", None, "customers", "table").await.unwrap();
+    assert!(ddl.contains("CREATE TABLE customers"));
+
     // tab-tx can still rollback cleanly
     rollback_transaction_impl(&session_mgr, "tab-tx").await.unwrap();
     close_session_impl(&session_mgr, "tab-tx").await.unwrap();

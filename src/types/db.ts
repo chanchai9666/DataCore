@@ -52,13 +52,16 @@ export type SchemaNodeType =
   | 'schema'
   | 'table'
   | 'view'
+  | 'materialized_view'
   | 'column'
   | 'index'
   | 'foreign_key'
   | 'foreignkey'
   | 'trigger'
   | 'function'
-  | 'procedure';
+  | 'procedure'
+  | 'sequence'
+  | 'custom_type';
 
 export interface SchemaNode {
   id?: string;

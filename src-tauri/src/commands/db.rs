@@ -245,6 +245,26 @@ pub async fn get_schema_tree_impl(
     conn.fetch_schema_tree().await
 }
 
+pub async fn get_object_ddl_impl(
+    store: &ConnectionStore,
+    connection_id: &str,
+    schema: Option<&str>,
+    object_name: &str,
+    object_type: &str,
+) -> Result<String, AppError> {
+    let mut config = store
+        .get(connection_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Connection '{}' not found", connection_id)))?;
+    if let Some(ref mut ssh) = config.ssh_tunnel {
+        if ssh.enabled {
+            ssh.passphrase = store.get_ssh_passphrase(connection_id).ok().flatten();
+        }
+    }
+    let password = store.get_password(connection_id)?;
+    let conn = SessionManager::create_connection(&config, password.as_deref()).await?;
+    conn.get_object_ddl(schema, object_name, object_type).await
+}
+
 pub fn strip_sql_comments_and_whitespace(sql: &str) -> String {
     let mut result = String::with_capacity(sql.len());
     let mut chars = sql.chars().peekable();
@@ -706,6 +726,25 @@ pub async fn get_schema_tree(
     get_schema_tree_impl(&store, &connection_id)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_object_ddl(
+    store: State<'_, ConnectionStore>,
+    connection_id: String,
+    schema: Option<String>,
+    object_name: String,
+    object_type: String,
+) -> Result<String, String> {
+    get_object_ddl_impl(
+        &store,
+        &connection_id,
+        schema.as_deref(),
+        &object_name,
+        &object_type,
+    )
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

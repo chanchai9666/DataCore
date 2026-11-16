@@ -356,3 +356,74 @@ pub async fn save_text_file(file_path: String, content: String) -> Result<(), St
     std::fs::write(&safe_path, content.as_bytes())
         .map_err(|e| format!("Failed to write file '{}': {}", safe_path.display(), e))
 }
+
+#[tauri::command]
+pub async fn check_native_cli_availability(
+    store: State<'_, ConnectionStore>,
+    connection_id: String,
+) -> Result<crate::services::NativeCliStatus, String> {
+    let config = store
+        .get(&connection_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+    Ok(crate::services::check_cli_availability_for_driver(config.driver).await)
+}
+
+#[tauri::command]
+pub async fn start_native_backup(
+    app: AppHandle,
+    store: State<'_, ConnectionStore>,
+    task_id: String,
+    options: crate::services::NativeBackupOptions,
+) -> Result<i32, String> {
+    let config = store
+        .get(&options.connection_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Connection '{}' not found", options.connection_id))?;
+    let password = store.get_password(&options.connection_id).map_err(|e| e.to_string())?;
+
+    let (bin, args, envs) = crate::services::build_backup_command(&config, password.as_deref(), &options)
+        .map_err(|e| e.to_string())?;
+
+    let app_clone = app.clone();
+    let callback = move |evt: crate::services::NativeProgressEvent| {
+        let _ = app_clone.emit("native://progress", evt);
+    };
+
+    crate::services::run_native_cli_streaming(task_id, bin, args, envs, callback)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn start_native_restore(
+    app: AppHandle,
+    store: State<'_, ConnectionStore>,
+    task_id: String,
+    options: crate::services::NativeRestoreOptions,
+) -> Result<i32, String> {
+    let config = store
+        .get(&options.connection_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Connection '{}' not found", options.connection_id))?;
+    let password = store.get_password(&options.connection_id).map_err(|e| e.to_string())?;
+
+    let (bin, args, envs) = crate::services::build_restore_command(&config, password.as_deref(), &options)
+        .map_err(|e| e.to_string())?;
+
+    let app_clone = app.clone();
+    let callback = move |evt: crate::services::NativeProgressEvent| {
+        let _ = app_clone.emit("native://progress", evt);
+    };
+
+    crate::services::run_native_cli_streaming(task_id, bin, args, envs, callback)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn cancel_native_task(task_id: String) -> Result<(), String> {
+    crate::services::cancel_running_native_task(&task_id)
+        .await
+        .map_err(|e| e.to_string())
+}

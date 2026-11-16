@@ -23,6 +23,9 @@ pub enum AppError {
     #[error("Invalid input: {0}")]
     InvalidInput(String),
 
+    #[error("Not supported: {0}")]
+    NotSupported(String),
+
     #[error("{0}")]
     Other(String),
 }

@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { ExecutionPlanDrawer } from './ExecutionPlanDrawer';
+import { useExplainHistoryStore } from '../../stores/explainHistoryStore';
 import type { QueryResult } from '../../types/db';
 
 describe('ExecutionPlanDrawer', () => {
@@ -110,5 +111,42 @@ describe('ExecutionPlanDrawer', () => {
     const closeBtn = screen.getByLabelText(/close plan/i);
     fireEvent.click(closeBtn);
     expect(mockOnClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('saves snapshot to explain history store when clicking Save Snapshot', () => {
+    render(
+      <ExecutionPlanDrawer
+        isOpen={true}
+        onClose={mockOnClose}
+        sql="SELECT * FROM users WHERE active = true;"
+        planResult={mockPlanResultText}
+        driver="postgres"
+      />
+    );
+
+    const saveBtn = screen.getByTestId('save-explain-snapshot-btn');
+    fireEvent.click(saveBtn);
+
+    // Verify snapshot was added in store
+    const snapshots = useExplainHistoryStore.getState().snapshots;
+    expect(snapshots.length).toBeGreaterThan(0);
+    expect(snapshots[0].sql).toBe('SELECT * FROM users WHERE active = true;');
+  });
+
+  it('opens ExplainPlanDiffModal when clicking Compare Plans', () => {
+    render(
+      <ExecutionPlanDrawer
+        isOpen={true}
+        onClose={mockOnClose}
+        sql="SELECT * FROM users;"
+        planResult={mockPlanResultText}
+        driver="postgres"
+      />
+    );
+
+    const compareBtn = screen.getByTestId('compare-explain-plans-btn');
+    fireEvent.click(compareBtn);
+
+    expect(screen.getByText('Query Execution Plan Diff (Before vs After)')).toBeInTheDocument();
   });
 });

@@ -949,9 +949,9 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **35.4 Keyboard Shortcut Presets & Command Palette [Completed]:** ระบบ Keymap Presets (`shortcutStore.ts`) รองรับพรีเซ็ต DataCore, TablePlus, DataGrip, VS Code พร้อมตัวเลือกสลับ Preset บน `KeyboardShortcutsModal` และ Jump Search ใน Command Palette (⌘K) รองรับ Prefix Filters (`>` Actions, `@` Tables & Views, `$` Snippets & Templates, `/` Connections) เชื่อมโยงกับ `snippetStore`
 
 ### Phase 36: Deep Object Browser & Native Backup/Restore Suite (Issue #153 - P1)
-- **36.1 Deep Object Browser Tree:** รองรับการสำรวจ Triggers, Stored Procedures, Functions, Sequences, และ Custom Types/Enums พร้อมดู Source DDL
-- **36.2 Native Backup & Restore Wrapper Service:** Service ฝั่ง Rust สำหรับเชื่อมต่อ CLI `pg_dump`, `pg_restore`, `mysqldump`, `sqlite3` พร้อม UI Wizard และ Live Progress Streaming
-- **36.3 Query Explain History & Plan Diff:** บันทึก Snapshot ของ `EXPLAIN ANALYZE` และหน้าต่างเปรียบเทียบ Visual Plan Diff Before/After
+- **36.1 Deep Object Browser Tree [Completed]:** ขยาย `fetch_schema_tree` ใน Rust drivers (SQLite, PostgreSQL, MySQL) และ IPC command `get_object_ddl` รองรับการสำรวจและจัดกลุ่ม Triggers, Stored Procedures, Functions, Sequences, และ Custom Types/Enums พร้อม Context Menu "View DDL / Source" เปิดไฟล์นิยาม DDL ใน Query Tab ทันที
+- **36.2 Native Backup & Restore Wrapper Service [Completed]:** สร้าง Service ฝั่ง Rust (`src-tauri/src/services/native_backup.rs`) ตรวจจับและควบคุม CLI `pg_dump`, `pg_restore`, `mysqldump`, `sqlite3` แบบ Real-time Child Process พร้อม IPC streaming events (`native://progress`) และระบบยกเลิกงาน (Cancellation) เชื่อมต่อกับ UI Wizard `NativeBackupModal` และ `NativeRestoreModal`
+- **36.3 Query Explain History & Plan Diff [Completed]:** ระบบจัดเก็บบันทึกประวัติ `ExplainSnapshot` ใน `explainHistoryStore.ts` และหน้าต่างเปรียบเทียบ `ExplainPlanDiffModal` แสดงผลเปรียบเทียบ Cost Delta, Execution Time Delta, Scan Type Highlight (Seq Scan to Index Scan) พร้อม Side-by-Side Plan Nodes Tree และปุ่ม Save Snapshot บน `ExecutionPlanDrawer`
 
 ### Phase 37: Engine Expansion & Local-First AI Assistant (Issue #154 - P2)
 - **37.1 Embedded Analytics Engine (DuckDB):** รองรับการเปิดและคิวรีไฟล์ `.parquet`, `.csv`, `.duckdb` ได้โดยตรงแบบ High-Performance

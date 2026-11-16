@@ -53,6 +53,8 @@ import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
 import { CrossDbCopyModal } from '../transfer/CrossDbCopyModal';
 import { ExportSqlModal } from '../transfer/ExportSqlModal';
 import { ImportSqlModal } from '../transfer/ImportSqlModal';
+import { NativeBackupModal } from '../transfer/NativeBackupModal';
+import { NativeRestoreModal } from '../transfer/NativeRestoreModal';
 import {
   buildRefreshMaterializedViewSql,
   buildGetViewDdlSql,
@@ -62,6 +64,7 @@ import {
   ConnectionTreeNode,
   ObjectBrowserContext,
   type BrowserTreeNode,
+  type BrowserNodeType,
 } from './ConnectionTreeNode';
 import { ExplorerBreadcrumb } from './ExplorerBreadcrumb';
 import { showConfirmDialog } from '../../utils/dialog';
@@ -100,13 +103,24 @@ function groupTablesAndViews(
   tableColumnsMap?: Record<string, { loading: boolean; columns?: TableColumnStructure[]; error?: string }>
 ): BrowserTreeNode[] {
   const tables = rawChildren.filter((c) => c.node_type === 'table');
-  const views = rawChildren.filter((c) => c.node_type === 'view');
+  const views = rawChildren.filter((c) => c.node_type === 'view' || c.node_type === 'materialized_view');
+  const functions = rawChildren.filter((c) => c.node_type === 'function' || c.node_type === 'procedure');
+  const triggers = rawChildren.filter((c) => c.node_type === 'trigger');
+  const sequences = rawChildren.filter((c) => c.node_type === 'sequence');
+  const customTypes = rawChildren.filter((c) => c.node_type === 'custom_type');
 
-  if (tables.length === 0 && views.length === 0) {
+  if (
+    tables.length === 0 &&
+    views.length === 0 &&
+    functions.length === 0 &&
+    triggers.length === 0 &&
+    sequences.length === 0 &&
+    customTypes.length === 0
+  ) {
     return [
       {
         id: `${connectionId}-${parentPath}/empty`,
-        name: '(No tables or views)',
+        name: '(No objects found)',
         nodeType: 'empty',
         connectionId,
         connectionName,
@@ -118,7 +132,14 @@ function groupTablesAndViews(
 
   const result: BrowserTreeNode[] = [];
 
-  if (tables.length > 0 || views.length === 0) {
+  if (
+    tables.length > 0 ||
+    (views.length === 0 &&
+      functions.length === 0 &&
+      triggers.length === 0 &&
+      sequences.length === 0 &&
+      customTypes.length === 0)
+  ) {
     result.push({
       id: `${connectionId}-${parentPath}/folder-tables`,
       name: `Tables (${tables.length})`,
@@ -155,6 +176,94 @@ function groupTablesAndViews(
           connectionId,
           connectionName,
           `${parentPath}/views`,
+          driver,
+          tableColumnsMap
+        )
+      ),
+    });
+  }
+
+  if (functions.length > 0) {
+    result.push({
+      id: `${connectionId}-${parentPath}/folder-functions`,
+      name: `Functions & Procedures (${functions.length})`,
+      nodeType: 'folder',
+      connectionId,
+      connectionName,
+      schemaName,
+      driver,
+      children: functions.map((f) =>
+        mapSchemaNodeToTreeNode(
+          f,
+          connectionId,
+          connectionName,
+          `${parentPath}/functions`,
+          driver,
+          tableColumnsMap
+        )
+      ),
+    });
+  }
+
+  if (triggers.length > 0) {
+    result.push({
+      id: `${connectionId}-${parentPath}/folder-triggers`,
+      name: `Triggers (${triggers.length})`,
+      nodeType: 'folder',
+      connectionId,
+      connectionName,
+      schemaName,
+      driver,
+      children: triggers.map((tr) =>
+        mapSchemaNodeToTreeNode(
+          tr,
+          connectionId,
+          connectionName,
+          `${parentPath}/triggers`,
+          driver,
+          tableColumnsMap
+        )
+      ),
+    });
+  }
+
+  if (sequences.length > 0) {
+    result.push({
+      id: `${connectionId}-${parentPath}/folder-sequences`,
+      name: `Sequences (${sequences.length})`,
+      nodeType: 'folder',
+      connectionId,
+      connectionName,
+      schemaName,
+      driver,
+      children: sequences.map((s) =>
+        mapSchemaNodeToTreeNode(
+          s,
+          connectionId,
+          connectionName,
+          `${parentPath}/sequences`,
+          driver,
+          tableColumnsMap
+        )
+      ),
+    });
+  }
+
+  if (customTypes.length > 0) {
+    result.push({
+      id: `${connectionId}-${parentPath}/folder-types`,
+      name: `Types (${customTypes.length})`,
+      nodeType: 'folder',
+      connectionId,
+      connectionName,
+      schemaName,
+      driver,
+      children: customTypes.map((ct) =>
+        mapSchemaNodeToTreeNode(
+          ct,
+          connectionId,
+          connectionName,
+          `${parentPath}/types`,
           driver,
           tableColumnsMap
         )
@@ -258,15 +367,34 @@ function mapSchemaNodeToTreeNode(
     };
   }
 
-  if (node.node_type === 'view') {
+  if (node.node_type === 'view' || node.node_type === 'materialized_view') {
     return {
       id: `${connectionId}-${currentPath}`,
       name: node.name,
-      nodeType: 'view',
+      nodeType: node.node_type as BrowserNodeType,
       connectionId,
       connectionName,
       schemaName,
       tableName: node.name,
+      driver,
+    };
+  }
+
+  if (
+    node.node_type === 'trigger' ||
+    node.node_type === 'function' ||
+    node.node_type === 'procedure' ||
+    node.node_type === 'sequence' ||
+    node.node_type === 'custom_type'
+  ) {
+    return {
+      id: `${connectionId}-${currentPath}`,
+      name: node.name,
+      nodeType: node.node_type as BrowserNodeType,
+      connectionId,
+      connectionName,
+      schemaName,
+      tableName: node.metadata?.table_name || node.name,
       driver,
     };
   }
@@ -551,6 +679,9 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     connectionId: string;
     schemaName?: string;
   } | null>(null);
+
+  const [nativeBackupTarget, setNativeBackupTarget] = useState<string | null>(null);
+  const [nativeRestoreTarget, setNativeRestoreTarget] = useState<string | null>(null);
 
   const [tableColumnsMap, setTableColumnsMap] = useState<
     Record<string, { loading: boolean; columns?: TableColumnStructure[]; error?: string }>
@@ -1177,6 +1308,30 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     setContextMenu(null);
   }, []);
 
+  const handleViewObjectDdl = useCallback(async (node: BrowserTreeNode) => {
+    try {
+      const objName = node.tableName || node.name;
+      const ddl = await dbApi.getObjectDdl(
+        node.connectionId,
+        node.schemaName,
+        objName,
+        node.nodeType
+      );
+      openQueryTab({
+        connectionId: node.connectionId,
+        connectionName: node.connectionName || node.name,
+        schemaName: node.schemaName,
+        tableName: objName,
+        driver: node.driver,
+        initialQuery: ddl,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to load DDL: ${msg}`);
+    }
+    setContextMenu(null);
+  }, []);
+
   const handleRefresh = useCallback(
     (connectionId: string) => {
       fetchSchema(connectionId);
@@ -1620,6 +1775,32 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
               <button
                 type="button"
+                data-testid="native-backup-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 font-medium"
+                onClick={() => {
+                  setNativeBackupTarget(contextMenu.node.connectionId);
+                  setContextMenu(null);
+                }}
+              >
+                <Download className="w-3.5 h-3.5 text-blue-500" />
+                <span>{t('sidebar.contextMenu.nativeBackup', 'Native Backup...')}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="native-restore-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-emerald-600 dark:text-emerald-400 font-medium"
+                onClick={() => {
+                  setNativeRestoreTarget(contextMenu.node.connectionId);
+                  setContextMenu(null);
+                }}
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{t('sidebar.contextMenu.nativeRestore', 'Native Restore...')}</span>
+              </button>
+
+              <button
+                type="button"
                 className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleRefresh(contextMenu.node.connectionId)}
               >
@@ -1838,6 +2019,16 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
               <button
                 type="button"
+                data-testid="view-object-ddl-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                onClick={() => handleViewObjectDdl(contextMenu.node)}
+              >
+                <FileCode className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+                <span>{t('sidebar.contextMenu.viewObjectDdl', 'View DDL / Source')}</span>
+              </button>
+
+              <button
+                type="button"
                 className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                 onClick={() => handleCopyName(contextMenu.node.tableName || contextMenu.node.name)}
               >
@@ -1903,6 +2094,41 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                   </button>
                 </>
               )}
+            </>
+          )}
+
+          {/* Routine / Trigger / Sequence / Custom Type Context Menu */}
+          {['trigger', 'function', 'procedure', 'sequence', 'custom_type', 'materialized_view'].includes(
+            contextMenu.node.nodeType
+          ) && (
+            <>
+              <button
+                type="button"
+                data-testid="view-object-ddl-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                onClick={() => handleViewObjectDdl(contextMenu.node)}
+              >
+                <FileCode className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+                <span>{t('sidebar.contextMenu.viewObjectDdl', 'View DDL / Source')}</span>
+              </button>
+
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                onClick={() => handleNewQuery(contextMenu.node)}
+              >
+                <FileCode className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+                <span>{t('sidebar.contextMenu.newQuery', 'New Query')}</span>
+              </button>
+
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                onClick={() => handleCopyName(contextMenu.node.name)}
+              >
+                <Copy className="w-3.5 h-3.5 text-gray-400" />
+                <span>{t('sidebar.contextMenu.copyName', 'Copy Name')}</span>
+              </button>
             </>
           )}
 
@@ -1985,6 +2211,32 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               >
                 <Download className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                 <span>{t('sidebar.contextMenu.exportSqlDump', 'Export as SQL Dump...')}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="native-backup-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 font-medium"
+                onClick={() => {
+                  setNativeBackupTarget(contextMenu.node.connectionId);
+                  setContextMenu(null);
+                }}
+              >
+                <Download className="w-3.5 h-3.5 text-blue-500" />
+                <span>{t('sidebar.contextMenu.nativeBackup', 'Native Backup...')}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="native-restore-btn"
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-emerald-600 dark:text-emerald-400 font-medium"
+                onClick={() => {
+                  setNativeRestoreTarget(contextMenu.node.connectionId);
+                  setContextMenu(null);
+                }}
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{t('sidebar.contextMenu.nativeRestore', 'Native Restore...')}</span>
               </button>
 
               <button
@@ -2171,6 +2423,25 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           onClose={() => setImportSqlModalTarget(null)}
           onSuccess={() => {
             fetchSchema(importSqlModalTarget.connectionId);
+          }}
+        />
+      )}
+
+      {nativeBackupTarget && (
+        <NativeBackupModal
+          isOpen={true}
+          connectionId={nativeBackupTarget}
+          onClose={() => setNativeBackupTarget(null)}
+        />
+      )}
+
+      {nativeRestoreTarget && (
+        <NativeRestoreModal
+          isOpen={true}
+          connectionId={nativeRestoreTarget}
+          onClose={() => setNativeRestoreTarget(null)}
+          onSuccess={() => {
+            fetchSchema(nativeRestoreTarget);
           }}
         />
       )}

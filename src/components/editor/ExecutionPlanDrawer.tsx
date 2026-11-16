@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import {
   Activity,
   X,
@@ -13,9 +14,13 @@ import {
   Zap,
   TrendingDown,
   Users,
+  BookmarkPlus,
+  GitCompare,
 } from 'lucide-react';
 import type { QueryResult } from '../../types/db';
 import { parseExecutionPlan, extractCellString } from '../../api/planParser';
+import { useExplainHistoryStore } from '../../stores/explainHistoryStore';
+import { ExplainPlanDiffModal } from './ExplainPlanDiffModal';
 
 export interface ExecutionPlanDrawerProps {
   isOpen: boolean;
@@ -37,6 +42,18 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
   const { t } = useTranslation();
   const [viewMode, setViewMode] = useState<'visual' | 'raw'>('visual');
   const [copied, setCopied] = useState(false);
+  const [isDiffOpen, setIsDiffOpen] = useState(false);
+
+  const handleSaveSnapshot = () => {
+    if (!planResult) return;
+    useExplainHistoryStore.getState().addSnapshot({
+      sql,
+      driver,
+      planResult,
+      parsedPlan,
+    });
+    toast.success('Explain plan snapshot saved to history');
+  };
 
   // Extract raw text lines from planResult
   const planLines = useMemo(() => {
@@ -220,32 +237,58 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
       )}
 
       {/* View Mode Toggle */}
-      <div className="flex border-b border-zinc-200 bg-zinc-50 px-4 pt-2 dark:border-zinc-800 dark:bg-zinc-900/40">
-        <button
-          type="button"
-          onClick={() => setViewMode('visual')}
-          className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs font-medium transition-colors ${
-            viewMode === 'visual'
-              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
-          }`}
-        >
-          <Layers size={13} />
-          <span>Visual Plan Tree</span>
-        </button>
+      <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 pt-2 dark:border-zinc-800 dark:bg-zinc-900/40">
+        <div className="flex">
+          <button
+            type="button"
+            onClick={() => setViewMode('visual')}
+            className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs font-medium transition-colors ${
+              viewMode === 'visual'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+            }`}
+          >
+            <Layers size={13} />
+            <span>Visual Plan Tree</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setViewMode('raw')}
-          className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs font-medium transition-colors ${
-            viewMode === 'raw'
-              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
-          }`}
-        >
-          <FileText size={13} />
-          <span>Raw Output</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('raw')}
+            className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs font-medium transition-colors ${
+              viewMode === 'raw'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+            }`}
+          >
+            <FileText size={13} />
+            <span>Raw Output</span>
+          </button>
+        </div>
+
+        <div className="flex items-center space-x-1.5 pb-1">
+          <button
+            type="button"
+            data-testid="save-explain-snapshot-btn"
+            onClick={handleSaveSnapshot}
+            className="flex items-center space-x-1 px-2 py-1 text-[11px] font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+            title="Save Plan Snapshot to History"
+          >
+            <BookmarkPlus size={12} className="text-blue-500" />
+            <span>Save Snapshot</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="compare-explain-plans-btn"
+            onClick={() => setIsDiffOpen(true)}
+            className="flex items-center space-x-1 px-2 py-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200 rounded hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
+            title="Compare Plan Diff with Another Snapshot"
+          >
+            <GitCompare size={12} className="text-indigo-500" />
+            <span>Compare Plans...</span>
+          </button>
+        </div>
       </div>
 
       {/* Plan Content */}
@@ -334,6 +377,11 @@ export const ExecutionPlanDrawer: React.FC<ExecutionPlanDrawerProps> = ({
           </pre>
         )}
       </div>
+
+      <ExplainPlanDiffModal
+        isOpen={isDiffOpen}
+        onClose={() => setIsDiffOpen(false)}
+      />
     </div>
   );
 };

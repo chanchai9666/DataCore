@@ -5,12 +5,14 @@ use crate::error::AppError;
 use crate::models::query::{QueryResult, TableFilterState};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum SchemaNodeType {
     Database,
     Schema,
     Table,
     View,
+    #[serde(rename = "materialized_view")]
+    MaterializedView,
     Column,
     Index,
     #[serde(rename = "foreign_key", alias = "foreignkey")]
@@ -18,6 +20,9 @@ pub enum SchemaNodeType {
     Trigger,
     Function,
     Procedure,
+    Sequence,
+    #[serde(rename = "custom_type")]
+    CustomType,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -53,6 +58,12 @@ impl SchemaNode {
         self
     }
 
+    pub fn with_meta(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        let map = self.metadata.get_or_insert_with(HashMap::new);
+        map.insert(key.into(), value.into());
+        self
+    }
+
     pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {
         self.metadata = Some(metadata);
         self
@@ -71,6 +82,9 @@ pub trait DatabaseConnection: Send + Sync {
     async fn cancel(&self) -> Result<(), AppError>;
     async fn set_autocommit(&self, _enabled: bool) -> Result<(), AppError> {
         Ok(())
+    }
+    async fn get_object_ddl(&self, _schema: Option<&str>, _name: &str, _object_type: &str) -> Result<String, AppError> {
+        Err(AppError::NotSupported("Object DDL retrieval not supported for this driver".into()))
     }
 }
 

@@ -418,6 +418,57 @@ impl DatabaseConnection for PostgresConnection {
             schema_map.entry(schema_name).or_default().push(node);
         }
 
+        // Fetch routines (functions & procedures)
+        let routine_sql = "SELECT routine_schema, routine_name, routine_type FROM information_schema.routines \
+            WHERE routine_schema NOT IN ('pg_catalog', 'information_schema') \
+              AND routine_schema NOT LIKE 'pg_toast%' \
+              AND routine_schema NOT LIKE 'pg_temp%' \
+            ORDER BY routine_schema, routine_name;";
+        if let Ok(routine_res) = self.execute_query(routine_sql).await {
+            for row in routine_res.rows {
+                let schema_name = row.first().and_then(|c| c.as_text()).unwrap_or("public").to_string();
+                let routine_name = row.get(1).and_then(|c| c.as_text()).unwrap_or("").to_string();
+                let r_type = row.get(2).and_then(|c| c.as_text()).unwrap_or("FUNCTION");
+                let node_type = if r_type.contains("PROCEDURE") {
+                    SchemaNodeType::Procedure
+                } else {
+                    SchemaNodeType::Function
+                };
+                let node = SchemaNode::new(routine_name, node_type).with_schema(&schema_name);
+                schema_map.entry(schema_name).or_default().push(node);
+            }
+        }
+
+        // Fetch triggers
+        let trigger_sql = "SELECT trigger_schema, trigger_name, event_object_table FROM information_schema.triggers \
+            WHERE trigger_schema NOT IN ('pg_catalog', 'information_schema') \
+            ORDER BY trigger_schema, trigger_name;";
+        if let Ok(trigger_res) = self.execute_query(trigger_sql).await {
+            for row in trigger_res.rows {
+                let schema_name = row.first().and_then(|c| c.as_text()).unwrap_or("public").to_string();
+                let trigger_name = row.get(1).and_then(|c| c.as_text()).unwrap_or("").to_string();
+                let table_name = row.get(2).and_then(|c| c.as_text()).unwrap_or("").to_string();
+                let mut node = SchemaNode::new(trigger_name, SchemaNodeType::Trigger).with_schema(&schema_name);
+                if !table_name.is_empty() {
+                    node = node.with_meta("table_name", table_name);
+                }
+                schema_map.entry(schema_name).or_default().push(node);
+            }
+        }
+
+        // Fetch sequences
+        let seq_sql = "SELECT sequence_schema, sequence_name FROM information_schema.sequences \
+            WHERE sequence_schema NOT IN ('pg_catalog', 'information_schema') \
+            ORDER BY sequence_schema, sequence_name;";
+        if let Ok(seq_res) = self.execute_query(seq_sql).await {
+            for row in seq_res.rows {
+                let schema_name = row.first().and_then(|c| c.as_text()).unwrap_or("public").to_string();
+                let seq_name = row.get(1).and_then(|c| c.as_text()).unwrap_or("").to_string();
+                let node = SchemaNode::new(seq_name, SchemaNodeType::Sequence).with_schema(&schema_name);
+                schema_map.entry(schema_name).or_default().push(node);
+            }
+        }
+
         let mut schema_nodes = Vec::new();
         for (schema_name, tables) in schema_map {
             let node = SchemaNode::new(schema_name, SchemaNodeType::Schema).with_children(tables);
@@ -500,6 +551,71 @@ impl DatabaseConnection for PostgresConnection {
             self.execute_query("BEGIN;").await?;
         }
         Ok(())
+    }
+
+    async fn get_object_ddl(&self, schema: Option<&str>, name: &str, object_type: &str) -> Result<String, AppError> {
+        let sch = schema.unwrap_or("public");
+        let safe_sch = sch.replace('\'', "''");
+        let safe_name = name.replace('\'', "''");
+        let lower_type = object_type.to_lowercase();
+
+        if lower_type.contains("view") {
+            let sql = format!(
+                "SELECT pg_get_viewdef(c.oid, true) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = '{}' AND c.relname = '{}';",
+                safe_sch, safe_name
+            );
+            let res = self.execute_query(&sql).await?;
+            if let Some(row) = res.rows.into_iter().next() {
+                if let Some(def) = row.first().and_then(|c| c.as_text()) {
+                    return Ok(format!("CREATE OR REPLACE VIEW \"{}\".\"{}\" AS\n{}", sch, name, def));
+                }
+            }
+        } else if lower_type.contains("trigger") {
+            let sql = format!(
+                "SELECT pg_get_triggerdef(t.oid, true) FROM pg_trigger t JOIN pg_class c ON t.tgrelid = c.oid JOIN pg_namespace n ON c.relnamespace = n.oid WHERE n.nspname = '{}' AND t.tgname = '{}';",
+                safe_sch, safe_name
+            );
+            let res = self.execute_query(&sql).await?;
+            if let Some(row) = res.rows.into_iter().next() {
+                if let Some(def) = row.first().and_then(|c| c.as_text()) {
+                    return Ok(format!("{};", def));
+                }
+            }
+        } else if lower_type.contains("function") || lower_type.contains("procedure") {
+            let sql = format!(
+                "SELECT pg_get_functiondef(p.oid) FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = '{}' AND p.proname = '{}';",
+                safe_sch, safe_name
+            );
+            let res = self.execute_query(&sql).await?;
+            if let Some(row) = res.rows.into_iter().next() {
+                if let Some(def) = row.first().and_then(|c| c.as_text()) {
+                    return Ok(def.to_string());
+                }
+            }
+        }
+
+        // Default or Table fallback: query columns
+        let ddl_sql = format!(
+            "SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema = '{}' AND table_name = '{}' ORDER BY ordinal_position;",
+            safe_sch, safe_name
+        );
+        let res = self.execute_query(&ddl_sql).await?;
+        if res.rows.is_empty() {
+            return Err(AppError::NotFound(format!("Object '{}'.'{}' not found", sch, name)));
+        }
+
+        let mut lines = Vec::new();
+        for r in res.rows {
+            let col = r.first().and_then(|c| c.as_text()).unwrap_or("");
+            let dtype = r.get(1).and_then(|c| c.as_text()).unwrap_or("");
+            let nullable = r.get(2).and_then(|c| c.as_text()).unwrap_or("YES");
+            let default_val = r.get(3).and_then(|c| c.as_text());
+            let null_str = if nullable == "NO" { " NOT NULL" } else { "" };
+            let def_str = default_val.map(|d| format!(" DEFAULT {}", d)).unwrap_or_default();
+            lines.push(format!("  \"{}\" {}{}{}", col, dtype, null_str, def_str));
+        }
+
+        Ok(format!("CREATE TABLE \"{}\".\"{}\" (\n{}\n);", sch, name, lines.join(",\n")))
     }
 }
 

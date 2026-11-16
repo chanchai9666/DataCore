@@ -368,3 +368,54 @@ fn test_sqlite_split_sql_statements_backslash_is_literal() {
     assert_eq!(statements[0], "INSERT INTO dirs VALUES ('C:\\')");
     assert_eq!(statements[1], "SELECT 1");
 }
+
+#[tokio::test]
+async fn test_sqlite_schema_tree_and_get_object_ddl() {
+    use crate::drivers::SchemaNodeType;
+
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite in memory");
+
+    // 1. Create table, view, and trigger
+    conn.execute_query("CREATE TABLE items (id INTEGER PRIMARY KEY, title TEXT NOT NULL, price REAL);")
+        .await
+        .expect("create table");
+    conn.execute_query("CREATE VIEW cheap_items AS SELECT id, title FROM items WHERE price < 100;")
+        .await
+        .expect("create view");
+    conn.execute_query(
+        "CREATE TRIGGER check_price BEFORE INSERT ON items BEGIN \
+         SELECT CASE WHEN NEW.price < 0 THEN RAISE(ABORT, 'Price cannot be negative') END; END;",
+    )
+    .await
+    .expect("create trigger");
+
+    // 2. Fetch schema tree
+    let tree = conn.fetch_schema_tree().await.expect("fetch schema tree");
+    assert_eq!(tree.len(), 1);
+    let db_node = &tree[0];
+    assert_eq!(db_node.node_type, SchemaNodeType::Database);
+
+    let item_node = db_node.children.iter().find(|n| n.name == "items").expect("items table found");
+    assert_eq!(item_node.node_type, SchemaNodeType::Table);
+
+    let view_node = db_node.children.iter().find(|n| n.name == "cheap_items").expect("cheap_items view found");
+    assert_eq!(view_node.node_type, SchemaNodeType::View);
+
+    let trigger_node = db_node.children.iter().find(|n| n.name == "check_price").expect("check_price trigger found");
+    assert_eq!(trigger_node.node_type, SchemaNodeType::Trigger);
+    assert_eq!(trigger_node.metadata.as_ref().and_then(|m| m.get("table_name")).map(|s| s.as_str()), Some("items"));
+
+    // 3. Test get_object_ddl
+    let table_ddl = conn.get_object_ddl(None, "items", "table").await.expect("get table ddl");
+    assert!(table_ddl.contains("CREATE TABLE items"));
+
+    let view_ddl = conn.get_object_ddl(None, "cheap_items", "view").await.expect("get view ddl");
+    assert!(view_ddl.contains("CREATE VIEW cheap_items"));
+
+    let trigger_ddl = conn.get_object_ddl(None, "check_price", "trigger").await.expect("get trigger ddl");
+    assert!(trigger_ddl.contains("CREATE TRIGGER check_price"));
+
+    // 4. Test not found
+    let err = conn.get_object_ddl(None, "non_existent", "table").await;
+    assert!(err.is_err());
+}

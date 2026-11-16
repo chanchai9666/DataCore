@@ -131,3 +131,37 @@ export interface CrossDbCopyResult {
   rowsTransferred: number;
   elapsedMs: number;
 }
+
+export interface NativeCliStatus {
+  cli_name: string;
+  available: boolean;
+  path?: string;
+  version?: string;
+}
+
+export interface NativeBackupOptions {
+  connection_id: string;
+  output_file: string;
+  format?: 'plain' | 'custom' | 'tar' | 'directory' | string;
+  schema_only?: boolean;
+  data_only?: boolean;
+  clean?: boolean;
+  tables?: string[];
+  schemas?: string[];
+  compression_level?: number;
+}
+
+export interface NativeRestoreOptions {
+  connection_id: string;
+  input_file: string;
+  clean?: boolean;
+  single_transaction?: boolean;
+  schema_only?: boolean;
+  data_only?: boolean;
+}
+
+export interface NativeProgressEvent {
+  task_id: string;
+  line: string;
+  is_stderr: boolean;
+}
