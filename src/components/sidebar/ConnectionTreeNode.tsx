@@ -482,7 +482,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
           />
         )}
 
-        {isTargetActiveConnection && (
+        {isTargetActiveConnection && Boolean(data.isConnected) && (
           <span
             className="ml-auto mr-2.5 flex h-2 w-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.85)] ring-2 ring-emerald-500/20"
             title="Active connection"

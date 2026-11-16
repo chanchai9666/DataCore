@@ -3,6 +3,7 @@ import { Copy, Check, Globe } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useStatusStore } from '../../stores/statusStore';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { useTabStore } from '../../stores/tabStore';
 import { changeLanguage } from '../../i18n';
 
 export interface StatusBarProps {
@@ -13,11 +14,14 @@ export const StatusBar: React.FC<StatusBarProps> = ({ className = '' }) => {
   const { t, i18n } = useTranslation();
   const { lastQuery, executionTimeMs, rowCount, selectedCellInfo, statusMessage } = useStatusStore();
   const { connections, activeConnectionId, connectedConnectionIds } = useConnectionStore();
+  const { tabs, activeTabId } = useTabStore();
   const [copied, setCopied] = useState(false);
 
-  const activeConnection = connections.find((c) => c.id === activeConnectionId);
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
+  const activeConnection = connections.find((c) => c.id === resolvedConnectionId);
   const isConnected = Boolean(
-    activeConnectionId && connectedConnectionIds.includes(activeConnectionId)
+    resolvedConnectionId && connectedConnectionIds.includes(resolvedConnectionId)
   );
   const currentLang = i18n.language?.startsWith('th') ? 'th' : 'en';
 

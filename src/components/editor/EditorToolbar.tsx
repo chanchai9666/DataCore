@@ -25,6 +25,8 @@ import { ImpactPreviewModal } from './ImpactPreviewModal';
 export interface EditorToolbarProps {
   isRunning: boolean;
   autoCommit: boolean;
+  isConnected?: boolean;
+  isConnecting?: boolean;
   isolationLevel?: IsolationLevel;
   onChangeIsolationLevel?: (level: IsolationLevel) => void;
   safeLimit?: SafeLimitOption;
@@ -57,6 +59,8 @@ export interface EditorToolbarProps {
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   isRunning,
   autoCommit,
+  isConnected = true,
+  isConnecting = false,
   isolationLevel = 'READ COMMITTED',
   onChangeIsolationLevel,
   safeLimit = 1000,
@@ -97,6 +101,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   const shortcutHint = isMac ? '⌘Enter' : 'Ctrl+Enter';
+  const isExecutionDisabled = isRunning || isConnecting || !isConnected;
 
   return (
     <div
@@ -119,9 +124,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <button
           type="button"
           onClick={onRun}
-          disabled={isRunning}
+          disabled={isExecutionDisabled}
           aria-label="Run Query"
-          title={`Run Query (${shortcutHint})`}
+          title={!isConnected ? 'Connect to database first' : `Run Query (${shortcutHint})`}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -129,13 +134,13 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             minHeight: '28px',
             boxSizing: 'border-box',
             gap: '6px',
-            backgroundColor: isRunning ? '#93c5fd' : '#2563eb',
+            backgroundColor: isExecutionDisabled ? (isRunning ? '#93c5fd' : '#9ca3af') : '#2563eb',
             color: '#ffffff',
             border: 'none',
             borderRadius: '4px',
             padding: '0 12px',
             fontWeight: 500,
-            cursor: isRunning ? 'not-allowed' : 'pointer',
+            cursor: isExecutionDisabled ? 'not-allowed' : 'pointer',
           }}
         >
           <Play size={14} fill="currentColor" />
@@ -176,9 +181,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             <button
               type="button"
               onClick={() => onExplain(false)}
-              disabled={isRunning}
+              disabled={isExecutionDisabled}
               aria-label="Explain"
-              title="Explain Query Execution Plan (Estimate Cost)"
+              title={!isConnected ? 'Connect to database first' : 'Explain Query Execution Plan (Estimate Cost)'}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -186,25 +191,25 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                 minHeight: '28px',
                 boxSizing: 'border-box',
                 gap: '4px',
-                backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
-                color: isRunning ? '#9ca3af' : '#374151',
+                backgroundColor: isExecutionDisabled ? '#f3f4f6' : '#ffffff',
+                color: isExecutionDisabled ? '#9ca3af' : '#374151',
                 border: '1px solid #d1d5db',
                 borderRadius: '4px',
                 padding: '0 8px',
                 fontWeight: 500,
-                cursor: isRunning ? 'not-allowed' : 'pointer',
+                cursor: isExecutionDisabled ? 'not-allowed' : 'pointer',
               }}
             >
-              <Activity size={13} className="text-blue-500" />
+              <Activity size={13} className={isExecutionDisabled ? 'text-gray-400' : 'text-blue-500'} />
               <span>Explain</span>
             </button>
 
             <button
               type="button"
               onClick={() => onExplain(true)}
-              disabled={isRunning}
+              disabled={isExecutionDisabled}
               aria-label="Explain Analyze"
-              title="Explain Analyze (Run and measure actual execution)"
+              title={!isConnected ? 'Connect to database first' : 'Explain Analyze (Run and measure actual execution)'}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -212,16 +217,16 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                 minHeight: '28px',
                 boxSizing: 'border-box',
                 gap: '4px',
-                backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
-                color: isRunning ? '#9ca3af' : '#374151',
+                backgroundColor: isExecutionDisabled ? '#f3f4f6' : '#ffffff',
+                color: isExecutionDisabled ? '#9ca3af' : '#374151',
                 border: '1px solid #d1d5db',
                 borderRadius: '4px',
                 padding: '0 8px',
                 fontWeight: 500,
-                cursor: isRunning ? 'not-allowed' : 'pointer',
+                cursor: isExecutionDisabled ? 'not-allowed' : 'pointer',
               }}
             >
-              <Zap size={13} className="text-amber-500" />
+              <Zap size={13} className={isExecutionDisabled ? 'text-gray-400' : 'text-amber-500'} />
               <span>Analyze</span>
             </button>
           </div>
@@ -231,9 +236,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <button
           type="button"
           onClick={handleImpactPreviewClick}
-          disabled={isRunning}
+          disabled={isExecutionDisabled}
           aria-label="Impact Preview"
-          title="Simulate query impact and affected rows without committing"
+          title={!isConnected ? 'Connect to database first' : 'Simulate query impact and affected rows without committing'}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -241,16 +246,16 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             minHeight: '28px',
             boxSizing: 'border-box',
             gap: '4px',
-            backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
-            color: isRunning ? '#9ca3af' : '#2563eb',
+            backgroundColor: isExecutionDisabled ? '#f3f4f6' : '#ffffff',
+            color: isExecutionDisabled ? '#9ca3af' : '#2563eb',
             border: '1px solid #d1d5db',
             borderRadius: '4px',
             padding: '0 8px',
             fontWeight: 500,
-            cursor: isRunning ? 'not-allowed' : 'pointer',
+            cursor: isExecutionDisabled ? 'not-allowed' : 'pointer',
           }}
         >
-          <Eye size={13} className="text-blue-500" />
+          <Eye size={13} className={isExecutionDisabled ? 'text-gray-400' : 'text-blue-500'} />
           <span>Impact Preview</span>
         </button>
 
@@ -295,17 +300,17 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             aria-checked={autoCommit}
             aria-label="Auto-Commit"
             onClick={() => onToggleAutoCommit(!autoCommit)}
-            disabled={isRunning}
+            disabled={isRunning || !isConnected}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               width: '36px',
               height: '20px',
               borderRadius: '10px',
-              backgroundColor: autoCommit ? '#10b981' : '#9ca3af',
+              backgroundColor: autoCommit && isConnected ? '#10b981' : '#9ca3af',
               border: 'none',
               padding: '2px',
-              cursor: isRunning ? 'not-allowed' : 'pointer',
+              cursor: isRunning || !isConnected ? 'not-allowed' : 'pointer',
               position: 'relative',
               transition: 'background-color 0.2s',
             }}
@@ -331,9 +336,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <button
           type="button"
           onClick={onCommit}
-          disabled={autoCommit || isRunning}
+          disabled={autoCommit || isRunning || !isConnected}
           aria-label="Commit"
-          title="Commit Transaction"
+          title={!isConnected ? 'Connect to database first' : 'Commit Transaction'}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -341,12 +346,12 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             minHeight: '28px',
             boxSizing: 'border-box',
             gap: '4px',
-            backgroundColor: autoCommit || isRunning ? '#f3f4f6' : '#ffffff',
-            color: autoCommit || isRunning ? '#9ca3af' : '#15803d',
+            backgroundColor: autoCommit || isRunning || !isConnected ? '#f3f4f6' : '#ffffff',
+            color: autoCommit || isRunning || !isConnected ? '#9ca3af' : '#15803d',
             border: '1px solid #d1d5db',
             borderRadius: '4px',
             padding: '0 8px',
-            cursor: autoCommit || isRunning ? 'not-allowed' : 'pointer',
+            cursor: autoCommit || isRunning || !isConnected ? 'not-allowed' : 'pointer',
           }}
         >
           <Check size={14} />
@@ -357,9 +362,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <button
           type="button"
           onClick={onRollback}
-          disabled={autoCommit || isRunning}
+          disabled={autoCommit || isRunning || !isConnected}
           aria-label="Rollback"
-          title="Rollback Transaction"
+          title={!isConnected ? 'Connect to database first' : 'Rollback Transaction'}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -367,12 +372,12 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             minHeight: '28px',
             boxSizing: 'border-box',
             gap: '4px',
-            backgroundColor: autoCommit || isRunning ? '#f3f4f6' : '#ffffff',
-            color: autoCommit || isRunning ? '#9ca3af' : '#b91c1c',
+            backgroundColor: autoCommit || isRunning || !isConnected ? '#f3f4f6' : '#ffffff',
+            color: autoCommit || isRunning || !isConnected ? '#9ca3af' : '#b91c1c',
             border: '1px solid #d1d5db',
             borderRadius: '4px',
             padding: '0 8px',
-            cursor: autoCommit || isRunning ? 'not-allowed' : 'pointer',
+            cursor: autoCommit || isRunning || !isConnected ? 'not-allowed' : 'pointer',
           }}
         >
           <RotateCcw size={14} />
@@ -384,9 +389,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           <select
             value={isolationLevel}
             onChange={(e) => onChangeIsolationLevel(e.target.value as IsolationLevel)}
-            disabled={isRunning}
+            disabled={isRunning || !isConnected}
             aria-label="Isolation Level"
-            title="Transaction Isolation Level"
+            title={!isConnected ? 'Connect to database first' : 'Transaction Isolation Level'}
             style={{
               height: '28px',
               minHeight: '28px',
@@ -397,8 +402,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               borderRadius: '4px',
               border: '1px solid #d1d5db',
               backgroundColor: '#ffffff',
-              color: '#374151',
-              cursor: isRunning ? 'not-allowed' : 'pointer',
+              color: isRunning || !isConnected ? '#9ca3af' : '#374151',
+              cursor: isRunning || !isConnected ? 'not-allowed' : 'pointer',
             }}
           >
             <option value="READ COMMITTED">Read Committed</option>
@@ -413,8 +418,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           <button
             type="button"
             onClick={onOpenSavepoints}
+            disabled={!isConnected}
             aria-label="Savepoints"
-            title="Manage Transaction Savepoints"
+            title={!isConnected ? 'Connect to database first' : 'Manage Transaction Savepoints'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -422,15 +428,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               minHeight: '28px',
               boxSizing: 'border-box',
               gap: '4px',
-              backgroundColor: '#ffffff',
-              color: '#374151',
+              backgroundColor: !isConnected ? '#f3f4f6' : '#ffffff',
+              color: !isConnected ? '#9ca3af' : '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
               padding: '0 8px',
-              cursor: 'pointer',
+              cursor: !isConnected ? 'not-allowed' : 'pointer',
             }}
           >
-            <Flag size={13} className="text-blue-500" />
+            <Flag size={13} className={!isConnected ? 'text-gray-400' : 'text-blue-500'} />
             <span>Savepoint</span>
           </button>
         )}
@@ -440,8 +446,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           <button
             type="button"
             onClick={onOpenLocks}
+            disabled={!isConnected}
             aria-label="Locks"
-            title="Inspect Active Locks & Concurrency"
+            title={!isConnected ? 'Connect to database first' : 'Inspect Active Locks & Concurrency'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -449,15 +456,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               minHeight: '28px',
               boxSizing: 'border-box',
               gap: '4px',
-              backgroundColor: '#ffffff',
-              color: '#374151',
+              backgroundColor: !isConnected ? '#f3f4f6' : '#ffffff',
+              color: !isConnected ? '#9ca3af' : '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
               padding: '0 8px',
-              cursor: 'pointer',
+              cursor: !isConnected ? 'not-allowed' : 'pointer',
             }}
           >
-            <Lock size={13} className="text-amber-500" />
+            <Lock size={13} className={!isConnected ? 'text-gray-400' : 'text-amber-500'} />
             <span>Locks</span>
           </button>
         )}
@@ -470,8 +477,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           <button
             type="button"
             onClick={onOpenMetrics}
+            disabled={!isConnected}
             aria-label="Metrics"
-            title="Database Buffer Cache & Performance Metrics"
+            title={!isConnected ? 'Connect to database first' : 'Database Buffer Cache & Performance Metrics'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -479,15 +487,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               minHeight: '28px',
               boxSizing: 'border-box',
               gap: '4px',
-              backgroundColor: '#ffffff',
-              color: '#374151',
+              backgroundColor: !isConnected ? '#f3f4f6' : '#ffffff',
+              color: !isConnected ? '#9ca3af' : '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '4px',
               padding: '0 8px',
-              cursor: 'pointer',
+              cursor: !isConnected ? 'not-allowed' : 'pointer',
             }}
           >
-            <Cpu size={13} className="text-indigo-500" />
+            <Cpu size={13} className={!isConnected ? 'text-gray-400' : 'text-indigo-500'} />
             <span>Metrics</span>
           </button>
         )}

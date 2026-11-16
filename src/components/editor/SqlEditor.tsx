@@ -13,7 +13,10 @@ import {
   ChevronDown,
   ChevronRight,
   ShieldAlert,
+  Plug,
+  Loader2,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { EditorToolbar } from './EditorToolbar';
 import { applySafeLimit, type SafeLimitOption } from '../../utils/sqlLimitHelper';
@@ -380,6 +383,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   splitDirection: splitDirectionProp,
   onToggleSplit: onToggleSplitProp,
 }) => {
+  const { t } = useTranslation();
   const activeTabId = useTabStore((s) => s.activeTabId);
   const targetTabId = tabId ?? activeTabId;
   const tab = useTabStore((s) => s.tabs.find((t) => t.id === targetTabId));
@@ -389,6 +393,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const connection = useConnectionStore((s) =>
     s.connections.find((c) => c.id === tab?.connectionId)
   );
+  const connectedConnectionIds = useConnectionStore((s) => s.connectedConnectionIds);
+  const connId = tab?.connectionId ?? connection?.id;
+  const isConnected = Boolean(connId && connectedConnectionIds.includes(connId));
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const isReadOnly = isReadOnlyProp ?? Boolean(connection?.readOnly || connection?.read_only);
 
@@ -499,12 +507,35 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     return sql({ dialect, schema: schemaMap, upperCaseKeywords: true });
   }, [connection?.driver, schemaMap]);
 
+  // Connect database on demand
+  const handleConnectDatabase = useCallback(async () => {
+    if (!connId || !targetTabId) return;
+    setIsConnecting(true);
+    try {
+      await dbApi.openSession(connId, targetTabId);
+      useConnectionStore.getState().markConnected(connId);
+      useConnectionStore.getState().setActiveConnection(connId);
+      if (connection?.driver) {
+        useSchemaStore.getState().fetchSchema(connId, connection.driver);
+      }
+      toast.success(t('status.connectedSuccess', 'Connected to {{name}}', { name: connection?.name || connId }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Connection failed: ${msg}`);
+      setErrorMessage(msg);
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [connId, targetTabId, connection?.driver, connection?.name, t]);
+
   // Ensure database session is ready before any session-dependent operations
   const ensureSession = useCallback(async () => {
     const currentTab = useTabStore.getState().tabs.find((t) => t.id === targetTabId) ?? tab;
-    const connId = currentTab?.connectionId || connection?.id;
-    if (connId && targetTabId) {
-      await dbApi.openSession(connId, targetTabId);
+    const resolvedConnId = currentTab?.connectionId || connection?.id;
+    if (resolvedConnId && targetTabId) {
+      await dbApi.openSession(resolvedConnId, targetTabId);
+      useConnectionStore.getState().markConnected(resolvedConnId);
+      useConnectionStore.getState().setActiveConnection(resolvedConnId);
     }
   }, [targetTabId, tab, connection?.id]);
 
@@ -512,6 +543,11 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const handleRunQuery = useCallback(
     async (viewParam?: EditorView) => {
       if (!targetTabId) return;
+
+      if (!isConnected) {
+        toast.info(t('editor.connectFirst', 'Please connect to the database first'));
+        return;
+      }
 
       const view = viewParam ?? editorViewRef.current ?? editorRef.current?.view;
       const currentTab = useTabStore.getState().tabs.find((t) => t.id === targetTabId) ?? tab;
@@ -742,7 +778,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
 
       await executeSql(modifiedSql, isLimited);
     },
-    [targetTabId, tab, onQueryResult, onError, safeLimit, connection?.driver, isReadOnly, ensureSession]
+    [targetTabId, tab, onQueryResult, onError, safeLimit, connection?.driver, isReadOnly, ensureSession, isConnected, t]
   );
 
   const handleDismissError = useCallback(() => {
@@ -911,6 +947,11 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     async (analyze: boolean) => {
       if (!targetTabId) return;
 
+      if (!isConnected) {
+        toast.info(t('editor.connectFirst', 'Please connect to the database first'));
+        return;
+      }
+
       const view = editorViewRef.current ?? editorRef.current?.view;
       const currentTab = useTabStore.getState().tabs.find((t) => t.id === targetTabId) ?? tab;
       let sqlToExplain = '';
@@ -958,7 +999,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         setIsRunning(false);
       }
     },
-    [targetTabId, tab, connection?.driver, onError, ensureSession]
+    [targetTabId, tab, connection?.driver, onError, ensureSession, isConnected, t]
   );
 
   const handleEditorChange = useCallback(
@@ -1033,6 +1074,8 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       <EditorToolbar
         isRunning={isRunning}
         autoCommit={tab.autoCommit}
+        isConnected={isConnected}
+        isConnecting={isConnecting}
         isolationLevel={isolationLevel}
         onChangeIsolationLevel={handleChangeIsolationLevel}
         safeLimit={safeLimit}
@@ -1064,6 +1107,32 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         splitDirection={currentSplitDirection}
         onToggleSplit={handleToggleSplitDirection}
       />
+
+      {/* Disconnected Warning Banner */}
+      {!isConnected && (
+        <div
+          data-testid="editor-disconnected-banner"
+          className="flex items-center justify-between px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-xs text-amber-600 dark:text-amber-400 select-none flex-shrink-0"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
+            <span>
+              {t('editor.disconnectedFromDatabase', 'ไม่ได้เชื่อมต่อกับฐานข้อมูล')}
+              {connection?.name ? ` "${connection.name}"` : ''}
+            </span>
+          </div>
+          <button
+            type="button"
+            data-testid="editor-banner-connect-btn"
+            onClick={handleConnectDatabase}
+            disabled={isConnecting}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            {isConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plug className="w-3.5 h-3.5" />}
+            <span>{isConnecting ? t('status.connecting', 'กำลังเชื่อมต่อ...') : t('common.connect', 'เชื่อมต่อ')}</span>
+          </button>
+        </div>
+      )}
 
       {isReadOnly && (
         <div

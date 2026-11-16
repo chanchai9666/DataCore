@@ -159,6 +159,11 @@ describe('SqlEditor', () => {
       tabs: [sampleTab],
       activeTabId: 'tab-test-1',
     });
+    useConnectionStore.setState({
+      connections: [{ id: 'conn-1', name: 'Test Conn', driver: 'postgres', database: 'testdb' }],
+      activeConnectionId: 'conn-1',
+      connectedConnectionIds: ['conn-1'],
+    });
 
     vi.spyOn(dbApi, 'openSession').mockResolvedValue(undefined);
     vi.spyOn(dbApi, 'executeQuery').mockResolvedValue(mockQueryResult);
@@ -189,6 +194,44 @@ describe('SqlEditor', () => {
       expect(dbApi.openSession).toHaveBeenCalledWith('conn-1', 'tab-test-1');
       expect(dbApi.executeQuery).toHaveBeenCalledWith('tab-test-1', 'SELECT * FROM users LIMIT 1000;');
     });
+  });
+
+  it('displays disconnected banner and disables run button when database is disconnected', async () => {
+    useConnectionStore.setState({
+      connectedConnectionIds: [],
+    });
+
+    render(<SqlEditor />);
+
+    expect(screen.getByTestId('editor-disconnected-banner')).toBeInTheDocument();
+    expect(screen.getByText(/ไม่ได้เชื่อมต่อกับฐานข้อมูล/i)).toBeInTheDocument();
+
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    expect(runBtn).toBeDisabled();
+  });
+
+  it('connects to database and removes disconnected banner when clicking connect button in banner', async () => {
+    useConnectionStore.setState({
+      connectedConnectionIds: [],
+    });
+
+    render(<SqlEditor />);
+
+    expect(screen.getByTestId('editor-disconnected-banner')).toBeInTheDocument();
+
+    const connectBtn = screen.getByTestId('editor-banner-connect-btn');
+    await act(async () => {
+      fireEvent.click(connectBtn);
+    });
+
+    await waitFor(() => {
+      expect(dbApi.openSession).toHaveBeenCalledWith('conn-1', 'tab-test-1');
+      expect(useConnectionStore.getState().connectedConnectionIds).toContain('conn-1');
+    });
+
+    expect(screen.queryByTestId('editor-disconnected-banner')).toBeNull();
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    expect(runBtn).not.toBeDisabled();
   });
 
   it('renders editor with SQL content from active tab', () => {

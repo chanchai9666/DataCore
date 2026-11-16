@@ -1018,6 +1018,17 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **41.4 Backend Session Idempotency (`src-tauri/src/commands/db.rs`):**
   - ตรวจสอบ `session_mgr.has_session(tab_id)` ใน `open_session_impl` เพื่อคืนค่า `Ok(())` ทันทีหาก session ถูกเปิดไว้เรียบร้อยแล้ว
 
+### Phase 42: Connection State Synchronization & Query Editor Disconnected Guard (Issue #161) [Completed]
+- **42.1 Accurate Explorer Connection Indicator (`src/components/sidebar/ConnectionTreeNode.tsx`):**
+  - ปรับปรุง `indicator-active-connection` ให้ตรวจสอบ `isTargetActiveConnection && Boolean(data.isConnected)`
+  - ป้องกันการแสดงจุดเขียว (`●`) บนโหนดฐานข้อมูลที่ยังไม่ได้เชื่อมต่อจริง
+- **42.2 Query Editor Disconnected Banner & Connect Flow (`src/components/editor/SqlEditor.tsx`, `EditorToolbar.tsx`):**
+  - ตรวจสอบสถานะ `isConnected` ใน `SqlEditor` และแสดงแถบ Disconnected Banner สีส้ม พร้อมปุ่ม **"เชื่อมต่อ (Connect)"**
+  - ปิดการทำงาน (Disabled) ของปุ่ม Run, Explain, Analyze เมื่อยังไม่ได้เชื่อมต่อฐานข้อมูล
+  - เพิ่มฟังก์ชัน `handleConnectDatabase` ใน `SqlEditor` เพื่อเชื่อมต่อ, อัปเดต `connectedConnectionIds` และโหลด Schema
+- **42.3 Status Bar Active Tab Connection Synchronization (`src/components/chrome/StatusBar.tsx`):**
+  - อัปเดตการ resolve connection ให้ใช้ `activeTab?.connectionId ?? activeConnectionId` เพื่อให้สถานะเชื่อมต่อตรงกับ MainToolbar และ Explorer เสมอ
+
 
 
 

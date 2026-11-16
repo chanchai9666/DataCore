@@ -3,10 +3,12 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { StatusBar } from './StatusBar';
 import { useStatusStore } from '../../stores/statusStore';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { useTabStore } from '../../stores/tabStore';
 
 describe('StatusBar Component', () => {
   beforeEach(() => {
     useStatusStore.getState().reset();
+    useTabStore.setState({ tabs: [], activeTabId: null });
     useConnectionStore.setState({
       connections: [],
       activeConnectionId: null,
@@ -129,5 +131,22 @@ describe('StatusBar Component', () => {
     expect(srLiveRegion).toHaveTextContent(
       'Query executed in 25 milliseconds. 100 rows returned.'
     );
+  });
+
+  it('resolves connection from active tab when activeConnectionId differs', () => {
+    useConnectionStore.setState({
+      connections: [
+        { id: 'c1', name: 'DB 1', driver: 'sqlite', database: '1.db' },
+        { id: 'c2', name: 'DB 2', driver: 'postgres', database: '2.db' },
+      ],
+      activeConnectionId: 'c1',
+      connectedConnectionIds: ['c2'],
+    });
+    useTabStore.setState({
+      tabs: [{ id: 'tab-q', connectionId: 'c2', title: 'Query', type: 'query', autoCommit: true, queryContent: '' }],
+      activeTabId: 'tab-q',
+    });
+    render(<StatusBar />);
+    expect(screen.getByText('Connected')).toBeInTheDocument();
   });
 });

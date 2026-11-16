@@ -161,6 +161,7 @@ describe('ConnectionTreeNode Badges', () => {
       nodeType: 'connection',
       connectionId: 'conn-pg',
       driver: 'postgres',
+      isConnected: true,
     };
 
     const connNode = createMockNode(connData);
@@ -174,6 +175,19 @@ describe('ConnectionTreeNode Badges', () => {
     expect(connIndicator).toBeInTheDocument();
     expect(connIndicator.className).toContain('bg-emerald-500');
     expect(connIndicator.className).toContain('mr-2.5');
+
+    // When connection is disconnected, indicator-active-connection should NOT be rendered
+    const disconnectedConnData: BrowserTreeNode = {
+      ...connData,
+      isConnected: false,
+    };
+    const disconnectedConnNode = createMockNode(disconnectedConnData);
+    rerender(
+      <ObjectBrowserContext.Provider value={{ activeConnectionId: 'conn-pg' }}>
+        <ConnectionTreeNode node={disconnectedConnNode} style={{}} dragHandle={vi.fn()} tree={{} as any} />
+      </ObjectBrowserContext.Provider>
+    );
+    expect(screen.queryByTestId('indicator-active-connection')).toBeNull();
 
     const tableData: BrowserTreeNode = {
       id: 'table-credit',
