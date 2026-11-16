@@ -139,6 +139,7 @@ export const SqlErrorCallout: React.FC<SqlErrorCalloutProps> = ({
     <div
       data-testid="sql-error-callout"
       role="alert"
+      aria-live="assertive"
       style={{
         backgroundColor: bgColor,
         borderBottom: `1px solid ${borderColor}`,

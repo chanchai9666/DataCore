@@ -120,6 +120,20 @@ export const StatusBar: React.FC<StatusBarProps> = ({ className = '' }) => {
           <span>{currentLang === 'th' ? 'TH' : 'EN'}</span>
         </button>
       </div>
+
+      {/* WCAG 2.1 AA Screen Reader Announcements (ARIA Live Region) */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="status-bar-sr-announcement"
+      >
+        {statusMessage ||
+          (executionTimeMs !== null && rowCount !== null
+            ? `Query executed in ${executionTimeMs} milliseconds. ${rowCount} rows returned.`
+            : '')}
+      </div>
     </footer>
   );
 };

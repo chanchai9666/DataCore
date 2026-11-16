@@ -210,6 +210,34 @@ describe('MainToolbar Component', () => {
     expect(onOpenUserManager).toHaveBeenCalledTimes(1);
   });
 
+  it('triggers onCheckUpdates and onExportDiagnosticBundle from tools dropdown', () => {
+    const onCheckUpdates = vi.fn();
+    const onExportDiagnosticBundle = vi.fn();
+
+    render(
+      <MainToolbar
+        onCheckUpdates={onCheckUpdates}
+        onExportDiagnosticBundle={onExportDiagnosticBundle}
+      />
+    );
+
+    const toolsBtn = screen.getByRole('button', { name: /tools/i });
+
+    // Check updates
+    fireEvent.click(toolsBtn);
+    const checkUpdatesBtn = screen.getByTestId('toolbar-tools-check-updates-btn');
+    expect(checkUpdatesBtn).toBeInTheDocument();
+    fireEvent.click(checkUpdatesBtn);
+    expect(onCheckUpdates).toHaveBeenCalledTimes(1);
+
+    // Export diagnostic bundle
+    fireEvent.click(toolsBtn);
+    const diagnosticBtn = screen.getByTestId('toolbar-tools-diagnostic-bundle-btn');
+    expect(diagnosticBtn).toBeInTheDocument();
+    fireEvent.click(diagnosticBtn);
+    expect(onExportDiagnosticBundle).toHaveBeenCalledTimes(1);
+  });
+
   it('triggers onOpenShortcuts when Keyboard Shortcuts button is clicked', () => {
     const onOpenShortcuts = vi.fn();
     render(<MainToolbar onOpenShortcuts={onOpenShortcuts} />);

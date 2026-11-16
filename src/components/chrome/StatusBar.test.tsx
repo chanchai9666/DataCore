@@ -100,4 +100,22 @@ describe('StatusBar Component', () => {
     expect(screen.getByText('95 ms')).toBeInTheDocument();
     expect(screen.getByText('1200 rows')).toBeInTheDocument();
   });
+
+  it('renders ARIA live region for screen reader accessibility announcements (WCAG 2.1 AA)', () => {
+    useStatusStore.getState().setStatus({
+      lastQuery: 'SELECT * FROM customers;',
+      executionTimeMs: 25,
+      rowCount: 100,
+    });
+    render(<StatusBar />);
+
+    const srLiveRegion = screen.getByTestId('status-bar-sr-announcement');
+    expect(srLiveRegion).toBeInTheDocument();
+    expect(srLiveRegion).toHaveAttribute('role', 'status');
+    expect(srLiveRegion).toHaveAttribute('aria-live', 'polite');
+    expect(srLiveRegion).toHaveAttribute('aria-atomic', 'true');
+    expect(srLiveRegion).toHaveTextContent(
+      'Query executed in 25 milliseconds. 100 rows returned.'
+    );
+  });
 });

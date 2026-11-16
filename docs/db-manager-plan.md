@@ -968,11 +968,23 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **AI Capabilities:** Natural Language to SQL Generation, SQL Query Optimization & Explain Plan Assistant, และ Query Error Diagnoser
   - **Opt-in Store & UI:** `aiStore.ts` และ `AiAssistantDrawer` สลับโหมดสนทนา / แนะนำ SQL และปุ่ม Insert เข้า Query Editor ทันที พร้อมระบบสลับโมเดล Local (เช่น `sqlcoder`, `llama3`, `deepseek-coder`) และปุ่มเปิด AI บน MainToolbar
 
-### Phase 38: Distribution, Auto-Updater & Accessibility Standards (Issue #155 - P1)
-- **38.1 macOS Hardened Runtime, Code Signing & Notarization:** จัดเตรียม `entitlements.plist` และ GitHub Actions Release Workflow สำหรับ Apple Notarization
-- **38.2 Auto-Updater Integration (`tauri-plugin-updater`):** ตรวจสอบและอัปเดตเวอร์ชันใหม่อัตโนมัติด้วย Cryptographic Signature
-- **38.3 Diagnostic Bundle Export:** รวม System Info, App Logs, และ Sanitized Config สำหรับการซัพพอร์ต
-- **38.4 WCAG 2.1 AA Accessibility Audit:** ตรวจสอบ Focus Trap, Keyboard Nav, High-Contrast Theme และ Screen Reader Support
+### Phase 38: Distribution, Auto-Updater & Accessibility Standards (Issue #155 - P1) [Completed]
+- **38.1 macOS Hardened Runtime, Code Signing & Notarization [Completed]:**
+  - **Entitlements Definition:** สร้าง `src-tauri/entitlements.plist` รองรับ Network Client (`com.apple.security.network.client`), User-selected Read/Write Files (`com.apple.security.files.user-selected.read-write`), Downloads Read/Write, JIT & Unsigned Executable Memory สำหรับ WebKit/V8 engine
+  - **Tauri Bundle Configuration:** ปรับแต่ง `src-tauri/tauri.conf.json` กำหนด `bundle.macOS` พร้อม `entitlements`, `minimumSystemVersion: "11.0"`, `signingIdentity`, และ `bundle.macOS.dmg` layout
+  - **Automated CI/CD Workflow:** สร้าง `.github/workflows/release.yml` รันบน `macos-14` (Apple Silicon) พร้อมกระบวนการ Sign Developer ID Application, Notarize ผ่าน `xcrun notarytool` และ Staple ลงบน `.dmg`
+- **38.2 Auto-Updater Integration (`tauri-plugin-updater`) [Completed]:**
+  - ติดตั้งและตั้งค่า `tauri-plugin-updater` ใน Rust backend และ plugins ใน `tauri.conf.json`
+  - รองรับ Public Key Signature Verification ป้องกันการปลอมแปลงไฟล์อัปเดต
+  - หน้าต่าง UI `UpdateCheckerModal` แจ้งเตือนเวอร์ชันใหม่ แสดง Release Notes และ Progress การดาวน์โหลด พร้อมปุ่ม Check for Updates บน MainToolbar
+- **38.3 Diagnostic Bundle Export [Completed]:**
+  - สร้าง Service รวบรวมข้อมูล System Environment (OS, Arch, CPU, App Version), Active Connection Configs แบบ Sanitized (Scrubbed and Redacted: ป้องกัน Passwords, SSH Keys, SSL Certs, Tokens, และ Query Data รั่วไหล 100%), Active Tabs Count และ Timestamps
+  - หน้าต่าง UI `DiagnosticBundleModal` พร้อม Preview JSON, ปุ่มคัดลอก และปุ่มดาวน์โหลดไฟล์ `datacore-diagnostic-YYYYMMDD.json`
+  - เมนูบน MainToolbar Tools สำหรับ Export Diagnostic Bundle
+- **38.4 WCAG 2.1 AA Accessibility Standards [Completed]:**
+  - เพิ่มโหมด High-Contrast Theme (`.high-contrast` และ `.dark.high-contrast`) พร้อมรองรับ `@media (prefers-contrast: more)` อัตโนมัติจาก macOS System Settings (Contrast Ratio >= 7:1)
+  - Focus Trap และ Keyboard Navigation (Esc, Tab, Enter) ใน Dialogs และ Drawers ผ่าน Radix UI Dialog
+  - เพิ่ม ARIA Live Region (`role="status"`, `aria-live="polite"`, `aria-atomic="true"`) สำหรับ Screen Reader บน `StatusBar` และ `role="alert"`, `aria-live="assertive"` บน `SqlEditor` Error Callout Panel
 
 
 

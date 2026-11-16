@@ -18,6 +18,8 @@ import { DataImportWizardModal } from './components/transfer/DataImportWizardMod
 import { DataExportWizardModal } from './components/transfer/DataExportWizardModal';
 import { KeyboardShortcutsModal } from './components/dialogs/KeyboardShortcutsModal';
 import { CommandPaletteModal } from './components/palette/CommandPaletteModal';
+import { UpdateCheckerModal } from './components/dialogs/UpdateCheckerModal';
+import { DiagnosticBundleModal } from './components/dialogs/DiagnosticBundleModal';
 import { AiAssistantDrawer } from './components/ai/AiAssistantDrawer';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
@@ -57,6 +59,8 @@ export function App() {
   const [isUserManagerModalOpen, setIsUserManagerModalOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isUpdateCheckerOpen, setIsUpdateCheckerOpen] = useState(false);
+  const [isDiagnosticBundleOpen, setIsDiagnosticBundleOpen] = useState(false);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
@@ -294,6 +298,8 @@ export function App() {
         }}
         onOpenUserManager={() => setIsUserManagerModalOpen(true)}
         onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
+        onCheckUpdates={() => setIsUpdateCheckerOpen(true)}
+        onExportDiagnosticBundle={() => setIsDiagnosticBundleOpen(true)}
         onEditConnection={(conn) => {
           setConnectionToEdit(conn);
           setIsConnectionDialogOpen(true);
@@ -569,6 +575,18 @@ export function App() {
             });
           }
         }}
+      />
+
+      {/* Auto-Updater Dialog */}
+      <UpdateCheckerModal
+        isOpen={isUpdateCheckerOpen}
+        onClose={() => setIsUpdateCheckerOpen(false)}
+      />
+
+      {/* Diagnostic Bundle Export Modal */}
+      <DiagnosticBundleModal
+        isOpen={isDiagnosticBundleOpen}
+        onClose={() => setIsDiagnosticBundleOpen(false)}
       />
 
       {/* Global Toast Notifications */}

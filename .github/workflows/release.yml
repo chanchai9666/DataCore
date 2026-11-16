@@ -1,0 +1,101 @@
+name: Release DataCore (macOS Apple Silicon)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build, Sign, Notarize & Release macOS App
+    runs-on: macos-14 # Native Apple Silicon (M-series)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run verification tests
+        run: |
+          pnpm test
+          cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Setup macOS Keychain for Code Signing
+        if: env.APPLE_CERTIFICATE != ''
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'datacore-ci' }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security default-keychain -s $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          echo "$APPLE_CERTIFICATE" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 -k $KEYCHAIN_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+      - name: Build Tauri Desktop Bundle
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          pnpm tauri build --bundles dmg,app
+
+      - name: Notarize and Staple macOS Application
+        if: env.APPLE_ID != ''
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          DMG_FILE=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" | head -n 1)
+          if [ -f "$DMG_FILE" ]; then
+            echo "Notarizing $DMG_FILE..."
+            xcrun notarytool submit "$DMG_FILE" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait
+            
+            echo "Stapling notarization ticket..."
+            xcrun stapler staple "$DMG_FILE"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: false

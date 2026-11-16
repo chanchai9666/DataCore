@@ -26,6 +26,8 @@ import {
   Languages,
   Wand2,
   Sparkles,
+  RefreshCw,
+  FileJson,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -72,6 +74,8 @@ export interface MainToolbarProps {
   onOpenActivityMonitor?: () => void;
   onOpenUserManager?: () => void;
   onOpenShortcuts?: () => void;
+  onCheckUpdates?: () => void;
+  onExportDiagnosticBundle?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   customItems?: ToolbarActionItem[];
@@ -102,6 +106,8 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenActivityMonitor,
   onOpenUserManager,
   onOpenShortcuts,
+  onCheckUpdates,
+  onExportDiagnosticBundle,
   theme = 'dark',
   onToggleTheme,
   customItems,
@@ -206,8 +212,8 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       label: t('toolbar.tools', 'Tools'),
       icon: Wrench,
       onClick: handleToolsClick,
-      disabled: !activeConnection,
-      title: activeConnection
+      disabled: !activeConnection && !onCheckUpdates && !onExportDiagnosticBundle,
+      title: activeConnection || onCheckUpdates || onExportDiagnosticBundle
         ? t('toolbar.toolsTitle', 'Database tools, performance metrics & audit logs')
         : t('toolbar.selectConnectionFirst', 'Select a connection first'),
       testId: 'toolbar-tools-btn',
@@ -565,6 +571,49 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.queryHistory', 'Query History & Snippets')}</span>
                       <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.queryHistoryDesc', 'Executed statements history & reusable code snippets')}</span>
+                    </div>
+                  </button>
+                )}
+
+                {(onCheckUpdates || onExportDiagnosticBundle) && (
+                  <>
+                    <div className="h-px bg-line my-1 mx-2" />
+                    <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted uppercase tracking-wider">
+                      {t('toolbar.categorySystem', 'System & Diagnostics')}
+                    </div>
+                  </>
+                )}
+                {onCheckUpdates && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-check-updates-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onCheckUpdates();
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.checkUpdates', 'Check for Updates...')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.checkUpdatesDesc', 'Check for new releases & auto-update')}</span>
+                    </div>
+                  </button>
+                )}
+                {onExportDiagnosticBundle && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-diagnostic-bundle-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onExportDiagnosticBundle();
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                  >
+                    <FileJson className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.diagnosticBundle', 'Export Diagnostic Bundle...')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.diagnosticBundleDesc', 'Sanitized system info for bug reporting')}</span>
                     </div>
                   </button>
                 )}

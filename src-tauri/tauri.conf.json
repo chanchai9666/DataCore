@@ -34,6 +34,28 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "11.0",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "entitlements": "entitlements.plist",
+      "dmg": {
+        "background": null,
+        "windowPosition": { "x": 400, "y": 400 },
+        "windowSize": { "width": 600, "height": 400 },
+        "appPosition": { "x": 180, "y": 170 },
+        "applicationFolderPosition": { "x": 420, "y": 170 }
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/chanchai9666/DataCore/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVCRjIxQ0YyOEEwQzc2RTgKUldTdWJ0bGVEZW1vS2V5Rm9yVmVyaWZpY2F0aW9uT25seUF1dG9VcGRhdGVyCg=="
+    }
   }
 }
