@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const baseConnectionSchema = z.object({
   name: z.string().trim().min(1, 'Connection name is required'),
-  driver: z.enum(['sqlite', 'postgres', 'mysql']),
+  driver: z.enum(['sqlite', 'postgres', 'mysql', 'duckdb', 'mssql']),
   folder: z.string().optional(),
   rememberPassword: z.boolean().optional(),
   password: z.string().optional(),
@@ -20,8 +20,16 @@ export const sqliteConnectionSchema = baseConnectionSchema.extend({
   user: z.string().optional(),
 });
 
+export const duckdbConnectionSchema = baseConnectionSchema.extend({
+  driver: z.literal('duckdb'),
+  database: z.string().trim().min(1, 'Database file path or :memory: is required'),
+  host: z.string().optional(),
+  port: z.union([z.number(), z.string()]).optional(),
+  user: z.string().optional(),
+});
+
 export const networkConnectionSchema = baseConnectionSchema.extend({
-  driver: z.enum(['postgres', 'mysql']),
+  driver: z.enum(['postgres', 'mysql', 'mssql']),
   host: z.string().trim().min(1, 'Host is required'),
   port: z
     .union([z.number(), z.string()])
@@ -36,10 +44,15 @@ export const networkConnectionSchema = baseConnectionSchema.extend({
 
 export const connectionSchema = z.discriminatedUnion('driver', [
   sqliteConnectionSchema,
+  duckdbConnectionSchema,
   networkConnectionSchema,
 ]);
 
 export const testSqliteConnectionSchema = sqliteConnectionSchema.extend({
+  name: z.string().optional(),
+});
+
+export const testDuckdbConnectionSchema = duckdbConnectionSchema.extend({
   name: z.string().optional(),
 });
 
@@ -49,6 +62,7 @@ export const testNetworkConnectionSchema = networkConnectionSchema.extend({
 
 export const testConnectionSchema = z.discriminatedUnion('driver', [
   testSqliteConnectionSchema,
+  testDuckdbConnectionSchema,
   testNetworkConnectionSchema,
 ]);
 

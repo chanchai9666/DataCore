@@ -107,6 +107,8 @@ pub async fn check_cli_availability_for_driver(driver: DatabaseDriver) -> Native
         DatabaseDriver::Postgres => "pg_dump",
         DatabaseDriver::Mysql => "mysqldump",
         DatabaseDriver::Sqlite => "sqlite3",
+        DatabaseDriver::Duckdb => "duckdb",
+        DatabaseDriver::Mssql => "sqlcmd",
     };
 
     if let Some(path) = find_cli_binary(cli_name) {
@@ -127,11 +129,13 @@ pub async fn check_cli_availability_for_driver(driver: DatabaseDriver) -> Native
     }
 }
 
+pub type CliCommandParts = (PathBuf, Vec<String>, HashMap<String, String>);
+
 pub fn build_backup_command(
     config: &ConnectionConfig,
     password: Option<&str>,
     opts: &NativeBackupOptions,
-) -> Result<(PathBuf, Vec<String>, HashMap<String, String>), AppError> {
+) -> Result<CliCommandParts, AppError> {
     let mut args = Vec::new();
     let mut envs = HashMap::new();
 
@@ -255,6 +259,9 @@ pub fn build_backup_command(
 
             Ok((bin, args, envs))
         }
+        DatabaseDriver::Duckdb | DatabaseDriver::Mssql => {
+            Err(AppError::NotSupported("Native CLI backup for DuckDB / MSSQL is not supported via wrapper. Please use SQL Export.".into()))
+        }
     }
 }
 
@@ -262,7 +269,7 @@ pub fn build_restore_command(
     config: &ConnectionConfig,
     password: Option<&str>,
     opts: &NativeRestoreOptions,
-) -> Result<(PathBuf, Vec<String>, HashMap<String, String>), AppError> {
+) -> Result<CliCommandParts, AppError> {
     let mut args = Vec::new();
     let mut envs = HashMap::new();
 
@@ -339,6 +346,9 @@ pub fn build_restore_command(
             args.push(format!(".restore '{}'", opts.input_file.replace('\'', "''")));
 
             Ok((bin, args, envs))
+        }
+        DatabaseDriver::Duckdb | DatabaseDriver::Mssql => {
+            Err(AppError::NotSupported("Native CLI restore for DuckDB / MSSQL is not supported via wrapper. Please use SQL Import.".into()))
         }
     }
 }

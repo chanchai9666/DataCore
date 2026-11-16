@@ -130,6 +130,28 @@ pub async fn duplicate_table_impl(
                 conn.execute_query(&copy_sql).await?;
             }
         }
+        DatabaseDriver::Duckdb => {
+            let where_clause = if options.copy_data { "" } else { " WHERE 1=0" };
+            let create_sql = format!(
+                "CREATE TABLE \"{}\" AS SELECT * FROM \"{}\"{};",
+                target.replace('"', "\"\""),
+                source.replace('"', "\"\""),
+                where_clause
+            );
+            conn.execute_query(&create_sql).await?;
+        }
+        DatabaseDriver::Mssql => {
+            let schema_name = options
+                .schema
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or("dbo");
+            let where_clause = if options.copy_data { "" } else { " WHERE 1=0" };
+            let copy_sql = format!(
+                "SELECT * INTO [{schema_name}].[{target}] FROM [{schema_name}].[{source}]{where_clause};"
+            );
+            conn.execute_query(&copy_sql).await?;
+        }
     }
 
     Ok(())

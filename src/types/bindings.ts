@@ -84,9 +84,9 @@ export type ConnectionConfig_Serialize = {
 
 export type DatabaseDriver = DatabaseDriver_Serialize | DatabaseDriver_Deserialize;
 
-export type DatabaseDriver_Deserialize = "sqlite" | "Sqlite" | "SQLITE" | "postgres" | "Postgres" | "POSTGRES" | "postgresql" | "PostgreSQL" | "mysql" | "Mysql" | "MYSQL" | "MySQL";
+export type DatabaseDriver_Deserialize = "sqlite" | "Sqlite" | "SQLITE" | "postgres" | "Postgres" | "POSTGRES" | "postgresql" | "PostgreSQL" | "mysql" | "Mysql" | "MYSQL" | "MySQL" | "duckdb" | "Duckdb" | "DUCKDB" | "DuckDB" | "mssql" | "Mssql" | "MSSQL" | "sqlserver" | "SqlServer";
 
-export type DatabaseDriver_Serialize = "sqlite" | "postgres" | "mysql";
+export type DatabaseDriver_Serialize = "sqlite" | "postgres" | "mysql" | "duckdb" | "mssql";
 
 /**  A structured single filter condition. */
 export type FilterCondition = FilterCondition_Serialize | FilterCondition_Deserialize;

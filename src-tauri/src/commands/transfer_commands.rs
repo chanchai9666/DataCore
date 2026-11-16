@@ -125,6 +125,8 @@ pub async fn import_data(
         DatabaseDriver::Sqlite => "sqlite",
         DatabaseDriver::Postgres => "postgres",
         DatabaseDriver::Mysql => "mysql",
+        DatabaseDriver::Duckdb => "duckdb",
+        DatabaseDriver::Mssql => "mssql",
     };
 
     let on_progress = move |progress| {

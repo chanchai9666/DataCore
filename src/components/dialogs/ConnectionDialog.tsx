@@ -68,6 +68,44 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
         sslMode: 'prefer',
       };
     case 'sqlite':
+      return {
+        ...base,
+        name: '',
+        driver: 'sqlite',
+        host: '',
+        port: '',
+        database: '',
+        user: '',
+        password: '',
+        folder: '',
+        sslMode: 'prefer',
+      };
+    case 'duckdb':
+      return {
+        ...base,
+        name: '',
+        driver: 'duckdb',
+        host: '',
+        port: '',
+        database: ':memory:',
+        user: '',
+        password: '',
+        folder: '',
+        sslMode: 'prefer',
+      };
+    case 'mssql':
+      return {
+        ...base,
+        name: '',
+        driver: 'mssql',
+        host: '127.0.0.1',
+        port: 1433,
+        database: 'master',
+        user: 'sa',
+        password: '',
+        folder: '',
+        sslMode: 'prefer',
+      };
     default:
       return {
         ...base,
@@ -259,17 +297,19 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
         ? Number(formData.timeoutSeconds)
         : undefined;
 
+    const isLocalFileDriver = formData.driver === 'sqlite' || formData.driver === 'duckdb';
+
     return {
       id,
       name: formData.name.trim() || 'Test Connection',
       driver: formData.driver,
-      host: formData.driver !== 'sqlite' ? formData.host.trim() : undefined,
-      port: formData.driver !== 'sqlite' ? Number(formData.port) : undefined,
+      host: !isLocalFileDriver ? formData.host.trim() : undefined,
+      port: !isLocalFileDriver ? Number(formData.port) : undefined,
       database: formData.database.trim(),
-      user: formData.driver !== 'sqlite' ? formData.user.trim() : undefined,
+      user: !isLocalFileDriver ? formData.user.trim() : undefined,
       folder: formData.folder?.trim() || undefined,
-      ssl_mode: formData.driver !== 'sqlite' ? (formData.sslMode || 'prefer') : undefined,
-      sslMode: formData.driver !== 'sqlite' ? (formData.sslMode || 'prefer') : undefined,
+      ssl_mode: !isLocalFileDriver ? (formData.sslMode || 'prefer') : undefined,
+      sslMode: !isLocalFileDriver ? (formData.sslMode || 'prefer') : undefined,
       ssl_certs: sslCerts,
       sslCerts,
       ssh_tunnel: sshTunnel,
@@ -406,7 +446,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
               role="tab"
               aria-selected={formData.driver === 'sqlite'}
               onClick={() => handleDriverSwitch('sqlite')}
-              className={`flex-1 py-1.5 px-3 text-xs font-medium rounded-md transition-all ${
+              className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-all ${
                 formData.driver === 'sqlite'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
@@ -417,9 +457,22 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
             <button
               type="button"
               role="tab"
+              aria-selected={formData.driver === 'duckdb'}
+              onClick={() => handleDriverSwitch('duckdb')}
+              className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-all ${
+                formData.driver === 'duckdb'
+                  ? 'bg-yellow-600 text-white shadow-sm'
+                  : 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+            >
+              DuckDB
+            </button>
+            <button
+              type="button"
+              role="tab"
               aria-selected={formData.driver === 'postgres'}
               onClick={() => handleDriverSwitch('postgres')}
-              className={`flex-1 py-1.5 px-3 text-xs font-medium rounded-md transition-all ${
+              className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-all ${
                 formData.driver === 'postgres'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
@@ -432,13 +485,26 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
               role="tab"
               aria-selected={formData.driver === 'mysql'}
               onClick={() => handleDriverSwitch('mysql')}
-              className={`flex-1 py-1.5 px-3 text-xs font-medium rounded-md transition-all ${
+              className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-all ${
                 formData.driver === 'mysql'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               MySQL
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={formData.driver === 'mssql'}
+              onClick={() => handleDriverSwitch('mssql')}
+              className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-all ${
+                formData.driver === 'mssql'
+                  ? 'bg-rose-600 text-white shadow-sm'
+                  : 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+            >
+              MSSQL
             </button>
           </div>
         </div>

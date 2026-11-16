@@ -22,6 +22,12 @@ export const DbBadge: React.FC<DbBadgeProps> = ({ driver, className = '' }) => {
   } else if (normalized.includes('sqlite') || normalized === 'sq') {
     code = 'SQ';
     badgeClasses = 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/40';
+  } else if (normalized.includes('duckdb') || normalized === 'duck') {
+    code = 'DUCK';
+    badgeClasses = 'bg-yellow-500/20 text-yellow-500 dark:text-yellow-300 border-yellow-500/40';
+  } else if (normalized.includes('mssql') || normalized === 'sqlserver') {
+    code = 'MS';
+    badgeClasses = 'bg-rose-500/20 text-rose-500 dark:text-rose-300 border-rose-500/40';
   }
 
   return (

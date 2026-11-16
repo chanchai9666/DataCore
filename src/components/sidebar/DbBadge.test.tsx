@@ -28,4 +28,18 @@ describe('DbBadge Component', () => {
     expect(badge).toHaveTextContent('SQ');
     expect(badge).toHaveAttribute('data-driver', 'sqlite');
   });
+
+  it('renders DUCK badge for duckdb driver', () => {
+    render(<DbBadge driver="duckdb" />);
+    const badge = screen.getByTestId('db-badge');
+    expect(badge).toHaveTextContent('DUCK');
+    expect(badge).toHaveAttribute('data-driver', 'duckdb');
+  });
+
+  it('renders MS badge for mssql driver', () => {
+    render(<DbBadge driver="mssql" />);
+    const badge = screen.getByTestId('db-badge');
+    expect(badge).toHaveTextContent('MS');
+    expect(badge).toHaveAttribute('data-driver', 'mssql');
+  });
 });

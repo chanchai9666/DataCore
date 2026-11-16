@@ -1,4 +1,4 @@
-export type DatabaseDriver = 'sqlite' | 'postgres' | 'mysql';
+export type DatabaseDriver = 'sqlite' | 'postgres' | 'mysql' | 'duckdb' | 'mssql';
 
 export interface SshTunnelConfig {
   enabled: boolean;

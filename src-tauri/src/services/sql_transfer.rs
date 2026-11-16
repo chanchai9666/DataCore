@@ -241,6 +241,8 @@ pub async fn export_sql_impl(
         DatabaseDriver::Sqlite => "sqlite",
         DatabaseDriver::Mysql => "mysql",
         DatabaseDriver::Postgres => "postgres",
+        DatabaseDriver::Duckdb => "duckdb",
+        DatabaseDriver::Mssql => "mssql",
     };
 
     let file = File::create(&options.file_path).map_err(|e| {
@@ -296,6 +298,13 @@ pub async fn export_sql_impl(
                 DatabaseDriver::Postgres => {
                     let s_name = schema_name.unwrap_or("public");
                     format!("DROP TABLE IF EXISTS \"{}\".\"{}\" CASCADE;\n", s_name.replace('"', "\"\""), table.replace('"', "\"\""))
+                }
+                DatabaseDriver::Duckdb => {
+                    format!("DROP TABLE IF EXISTS \"{}\";\n", table.replace('"', "\"\""))
+                }
+                DatabaseDriver::Mssql => {
+                    let s_name = schema_name.unwrap_or("dbo");
+                    format!("DROP TABLE IF EXISTS [{s_name}].[{}];\n", table.replace(']', "]]"))
                 }
             };
             writer.write_all(drop_sql.as_bytes())?;
@@ -399,6 +408,20 @@ pub async fn export_sql_impl(
                         }
                     }
                 }
+                DatabaseDriver::Duckdb => {
+                    let ddl_query = format!("SELECT sql FROM duckdb_tables() WHERE table_name = '{}';", table.replace('\'', "''"));
+                    if let Ok(res) = conn.execute_query(&ddl_query).await {
+                        for row in res.rows {
+                            if let Some(CellValue::Text(ddl)) = row.first() {
+                                writeln!(writer, "{};\n", ddl.trim_end_matches(';'))?;
+                            }
+                        }
+                    }
+                }
+                DatabaseDriver::Mssql => {
+                    let s_name = schema_name.unwrap_or("dbo");
+                    writeln!(writer, "-- DDL for [{s_name}].[{}]", table.replace(']', "]]"))?;
+                }
             }
         }
 
@@ -416,6 +439,13 @@ pub async fn export_sql_impl(
                 DatabaseDriver::Postgres => {
                     let s_name = schema_name.unwrap_or("public");
                     format!("\"{}\".\"{}\"", s_name.replace('"', "\"\""), table.replace('"', "\"\""))
+                }
+                DatabaseDriver::Duckdb => {
+                    format!("\"{}\"", table.replace('"', "\"\""))
+                }
+                DatabaseDriver::Mssql => {
+                    let s_name = schema_name.unwrap_or("dbo");
+                    format!("[{s_name}].[{}]", table.replace(']', "]]"))
                 }
             };
 

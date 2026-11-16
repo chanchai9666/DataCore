@@ -6,6 +6,8 @@ use zeroize::{Zeroize, Zeroizing};
 use crate::drivers::mysql::MySqlConnection;
 use crate::drivers::postgres::PostgresConnection;
 use crate::drivers::sqlite::SqliteConnection;
+use crate::drivers::duckdb::DuckdbConnection;
+use crate::drivers::mssql::MssqlConnection;
 use crate::drivers::traits::DatabaseConnection;
 use crate::error::AppError;
 use crate::models::connection::{ConnectionConfig, DatabaseDriver};
@@ -101,6 +103,14 @@ impl SessionManager {
             }
             DatabaseDriver::Mysql => {
                 let conn = MySqlConnection::connect(config, password).await?;
+                Ok(Arc::new(conn))
+            }
+            DatabaseDriver::Duckdb => {
+                let conn = DuckdbConnection::from_config(config)?;
+                Ok(Arc::new(conn))
+            }
+            DatabaseDriver::Mssql => {
+                let conn = MssqlConnection::connect(config, password).await?;
                 Ok(Arc::new(conn))
             }
         }

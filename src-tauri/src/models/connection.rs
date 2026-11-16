@@ -11,6 +11,10 @@ pub enum DatabaseDriver {
     Postgres,
     #[serde(alias = "Mysql", alias = "MYSQL", alias = "MySQL")]
     Mysql,
+    #[serde(alias = "Duckdb", alias = "DUCKDB", alias = "DuckDB")]
+    Duckdb,
+    #[serde(alias = "Mssql", alias = "MSSQL", alias = "sqlserver", alias = "SqlServer")]
+    Mssql,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Type)]

@@ -200,12 +200,12 @@ export const DriverForm: React.FC<DriverFormProps> = ({
       )}
 
       <div className="pt-1">
-        {/* SQLite Driver Form */}
-        {driver === 'sqlite' && (
+        {/* SQLite / DuckDB Driver Form */}
+        {(driver === 'sqlite' || driver === 'duckdb') && (
           <div className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="conn-database" className="block text-xs font-medium text-gray-300">
-                Database Path <span className="text-red-400">*</span>
+                {driver === 'duckdb' ? 'DuckDB File / Memory / Parquet' : 'Database Path'} <span className="text-red-400">*</span>
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -214,7 +214,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                   value={formData.database}
                   onChange={(e) => onChange('database', e.target.value)}
                   disabled={disabled}
-                  placeholder=":memory: or select a .db/.sqlite file"
+                  placeholder={driver === 'duckdb' ? ':memory: or path to .duckdb / .parquet / .csv file' : ':memory: or select a .db/.sqlite file'}
                   className={`flex-1 px-3 py-1.5 rounded bg-gray-800 border ${
                     errors.database ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
                   } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs font-mono`}
@@ -223,7 +223,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                   type="button"
                   onClick={handleBrowseFile}
                   disabled={disabled}
-                  title="Browse SQLite file from disk"
+                  title={driver === 'duckdb' ? 'Browse database file or dataset from disk' : 'Browse SQLite file from disk'}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   <FolderOpen size={14} />
@@ -234,7 +234,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                 <p className="mt-1 text-xs text-red-400">{errors.database}</p>
               ) : (
                 <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
-                  <span>Click <strong>Browse</strong> to select a <code>.db</code> file, or use</span>
+                  <span>Click <strong>Browse</strong> or use in-memory mode</span>
                   <button
                     type="button"
                     onClick={() => onChange('database', ':memory:')}
@@ -261,8 +261,8 @@ export const DriverForm: React.FC<DriverFormProps> = ({
           </div>
         )}
 
-        {/* Postgres / MySQL Driver Form */}
-        {(driver === 'postgres' || driver === 'mysql') && (
+        {/* Postgres / MySQL / MSSQL Driver Form */}
+        {(driver === 'postgres' || driver === 'mysql' || driver === 'mssql') && (
           <div>
             {/* SubTab: General */}
             {subTab === 'general' && (
@@ -296,7 +296,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                       value={formData.port}
                       onChange={(e) => onChange('port', e.target.value)}
                       disabled={disabled}
-                      placeholder={driver === 'postgres' ? '5432' : '3306'}
+                      placeholder={driver === 'postgres' ? '5432' : driver === 'mysql' ? '3306' : '1433'}
                       className={`w-full px-3 py-1.5 rounded bg-gray-800 border ${
                         errors.port ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
                       } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs`}
@@ -316,7 +316,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                       value={formData.database}
                       onChange={(e) => onChange('database', e.target.value)}
                       disabled={disabled}
-                      placeholder={driver === 'postgres' ? 'postgres' : 'database_name'}
+                      placeholder={driver === 'postgres' ? 'postgres' : driver === 'mysql' ? 'database_name' : 'master'}
                       className={`w-full px-3 py-1.5 rounded bg-gray-800 border ${
                         errors.database ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
                       } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs`}
@@ -334,7 +334,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                       value={formData.user}
                       onChange={(e) => onChange('user', e.target.value)}
                       disabled={disabled}
-                      placeholder={driver === 'postgres' ? 'postgres' : 'root'}
+                      placeholder={driver === 'postgres' ? 'postgres' : driver === 'mysql' ? 'root' : 'sa'}
                       className={`w-full px-3 py-1.5 rounded bg-gray-800 border ${
                         errors.user ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
                       } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs`}

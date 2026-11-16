@@ -953,10 +953,20 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **36.2 Native Backup & Restore Wrapper Service [Completed]:** สร้าง Service ฝั่ง Rust (`src-tauri/src/services/native_backup.rs`) ตรวจจับและควบคุม CLI `pg_dump`, `pg_restore`, `mysqldump`, `sqlite3` แบบ Real-time Child Process พร้อม IPC streaming events (`native://progress`) และระบบยกเลิกงาน (Cancellation) เชื่อมต่อกับ UI Wizard `NativeBackupModal` และ `NativeRestoreModal`
 - **36.3 Query Explain History & Plan Diff [Completed]:** ระบบจัดเก็บบันทึกประวัติ `ExplainSnapshot` ใน `explainHistoryStore.ts` และหน้าต่างเปรียบเทียบ `ExplainPlanDiffModal` แสดงผลเปรียบเทียบ Cost Delta, Execution Time Delta, Scan Type Highlight (Seq Scan to Index Scan) พร้อม Side-by-Side Plan Nodes Tree และปุ่ม Save Snapshot บน `ExecutionPlanDrawer`
 
-### Phase 37: Engine Expansion & Local-First AI Assistant (Issue #154 - P2)
-- **37.1 Embedded Analytics Engine (DuckDB):** รองรับการเปิดและคิวรีไฟล์ `.parquet`, `.csv`, `.duckdb` ได้โดยตรงแบบ High-Performance
-- **37.2 Microsoft SQL Server (MSSQL):** ไดรเวอร์เชื่อมต่อ MSSQL ผ่าน `tiberius` crate พร้อมรองรับ Windows/SQL Server Authentication
-- **37.3 Local-First AI SQL Assistant (Opt-in):** เชื่อมต่อ OpenAI-compatible Local Endpoint (Ollama, LM Studio) บน `localhost` โดยส่งเฉพาะ Schema Metadata เพื่อความเป็นส่วนตัว 100%
+### Phase 37: Engine Expansion & Local-First AI Assistant (Issue #154 - P2) [Completed]
+- **37.1 Embedded Analytics Engine (DuckDB) [Completed]:**
+  - **Embedded In-Process Engine:** ผสานการทำงานผ่าน `duckdb` crate ใน Rust Backend รองรับ In-Memory (`:memory:`) และ Local Database File (`.duckdb`, `.db`)
+  - **Direct File Analytics:** รองรับการคิวรีไฟล์ `.parquet`, `.csv`, `.tsv`, `.json` โดยตรงผ่าน DuckDB functions (`read_parquet`, `read_csv_auto`) พร้อมประสิทธิภาพสูงแบบ Columnar
+  - **Schema & Query Integration:** ดึง Schema Metadata (Tables, Views) และรันคิวรีพร้อม Pagination (`LIMIT ... OFFSET ...`) แสดงผลบน DataGrid
+  - **Frontend UI:** เพิ่มตัวเลือกไดรเวอร์ DuckDB ใน `DriverForm` และ `ConnectionDialog` พร้อม File Browser Picker
+- **37.2 Microsoft SQL Server (MSSQL) Driver [Completed]:**
+  - **Native TDS Driver:** เชื่อมต่อผ่าน `tiberius` crate พร้อมรองรับ SQL Server Authentication (Username/Password), Port เริ่มต้น 1433, และ TLS Encryption (`trust_server_certificate`)
+  - **Schema Introspection:** ดึง Schemas (`sys.schemas`), Tables (`sys.tables`), Views (`sys.views`), และ Columns (`INFORMATION_SCHEMA.COLUMNS`)
+  - **Query Execution:** รัน T-SQL queries และ Pagination ด้วย `OFFSET ... ROWS FETCH NEXT ... ROWS ONLY`
+- **37.3 Local-First AI SQL Assistant (Opt-in) [Completed]:**
+  - **Local-First Privacy Guard:** รองรับ OpenAI-compatible Local Endpoints (Ollama บน `http://localhost:11434/v1`, LM Studio บน `http://localhost:1234/v1`) โดยส่งเฉพาะ Schema Metadata (Table names, Column names & data types) ป้องกันการส่ง Row Data จริงออกภายนอกอย่างเด็ดขาด 100%
+  - **AI Capabilities:** Natural Language to SQL Generation, SQL Query Optimization & Explain Plan Assistant, และ Query Error Diagnoser
+  - **Opt-in Store & UI:** `aiStore.ts` และ `AiAssistantDrawer` สลับโหมดสนทนา / แนะนำ SQL และปุ่ม Insert เข้า Query Editor ทันที พร้อมระบบสลับโมเดล Local (เช่น `sqlcoder`, `llama3`, `deepseek-coder`) และปุ่มเปิด AI บน MainToolbar
 
 ### Phase 38: Distribution, Auto-Updater & Accessibility Standards (Issue #155 - P1)
 - **38.1 macOS Hardened Runtime, Code Signing & Notarization:** จัดเตรียม `entitlements.plist` และ GitHub Actions Release Workflow สำหรับ Apple Notarization

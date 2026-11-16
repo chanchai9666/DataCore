@@ -196,5 +196,51 @@ pub async fn get_table_list_metadata_impl(
             }
             Ok(list)
         }
+        DatabaseDriver::Duckdb => {
+            let sql = "SELECT table_name FROM information_schema.tables WHERE table_type='BASE TABLE' ORDER BY table_name;";
+            let result = conn.execute_query(sql).await?;
+            let mut list = Vec::new();
+            for row in result.rows {
+                if row.is_empty() {
+                    continue;
+                }
+                let name = cell_to_string(&row[0]).unwrap_or_default();
+                list.push(TableMetadata {
+                    name,
+                    approx_row_count: -1,
+                    data_size_bytes: 0,
+                    index_size_bytes: 0,
+                    total_size_bytes: 0,
+                    engine: Some("DuckDB".to_string()),
+                    collation: None,
+                    comment: None,
+                    created_at: None,
+                });
+            }
+            Ok(list)
+        }
+        DatabaseDriver::Mssql => {
+            let sql = "SELECT t.name FROM sys.tables t ORDER BY t.name;";
+            let result = conn.execute_query(sql).await?;
+            let mut list = Vec::new();
+            for row in result.rows {
+                if row.is_empty() {
+                    continue;
+                }
+                let name = cell_to_string(&row[0]).unwrap_or_default();
+                list.push(TableMetadata {
+                    name,
+                    approx_row_count: -1,
+                    data_size_bytes: 0,
+                    index_size_bytes: 0,
+                    total_size_bytes: 0,
+                    engine: Some("MSSQL".to_string()),
+                    collation: None,
+                    comment: None,
+                    created_at: None,
+                });
+            }
+            Ok(list)
+        }
     }
 }

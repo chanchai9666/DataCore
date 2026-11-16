@@ -18,6 +18,7 @@ import { DataImportWizardModal } from './components/transfer/DataImportWizardMod
 import { DataExportWizardModal } from './components/transfer/DataExportWizardModal';
 import { KeyboardShortcutsModal } from './components/dialogs/KeyboardShortcutsModal';
 import { CommandPaletteModal } from './components/palette/CommandPaletteModal';
+import { AiAssistantDrawer } from './components/ai/AiAssistantDrawer';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
 import {
@@ -552,6 +553,21 @@ export function App() {
         onOpenUserManager={() => setIsUserManagerModalOpen(true)}
         onSelectConnection={(connId) => {
           setActiveConnection(connId);
+        }}
+      />
+
+      {/* Local-First AI SQL Assistant Drawer */}
+      <AiAssistantDrawer
+        onInsertSql={(sql) => {
+          const { activeTabId, updateTab } = useTabStore.getState();
+          if (activeTabId) {
+            updateTab(activeTabId, { queryContent: sql });
+          } else if (resolvedConnectionId) {
+            openQueryTab({
+              connectionId: resolvedConnectionId,
+              initialQuery: sql,
+            });
+          }
         }}
       />
 

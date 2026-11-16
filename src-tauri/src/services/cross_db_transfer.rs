@@ -173,12 +173,16 @@ where
         DatabaseDriver::Sqlite => "sqlite",
         DatabaseDriver::Mysql => "mysql",
         DatabaseDriver::Postgres => "postgres",
+        DatabaseDriver::Duckdb => "duckdb",
+        DatabaseDriver::Mssql => "mssql",
     };
 
     let tgt_dialect = match tgt_driver {
         DatabaseDriver::Sqlite => "sqlite",
         DatabaseDriver::Mysql => "mysql",
         DatabaseDriver::Postgres => "postgres",
+        DatabaseDriver::Duckdb => "duckdb",
+        DatabaseDriver::Mssql => "mssql",
     };
 
     let src_qualified_table = match options.source_schema.as_deref() {
