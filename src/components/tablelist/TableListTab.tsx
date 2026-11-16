@@ -30,6 +30,7 @@ import { ImportSqlModal } from '../transfer/ImportSqlModal';
 import { DropTableModal } from '../structure/DropTableModal';
 import { RenameTableModal } from '../structure/RenameTableModal';
 import { TableMaintenanceModal } from '../structure/TableMaintenanceModal';
+import { useContextMenuPosition } from '../../hooks/useContextMenuPosition';
 
 export function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 B';
@@ -116,6 +117,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
     columns: { name: string; dataType: string }[];
   } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const menuPosition = useContextMenuPosition(contextMenu, contextMenuRef);
   const [activeRenameTable, setActiveRenameTable] = useState<string | null>(null);
   const [activeMaintenanceTable, setActiveMaintenanceTable] = useState<string | null>(null);
   const [activeDropTable, setActiveDropTable] = useState<string | null>(null);
@@ -570,12 +572,12 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           ref={contextMenuRef}
           role="menu"
           data-testid="table-list-context-menu"
-          className={`fixed z-50 rounded-md shadow-2xl py-1 text-xs min-w-[190px] select-none animate-in fade-in duration-100 border ${
+          className={`fixed z-50 rounded-md shadow-2xl py-1 text-xs min-w-[190px] max-h-[calc(100vh-16px)] overflow-y-auto select-none animate-in fade-in duration-100 border ${
             theme === 'light'
               ? 'bg-white border-gray-200 text-gray-800'
               : 'bg-[#1e1e1e] border-[#333333] text-gray-200'
           }`}
-          style={{ top: contextMenu.mouseY, left: contextMenu.mouseX }}
+          style={{ top: menuPosition.top, left: menuPosition.left }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className={`px-3 py-1.5 text-[11px] font-mono border-b flex items-center gap-1.5 truncate ${

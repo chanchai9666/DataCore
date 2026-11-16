@@ -48,6 +48,7 @@ import { DropTableModal } from '../structure/DropTableModal';
 import { RenameTableModal } from '../structure/RenameTableModal';
 import { TableMaintenanceModal } from '../structure/TableMaintenanceModal';
 import { ImportModal } from '../transfer/ImportModal';
+import { useContextMenuPosition } from '../../hooks/useContextMenuPosition';
 import { ExportModal } from '../transfer/ExportModal';
 import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
 import { CrossDbCopyModal } from '../transfer/CrossDbCopyModal';
@@ -616,6 +617,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   const [errorMap, setErrorMap] = useState<Record<string, string>>({});
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const menuPosition = useContextMenuPosition(contextMenu, contextMenuRef);
 
   const [createTableTarget, setCreateTableTarget] = useState<{
     connectionId: string;
@@ -1706,8 +1708,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         <div
           ref={contextMenuRef}
           role="menu"
-          className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-xl py-1 text-xs text-gray-800 dark:text-gray-200 min-w-[160px]"
-          style={{ top: contextMenu.mouseY, left: contextMenu.mouseX }}
+          className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-xl py-1 text-xs text-gray-800 dark:text-gray-200 min-w-[160px] max-h-[calc(100vh-16px)] overflow-y-auto"
+          style={{ top: menuPosition.top, left: menuPosition.left }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Connection Context Menu */}

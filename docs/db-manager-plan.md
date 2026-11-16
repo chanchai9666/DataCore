@@ -1029,6 +1029,15 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **42.3 Status Bar Active Tab Connection Synchronization (`src/components/chrome/StatusBar.tsx`):**
   - อัปเดตการ resolve connection ให้ใช้ `activeTab?.connectionId ?? activeConnectionId` เพื่อให้สถานะเชื่อมต่อตรงกับ MainToolbar และ Explorer เสมอ
 
+### Phase 43: Context Menu Boundary Clamping & Auto-Flip Positioning (Issue #162) [Completed]
+- **43.1 Context Menu Position Hook (`src/hooks/useContextMenuPosition.ts`):**
+  - พัฒนาฟังก์ชัน pure logic `calculateContextMenuPosition` สำหรับตรวจจับการชนขอบจอ (Collision Detection)
+  - พลิกทิศทางเมนูขึ้นด้านบน (Auto-Flip Upward) หรือกลับด้านซ้ายอัตโนมัติเมื่อใกล้ขอบล่าง/ขวาของหน้าต่าง
+  - ปรับใช้ `useContextMenuPosition` hook เพื่อคำนวณตำแหน่ง element แบบ synchronous ก่อนการ paint
+- **43.2 Object Browser & Table List Context Menus Integration (`src/components/sidebar/ObjectBrowser.tsx`, `src/components/tablelist/TableListTab.tsx`):**
+  - นำตำแหน่งคำนวณมาใช้แทนการกำหนดพิกัดเมาส์ตรงๆ
+  - กำหนด `max-h-[calc(100vh-16px)] overflow-y-auto` ให้เมนูเลื่อน scroll ได้ ป้องกันเมนูล้นจอในหน้าจอขนาดเล็ก
+
 
 
 

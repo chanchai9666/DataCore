@@ -892,5 +892,17 @@ describe('ObjectBrowser', () => {
         expect(tabs.some((t) => t.type === 'query' && t.queryContent?.includes('CREATE TRIGGER trg_order_audit'))).toBe(true);
       });
     });
+
+    it('applies max-h and positions context menu using calculated coordinates when opened near bottom edge', async () => {
+      render(<ObjectBrowser />);
+
+      const connElement = await screen.findByTestId('tree-node-Production SQLite');
+      fireEvent.contextMenu(connElement, { clientX: 100, clientY: 700 });
+
+      const menu = screen.getByRole('menu');
+      expect(menu).toBeInTheDocument();
+      expect(menu).toHaveClass('max-h-[calc(100vh-16px)]');
+      expect(menu).toHaveClass('overflow-y-auto');
+    });
   });
 });
