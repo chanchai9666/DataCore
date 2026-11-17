@@ -3,7 +3,7 @@
 SHELL := /bin/bash
 export PATH := $(HOME)/.cargo/bin:$(PATH)
 
-.PHONY: help install dev dev-web test test-backend test-frontend check lint build build-frontend clean
+.PHONY: help install dev dev-web test test-backend test-frontend check lint build build-frontend disk-usage clean-junk clean clean-all
 
 ## แสดงคำสั่งทั้งหมดที่สามารถใช้งานได้
 help:
@@ -20,7 +20,10 @@ help:
 	@echo "  make lint           - ตรวจสอบ Code Quality ด้วย Cargo Clippy"
 	@echo "  make build          - Build ติดตั้ง Production App (.app / .dmg)"
 	@echo "  make build-frontend - Build เฉพาะ Production Bundle ฝั่ง Web (Vite)"
-	@echo "  make clean          - ลบไฟล์ Build Artifacts ทั้งหมด"
+	@echo "  make disk-usage     - ตรวจสอบพื้นที่ใช้งานและไฟล์ขยะในโปรเจกต์"
+	@echo "  make clean-junk     - ล้างไฟล์ขยะและ Cache แบบรวดเร็ว (เก็บ Rust Dependencies ไว้)"
+	@echo "  make clean          - ลบไฟล์ Build Artifacts ทั้งหมด (Rust target + Frontend dist)"
+	@echo "  make clean-all      - ล้างข้อมูลทั้งหมดรวมถึง node_modules (Deep Clean)"
 	@echo "================================================================="
 
 ## ติดตั้ง Dependencies
@@ -72,9 +75,45 @@ build-frontend:
 	@echo "📦 กำลัง Build Frontend Production Assets..."
 	pnpm build
 
-## ทำความสะอาด Build Artifacts
+## ตรวจสอบพื้นที่ใช้งานและไฟล์ขยะในโปรเจกต์
+disk-usage:
+	@echo "📊 สรุปการใช้พื้นที่ดิสก์ของโปรเจกต์ DataCore:"
+	@echo "-----------------------------------------------------------------"
+	@du -sh src-tauri/target node_modules dist .vite .git 2>/dev/null || true
+	@echo "-----------------------------------------------------------------"
+	@echo "🔍 พื้นที่ Build ของ datacore ที่ลบได้ทันทีโดยไม่ต้องคอมไพล์ Dependencies ใหม่:"
+	@cargo clean --manifest-path src-tauri/Cargo.toml -p datacore --dry-run 2>&1 || true
+	@echo "-----------------------------------------------------------------"
+	@echo "🗑️  ไฟล์ขยะและไฟล์ชั่วคราวที่ตรวจพบ:"
+	@found=0; for f in repomix-output* .superpowers .perch *.log *.tmp *.bak; do \
+		if [ -e "$$f" ]; then du -sh "$$f"; found=1; fi; \
+	done; \
+	if [ "$$found" -eq 0 ]; then echo "  (ไม่พบไฟล์ชั่วคราวในระดับ Root)"; fi
+
+## ล้างไฟล์ขยะและ Cache แบบรวดเร็ว (เก็บ Rust Dependencies เช่น DuckDB ไว้ ไม่ต้องรอนานตอน Build ใหม่)
+clean-junk:
+	@echo "🧹 กำลังล้างไฟล์ขยะและ Artifacts เก่าของ datacore (เก็บ 3rd-party dependencies ไว้)..."
+	cargo clean --manifest-path src-tauri/Cargo.toml -p datacore
+	rm -f src-tauri/target/*/libdatacore_lib.a src-tauri/target/*/libdatacore_lib.dylib src-tauri/target/*/deps/libdatacore_lib.a src-tauri/target/*/deps/libdatacore_lib.dylib
+	rm -rf src-tauri/target/debug/incremental src-tauri/target/release/incremental src-tauri/target/flycheck*
+	@echo "🧹 กำลังลบ DuckDB build cache รุ่นเก่าที่ซ้ำซ้อน (เก็บเฉพาะรุ่นล่าสุด)..."
+	@ls -dt src-tauri/target/debug/build/libduckdb-sys-*/out 2>/dev/null | tail -n +2 | while IFS= read -r dir; do rm -rf "$${dir%/out}"; done
+	@ls -dt src-tauri/target/debug/deps/liblibduckdb_sys-*.rlib 2>/dev/null | tail -n +2 | while IFS= read -r f; do rm -f "$$f"; done
+	@echo "🧹 กำลังลบไฟล์ชั่วคราว, Frontend cache และไฟล์ขยะระบบ (.DS_Store, repomix, logs)..."
+	rm -rf dist .vite .superpowers .perch repomix-output* *.log *.tmp *.bak
+	find . -name ".DS_Store" -not -path "./.git/*" -delete 2>/dev/null || true
+	@echo "✨ ล้างขยะแบบรวดเร็ว (clean-junk) เรียบร้อยแล้ว!"
+
+## ทำความสะอาด Build Artifacts ทั้งหมด (Rust target + Frontend dist)
 clean:
-	@echo "🧹 กำลังลบโฟลเดอร์ build artifacts..."
+	@echo "🧹 กำลังลบโฟลเดอร์ build artifacts ทั้งหมด..."
 	cargo clean --manifest-path src-tauri/Cargo.toml
-	rm -rf dist src-tauri/target
+	rm -rf dist src-tauri/target .vite .superpowers .perch repomix-output* *.log *.tmp *.bak
+	find . -name ".DS_Store" -not -path "./.git/*" -delete 2>/dev/null || true
 	@echo "✨ Clean เรียบร้อยแล้ว"
+
+## ล้างข้อมูลทั้งหมดรวมถึง node_modules (Deep Clean)
+clean-all: clean
+	@echo "🧨 กำลังลบ node_modules ทั้งหมด..."
+	rm -rf node_modules
+	@echo "✨ Clean-all เรียบร้อยแล้ว (กรุณารัน 'make install' ก่อนเริ่มพัฒนาครั้งถัดไป)"

@@ -1085,25 +1085,13 @@
   - พัฒนาหน้าจอแสดงความเร็วการถ่ายโอนแบบ Live (MB/s, ETA)
   - ขยาย UI สำหรับจัดการ Range Partitioning (สร้าง, Detach, Drop) เพื่อการจัดเก็บข้อมูลย้อนหลัง (Archive) (§5.7)
 
+### Phase 46: ระบบจัดการไฟล์ขยะและตรวจสอบพื้นที่ดิสก์ (Makefile Disk & Junk Management — Issue #176) [Completed]
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- **เพิ่มคำสั่งจัดการพื้นที่ดิสก์แบบแบ่งระดับใน `Makefile`:**
+  - `make disk-usage`: แสดงสรุปขนาดโฟลเดอร์หลัก (`src-tauri/target`, `node_modules`, `dist`, `.vite`, `.git`), พื้นที่ build ของ `datacore` ที่ลบแบบเร็วได้ (`cargo clean -p datacore --dry-run`), และรายการไฟล์ขยะชั่วคราว (`repomix-output*`, `.superpowers`, `.perch`, `*.log`, `*.tmp`, `*.bak`)
+  - `make clean-junk`: ลบเฉพาะ build artifacts ของ `datacore` (`cargo clean -p datacore`), `libdatacore_lib.{a,dylib}`, `incremental/`, `flycheck*`, และ build cache ซ้ำซ้อนของ `libduckdb-sys-*` (เก็บไว้เฉพาะชุดล่าสุด) รวมถึงไฟล์ขยะ frontend/ระบบ (`dist`, `.vite`, `.superpowers`, `.perch`, `repomix-output*`, `*.log`, `*.tmp`, `*.bak`, `.DS_Store`) โดยคง compiled 3rd-party dependencies ไว้เพื่อไม่ต้องเสียเวลาคอมไพล์ DuckDB ใหม่
+  - `make clean`: ลบ build artifacts ทั้งหมด (`cargo clean`, `src-tauri/target`, `dist`, `.vite`) และไฟล์ขยะชั่วคราวทั้งหมด
+  - `make clean-all`: เรียก `make clean` และลบ `node_modules` ทั้งหมด (Deep Clean)
+- **ปรับปรุง `src-tauri/Cargo.toml` และ `.gitignore`:**
+  - ลด `crate-type` ของ `datacore_lib` จาก `["staticlib", "cdylib", "rlib"]` เหลือ `["rlib"]` เพื่อไม่ให้สร้างไฟล์ `libdatacore_lib.a` ขนาด ~2.4 GB ที่ไม่จำเป็นต่อ macOS Desktop build
+  - เพิ่ม `repomix-output*`, `*.tmp`, `*.bak` ใน `.gitignore`

@@ -25,6 +25,11 @@ Thumbs.db
 .superpowers/
 .perch/
 
+# Temporary & AI tools output
+repomix-output*
+*.tmp
+*.bak
+
 # Environment files
 .env
 .env.local
