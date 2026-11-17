@@ -1,13 +1,13 @@
 # แผนโปรเจกต์โปรแกรมจัดการฐานข้อมูล (DataCore)
 
-Tech Stack และฟีเจอร์ — สไตล์ Navicat สำหรับ Mac M1
-รองรับ SQLite, PostgreSQL, MySQL (Local และ Remote)
+สถาปัตยกรรม Tech Stack และฟีเจอร์สำหรับ macOS Apple Silicon
+รองรับ SQLite, PostgreSQL, MySQL (พร้อมรองรับ DuckDB และ MSSQL)
 
 ## 1. ภาพรวมโปรเจกต์
 
-แอปเดสก์ท็อปสำหรับเชื่อมต่อและจัดการฐานข้อมูลที่เบาและเร็วบน Apple Silicon (M1/M2/M3/M4) ใช้งานแบบ Navicat คือเปิดแอปแล้วเห็นรายการ connection ทางซ้าย เปิดหลายแท็บ และแก้ไขข้อมูลในตารางได้ทันที
+แอปพลิเคชันเดสก์ท็อปสำหรับเชื่อมต่อและจัดการฐานข้อมูล มุ่งเน้นความเรียบง่าย คล่องตัว และประหยัดทรัพยากรบน Apple Silicon (M1/M2/M3/M4) ออกแบบให้ใช้งานสะดวก เปิดแอปแล้วเห็นรายการ connection ทางซ้าย เปิดใช้งานได้หลายแท็บพร้อมกัน และสามารถเรียกดูหรือแก้ไขข้อมูลในตารางได้อย่างราบรื่น
 
-**แนวทางที่เลือก:** Tauri 2 + Rust + React (TypeScript) เพื่อให้ได้ไฟล์แอปเล็ก (ประมาณ 10 MB) ใช้แรมน้อย และมี library สำหรับ UI ซับซ้อนครบ
+**แนวทางที่เลือก:** Tauri 2 + Rust + React (TypeScript) เพื่อให้ได้ไฟล์แอปพลิเคชันขนาดกะทัดรัด (ประมาณ 10 MB) ใช้หน่วยความจำอย่างคุ้มค่า และมีเครื่องมืออำนวยความสะดวกในการทำงานครบครัน
 
 ## 2. ตัวอย่างหน้าตาโปรแกรม
 
@@ -17,10 +17,10 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ![หน้าต่างหลัก](images/01-main-window.png)
 
-- ซ้าย: ต้นไม้ connection → database → schema → table พร้อมระบบสีไอคอนสถานะการเชื่อมต่อ 4 ระดับ (ยังไม่ได้เชื่อมต่อ = สีเทา, กำลังเชื่อมต่อ = สีส้ม, เชื่อมต่อแล้ว = สีเขียว, เชื่อมต่อล้มเหลว = สีแดง) โดยลูกศร expander จะแสดงก็ต่อเมื่อเชื่อมต่อสำเร็จแล้วเท่านั้น เพื่อความเป็นระเบียบเรียบร้อยตามสไตล์ Navicat/DBeaver พร้อมการควบคุม Connect / Disconnect ผ่าน Context Menu หรือการคลิก/ดับเบิ้ลคลิก โดยเมื่อเลือก Disconnect จะทำการตัดการเชื่อมต่อจริงในระดับ Backend (Teardown & Rollback Sessions ทั้งหมดของ connection นั้น) พร้อมทั้งปิด Tabs ที่เชื่อมโยง และรีเซ็ตสถานะเป็นยังไม่ได้เชื่อมต่อ (สีเทา และซ่อนลูกศร)
+- ซ้าย: ต้นไม้ connection → database → schema → table พร้อมระบบสีไอคอนสถานะการเชื่อมต่อ 4 ระดับ (ยังไม่ได้เชื่อมต่อ = สีเทา, กำลังเชื่อมต่อ = สีส้ม, เชื่อมต่อแล้ว = สีเขียว, เชื่อมต่อล้มเหลว = สีแดง) โดยลูกศร expander จะแสดงก็ต่อเมื่อเชื่อมต่อสำเร็จแล้วเท่านั้น เพื่อความเป็นระเบียบเรียบร้อย พร้อมการควบคุม Connect / Disconnect ผ่าน Context Menu หรือการคลิก/ดับเบิ้ลคลิก โดยเมื่อเลือก Disconnect จะทำการตัดการเชื่อมต่อจริงในระดับ Backend (Teardown & Rollback Sessions ทั้งหมดของ connection นั้น) พร้อมทั้งปิด Tabs ที่เชื่อมโยง และรีเซ็ตสถานะเป็นยังไม่ได้เชื่อมต่อ (สีเทา และซ่อนลูกศร)
 - บน: หลายแท็บ (Query, Table, Designer) แถบเครื่องมือ พร้อมปุ่ม Auto-Commit / Commit / Rollback
 - กลาง: SQL editor พร้อม syntax highlighting และ autocomplete
-- ล่าง: กริดผลลัพธ์ Glide Data Grid แก้ไขช่องได้ แสดง NULL ชัดเจน แบ่งหน้าทีละ 100 แถว พร้อมปุ่มเปิด Cell Detail Drawer สำหรับดู JSON/Text ยาว, แถบฟิวเตอร์ค้นหาข้อมูลสไตล์ Navicat (Filter Bar Builder พร้อม SQL WHERE preview และปุ่ม Toggle), และระบบไฮไลท์ทั้งแถวเมื่อคลิกที่หมายเลขของแถว รองรับ Multi-row selection ด้วย Shift/Cmd
+- ล่าง: กริดผลลัพธ์ Glide Data Grid แก้ไขช่องได้ แสดง NULL ชัดเจน แบ่งหน้าทีละ 100 แถว พร้อมปุ่มเปิด Cell Detail Drawer สำหรับดู JSON/Text ยาว, แถบฟิวเตอร์ค้นหาข้อมูล (Filter Bar Builder พร้อม SQL WHERE preview และปุ่ม Toggle), และระบบไฮไลท์ทั้งแถวเมื่อคลิกที่หมายเลขของแถว รองรับ Multi-row selection ด้วย Shift/Cmd
 
 ### 2.2 หน้าต่างสร้าง Connection
 
@@ -142,7 +142,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 **Table Viewer**
 - แสดงข้อมูลแบบกริด Glide Data Grid (Virtual Scrolling)
 - แบ่งหน้าทีละ 100 แถว เพื่อประสิทธิภาพและความเร็วของ Tauri IPC
-- **Navicat-style Filter Bar:** แถบฟิวเตอร์ค้นหาข้อมูลแบบ Filter Builder สามารถระบุ `[Column] [Operator] [Value]` พร้อมปุ่ม `+ Add Condition` ตัวเชื่อม `AND` / `OR`, Checkbox เปิด/ปิดเงื่อนไข, ปุ่ม Clear, ปุ่ม Apply, กด Enter เพื่อ Apply ทันที และพรีวิว SQL WHERE clause (กรองระดับ Server-side สำหรับ Table Tab และ In-memory สำหรับ Query Tab พร้อมจดจำ State แยกตามแต่ละแท็บ)
+- **Filter Bar (แถบตัวกรองข้อมูล):** แถบฟิวเตอร์ค้นหาข้อมูลแบบ Filter Builder สามารถระบุ `[Column] [Operator] [Value]` พร้อมปุ่ม `+ Add Condition` ตัวเชื่อม `AND` / `OR`, Checkbox เปิด/ปิดเงื่อนไข, ปุ่ม Clear, ปุ่ม Apply, กด Enter เพื่อ Apply ทันที และพรีวิว SQL WHERE clause (กรองระดับ Server-side สำหรับ Table Tab และ In-memory สำหรับ Query Tab พร้อมจดจำ State แยกตามแต่ละแท็บ)
 - **Row Header Selection & Highlight:** คลิกที่หมายเลขแถว (Row Marker `clickable-number` 1, 2, 3...) แล้วไฮไลท์ทั้งแถวด้วยสีฟ้าเด่นชัด (`accentLight: rgba(59, 130, 246, 0.25)`) พร้อมรองรับ Multi-row selection ด้วย Shift/Cmd และเชื่อมต่อกับปุ่ม Delete Row เป็น `Delete (N) Rows`
 - **Order By คอลัมน์ (Column Sorting):** คลิกที่ Header คอลัมน์เพื่อเรียงลำดับข้อมูลสลับระหว่าง `ASC (▲)` -> `DESC (▼)` -> `None (ลำดับเริ่มต้น)` โดย Table Tab ทำงานแบบ Server-side ผ่าน SQL `ORDER BY` และ Query Tab ทำงานแบบ Client-side In-memory
 - **Column Resizing:** รองรับการลากขอบ Header คอลัมน์เพื่อย่อ/ขยายความกว้างได้อย่างอิสระ พร้อมบันทึกขนาดคอลัมน์คงอยู่แยกตามแต่ละแท็บ (Persist column widths per tab)
@@ -228,11 +228,11 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
   - **Table List View (เสร็จสมบูรณ์)**: หน้าจอภาพรวมตารางระดับ Database/Schema ในรูปแบบ Detailed Metadata Grid (Glide Data Grid แสดง Estimated Rows ปราศจาก Table Lock, Data Size, Index Size, Storage Engine, Collation พร้อม Search Filter ค้นหาชื่อตาราง)
   - **Table List Context Menu**: เมนูคลิกขวาบนแถวตารางใน Table List View (Open Data, Design Structure, Duplicate Table, Copy Table to DB, Export as SQL Dump, Export Table Data, Import as SQL Dump, Import Table Data, Copy Table Name, Drop Table)
   - **Duplicate Table (Native SQL Quick Clone - เสร็จสมบูรณ์)**: เมนูลัดคลิกขวาที่ตารางเพื่อโคลนโครงสร้างและข้อมูลลงใน schema เดียวกันอย่างรวดเร็วระดับมิลลิวินาที ผ่านคำสั่ง Native SQL ของฐานข้อมูลเดิมโดยตรง (`CREATE TABLE ... LIKE / AS SELECT`) ไม่กินหน่วยความจำฝั่ง Client
-  - **Cross-Database Table Copy (Navicat Data Transfer)**: คัดลอกตารางจากฐานข้อมูล A ไป B ข้ามการเชื่อมต่อและข้ามเอนจิน (SQLite, MySQL, PostgreSQL) พร้อมระบบ Auto Type Mapping และสตรีมข้อมูลผ่าน Batch INSERT ใน Rust โดยใช้ `CellValue` ดั้งเดิมตรงตามประเภทข้อมูล ปราศจากการแปลงเป็น String ที่ทำให้เกิด Data Coercion สูญเสียเลขศูนย์นำหน้า หรือทำให้ข้อความ `"NULL"` กลายเป็นค่าว่าง/SQL NULL (Issue #67)
+  - **Cross-Database Table Copy (Cross-Database Data Transfer)**: คัดลอกตารางจากฐานข้อมูล A ไป B ข้ามการเชื่อมต่อและข้ามเอนจิน (SQLite, MySQL, PostgreSQL) พร้อมระบบ Auto Type Mapping และสตรีมข้อมูลผ่าน Batch INSERT ใน Rust โดยใช้ `CellValue` ดั้งเดิมตรงตามประเภทข้อมูล ปราศจากการแปลงเป็น String ที่ทำให้เกิด Data Coercion สูญเสียเลขศูนย์นำหน้า หรือทำให้ข้อความ `"NULL"` กลายเป็นค่าว่าง/SQL NULL (Issue #67)
   - **Data Transfer & Import Reliability**:
     - จัดการ Transaction ในการ Import แบบ atomic อย่างถูกต้องสมบูรณ์ ตรวจจับและส่งต่อข้อผิดพลาด (propagate error) จากคำสั่ง `BEGIN`, `COMMIT`, และ `ROLLBACK` หากเกิดความล้มเหลวในระหว่าง batch พร้อม rollback และแจ้งเตือนผู้ใช้อย่างโปร่งใส ไม่กลืน error (Issue #69)
     - รักษาความถูกต้องของชนิดข้อมูล (Data Integrity): คงค่า empty string `""` และเลขศูนย์นำหน้า (Leading Zeroes) เช่น `"01234"` ไม่แปลงเป็นตัวเลขโดยพลการ พร้อมรองรับตัวเลือก `treat_empty_as_null` และการระบุ `target_type` จาก Schema ต้นทาง/ปลายทาง (Issue #67)
-  - **SQL Import / Export (Navicat Standard - เสร็จสมบูรณ์)**:
+  - **SQL Import / Export (เสร็จสมบูรณ์)**:
     - *Export SQL:* สร้างไฟล์ Dump `.sql` เลือกได้ทั้ง Structure Only, Data Only, หรือ Structure & Data พร้อม Multi-row Batch INSERT (500–1,000 แถว) โดยเมื่อไม่ได้ระบุ tableName (เช่น การ Backup ทั้ง Database/Schema) ระบบจะดึงรายชื่อตารางทั้งหมดในฐานข้อมูลมาสร้าง dump ให้โดยอัตโนมัติ ไม่ได้ไฟล์ dump ว่างเปล่า (Issue #74)
     - *Import SQL:* ตัวอ่านและรันคำสั่งสตรีมมิ่ง `BufReader` ใน Rust รัน statement-by-statement รองรับไฟล์ขนาดใหญ่ระดับหลาย GB (เพดาน RAM < 32MB) กรองและตัดทิ้งคำสั่ง `DELIMITER` ของ MySQL อัตโนมัติ ป้องกัน Syntax Error, ป้องกันการ panic จาก byte/char slice เมื่อพบอักขระ Unicode / ภาษาไทยก่อนคอมเมนต์ (Issue #68) และรองรับการสั่งยกเลิก (Cancellation) ผ่าน Cancellation Token ที่ยกเลิกได้จริงทั้งฝั่ง Frontend และ Backend พร้อม Rollback ทันที (Issue #74)
     - *Streaming Data Import & Cancellation:* ตัวอ่านไฟล์ CSV และ JSON (NDJSON / Array) ทำงานแบบ chunked stream ประมวลผลทีละ batch_size ไม่โหลดไฟล์ทั้งหมดเข้า RAM เป็น `Vec` ในครั้งเดียว และปุ่ม Cancel ใน Data Import Wizard จะส่งสัญญาณ cancellation token ไปยัง Rust backend เพื่อหยุดการประมวลผลและ Rollback transaction ทันที (Issue #74)
@@ -541,7 +541,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 
 ## 5. แผนการปรับปรุงและยกระดับ UX/UI (UX/UI Enhancement Roadmap)
 
-จากการประเมินและตรวจสอบคุณภาพ UX/UI ในระดับ Code-level Review เทียบเคียงมาตรฐานโปรแกรมจัดการฐานข้อมูลชั้นนำ (TablePlus, DBeaver, DataGrip) DataCore ได้คะแนนรวม **92 / 120 คะแนน (76.7% — เกรด B)** โดยได้จัดทำแผนงานและเปิด GitHub Issues ครอบคลุมการปรับปรุงทั้งหมด 4 ระยะ ดังนี้:
+จากการประเมินและตรวจสอบคุณภาพ UX/UI ในระดับ Code-level Review อย่างเป็นระบบเพื่อพัฒนาและยกระดับความสะดวกในการใช้งานอย่างต่อเนื่อง DataCore ได้คะแนนรวม **92 / 120 คะแนน (76.7% — เกรด B)** โดยได้จัดทำแผนงานและเปิด GitHub Issues ครอบคลุมการปรับปรุงทั้งหมด 4 ระยะ ดังนี้:
 
 ### 5.1 สรุปตารางคะแนนการประเมิน 12 มิติ
 | # | มิติการประเมิน | คะแนน (เต็ม 10) | สถานะ | GitHub Issue ที่เกี่ยวข้อง |
@@ -946,7 +946,7 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **35.1 Session & Workspace State Persistence [Completed]:** บันทึกและกู้คืน Document Tabs, Active Connection, SQL Drafts, Splitter Ratio และ Data Grid Column Widths อัตโนมัติ โดยใช้ Atomic Write บนไฟล์ `~/.datacore/workspace_state.json` สิทธิ์ 0600 พร้อม Debounced auto-save (500ms) และ Hydration กู้คืนสถานะ tabs, active connection, sidebar width/collapsed
 - **35.2 Data Grid Ergonomics & Foreign Key Popover [Completed]:** รองรับการกด ⌘+Click / Peek เพื่อดูข้อมูลแถวปลายทางของ Foreign Key ทันทีผ่าน `ForeignKeyPeekPopover` พร้อมปุ่ม Jump to Record และ Rich Cell Detail Drawer รองรับ Interactive JSON Tree View, Date & Time Intelligence (Local, UTC, Relative), Image Preview, และ Foreign Key Reference
 - **35.3 Data Grid 'Copy As' Context Menu [Completed]:** เมนูคลิกขวา Context Menu "Copy As >" คัดลอกข้อมูลเป็น SQL INSERT, JSON, Markdown Table, SQL `IN (...)`, และ RFC-4180 CSV พร้อมรองรับ PII Sensitive Data Masking
-- **35.4 Keyboard Shortcut Presets & Command Palette [Completed]:** ระบบ Keymap Presets (`shortcutStore.ts`) รองรับพรีเซ็ต DataCore, TablePlus, DataGrip, VS Code พร้อมตัวเลือกสลับ Preset บน `KeyboardShortcutsModal` และ Jump Search ใน Command Palette (⌘K) รองรับ Prefix Filters (`>` Actions, `@` Tables & Views, `$` Snippets & Templates, `/` Connections) เชื่อมโยงกับ `snippetStore`
+- **35.4 Keyboard Shortcut Presets & Command Palette [Completed]:** ระบบ Keymap Presets (`shortcutStore.ts`) รองรับพรีเซ็ตคีย์ลัดที่หลากหลายตามความคุ้นเคยของผู้ใช้ (DataCore Default, Alternate DB Styles, และ VS Code) พร้อมตัวเลือกสลับ Preset บน `KeyboardShortcutsModal` และ Jump Search ใน Command Palette (⌘K) รองรับ Prefix Filters (`>` Actions, `@` Tables & Views, `$` Snippets & Templates, `/` Connections) เชื่อมโยงกับ `snippetStore`
 
 ### Phase 36: Deep Object Browser & Native Backup/Restore Suite (Issue #153 - P1)
 - **36.1 Deep Object Browser Tree [Completed]:** ขยาย `fetch_schema_tree` ใน Rust drivers (SQLite, PostgreSQL, MySQL) และ IPC command `get_object_ddl` รองรับการสำรวจและจัดกลุ่ม Triggers, Stored Procedures, Functions, Sequences, และ Custom Types/Enums พร้อม Context Menu "View DDL / Source" เปิดไฟล์นิยาม DDL ใน Query Tab ทันที
@@ -1037,6 +1037,53 @@ Tech Stack และฟีเจอร์ — สไตล์ Navicat สำห�
 - **43.2 Object Browser & Table List Context Menus Integration (`src/components/sidebar/ObjectBrowser.tsx`, `src/components/tablelist/TableListTab.tsx`):**
   - นำตำแหน่งคำนวณมาใช้แทนการกำหนดพิกัดเมาส์ตรงๆ
   - กำหนด `max-h-[calc(100vh-16px)] overflow-y-auto` ให้เมนูเลื่อน scroll ได้ ป้องกันเมนูล้นจอในหน้าจอขนาดเล็ก
+
+### Phase 44: สถาปัตยกรรมรองรับข้อมูลขนาดใหญ่ (Large Scale Data Architecture — Issues #163 - #174) [In Progress]
+> อ้างอิงเอกสารสถาปัตยกรรม: `large-data-architecture-and-optimization-guide-v2.1.md` ใน Obsidian Vault
+
+แผนงานยกระดับสถาปัตยกรรมของ DataCore เพื่อรองรับการทำงานกับฐานข้อมูลและตารางขนาดใหญ่ระดับ 10–20 GB+ ได้อย่างมีเสถียรภาพ ประหยัดทรัพยากรหน่วยความจำ ไม่ค้าง และรักษาความถูกต้องของข้อมูล (Data Integrity) ไว้อย่างสมบูรณ์ แบ่งออกเป็น 4 ระยะย่อย:
+
+#### เฟส 1a: ความถูกต้องของข้อมูลและความปลอดภัย (Data Integrity & Security — ทำก่อน)
+- **44.1 Single-Statement Stream Query (`DatabaseConnection` Trait & Export Engine — Issue #163):**
+  - เพิ่มเมธอด `stream_query` ใน `DatabaseConnection` trait พร้อม Default Implementation
+  - Override `stream_query` บน PostgreSQL ด้วย `sqlx::raw_sql(sql).fetch_many` ผ่าน bounded `tokio::sync::mpsc::Sender<Chunk>` เพื่อให้เกิด Backpressure จริง
+  - ปรับ `export_data_impl`, `export_sql_impl` และ `copy_table_cross_db_impl` ให้เลิกใช้ `LIMIT ... OFFSET ...` เพื่อป้องกันปัญหาข้อมูลซ้ำหรือตกหล่น (P1, §4.1)
+- **44.2 ป้องกันข้อมูลสูญหายจาก Silent NULL ในการ Import (Issue #164):**
+  - ปรับปรุง `format_sql_literal_with_options` เลิกแปลงค่า parse error เป็น `"NULL"` เงียบ ๆ
+  - คืนค่า Error ในโหมด Abort หรือบันทึกแถวที่เสียลงไฟล์ `*.rejects.csv` พร้อมรายงานเลขแถวในโหมด Skip (P5, §4.7.3)
+- **44.3 ความปลอดภัยรหัสผ่าน MySQL ในกระบวนการ Native Backup (Issue #165):**
+  - ย้าย `tempfile` เข้าสู่ `[dependencies]` ใน `Cargo.toml`
+  - ส่งรหัสผ่านผ่านไฟล์คอนฟิกชั่วคราว `--defaults-extra-file` สิทธิ์ `0600` เป็นตัวเลือกแรกสุดของคำสั่ง ป้องกันรหัสผ่านรั่วไหลใน `ps aux` (P10, §4.8)
+- **44.4 ปรับปรุง `applySafeLimit` ใน Editor ให้รับรู้ชนิดไดรเวอร์ (Issue #166):**
+  - ส่ง `driver` เข้า `applySafeLimit`: ไม่ต่อ `LIMIT` ดื้อ ๆ บน MSSQL และจัดการไม่ให้ต่อชนกับคอมเมนต์ท้ายบรรทัด `-- ...` (P9, §4.4)
+
+#### เฟส 1b: การควบคุมงานและการป้องกันทรัพยากร (Work Control & Resource Protection)
+- **44.5 Transfer Job Registry & Server-Side Cancel (Issue #167):**
+  - พัฒนา Registry จัดเก็บ Connection Handle ของงาน Transfer เพื่อให้ `cancel_transfer` เรียก `conn.cancel()` ตัดคำสั่งบน Server ได้จริง
+  - ส่ง `AppHandle` เข้า `export_data` เพื่อยิง event `transfer://progress` สดไปยัง UI และลบไฟล์ไม่สมบูรณ์เมื่อถูกยกเลิก (P6, P7, §4.5)
+- **44.6 Backend Row & Byte Hard Cap ใน Query Editor (Issue #168):**
+  - กำหนดเพดานตัดแถวและขนาดไบต์ที่ระดับ Backend Stream ใน `execute_query` พร้อมสั่ง cancel query ทันทีเมื่อชนเพดาน เพื่อป้องกัน RAM ล้น (P2, §4.3)
+- **44.7 ขยาย `stream_query` ให้ครบทุกไดรเวอร์ (Issue #169):**
+  - Override `stream_query` สำหรับ MySQL (`fetch_many`), SQLite (`spawn_blocking`), DuckDB (Native interface) และ MSSQL (`Tiberius::QueryStream`) (§4.1, §5)
+
+#### เฟส 2: ความเร็วและสเกล (High-Throughput & Scaling)
+- **44.8 Import หลายโหมด (Atomic, Chunked, Staging) และ Bisect Skip (Issue #170):**
+  - เพิ่มตัวเลือก Chunked Commit (เช่น ทุก 50,000 แถว) เพื่อป้องกัน WAL/Undo log บวม และระบบ Checkpoint/Resume
+  - ตรวจชนิดข้อมูลฝั่ง Client และใช้อัลกอริทึม Bisect (Binary Search) หาแถวเสียเมื่อ Batch พัง พร้อมจำกัด batch ของ MSSQL ไม่เกิน 1,000 แถว (P3, P4, §4.7)
+- **44.9 PostgreSQL Wire COPY Protocol & Streaming Compression (Issue #171):**
+  - รองรับการ Export/Import ผ่าน `copy_out_raw` / `copy_in_raw` บน PostgreSQL
+  - เพิ่มการบีบอัด stream `.gz` / `.zst` On-the-fly ผ่าน `tokio::task::spawn_blocking` (§4.6, §4.10)
+- **44.10 เสริมความแข็งแกร่ง Native CLI (Issue #172):**
+  - รองรับ Parallel jobs `pg_dump -Fd -j` และปลด `--single-transaction` เมื่อใช้ `-j` ใน `pg_restore`
+  - เพิ่ม `--single-transaction` ให้ `mysqldump` สำหรับตาราง InnoDB และส่งสัญญาณ SIGTERM ก่อน SIGKILL พร้อมลบไฟล์ตกค้าง (P11, P12, §4.8)
+
+#### เฟส 3: ประสบการณ์ใช้งานและการจัดการตารางใหญ่ (UX & Big Data Management)
+- **44.11 Approximate Row Count & Keyset Pagination (Issue #173):**
+  - เลิกสั่ง `SELECT COUNT(*)` สดทุกครั้งที่เปิดตาราง โดยเปลี่ยนไปดึงค่าประมาณจาก System Catalog (`pg_class.reltuples`, `information_schema.tables.table_rows`)
+  - เพิ่มตัวเลือกการแบ่งหน้าแบบ Keyset Pagination (Cursor-based) (§5.7, §8)
+- **44.12 Transfer Monitor Dashboard & Table Partitioning UI (Issue #174):**
+  - พัฒนาหน้าจอแสดงความเร็วการถ่ายโอนแบบ Live (MB/s, ETA)
+  - ขยาย UI สำหรับจัดการ Range Partitioning (สร้าง, Detach, Drop) เพื่อการจัดเก็บข้อมูลย้อนหลัง (Archive) (§5.7)
 
 
 

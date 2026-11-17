@@ -1,12 +1,12 @@
 # DataCore ⚡️
 
-> โปรแกรมจัดการฐานข้อมูลแบบเดสก์ท็อปสำหรับ **macOS Apple Silicon** รองรับ **SQLite**, **PostgreSQL** และ **MySQL** พัฒนาด้วย Tauri 2, Rust และ React
+> โปรแกรมจัดการฐานข้อมูลแบบเดสก์ท็อปสำหรับ **macOS Apple Silicon** รองรับ **SQLite**, **PostgreSQL**, **MySQL** (พร้อมรองรับ **DuckDB** และ **MSSQL**) พัฒนาด้วย Tauri 2, Rust และ React
 
 [![Tauri 2](https://img.shields.io/badge/Tauri-v2-blue?logo=tauri)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-1.85+-orange?logo=rust)](https://www.rust-lang.org/)
 [![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/Tests-Passing%20(907%2F907)-brightgreen)](https://github.com/)
+[![Tests](https://img.shields.io/badge/Tests-Passing%20(1%2C156%2F1%2C156)-brightgreen)](https://github.com/)
 
 ---
 
@@ -194,9 +194,9 @@ make dev-web
 | `make install` | ติดตั้ง Dependencies ของ Frontend ทั้งหมดผ่าน `pnpm` |
 | `make dev` | รันแอปพลิเคชัน Desktop ในโหมด Development (Tauri 2) |
 | `make dev-web` | รันเฉพาะ Vite Web Dev Server สำหรับทดสอบ UI บน Browser |
-| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 87 tests และ Vitest 820 tests รวม **907 tests ผ่าน 100%**) |
-| `make test-backend` | รันเฉพาะ Unit & Integration Tests ฝั่ง Rust Backend |
-| `make test-frontend`| รันเฉพาะ Unit & Component Tests ฝั่ง React Frontend |
+| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 127 tests และ Vitest 1,029 tests รวม **1,156 tests ผ่าน 100%**) |
+| `make test-backend` | รันเฉพาะ Unit & Integration Tests ฝั่ง Rust Backend (127 tests) |
+| `make test-frontend`| รันเฉพาะ Unit & Component Tests ฝั่ง React Frontend (1,029 tests) |
 | `make check` | ตรวจสอบ Compilation (`cargo check`) และ TypeScript Type Checking (`tsc`) ทั้งระบบ |
 | `make lint` | ตรวจสอบ Code Quality และคำเตือนด้วย Cargo Clippy |
 | `make build` | Build เป็น Production Desktop Application สำหรับ macOS (.app / .dmg) |
@@ -207,14 +207,14 @@ make dev-web
 
 ## 🧪 การทดสอบ (Testing)
 
-โปรเจกต์นี้ได้รับการพัฒนาด้วยแนวทาง **Test-Driven Development (TDD)** โดยมีชุดการทดสอบรวม **907 tests (ผ่าน 100%)**:
+โปรเจกต์นี้ได้รับการพัฒนาด้วยแนวทาง **Test-Driven Development (TDD)** โดยมีชุดการทดสอบรวม **1,156 tests (ผ่าน 100%)**:
 
 ```bash
 # รันเทสต์ทั้งหมด
 make test
 ```
 
-* **Rust Backend (87 tests):**
+* **Rust Backend (127 tests):**
   - Data Contract Serialization & Roundtrip
   - Local Encrypted Vault (AES-256-GCM) Persistence, File Permissions (0600) & Argon2id Master Password KEK Derivation
   - Connection Store Atomic Persistence & Isolation
@@ -230,7 +230,7 @@ make test
   - Path Traversal Guard: ป้องกัน Directory Traversal (`../`), System Paths และ Sensitive User Directory Exposure
   - Tamper-Evident Cryptographic Hash Chain Audit Logger (Append-only, SHA-256 Hashing, Rotation & Verification)
   - Mutation Impact Preview Simulation Engine (Guaranteed 100% Rollback)
-* **React Frontend (820 tests):**
+* **React Frontend (1,029 tests):**
   - Zustand Stores (`tabStore`, `connectionStore`, `auditLogStore`, `snippetStore`, `folderStore`, `queryHistoryStore`, `schemaStore`, `pendingChangesStore`)
   - Object Browser Tree Component, Deep Tree Columns Drill-down (Lazy-loading, Types, PK/FK Badges, Drag & Drop), Node Navigation, Context Menu, Connection Color Folders
   - CodeMirror 6 SQL Editor, Dialects, Schema-Aware Autocomplete, Keymap (`⌘+Enter`, `⌘⇧F`), Toolbar Actions
@@ -269,6 +269,11 @@ make test
 - [x] **Phase 31: Comprehensive Data Import/Export Wizard** (Multi-step Column Mapping, CSV/JSON/TSV)
 - [x] **Phase 32: Database User & Privilege Manager** (User Lifecycle, GRANT/REVOKE, Host Scopes)
 - [x] **Phase 33: UX/UI Updates & Modular Refactoring** (Internationalization i18n th/en, Visual Query Builder, Schema Autocomplete, SQL Formatter ⌘⇧F, Multi-Result Tabs, Horizontal Split Layout, Deep Tree Object Browser, Keyboard Splitter Accessibility, Modular TableStructureEditor Architecture)
+- [x] **Phase 34-40: Advanced Data Grid, Keymap Presets & Connection Security** (Keymap presets, PII masking, connection folder safety guards)
+- [x] **Phase 41: Database Session Readiness & Race Condition Elimination** (Issue #160)
+- [x] **Phase 42: Connection State Synchronization & Query Editor Disconnected Guard** (Issue #161)
+- [x] **Phase 43: Context Menu Boundary Clamping & Auto-Flip Positioning** (Issue #162)
+- [ ] **Phase 44: สถาปัตยกรรมรองรับข้อมูลขนาดใหญ่ (Large Scale Data Architecture — Issues #163 - #174):** ปรับปรุงระบบสตรีมมิ่ง Single Statement Stream (`stream_query`), Backend Row & Byte Hard Cap, ป้องกัน Silent NULL Data Loss, ยกระดับ Native Backup CLI ให้ปลอดภัยและรองรับ Parallel, และเพิ่ม Keyset Pagination บน DataGrid
 
 ---
 
