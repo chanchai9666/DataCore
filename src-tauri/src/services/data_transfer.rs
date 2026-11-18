@@ -1023,15 +1023,17 @@ where
 /// Validates a batch of `(row_number, row)` client-side before SQL generation.
 /// - In `Abort` mode, returns `Err` on the first invalid cell with row number and column name.
 /// - In `Skip` mode, logs invalid rows to `rejects` and returns only valid rows.
+type IndexedRow = (usize, Vec<String>);
+
 fn validate_and_filter_chunk(
     target_columns: &[String],
     target_types: &[Option<String>],
-    chunk: &[(usize, Vec<String>)],
+    chunk: &[IndexedRow],
     treat_empty_as_null: bool,
     dialect: &str,
     error_policy: ImportErrorPolicy,
     rejects: &mut RejectsWriter,
-) -> Result<(Vec<(usize, Vec<String>)>, usize), AppError> {
+) -> Result<(Vec<IndexedRow>, usize), AppError> {
     let mut valid = Vec::with_capacity(chunk.len());
     let mut skipped = 0usize;
 
@@ -1626,7 +1628,7 @@ fn stream_parsed_batches(
     options: &ImportOptions,
     batch_size: usize,
     skip_rows: usize,
-    tx: &tokio::sync::mpsc::Sender<Result<Vec<(usize, Vec<String>)>, AppError>>,
+    tx: &tokio::sync::mpsc::Sender<Result<Vec<IndexedRow>, AppError>>,
 ) -> Result<(), AppError> {
     let reader = open_decompressed_reader(&options.file_path)?;
     let mut data_row_index = 0usize;

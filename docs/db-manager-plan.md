@@ -1038,7 +1038,7 @@
   - นำตำแหน่งคำนวณมาใช้แทนการกำหนดพิกัดเมาส์ตรงๆ
   - กำหนด `max-h-[calc(100vh-16px)] overflow-y-auto` ให้เมนูเลื่อน scroll ได้ ป้องกันเมนูล้นจอในหน้าจอขนาดเล็ก
 
-### Phase 44: สถาปัตยกรรมรองรับข้อมูลขนาดใหญ่ (Large Scale Data Architecture — Issues #163 - #174) [In Progress]
+### Phase 44: สถาปัตยกรรมรองรับข้อมูลขนาดใหญ่ (Large Scale Data Architecture — Issues #163 - #174) [Completed]
 > อ้างอิงเอกสารสถาปัตยกรรม: `large-data-architecture-and-optimization-guide-v2.1.md` ใน Obsidian Vault
 
 แผนงานยกระดับสถาปัตยกรรมของ DataCore เพื่อรองรับการทำงานกับฐานข้อมูลและตารางขนาดใหญ่ระดับ 10–20 GB+ ได้อย่างมีเสถียรภาพ ประหยัดทรัพยากรหน่วยความจำ ไม่ค้าง และรักษาความถูกต้องของข้อมูล (Data Integrity) ไว้อย่างสมบูรณ์ แบ่งออกเป็น 4 ระยะย่อย:
@@ -1085,13 +1085,56 @@
   - พัฒนาหน้าจอแสดงความเร็วการถ่ายโอนแบบ Live (MB/s, ETA)
   - ขยาย UI สำหรับจัดการ Range Partitioning (สร้าง, Detach, Drop) เพื่อการจัดเก็บข้อมูลย้อนหลัง (Archive) (§5.7)
 
+### Phase 45: การตรวจสอบและแก้ไขช่องโหว่ ความถูกต้องของโปรแกรม และการจัดการโค้ดที่ไม่ได้ใช้งาน (Security, Correctness & Dead Code Audit Remediation — Issue #175) [Completed]
+
+จากการตรวจสอบซอร์สโค้ดทั้งหมดของโปรเจกต์ทั้งฝั่ง Backend (`src-tauri/src/`) และ Frontend (`src/`) ได้กำหนดขอบเขตและแนวทางการแก้ไขปัญหาทั้ง 3 หมวดหมู่ดังนี้:
+
+#### 45.1 การอุดช่องโหว่ด้านความปลอดภัย (Security Vulnerabilities)
+- **Native Backup & Restore Path Guard & CLI Argument Injection (`transfer_commands.rs`, `native_backup.rs`):**
+  - **ปัญหา:** `start_native_backup` และ `start_native_restore` ไม่ได้ตรวจสอบพาธผ่าน `validate_safe_transfer_path()`, MySQL restore ใช้ `--execute=source <path>` ที่เสี่ยงต่อการแทรกคำสั่ง, ส่งรหัสผ่านผ่าน `--password=...` บน CLI argv, และไม่ได้ตรวจสอบพารามิเตอร์ที่ขึ้นต้นด้วย `-`
+  - **วิธีการแก้ไข:** บังคับใช้ `validate_safe_transfer_path` พร้อม `ALLOWED_BACKUP_EXTS`, สร้างตัวตรวจสอบ `validate_cli_arg_no_leading_dash` สำหรับ `host`, `user`, `database`, `tables`, `schemas`, เปลี่ยนการส่งรหัสผ่าน MySQL ไปใช้ `--defaults-extra-file` สิทธิ์ `0600` หรือ `MYSQL_PWD` (สอดคล้องกับ Issue #165), และกรองอักขระต้องห้าม (`;`, `\n`, `\r`, `\0`) ใน `input_file` ของ MySQL restore
+- **MSSQL SSH Tunnel Bypass, TLS Trust & Zeroization (`drivers/mssql.rs`):**
+  - **ปัญหา:** `MssqlConnection::connect` เพิกเฉยต่อ `config.ssh_tunnel`, เรียก `trust_cert()` ถาวรโดยไม่สนใจ `ssl_mode`, และเก็บ `password: Option<String>` ธรรมดาไว้โดยไม่ได้ใช้งาน
+  - **วิธีการแก้ไข:** เชื่อมต่อผ่าน `SshTunnelHandle::establish` เมื่อ `ssh_tunnel.enabled == true` พร้อมเก็บ handle ใน `MssqlConnection`, ตั้งค่า TLS certificate validation ตาม `ssl_mode` (ไม่เรียก `trust_cert()` เมื่อเป็น `verify-ca`/`verify-full`), และลบฟิลด์ `password` ที่ไม่ได้ใช้ (หรือใช้ `Zeroizing`)
+- **SSH Passphrase Isolation (`ConnectionDialog.tsx`, `connectionStore.ts`, `connection_store.rs`):**
+  - **ปัญหา:** เมื่อไม่เลือก Remember password (`rememberPassword === false`) ค่า `ssh_tunnel.passphrase` ยังติดไปบันทึกใน `vault.enc` บนดิสก์และค้างอยู่ใน Zustand state
+  - **วิธีการแก้ไข:** เพิ่มคำสั่ง IPC เก็บ SSH passphrase ชั่วคราวใน `SessionManager` (RAM) และล้างค่า `passphrase` ออกจาก `config.ssh_tunnel` / `config.sshTunnel` ทั้งก่อนส่งบันทึกและก่อนจัดเก็บใน `useConnectionStore`
+- **File Permissions ของ `connections.json` (`connection_store.rs`):**
+  - **ปัญหา:** `ConnectionStore::persist_connections` ไม่ได้จำกัดสิทธิ์ไดเรกทอรี (`0700`) และไฟล์ (`0600`)
+  - **วิธีการแก้ไข:** เรียกใช้ `set_secure_dir_permissions` (`0700`) และ `set_secure_permissions` (`0600`) ใน `persist_connections`
+- **SQL Injection ใน User Manager & SVG/DDL Injection ใน ER Diagram (`userManagerApi.ts`, `erDiagramApi.ts`):**
+  - **ปัญหา:** `userManagerApi.ts` ไม่ได้ escape `host` และ `\` ในรหัสผ่าน MySQL รวมถึงไม่ได้ตรวจ whitelist ของ `privilege`; `erDiagramApi.ts` ไม่ได้ทำ XML escaping ใน `exportERDiagramAsSvg` และไม่ใช้ `quoteIdentifier` ใน `generateERDiagramSql`
+  - **วิธีการแก้ไข:** ใช้ dialect-aware literal escaping สำหรับ `name`, `host`, `password` พร้อมตรวจสอบ `SUPPORTED_PRIVILEGES` และ quote object name ใน `userManagerApi.ts`; เพิ่มฟังก์ชัน `escapeXml()` สำหรับ SVG และใช้ `quoteIdentifier()` ใน `generateERDiagramSql`
+
+#### 45.2 การแก้ไขความถูกต้องของโปรแกรมและการเชื่อมโยง (Program Correctness & Wiring Bugs)
+- **รวม AuditLogger เป็น Instance เดียวและเลิกบันทึกซ้ำ (`audit_logger.rs`, `lib.rs`, `SqlEditor.tsx`):**
+  - **ปัญหา:** `lib.rs` ลงทะเบียน `AuditLogger::default()` แยกกับ `AuditLogger::global()` ที่ใช้ใน `db.rs` และ `transfer_commands.rs` อีกทั้ง `SqlEditor.tsx` ส่ง `record_audit_log` ซ้ำกับ Backend ทำให้มีบันทึก 2 บรรทัดต่อ 1 Query และ Hash Chain เสียหายเมื่อเขียนสลับ instance
+  - **วิธีการแก้ไข:** ปรับ `AuditLogger::default()` ให้คืนค่า `AuditLogger::global().clone()` เพื่อใช้ `last_hash_cache` และ `write_lock` ร่วมกัน และยกเลิกการส่ง `record_audit_log` ซ้ำจาก `SqlEditor.tsx` สำหรับ Query ที่ Backend บันทึกให้แล้ว
+- **รองรับ Session Password & SSH Passphrase ใน Schema Tree, DDL และ Transfer (`db.rs`, `transfer_commands.rs`):**
+  - **ปัญหา:** `get_schema_tree`, `get_object_ddl` และคำสั่งทั้งหมดใน `transfer_commands.rs` อ่านรหัสผ่านจากดิสก์ (`ConnectionStore`) เท่านั้น และไม่ดึง `ssh.passphrase` ในหลายจุด
+  - **วิธีการแก้ไข:** สร้าง helper กลาง `resolve_connection_credentials` เพื่อดึง `password` และ `ssh.passphrase` จาก `SessionManager` (RAM) ก่อนแล้วจึง fallback ไปยัง `ConnectionStore` และนำไปใช้ครบทุก endpoint
+- **Primary Key Metadata & Multi-Column Row Staging (`sqlite.rs`, `postgres.rs`, `mysql.rs`, `DockLayout.tsx`):**
+  - **ปัญหา:** Drivers ไม่เติม `ColumnMeta.is_primary_key` / `is_auto_increment` ใน `fetch_table_data` และ `DockLayout.tsx` (`handleCommitChanges`) อ้างอิง `originalRow` เดิมตลอดเมื่อแก้ไขหลายคอลัมน์ในแถวเดียวกันในโหมด Manual Commit
+  - **วิธีการแก้ไข:** เติมค่า `is_primary_key` และ `is_auto_increment` จาก Metadata ของ SQLite, PostgreSQL, MySQL (รวมถึง fallback ใน `DockLayout.tsx`) และปรับ `handleCommitChanges` ให้อัปเดต `workingRow` ระหว่างวนลูปสร้างคำสั่ง `UPDATE` ของแถวเดียวกัน
+- **SQLite `.schema` Backup, `read_only` Enforcement & MSSQL `rows_affected` (`native_backup.rs`, `mssql.rs`, `duckdb.rs`):**
+  - **ปัญหา:** SQLite `schema_only` พิมพ์ออก `stdout` ไม่ลงไฟล์ปลายทาง; `MssqlConnection` และ `DuckdbConnection` (in-memory) ไม่บังคับใช้ `read_only`; และ `MssqlConnection::execute_query` คืน `rows_affected = 0` สำหรับ DML
+  - **วิธีการแก้ไข:** เขียนผลลัพธ์ `.schema` ลงไฟล์ `output_file`, บังคับตรวจ `self.read_only` ปฏิเสธคำสั่ง write ใน `execute_query` ของ MSSQL/DuckDB, และใช้ `client.execute(...)` สำหรับคำสั่ง DML/DDL ใน MSSQL เพื่อคืนค่า `rows_affected` ที่ถูกต้อง
+- **Frontend Feature Wiring (`useShortcuts.ts`, `MainToolbar.tsx`, `CommandPaletteModal.tsx`, `db.rs`):**
+  - **วิธีการแก้ไข:** เชื่อม `useShortcuts.ts` เข้ากับ `useShortcutStore` เพื่อใช้ Keymap Presets จริง, เปิดให้กดปุ่ม `Tools` บน `MainToolbar.tsx` เพื่อเข้าถึง `Check for Updates...` และ `Export Diagnostic Bundle...` ได้แม้ยังไม่ต่อฐานข้อมูล, ใช้ `changeLanguage()` จาก `src/i18n.ts` ใน `CommandPaletteModal.tsx` เพื่อบันทึกลง `localStorage`, และเปลี่ยน `disconnect_connection_impl` ให้ล้าง cache ของ `store.vault()` แทน `clear_mock_store()`
+
+#### 45.3 การลบโค้ดและไฟล์ที่ไม่ได้ใช้งาน (Unused / Dead Code Removal)
+- **ไฟล์ Frontend ที่ไม่ได้ถูก import ใน Production:** ลบ `src/components/grid/PaginationBar.tsx` (พร้อมอัปเดต `DataGrid.test.tsx`), `src/components/layout/TitleBar.tsx` (+ test), `src/hooks/useCommandPalette.ts` (+ test), `src/utils/error.ts` (+ test), และ `src/assets/react.svg`
+- **Rust Backend Dead Code:** ลบคำสั่งตัวอย่าง `greet` ใน `lib.rs`, ค่าคงที่/wrapper ที่ไม่ได้ใช้ใน `keychain.rs` (`SERVICE_NAME`, `Vault::vault_dir`, `is_mock_mode`, `unlock_vault`, `lock_vault`, `is_keychain_opt_in`, `set_keychain_opt_in`, `unlock_vault_from_keychain`), `SessionManager::clear_all_session_secrets`, `ConnectionStore::save_ssh_passphrase`, `WorkspaceStore::storage_path`, `SchemaNode::with_metadata`, และ `format_sql_literal` ใน `data_transfer.rs`
+- **Frontend Unused Exports & Types:** ลบ `cancelTransfer` ที่ซ้ำซ้อนและ re-exports ของ `auditApi` ใน `src/api/db.ts`, `redactSensitiveSql` re-export ใน `src/api/auditApi.ts`, `ConnectionEnvironment` และ `formatCellValue` re-export ใน `src/types/db.ts`, `AtRestStatusInfo` ใน `src/api/securityHelpers.ts`, unused schema types ใน `connectionSchema.ts` / `tableSchema.ts`, `isDiffModalOpen`/`setDiffModalOpen` ใน `explainHistoryStore.ts`, และ re-exports ที่ไม่ได้ใช้ใน `tableEditHelpers.ts`
+
 ### Phase 46: ระบบจัดการไฟล์ขยะและตรวจสอบพื้นที่ดิสก์ (Makefile Disk & Junk Management — Issue #176) [Completed]
 
 - **เพิ่มคำสั่งจัดการพื้นที่ดิสก์แบบแบ่งระดับใน `Makefile`:**
   - `make disk-usage`: แสดงสรุปขนาดโฟลเดอร์หลัก (`src-tauri/target`, `node_modules`, `dist`, `.vite`, `.git`), พื้นที่ build ของ `datacore` ที่ลบแบบเร็วได้ (`cargo clean -p datacore --dry-run`), และรายการไฟล์ขยะชั่วคราว (`repomix-output*`, `.superpowers`, `.perch`, `*.log`, `*.tmp`, `*.bak`)
-  - `make clean-junk`: ลบเฉพาะ build artifacts ของ `datacore` (`cargo clean -p datacore`), `libdatacore_lib.{a,dylib}`, `incremental/`, `flycheck*`, และ build cache ซ้ำซ้อนของ `libduckdb-sys-*` (เก็บไว้เฉพาะชุดล่าสุด) รวมถึงไฟล์ขยะ frontend/ระบบ (`dist`, `.vite`, `.superpowers`, `.perch`, `repomix-output*`, `*.log`, `*.tmp`, `*.bak`, `.DS_Store`) โดยคง compiled 3rd-party dependencies ไว้เพื่อไม่ต้องเสียเวลาคอมไพล์ DuckDB ใหม่
+  - `make clean-junk`: ลบเฉพาะ build artifacts ของ `datacore` (`cargo clean -p datacore`), `incremental/`, `flycheck*`, และ build cache ซ้ำซ้อนของ `libduckdb-sys-*` (เก็บไว้เฉพาะชุดล่าสุด) รวมถึงไฟล์ขยะ frontend/ระบบ (`dist`, `.vite`, `.superpowers`, `.perch`, `repomix-output*`, `*.log`, `*.tmp`, `*.bak`, `.DS_Store`) โดยคง compiled 3rd-party dependencies ไว้เพื่อไม่ต้องเสียเวลาคอมไพล์ DuckDB ใหม่
   - `make clean`: ลบ build artifacts ทั้งหมด (`cargo clean`, `src-tauri/target`, `dist`, `.vite`) และไฟล์ขยะชั่วคราวทั้งหมด
   - `make clean-all`: เรียก `make clean` และลบ `node_modules` ทั้งหมด (Deep Clean)
 - **ปรับปรุง `src-tauri/Cargo.toml` และ `.gitignore`:**
   - ลด `crate-type` ของ `datacore_lib` จาก `["staticlib", "cdylib", "rlib"]` เหลือ `["rlib"]` เพื่อไม่ให้สร้างไฟล์ `libdatacore_lib.a` ขนาด ~2.4 GB ที่ไม่จำเป็นต่อ macOS Desktop build
   - เพิ่ม `repomix-output*`, `*.tmp`, `*.bak` ใน `.gitignore`
+

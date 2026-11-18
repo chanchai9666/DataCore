@@ -615,7 +615,7 @@ async fn test_streaming_export_cte_and_ndjson_without_limit_offset() {
         include_headers: false,
         json_structure: Some(crate::models::JsonStructure::Ndjson),
         job_id: None,
-        ..Default::default()
+        use_native_copy: None,
     };
 
     let res = export_data_impl(
@@ -822,12 +822,12 @@ impl DatabaseConnection for MockCancelConn {
         if self.fail_on_batch && sql.contains("bad_row") {
             return Err(crate::error::AppError::Database("UNIQUE constraint failed".to_string()));
         }
-        Ok(QueryResult {
-            columns: vec![ColumnMeta::new("id", "INTEGER", false)],
-            rows: vec![vec![CellValue::Integer(1)]],
-            execution_time_ms: 1,
-            rows_affected: Some(1),
-        })
+        Ok(QueryResult::new(
+            vec![ColumnMeta::new("id", "INTEGER", false)],
+            vec![vec![CellValue::Integer(1)]],
+            1,
+            Some(1),
+        ))
     }
     async fn fetch_table_data(
         &self,
@@ -926,13 +926,15 @@ async fn test_export_data_with_progress_emits_events_and_cleans_up_on_cancel() {
     .expect("export with progress");
     assert_eq!(res.total_rows, 2);
 
-    let captured = events.lock().unwrap();
-    assert!(!captured.is_empty());
-    let last = captured.last().unwrap();
-    assert_eq!(last.status, "done");
-    assert_eq!(last.rows_processed, Some(2));
-    assert!(last.bytes_written.unwrap_or(0) > 0);
-    assert_eq!(last.job_id.as_deref(), Some("exp_prog_job"));
+    {
+        let captured = events.lock().unwrap();
+        assert!(!captured.is_empty());
+        let last = captured.last().unwrap();
+        assert_eq!(last.status, "done");
+        assert_eq!(last.rows_processed, Some(2));
+        assert!(last.bytes_written.unwrap_or(0) > 0);
+        assert_eq!(last.job_id.as_deref(), Some("exp_prog_job"));
+    }
 
     // Now test partial file cleanup on cancellation
     let cancel_path = dir.path().join("cancelled.csv");

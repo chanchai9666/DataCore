@@ -68,10 +68,6 @@ export interface TransferProgress {
   bytes_written?: number;
   elapsed_ms?: number;
   status: string;
-  job_id?: string;
-  rows_processed?: number;
-  bytes_written?: number;
-  elapsed_ms?: number;
 }
 
 export interface TableMetadata {
