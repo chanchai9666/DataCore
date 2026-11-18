@@ -17,15 +17,20 @@ import {
   exportData,
   pickExportFile,
   cancelTransfer,
+  onTransferProgress,
   type ExportCompression,
 } from '../../api/dataTransferApi';
 import { useConnectionStore } from '../../stores/connectionStore';
-import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
+import {
+  useTransferMonitorStore,
+  calculateTransferPercent,
+} from '../../stores/transferMonitorStore';
 import type {
   ExportOptions,
   TransferFormat,
   JsonStructure,
   ExportResult,
+  TransferProgress,
 } from '../../types/dataTransfer';
 
 export interface DataExportWizardModalProps {
@@ -64,6 +69,7 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
   const [destinationPath, setDestinationPath] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isCancelling, setIsCancelling] = useState<boolean>(false);
+  const [progress, setProgress] = useState<TransferProgress | null>(null);
   const [result, setResult] = useState<ExportResult | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
 
@@ -80,6 +86,7 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
       setDestinationPath(null);
       setIsExporting(false);
       setIsCancelling(false);
+      setProgress(null);
       setResult(null);
       activeJobIdRef.current = null;
     }
@@ -100,6 +107,7 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
   };
 
   const handleStartExport = async () => {
+    let unlisten: (() => void) | undefined;
     try {
       const selectedPath =
         compression === 'none'
@@ -113,12 +121,32 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
       setIsExporting(true);
       setIsCancelling(false);
       setResult(null);
+      setProgress({
+        job_id: jobId,
+        current_row: 0,
+        total_rows: totalRows,
+        percent: 0,
+        status: 'exporting',
+      });
       useTransferMonitorStore.getState().startJob({
         jobId,
         label: `Export ${tableName}.${format}`,
         direction: 'export',
         totalRows,
       });
+
+      if (typeof onTransferProgress === 'function') {
+        try {
+          unlisten = await onTransferProgress((p) => {
+            if (!p.job_id || p.job_id === jobId) {
+              setProgress(p);
+            }
+            useTransferMonitorStore.getState().handleProgress(p);
+          });
+        } catch {
+          // Ignore listener registration errors in non-Tauri environments
+        }
+      }
 
       const sqlToRun =
         scope === 'filtered' && initialQuery
@@ -131,6 +159,7 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
         include_headers: includeHeaders,
         json_structure: format === 'json' ? jsonStructure : undefined,
         job_id: jobId,
+        ...(totalRows !== undefined ? { total_rows: totalRows } : {}),
         ...(useNativeCopy ? { use_native_copy: true } : {}),
       };
 
@@ -139,6 +168,13 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
         rowsProcessed: res.total_rows,
         bytesWritten: res.file_size_bytes,
         elapsedMs: res.elapsed_ms,
+      });
+      setProgress({
+        job_id: jobId,
+        current_row: res.total_rows,
+        total_rows: res.total_rows || totalRows,
+        percent: 100,
+        status: 'done',
       });
       setResult(res);
       toast.success(`Export completed: ${res.total_rows} rows saved.`);
@@ -158,11 +194,14 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
         toast.error(`Export failed: ${msg}`);
       }
     } finally {
+      if (unlisten) unlisten();
       setIsExporting(false);
       setIsCancelling(false);
       activeJobIdRef.current = null;
     }
   };
+
+  const progressPct = calculateTransferPercent(progress, totalRows);
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleCancelOrClose()}>
@@ -458,15 +497,38 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
                 <h3 className="text-sm font-semibold text-text">Step 3: Destination & Export</h3>
 
                 {isExporting ? (
-                  <div className="space-y-3 py-6">
+                  <div className="space-y-4 py-6 max-w-sm mx-auto">
                     <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto" />
                     <div>
                       <h4 className="text-sm font-semibold text-text">
-                        {isCancelling ? 'Cancelling Export...' : 'Exporting Data...'}
+                        {isCancelling ? 'Cancelling Export...' : `Exporting Data (${progressPct}%)...`}
                       </h4>
                       <p className="text-xs text-muted mt-1">
-                        {isCancelling ? 'Stopping export stream...' : 'Streaming table rows to file...'}
+                        {isCancelling
+                          ? 'Stopping export stream...'
+                          : `${(progress?.current_row ?? 0).toLocaleString()}${
+                              progress?.total_rows ?? totalRows
+                                ? ` / ${(progress?.total_rows ?? totalRows)!.toLocaleString()} rows`
+                                : ' rows'
+                            }`}
                       </p>
+                    </div>
+                    <div className="space-y-1.5 text-left">
+                      <div className="flex justify-between text-[11px] font-mono text-muted">
+                        <span>{progress?.status || 'Streaming...'}</span>
+                        <span
+                          data-testid="wizard-export-percent"
+                          className="font-semibold text-blue-400"
+                        >
+                          {progressPct}%
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                        <div
+                          className="bg-blue-500 h-full transition-all duration-150"
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : result ? (

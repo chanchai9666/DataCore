@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   useTransferMonitorStore,
   calculateTransferMetrics,
+  calculateTransferPercent,
+  estimateNativeProgressPercent,
   formatBytes,
   formatEta,
 } from './transferMonitorStore';
@@ -143,11 +145,47 @@ describe('useTransferMonitorStore', () => {
     store.failJob('j2', 'Disk full');
 
     expect(useTransferMonitorStore.getState().jobs['j1'].status).toBe('completed');
+    expect(useTransferMonitorStore.getState().jobs['j1'].percent).toBe(100);
     expect(useTransferMonitorStore.getState().jobs['j1'].etaSeconds).toBe(0);
     expect(useTransferMonitorStore.getState().jobs['j2'].status).toBe('error');
     expect(useTransferMonitorStore.getState().jobs['j2'].errorMessage).toBe('Disk full');
 
     store.clearCompleted();
     expect(Object.keys(useTransferMonitorStore.getState().jobs)).toHaveLength(0);
+  });
+
+  it('calculates explicit and fallback percentage via calculateTransferPercent and store state', () => {
+    expect(calculateTransferPercent(null)).toBe(0);
+    expect(
+      calculateTransferPercent({ current_row: 30, total_rows: 100, percent: 42.6 })
+    ).toBe(43);
+    expect(
+      calculateTransferPercent({ current_row: 50, rows_processed: 50, total_rows: 200 })
+    ).toBe(25);
+    expect(calculateTransferPercent({ current_row: 20 }, 80)).toBe(25);
+    expect(calculateTransferPercent({ current_row: 150, percent: 120 })).toBe(100);
+
+    const store = useTransferMonitorStore.getState();
+    store.startJob({ jobId: 'pct-job', label: 'Export users.sql', direction: 'export' });
+    expect(useTransferMonitorStore.getState().jobs['pct-job'].percent).toBeNull();
+
+    store.handleProgress({
+      job_id: 'pct-job',
+      current_row: 400,
+      total_rows: 1000,
+      percent: 40,
+      status: 'Exporting...',
+    });
+    expect(useTransferMonitorStore.getState().jobs['pct-job'].percent).toBe(40);
+  });
+
+  it('estimates monotonic progress from native CLI output and honors explicit XX%', () => {
+    expect(estimateNativeProgressPercent(5, 'pg_dump: dumping contents of table users', 1)).toBe(5);
+    const stage10 = estimateNativeProgressPercent(5, 'pg_dump: saving table orders', 10);
+    expect(stage10).toBeGreaterThan(20);
+    expect(stage10).toBeLessThanOrEqual(95);
+    expect(estimateNativeProgressPercent(stage10, 'pg_restore: finished (68% done)', 11)).toBe(68);
+    // Monotonic guard should never go backwards
+    expect(estimateNativeProgressPercent(68, 'pg_restore: step log', 12)).toBe(68);
   });
 });

@@ -173,7 +173,11 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
   const hasCompleted = jobList.some((j) => j.status !== 'running');
 
   const progressPct =
-    activeJob && activeJob.totalRows && activeJob.totalRows > 0
+    activeJob?.status === 'completed'
+      ? 100
+      : activeJob?.percent !== null && activeJob?.percent !== undefined
+      ? Math.min(100, Math.max(0, Math.round(activeJob.percent)))
+      : activeJob && activeJob.totalRows && activeJob.totalRows > 0
       ? Math.min(100, Math.round((activeJob.rowsProcessed / activeJob.totalRows) * 100))
       : null;
 

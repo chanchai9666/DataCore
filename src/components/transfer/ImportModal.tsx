@@ -9,7 +9,10 @@ import {
   onTransferProgress,
   cancelTransfer,
 } from '../../api/dataTransferApi';
-import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
+import {
+  useTransferMonitorStore,
+  calculateTransferPercent,
+} from '../../stores/transferMonitorStore';
 import type {
   ColumnMapping,
   ImportErrorPolicy,
@@ -172,14 +175,25 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         direction: 'import',
       });
       setProgress({
+        job_id: jobId,
         current_row: 0,
         total_rows: undefined,
+        percent: 0,
         status: 'importing',
       });
 
-      unlisten = await onTransferProgress((p) => {
-        setProgress(p);
-      });
+      if (typeof onTransferProgress === 'function') {
+        try {
+          unlisten = await onTransferProgress((p) => {
+            if (!p.job_id || p.job_id === jobId) {
+              setProgress(p);
+            }
+            useTransferMonitorStore.getState().handleProgress(p);
+          });
+        } catch {
+          // Ignore listener registration errors in non-Tauri environments
+        }
+      }
 
       const options: ImportOptions = {
         file_path: filePath,
@@ -232,6 +246,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       if (unlisten) unlisten();
     }
   };
+
+  const progressPct = calculateTransferPercent(progress);
 
   return (
     <Dialog.Root
@@ -528,20 +544,23 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span>Importing rows...</span>
                   </span>
-                  <span className="text-gray-400 font-mono">
-                    {progress?.current_row?.toLocaleString() || 0}{' '}
-                    {progress?.total_rows ? `/ ${progress.total_rows.toLocaleString()} rows` : 'rows processed'}
-                  </span>
+                  <div className="flex items-center gap-2 font-mono">
+                    <span className="text-gray-400">
+                      {progress?.current_row?.toLocaleString() || 0}{' '}
+                      {progress?.total_rows ? `/ ${progress.total_rows.toLocaleString()} rows` : 'rows processed'}
+                    </span>
+                    <span
+                      data-testid="import-modal-percent"
+                      className="font-semibold text-emerald-400"
+                    >
+                      {progressPct}%
+                    </span>
+                  </div>
                 </div>
                 <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
                   <div
                     className="bg-emerald-500 h-full transition-all duration-200"
-                    style={{
-                      width:
-                        progress?.total_rows && progress.total_rows > 0
-                          ? `${Math.min(100, Math.round((progress.current_row / progress.total_rows) * 100))}%`
-                          : '100%',
-                    }}
+                    style={{ width: `${progressPct}%` }}
                   />
                 </div>
               </div>
@@ -567,7 +586,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
               {isImporting ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Importing...</span>
+                  <span>Importing ({progressPct}%)...</span>
                 </>
               ) : (
                 <>

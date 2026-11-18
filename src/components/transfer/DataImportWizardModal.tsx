@@ -23,7 +23,10 @@ import { dbApi } from '../../api/db';
 import { formatCellValue } from '../../utils/cellFormatter';
 import { formatSqlLiteral } from '../../api/queryBuilder';
 import { useConnectionStore } from '../../stores/connectionStore';
-import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
+import {
+  useTransferMonitorStore,
+  calculateTransferPercent,
+} from '../../stores/transferMonitorStore';
 import type {
   ColumnMapping,
   ImportErrorPolicy,
@@ -285,7 +288,12 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
     setIsCancelling(false);
     setCurrentStep(5);
     setIsImporting(true);
-    setProgress(null);
+    setProgress({
+      job_id: jobId,
+      current_row: 0,
+      percent: 0,
+      status: 'Starting import...',
+    });
     setResult(null);
 
     const column_mappings: ColumnMapping[] = Object.entries(mappings)
@@ -320,14 +328,30 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
         label: `Import into ${targetTable}`,
         direction: 'import',
       });
-      unlisten = await onTransferProgress((p) => {
-        setProgress(p);
-      });
+      if (typeof onTransferProgress === 'function') {
+        try {
+          unlisten = await onTransferProgress((p) => {
+            if (!p.job_id || p.job_id === jobId) {
+              setProgress(p);
+            }
+            useTransferMonitorStore.getState().handleProgress(p);
+          });
+        } catch {
+          // Ignore listener registration errors in non-Tauri environments
+        }
+      }
 
       const res = await importData(connectionId, targetTable, options);
       useTransferMonitorStore.getState().completeJob(jobId, {
         rowsProcessed: res.imported_rows,
         elapsedMs: res.elapsed_ms,
+      });
+      setProgress({
+        job_id: jobId,
+        current_row: res.imported_rows,
+        total_rows: res.total_rows || undefined,
+        percent: 100,
+        status: 'done',
       });
       setResult(res);
       toast.success(`Import completed: ${res.imported_rows} rows imported.`);
@@ -349,6 +373,8 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
       if (unlisten) unlisten();
     }
   };
+
+  const progressPct = calculateTransferPercent(progress);
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleCancelOrClose()}>
@@ -806,21 +832,40 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
             {currentStep === 5 && (
               <div className="space-y-6 max-w-md mx-auto text-center py-6">
                 {isImporting ? (
-                  <>
+                  <div className="space-y-4 max-w-sm mx-auto">
                     <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto" />
                     <div>
                       <h4 className="text-sm font-semibold text-text">
-                        {isCancelling ? 'Cancelling Import...' : 'Importing Data...'}
+                        {isCancelling ? 'Cancelling Import...' : `Importing Data (${progressPct}%)...`}
                       </h4>
                       <p className="text-xs text-muted mt-1">
                         {isCancelling
                           ? 'Aborting batches and rolling back transaction...'
                           : progress
-                          ? `${progress.status} (Row ${progress.current_row})`
+                          ? `${progress.status} (${(progress.current_row ?? 0).toLocaleString()}${
+                              progress.total_rows ? ` / ${progress.total_rows.toLocaleString()}` : ''
+                            } rows)`
                           : 'Streaming rows into database...'}
                       </p>
                     </div>
-                  </>
+                    <div className="space-y-1.5 text-left">
+                      <div className="flex justify-between text-[11px] font-mono text-muted">
+                        <span>{progress?.status || 'Importing...'}</span>
+                        <span
+                          data-testid="wizard-import-percent"
+                          className="font-semibold text-emerald-400"
+                        >
+                          {progressPct}%
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                        <div
+                          className="bg-emerald-500 h-full transition-all duration-150"
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 ) : result ? (
                   <>
                     <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />

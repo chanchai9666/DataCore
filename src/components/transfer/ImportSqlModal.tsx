@@ -5,6 +5,10 @@ import { useTranslation } from 'react-i18next';
 import { dbApi } from '../../api/db';
 import { pickSqlImportFile, onTransferProgress, cancelTransfer } from '../../api/dataTransferApi';
 import { useConnectionStore } from '../../stores/connectionStore';
+import {
+  useTransferMonitorStore,
+  calculateTransferPercent,
+} from '../../stores/transferMonitorStore';
 import { DbBadge } from '../sidebar/DbBadge';
 import type { SqlImportResult, TransferProgress } from '../../types/dataTransfer';
 import type { DatabaseDriver } from '../../types/db';
@@ -80,12 +84,21 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    if (isOpen && loading) {
-      onTransferProgress((p) => {
-        setProgress(p);
-      }).then((unsub) => {
-        unlisten = unsub;
-      });
+    if (isOpen && loading && typeof onTransferProgress === 'function') {
+      Promise.resolve(
+        onTransferProgress((p) => {
+          if (!activeJobIdRef.current || !p.job_id || p.job_id === activeJobIdRef.current) {
+            setProgress(p);
+          }
+          useTransferMonitorStore.getState().handleProgress(p);
+        })
+      )
+        .then((unsub) => {
+          if (typeof unsub === 'function') unlisten = unsub;
+        })
+        .catch(() => {
+          // Ignore listener registration errors in non-Tauri environments
+        });
     }
     return () => {
       if (unlisten) unlisten();
@@ -97,10 +110,15 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
   const handleCancelOrClose = async () => {
     if (loading && activeJobIdRef.current) {
       try {
-        await cancelTransfer(activeJobIdRef.current);
+        await useTransferMonitorStore.getState().cancelJob(activeJobIdRef.current);
         toast.info(t('transfer.importCancelled', 'SQL import cancelled by user'));
       } catch (err) {
         console.error('Failed to cancel SQL import:', err);
+        try {
+          await cancelTransfer(activeJobIdRef.current);
+        } catch {
+          // ignore fallback cancel error
+        }
       }
       return;
     }
@@ -130,6 +148,19 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
     activeJobIdRef.current = jobId;
     setLoading(true);
     setError(null);
+    setProgress({
+      job_id: jobId,
+      current_row: 0,
+      percent: 0,
+      status: t('transfer.executingStatements', 'Executing statements...'),
+    });
+
+    const fileName = filePath.trim().split(/[\\/]/).pop() || 'script.sql';
+    useTransferMonitorStore.getState().startJob({
+      jobId,
+      label: `Import SQL ${fileName}`,
+      direction: 'import',
+    });
 
     try {
       const result = await dbApi.importSql({
@@ -138,6 +169,17 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
         filePath: filePath.trim(),
         errorPolicy,
         jobId,
+      });
+
+      useTransferMonitorStore.getState().completeJob(jobId, {
+        rowsProcessed: result.successfulStatements,
+      });
+      setProgress({
+        job_id: jobId,
+        current_row: result.successfulStatements,
+        total_rows: result.totalStatements || undefined,
+        percent: 100,
+        status: 'done',
       });
 
       toast.success(
@@ -157,6 +199,7 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
       if (msg.toLowerCase().includes('cancelled')) {
         toast.info(t('transfer.importCancelled', 'SQL import cancelled by user'));
       } else {
+        useTransferMonitorStore.getState().failJob(jobId, msg);
         setError(msg);
         toast.error(t('transfer.importFailedMsg', { error: msg, defaultValue: `SQL Import failed: ${msg}` }));
       }
@@ -165,6 +208,8 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
       activeJobIdRef.current = null;
     }
   };
+
+  const progressPct = calculateTransferPercent(progress);
 
   return (
     <div
@@ -338,21 +383,27 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
           {loading && (
             <div className="p-3 bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded space-y-2">
               <div className="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
-                <span>{progress?.status || t('transfer.executingStatements', 'Executing statements...')}</span>
-                {progress?.total_rows && (
-                  <span className="font-mono text-[11px] text-gray-500 dark:text-gray-400">
-                    {progress.current_row} / {progress.total_rows}
+                <span className="truncate pr-2">
+                  {progress?.status || t('transfer.executingStatements', 'Executing statements...')}
+                </span>
+                <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                  {progress?.total_rows !== undefined && progress.total_rows > 0 && (
+                    <span className="text-gray-500 dark:text-gray-400">
+                      {progress.current_row} / {progress.total_rows}
+                    </span>
+                  )}
+                  <span
+                    data-testid="import-sql-percent"
+                    className="font-semibold text-emerald-600 dark:text-emerald-400"
+                  >
+                    {progressPct}%
                   </span>
-                )}
+                </div>
               </div>
               <div className="w-full bg-gray-200 dark:bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-emerald-500 h-full transition-all duration-150"
-                  style={{
-                    width: progress?.total_rows
-                      ? `${Math.min(100, Math.round((progress.current_row / progress.total_rows) * 100))}%`
-                      : '50%',
-                  }}
+                  style={{ width: `${progressPct}%` }}
                 />
               </div>
             </div>

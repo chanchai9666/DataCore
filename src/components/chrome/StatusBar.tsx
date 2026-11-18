@@ -89,6 +89,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ className = '' }) => {
           >
             <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
             <span>
+              {runningTransfer.percent !== null ? `${runningTransfer.percent}% · ` : ''}
               {runningTransfer.rowsProcessed.toLocaleString()} rows ·{' '}
               {runningTransfer.mbPerSec.toFixed(1)} MB/s · ETA{' '}
               {formatEta(runningTransfer.etaSeconds)}

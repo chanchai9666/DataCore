@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DataExportWizardModal } from './DataExportWizardModal';
 import * as dataTransferApi from '../../api/dataTransferApi';
@@ -9,6 +9,8 @@ vi.mock('../../api/dataTransferApi', async () => {
     ...actual,
     pickExportFile: vi.fn(),
     exportData: vi.fn(),
+    onTransferProgress: vi.fn().mockResolvedValue(vi.fn()),
+    cancelTransfer: vi.fn().mockResolvedValue(true),
   };
 });
 
@@ -56,6 +58,58 @@ describe('DataExportWizardModal', () => {
     await waitFor(() => {
       expect(screen.getByText(/export completed successfully/i)).toBeInTheDocument();
       expect(screen.getByText(/50 rows exported/i)).toBeInTheDocument();
+    });
+  });
+
+  it('displays live percentage indicator in Step 3 while exporting', async () => {
+    let progressCb: ((p: any) => void) | null = null;
+    vi.mocked(dataTransferApi.onTransferProgress).mockImplementationOnce(async (cb) => {
+      progressCb = cb;
+      return () => {};
+    });
+
+    let resolveExport!: (val: any) => void;
+    vi.mocked(dataTransferApi.exportData).mockReturnValueOnce(
+      new Promise((res) => {
+        resolveExport = res;
+      })
+    );
+
+    render(
+      <DataExportWizardModal
+        isOpen={true}
+        onClose={vi.fn()}
+        connectionId="conn_1"
+        tableName="users"
+        totalRows={100}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    fireEvent.click(screen.getByRole('button', { name: /start export/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('wizard-export-percent')).toBeInTheDocument();
+    });
+
+    const jobId = vi.mocked(dataTransferApi.exportData).mock.calls[0][3].job_id;
+    act(() => {
+      progressCb?.({
+        job_id: jobId,
+        current_row: 50,
+        total_rows: 100,
+        percent: 50,
+        status: 'exporting',
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('wizard-export-percent')).toHaveTextContent('50%');
+    });
+
+    await act(async () => {
+      resolveExport({ total_rows: 100, file_size_bytes: 2048, elapsed_ms: 15 });
     });
   });
 });

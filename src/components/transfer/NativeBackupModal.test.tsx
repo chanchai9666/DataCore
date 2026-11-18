@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { NativeBackupModal } from './NativeBackupModal';
 import { dbApi } from '../../api/db';
 import * as tauriDialog from '@tauri-apps/plugin-dialog';
@@ -157,5 +157,62 @@ describe('NativeBackupModal', () => {
 
     // Finish process
     resolveBackup(0);
+  });
+
+  it('displays native backup percentage bar advancing on log events and reaching 100%', async () => {
+    vi.mocked(dbApi.checkNativeCliAvailability).mockResolvedValueOnce({
+      cli_name: 'pg_dump',
+      available: true,
+      path: '/usr/bin/pg_dump',
+    });
+
+    let eventCb: ((evt: any) => void) | null = null;
+    vi.mocked(tauriEvent.listen).mockImplementationOnce(async (_name, cb: any) => {
+      eventCb = cb;
+      return () => {};
+    });
+
+    let resolveBackup!: (code: number) => void;
+    vi.mocked(dbApi.startNativeBackup).mockImplementationOnce(
+      () => new Promise((resolve) => { resolveBackup = resolve; })
+    );
+
+    render(
+      <NativeBackupModal
+        isOpen={true}
+        connectionId="conn-pg-1"
+        onClose={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Start Backup')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Start Backup'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('native-backup-progress')).toBeInTheDocument();
+      expect(dbApi.startNativeBackup).toHaveBeenCalled();
+    });
+
+    const taskId = vi.mocked(dbApi.startNativeBackup).mock.calls[0][0];
+    act(() => {
+      eventCb?.({
+        payload: { task_id: taskId, line: 'pg_dump: saving contents (45%)', is_stderr: true },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('native-backup-percent')).toHaveTextContent('45%');
+    });
+
+    await act(async () => {
+      resolveBackup(0);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('native-backup-percent')).toHaveTextContent('100%');
+    });
   });
 });

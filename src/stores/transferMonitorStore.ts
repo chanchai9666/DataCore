@@ -19,6 +19,7 @@ export interface TransferJobState {
   statusText: string;
   rowsProcessed: number;
   totalRows?: number;
+  percent: number | null;
   bytesWritten: number;
   startedAt: number;
   elapsedMs: number;
@@ -69,6 +70,47 @@ export function calculateTransferMetrics({
   }
 
   return { rowsPerSec, mbPerSec, etaSeconds };
+}
+
+/**
+ * Computes a clamped 0..100 integer percentage from a TransferProgress event,
+ * falling back to `rows / totalRows` when explicit `percent` is absent.
+ */
+export function calculateTransferPercent(
+  progress?: Pick<TransferProgress, 'percent' | 'current_row' | 'rows_processed' | 'total_rows'> | null,
+  fallbackTotalRows?: number
+): number {
+  if (!progress) return 0;
+  if (typeof progress.percent === 'number' && Number.isFinite(progress.percent)) {
+    return Math.min(100, Math.max(0, Math.round(progress.percent)));
+  }
+  const total = progress.total_rows ?? fallbackTotalRows;
+  if (total && total > 0) {
+    const current = progress.rows_processed ?? progress.current_row ?? 0;
+    return Math.min(100, Math.max(0, Math.round((current / total) * 100)));
+  }
+  return 0;
+}
+
+/**
+ * Estimates a monotonic 0..95% progress value from native CLI stdout/stderr lines
+ * (honoring explicit `XX%` output if emitted by pg_dump/pg_restore/mysqldump, or
+ * progressing smoothly across emitted log lines while still running).
+ */
+export function estimateNativeProgressPercent(
+  prevPercent: number,
+  line: string,
+  lineCount: number
+): number {
+  const match = line.match(/(?:^|[^\d])(\d{1,3}(?:\.\d+)?)\s*%/);
+  if (match) {
+    const parsed = Number(match[1]);
+    if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 100) {
+      return Math.min(99, Math.max(prevPercent, Math.round(parsed)));
+    }
+  }
+  const asymptotic = Math.round(95 * (1 - Math.exp(-Math.max(1, lineCount) / 18)));
+  return Math.min(95, Math.max(prevPercent, asymptotic));
 }
 
 export function formatBytes(bytes: number): string {
@@ -128,6 +170,7 @@ export const useTransferMonitorStore = create<TransferMonitorState>((set, get) =
       statusText: 'Starting...',
       rowsProcessed: 0,
       totalRows,
+      percent: null,
       bytesWritten: 0,
       startedAt: now,
       elapsedMs: 0,
@@ -158,6 +201,12 @@ export const useTransferMonitorStore = create<TransferMonitorState>((set, get) =
       const rowsProcessed = progress.rows_processed ?? progress.current_row ?? existing?.rowsProcessed ?? 0;
       const totalRows = progress.total_rows ?? existing?.totalRows;
       const bytesWritten = progress.bytes_written ?? existing?.bytesWritten ?? 0;
+      const percent =
+        typeof progress.percent === 'number' && Number.isFinite(progress.percent)
+          ? Math.min(100, Math.max(0, Math.round(progress.percent)))
+          : totalRows && totalRows > 0
+          ? Math.min(99, Math.max(0, Math.round((rowsProcessed / totalRows) * 100)))
+          : existing?.percent ?? null;
 
       const metrics = calculateTransferMetrics({
         rowsProcessed,
@@ -180,6 +229,7 @@ export const useTransferMonitorStore = create<TransferMonitorState>((set, get) =
         statusText: progress.status || existing?.statusText || 'Running...',
         rowsProcessed,
         totalRows,
+        percent,
         bytesWritten,
         startedAt,
         elapsedMs,
@@ -223,6 +273,7 @@ export const useTransferMonitorStore = create<TransferMonitorState>((set, get) =
             statusText: 'Completed',
             rowsProcessed,
             totalRows: existing.totalRows ?? rowsProcessed,
+            percent: 100,
             bytesWritten,
             elapsedMs,
             rowsPerSec: metrics.rowsPerSec,

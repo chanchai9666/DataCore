@@ -21,6 +21,7 @@ export interface ExportOptions {
   job_id?: string;
   jobId?: string;
   use_native_copy?: boolean;
+  total_rows?: number;
 }
 
 export interface ExportResult {
@@ -67,6 +68,7 @@ export interface TransferProgress {
   total_rows?: number;
   bytes_written?: number;
   elapsed_ms?: number;
+  percent?: number;
   status: string;
 }
 

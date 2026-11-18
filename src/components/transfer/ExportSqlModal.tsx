@@ -3,10 +3,18 @@ import { Download, X, Loader2, FileCode, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { dbApi } from '../../api/db';
-import { pickSqlExportFile, cancelTransfer } from '../../api/dataTransferApi';
+import {
+  pickSqlExportFile,
+  cancelTransfer,
+  onTransferProgress,
+} from '../../api/dataTransferApi';
 import { useConnectionStore } from '../../stores/connectionStore';
+import {
+  useTransferMonitorStore,
+  calculateTransferPercent,
+} from '../../stores/transferMonitorStore';
 import { DbBadge } from '../sidebar/DbBadge';
-import type { SqlExportResult } from '../../types/dataTransfer';
+import type { SqlExportResult, TransferProgress } from '../../types/dataTransfer';
 import type { DatabaseDriver } from '../../types/db';
 
 export interface ExportSqlModalProps {
@@ -35,6 +43,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
   const [mode, setMode] = useState<SqlDumpMode>('both');
   const [includeDropTable, setIncludeDropTable] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
+  const [progress, setProgress] = useState<TransferProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
 
@@ -61,9 +70,34 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
       setMode('both');
       setIncludeDropTable(true);
       setLoading(false);
+      setProgress(null);
       setError(null);
+      activeJobIdRef.current = null;
     }
   }, [isOpen, connectionId, schemaName, connections, fallbackDriver]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    if (isOpen && loading && typeof onTransferProgress === 'function') {
+      Promise.resolve(
+        onTransferProgress((p) => {
+          if (!activeJobIdRef.current || !p.job_id || p.job_id === activeJobIdRef.current) {
+            setProgress(p);
+          }
+          useTransferMonitorStore.getState().handleProgress(p);
+        })
+      )
+        .then((unsub) => {
+          if (typeof unsub === 'function') unlisten = unsub;
+        })
+        .catch(() => {
+          // Ignore listener registration errors in non-Tauri environments
+        });
+    }
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [isOpen, loading]);
 
   if (!isOpen) return null;
 
@@ -85,17 +119,24 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
   const handleCancelExport = async () => {
     if (loading && activeJobIdRef.current) {
       try {
-        await cancelTransfer(activeJobIdRef.current);
+        await useTransferMonitorStore.getState().cancelJob(activeJobIdRef.current);
         toast.info(t('transfer.exportCancelled', 'Export cancelled'));
       } catch (err) {
         console.error('Failed to cancel export:', err);
+        try {
+          await cancelTransfer(activeJobIdRef.current);
+        } catch {
+          // ignore fallback cancel error
+        }
       }
+      return;
     }
     onClose();
   };
 
   const handleExport = async () => {
     setError(null);
+    let currentJobId: string | null = null;
     try {
       const filePath = await pickSqlExportFile(`${targetName}.sql`);
       if (!filePath) {
@@ -103,10 +144,18 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
       }
 
       const jobId = `export-sql-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      currentJobId = jobId;
       activeJobIdRef.current = jobId;
       setLoading(true);
+      setProgress({
+        job_id: jobId,
+        current_row: 0,
+        percent: 0,
+        status: t('transfer.preparingExport', 'Preparing SQL dump...'),
+      });
 
       let tables = tableName ? [tableName] : [];
+      let estimatedTotalRows: number | undefined;
       if (tables.length === 0) {
         try {
           const allMeta = await dbApi.getTableListMetadata(
@@ -114,10 +163,19 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
             effectiveSchema
           );
           tables = allMeta.map((t) => t.name);
+          const sum = allMeta.reduce((acc, item) => acc + (item.approxRowCount ?? 0), 0);
+          if (sum > 0) estimatedTotalRows = sum;
         } catch {
           // Fallback handled automatically by backend if tables array is empty
         }
       }
+
+      useTransferMonitorStore.getState().startJob({
+        jobId,
+        label: `Export SQL ${targetName}.sql`,
+        direction: 'export',
+        totalRows: estimatedTotalRows,
+      });
 
       const result = await dbApi.exportSql({
         connectionId: selectedConnectionId,
@@ -129,6 +187,18 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
         includeData: mode === 'both' || mode === 'data',
         batchSize: 500,
         jobId,
+      });
+
+      useTransferMonitorStore.getState().completeJob(jobId, {
+        rowsProcessed: result.totalRows,
+        bytesWritten: result.fileSizeBytes,
+      });
+      setProgress({
+        job_id: jobId,
+        current_row: result.totalRows,
+        total_rows: result.totalRows || undefined,
+        percent: 100,
+        status: 'done',
       });
 
       const sizeKb = (result.fileSizeBytes / 1024).toFixed(1);
@@ -147,12 +217,22 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-      toast.error(t('transfer.exportFailedMsg', { error: msg, defaultValue: `Export failed: ${msg}` }));
+      if (msg.toLowerCase().includes('cancel')) {
+        toast.info(t('transfer.exportCancelled', 'Export cancelled'));
+      } else {
+        if (currentJobId) {
+          useTransferMonitorStore.getState().failJob(currentJobId, msg);
+        }
+        setError(msg);
+        toast.error(t('transfer.exportFailedMsg', { error: msg, defaultValue: `Export failed: ${msg}` }));
+      }
     } finally {
       setLoading(false);
+      activeJobIdRef.current = null;
     }
   };
+
+  const progressPct = calculateTransferPercent(progress);
 
   return (
     <div
@@ -340,6 +420,38 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
             </label>
           </div>
 
+          {loading && (
+            <div
+              data-testid="export-sql-progress"
+              className="p-3 bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded space-y-2"
+            >
+              <div className="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
+                <span className="truncate pr-2">
+                  {progress?.status || t('transfer.exporting', 'Exporting SQL dump...')}
+                </span>
+                <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                  {progress?.total_rows !== undefined && progress.total_rows > 0 && (
+                    <span className="text-gray-500 dark:text-gray-400">
+                      {progress.current_row.toLocaleString()} / {progress.total_rows.toLocaleString()}
+                    </span>
+                  )}
+                  <span
+                    data-testid="export-sql-percent"
+                    className="font-semibold text-blue-600 dark:text-blue-400"
+                  >
+                    {progressPct}%
+                  </span>
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-blue-500 h-full transition-all duration-150"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Footer Actions */}
           <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-200 dark:border-[#2d2d2d]">
             <button
@@ -356,7 +468,14 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
               className="inline-flex items-center space-x-1.5 px-4 py-1.5 text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-50 transition-colors shadow-sm"
             >
               {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <span>{t('transfer.chooseFileAndExport', 'Choose File & Export...')}</span>
+              <span>
+                {loading
+                  ? t('transfer.exportingWithPercent', {
+                      percent: progressPct,
+                      defaultValue: `Exporting (${progressPct}%)...`,
+                    })
+                  : t('transfer.chooseFileAndExport', 'Choose File & Export...')}
+              </span>
             </button>
           </div>
         </div>

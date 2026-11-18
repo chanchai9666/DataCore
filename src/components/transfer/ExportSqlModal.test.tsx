@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { ExportSqlModal } from './ExportSqlModal';
 import { dbApi } from '../../api/db';
 import * as dataTransferApi from '../../api/dataTransferApi';
@@ -13,12 +13,15 @@ vi.mock('../../api/db', () => ({
 
 vi.mock('../../api/dataTransferApi', () => ({
   pickSqlExportFile: vi.fn(),
+  onTransferProgress: vi.fn().mockResolvedValue(vi.fn()),
+  cancelTransfer: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
   },
 }));
 
@@ -206,5 +209,58 @@ describe('ExportSqlModal', () => {
 
     expect(screen.getByText('Database / Schema:')).toBeInTheDocument();
     expect(screen.getByText('ecommerce.orders')).toBeInTheDocument();
+  });
+
+  it('displays real-time percentage progress bar while exporting SQL dump', async () => {
+    let progressCb: ((p: any) => void) | null = null;
+    vi.mocked(dataTransferApi.onTransferProgress).mockImplementationOnce(async (cb) => {
+      progressCb = cb;
+      return () => {};
+    });
+    vi.mocked(dataTransferApi.pickSqlExportFile).mockResolvedValueOnce('/path/to/users.sql');
+
+    let resolveExport!: (val: any) => void;
+    vi.mocked(dbApi.exportSql).mockReturnValueOnce(
+      new Promise((res) => {
+        resolveExport = res;
+      })
+    );
+
+    render(
+      <ExportSqlModal
+        isOpen={true}
+        connectionId="conn-1"
+        tableName="users"
+        schemaName="public"
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Choose File & Export/i }));
+
+    await waitFor(() => {
+      expect(dataTransferApi.onTransferProgress).toHaveBeenCalled();
+      expect(screen.getByTestId('export-sql-progress')).toBeInTheDocument();
+    });
+
+    const jobId = vi.mocked(dbApi.exportSql).mock.calls[0][0].jobId;
+    act(() => {
+      progressCb?.({
+        job_id: jobId,
+        current_row: 400,
+        total_rows: 1000,
+        percent: 40,
+        status: 'Exporting table users...',
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('export-sql-percent')).toHaveTextContent('40%');
+      expect(screen.getByText('Exporting (40%)...')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      resolveExport({ totalTables: 1, totalRows: 1000, fileSizeBytes: 2048 });
+    });
   });
 });

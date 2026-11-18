@@ -6,6 +6,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { dbApi } from '../../api/db';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { estimateNativeProgressPercent } from '../../stores/transferMonitorStore';
 import { DbBadge } from '../sidebar/DbBadge';
 import type { NativeCliStatus, NativeProgressEvent } from '../../types/dataTransfer';
 
@@ -36,6 +37,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
   const [parallelJobs, setParallelJobs] = useState<number>(1);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
+  const [progressPct, setProgressPct] = useState<number>(0);
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +51,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
       setLogs([]);
       setIsRunning(false);
       setIsSuccess(false);
+      setProgressPct(0);
       setInputPath('');
 
       dbApi
@@ -103,13 +106,22 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
     setIsRunning(true);
     setError(null);
     setIsSuccess(false);
+    setProgressPct(5);
     setLogs([`[INFO] Starting native restore task: ${taskId}`, `[INFO] Target: ${activeConn?.name} (${activeConn?.database})`]);
 
     let unlisten: (() => void) | null = null;
+    let emittedLines = 0;
+    const heartbeat = setInterval(() => {
+      setProgressPct((prev) => (prev < 85 ? Math.min(85, prev + 2) : prev));
+    }, 600);
     try {
       unlisten = await listen<NativeProgressEvent>('native://progress', (event) => {
         if (event.payload.task_id === taskId) {
+          emittedLines += 1;
           setLogs((prev) => [...prev, event.payload.line]);
+          setProgressPct((prev) =>
+            estimateNativeProgressPercent(prev, event.payload.line, emittedLines)
+          );
         }
       });
 
@@ -124,6 +136,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
       });
 
       if (exitCode === 0) {
+        setProgressPct(100);
         setIsSuccess(true);
         setLogs((prev) => [...prev, '[SUCCESS] Native restore completed successfully!']);
         toast.success('Native restore completed successfully');
@@ -138,6 +151,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
       setLogs((prev) => [...prev, `[ERROR] ${msg}`]);
       toast.error(`Restore failed: ${msg}`);
     } finally {
+      clearInterval(heartbeat);
       setIsRunning(false);
       activeTaskIdRef.current = null;
       if (unlisten) unlisten();
@@ -310,6 +324,33 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
             )}
           </div>
 
+          {(isRunning || isSuccess) && (
+            <div
+              data-testid="native-restore-progress"
+              className="p-3 bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded space-y-1.5"
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  {isSuccess
+                    ? t('transfer.restoreComplete', 'Restore Completed')
+                    : t('transfer.restoring', 'Running native restore...')}
+                </span>
+                <span
+                  data-testid="native-restore-percent"
+                  className="font-mono font-semibold text-emerald-600 dark:text-emerald-400"
+                >
+                  {progressPct}%
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="bg-emerald-500 h-full transition-all duration-200"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Terminal Logs Output */}
           {logs.length > 0 && (
             <div>
@@ -370,7 +411,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                 {isRunning ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Restoring...</span>
+                    <span>Restoring ({progressPct}%)...</span>
                   </>
                 ) : (
                   <>

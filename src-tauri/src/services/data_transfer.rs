@@ -742,6 +742,7 @@ where
                     rows_processed: Some(total_rows),
                     bytes_written: Some(file_size_bytes),
                     elapsed_ms: Some(elapsed_ms),
+                    percent: Some(100.0),
                 });
             }
             if let Some(ref jid) = options.job_id {
@@ -781,6 +782,24 @@ where
     let query_sql = format!("{};", clean_sql);
     let delim = options.delimiter.unwrap_or(',');
 
+    let known_total_rows: Option<usize> = if let Some(n) = options.total_rows.filter(|&n| n > 0) {
+        Some(n)
+    } else if clean_sql.to_ascii_uppercase().starts_with("SELECT") {
+        let count_sql = format!("SELECT COUNT(*) FROM ({}) AS __dc_export_cnt;", clean_sql);
+        conn.execute_query(&count_sql).await.ok().and_then(|res| {
+            res.rows
+                .first()
+                .and_then(|r| r.first())
+                .and_then(|v| match v {
+                    CellValue::Integer(n) if *n > 0 => Some(*n as usize),
+                    CellValue::Text(s) => s.parse::<usize>().ok().filter(|&n| n > 0),
+                    _ => None,
+                })
+        })
+    } else {
+        None
+    };
+
     // Fast path: PostgreSQL native COPY TO STDOUT when requested and format is CSV.
     if options.use_native_copy == Some(true) && options.format == TransferFormat::Csv {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<u8>>(16);
@@ -797,14 +816,18 @@ where
                     newline_count
                 };
                 if let Some(ref cb) = on_progress {
+                    let pct = known_total_rows
+                        .filter(|&t| t > 0)
+                        .map(|t| ((rows_so_far as f64 / t as f64) * 100.0).clamp(0.0, 99.0));
                     cb(TransferProgress {
                         current_row: rows_so_far,
-                        total_rows: None,
+                        total_rows: known_total_rows.map(|t| t.max(rows_so_far)),
                         status: "exporting".to_string(),
                         job_id: options.job_id.clone(),
                         rows_processed: Some(rows_so_far),
                         bytes_written: Some(writer.bytes_written_so_far()),
                         elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                        percent: pct,
                     });
                 }
             }
@@ -892,14 +915,18 @@ where
 
                     total_rows += chunk.rows.len();
                     if let Some(ref cb) = on_progress {
+                        let pct = known_total_rows
+                            .filter(|&t| t > 0)
+                            .map(|t| ((total_rows as f64 / t as f64) * 100.0).clamp(0.0, 99.0));
                         cb(TransferProgress {
                             current_row: total_rows,
-                            total_rows: None,
+                            total_rows: known_total_rows.map(|t| t.max(total_rows)),
                             status: "exporting".to_string(),
                             job_id: options.job_id.clone(),
                             rows_processed: Some(total_rows),
                             bytes_written: Some(writer.bytes_written_so_far()),
                             elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                            percent: pct,
                         });
                     }
                 }
@@ -989,14 +1016,18 @@ where
 
                     total_rows += chunk.rows.len();
                     if let Some(ref cb) = on_progress {
+                        let pct = known_total_rows
+                            .filter(|&t| t > 0)
+                            .map(|t| ((total_rows as f64 / t as f64) * 100.0).clamp(0.0, 99.0));
                         cb(TransferProgress {
                             current_row: total_rows,
-                            total_rows: None,
+                            total_rows: known_total_rows.map(|t| t.max(total_rows)),
                             status: "exporting".to_string(),
                             job_id: options.job_id.clone(),
                             rows_processed: Some(total_rows),
                             bytes_written: Some(writer.bytes_written_so_far()),
                             elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                            percent: pct,
                         });
                     }
                 }
@@ -1317,6 +1348,80 @@ fn build_create_staging_sql(
     }
 }
 
+fn count_import_file_records(
+    file_path: &str,
+    format: TransferFormat,
+    delimiter: Option<char>,
+    has_headers: bool,
+) -> Option<usize> {
+    let reader = open_decompressed_reader(file_path).ok()?;
+    match format {
+        TransferFormat::Csv => {
+            let delim = delimiter.unwrap_or(',') as u8;
+            let mut csv_reader = csv::ReaderBuilder::new()
+                .delimiter(delim)
+                .has_headers(has_headers)
+                .flexible(true)
+                .from_reader(reader);
+            let count = csv_reader.records().filter(|r| r.is_ok()).count();
+            if count > 0 { Some(count) } else { None }
+        }
+        TransferFormat::Json => {
+            let mut buf_reader = BufReader::new(reader);
+            let mut first_non_ws = None;
+            let mut prefix_bytes = Vec::new();
+            let mut b = [0u8; 1];
+            while buf_reader.read_exact(&mut b).is_ok() {
+                prefix_bytes.push(b[0]);
+                if !b[0].is_ascii_whitespace() {
+                    first_non_ws = Some(b[0]);
+                    break;
+                }
+            }
+            let first = first_non_ws?;
+            let full_reader = std::io::Cursor::new(prefix_bytes).chain(buf_reader);
+            if first == b'[' {
+                let mut count = 0usize;
+                let mut in_string = false;
+                let mut escape_next = false;
+                let mut depth = 0usize;
+                for byte in full_reader.bytes().flatten() {
+                    if escape_next {
+                        escape_next = false;
+                        continue;
+                    }
+                    if byte == b'\\' && in_string {
+                        escape_next = true;
+                        continue;
+                    }
+                    if byte == b'"' {
+                        in_string = !in_string;
+                        continue;
+                    }
+                    if !in_string {
+                        if byte == b'{' {
+                            if depth == 0 {
+                                count += 1;
+                            }
+                            depth += 1;
+                        } else if byte == b'}' && depth > 0 {
+                            depth -= 1;
+                        }
+                    }
+                }
+                if count > 0 { Some(count) } else { None }
+            } else {
+                let count = BufReader::new(full_reader)
+                    .lines()
+                    .map_while(Result::ok)
+                    .filter(|l| !l.trim().is_empty())
+                    .count();
+                if count > 0 { Some(count) } else { None }
+            }
+        }
+    }
+}
+
 /// Streams and imports data from a CSV or JSON file (optionally gzip/zstd compressed)
 /// into the database with support for Atomic, Chunked, and Staging modes,
 /// checkpoint/resume, client-side type validation, rejects logging, and bisect skip.
@@ -1431,6 +1536,7 @@ where
                         rows_processed: Some(imported),
                         bytes_written: None,
                         elapsed_ms: Some(elapsed_ms),
+                        percent: Some(100.0),
                     });
                 }
                 if let Some(ref jid) = options.job_id {
@@ -1505,6 +1611,17 @@ where
     }
 
     let mut rejects = RejectsWriter::new(&options.file_path, target_columns.clone());
+
+    let fp_count = options.file_path.clone();
+    let fmt_count = options.format;
+    let delim_count = options.delimiter;
+    let headers_count = options.has_headers;
+    let total_file_rows = tokio::task::spawn_blocking(move || {
+        count_import_file_records(&fp_count, fmt_count, delim_count, headers_count)
+    })
+    .await
+    .ok()
+    .flatten();
 
     // Offload file reading, decompression, and CSV/JSON parsing to blocking thread pool.
     let (batch_tx, mut batch_rx) =
@@ -1590,14 +1707,18 @@ where
 
         if let Some(ref progress_cb) = on_progress {
             let processed = imported_rows + skipped_rows;
+            let pct = total_file_rows
+                .filter(|&t| t > 0)
+                .map(|t| ((processed as f64 / t as f64) * 100.0).clamp(0.0, 99.0));
             progress_cb(TransferProgress {
                 current_row: processed,
-                total_rows: None,
+                total_rows: total_file_rows.map(|t| t.max(processed)),
                 status: "importing".to_string(),
                 job_id: options.job_id.clone(),
                 rows_processed: Some(processed),
                 bytes_written: None,
                 elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                percent: pct,
             });
         }
     }
@@ -1674,6 +1795,7 @@ where
             rows_processed: Some(total_rows),
             bytes_written: None,
             elapsed_ms: Some(elapsed_ms),
+            percent: Some(100.0),
         });
     }
 

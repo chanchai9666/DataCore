@@ -6,10 +6,19 @@ import {
   exportData,
   pickExportFile,
   cancelTransfer,
+  onTransferProgress,
   type ExportCompression,
 } from '../../api/dataTransferApi';
-import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
-import type { ExportOptions, TransferFormat, JsonStructure } from '../../types/dataTransfer';
+import {
+  useTransferMonitorStore,
+  calculateTransferPercent,
+} from '../../stores/transferMonitorStore';
+import type {
+  ExportOptions,
+  TransferFormat,
+  JsonStructure,
+  TransferProgress,
+} from '../../types/dataTransfer';
 
 export interface ExportModalProps {
   isOpen: boolean;
@@ -36,6 +45,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [compression, setCompression] = useState<ExportCompression>('none');
   const [useNativeCopy, setUseNativeCopy] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [progress, setProgress] = useState<TransferProgress | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
 
   const handleCancelOrClose = async () => {
@@ -51,6 +61,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   const handleExport = async () => {
+    let unlisten: (() => void) | undefined;
     try {
       const filePath =
         compression === 'none'
@@ -63,6 +74,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       const jobId = `export_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       activeJobIdRef.current = jobId;
       setIsExporting(true);
+      setProgress({
+        job_id: jobId,
+        current_row: 0,
+        total_rows: totalRows,
+        percent: 0,
+        status: 'exporting',
+      });
       const monitorStore = useTransferMonitorStore.getState();
       monitorStore.startJob({
         jobId,
@@ -70,6 +88,19 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         direction: 'export',
         totalRows,
       });
+
+      if (typeof onTransferProgress === 'function') {
+        try {
+          unlisten = await onTransferProgress((p) => {
+            if (!p.job_id || p.job_id === jobId) {
+              setProgress(p);
+            }
+            useTransferMonitorStore.getState().handleProgress(p);
+          });
+        } catch {
+          // Ignore listener registration errors in non-Tauri environments
+        }
+      }
 
       const sqlToRun =
         scope === 'filtered' && initialQuery
@@ -82,6 +113,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         include_headers: includeHeaders,
         json_structure: format === 'json' ? jsonStructure : undefined,
         job_id: jobId,
+        ...(totalRows !== undefined ? { total_rows: totalRows } : {}),
         ...(useNativeCopy ? { use_native_copy: true } : {}),
       };
 
@@ -90,6 +122,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         rowsProcessed: result.total_rows,
         bytesWritten: result.file_size_bytes,
         elapsedMs: result.elapsed_ms,
+      });
+      setProgress({
+        job_id: jobId,
+        current_row: result.total_rows,
+        total_rows: result.total_rows || totalRows,
+        percent: 100,
+        status: 'done',
       });
 
       toast.success(
@@ -113,10 +152,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         toast.error(`Export failed: ${msg}`);
       }
     } finally {
+      if (unlisten) unlisten();
       setIsExporting(false);
+      setProgress(null);
       activeJobIdRef.current = null;
     }
   };
+
+  const progressPct = calculateTransferPercent(progress, totalRows);
 
   return (
     <Dialog.Root
@@ -300,6 +343,40 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 />
               </div>
             </div>
+
+            {isExporting && (
+              <div
+                data-testid="export-modal-progress"
+                className="p-3.5 bg-sidebar rounded border border-blue-500/30 space-y-2"
+              >
+                <div className="flex items-center justify-between text-xs font-medium">
+                  <span className="text-blue-400 flex items-center space-x-1.5">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Exporting rows...</span>
+                  </span>
+                  <div className="flex items-center gap-2 font-mono text-[11px]">
+                    <span className="text-muted">
+                      {(progress?.current_row ?? 0).toLocaleString()}
+                      {(progress?.total_rows ?? totalRows)
+                        ? ` / ${(progress?.total_rows ?? totalRows)!.toLocaleString()} rows`
+                        : ' rows'}
+                    </span>
+                    <span
+                      data-testid="export-modal-percent"
+                      className="font-semibold text-blue-400"
+                    >
+                      {progressPct}%
+                    </span>
+                  </div>
+                </div>
+                <div className="w-full bg-grid h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-full transition-all duration-150"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer Actions */}
@@ -321,7 +398,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               {isExporting ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Exporting...</span>
+                  <span>Exporting ({progressPct}%)...</span>
                 </>
               ) : (
                 <>

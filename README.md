@@ -278,6 +278,7 @@ make test
 - [x] **Phase 46: การจัดการไฟล์ขยะและปรับปรุงระบบ Build (Makefile & Build Optimization — Issue #176)**
 - [x] **Phase 47: การตรวจสอบและแก้ไขคุณภาพโค้ดหลังการรีวิว (Post-Review Standards & Spec Refinements — Issue #177)**
 - [x] **Phase 48: การออกแบบและจัดวางระบบเมนู MainToolbar และ 2-Column Bento Tools Menu ใหม่ (Issue #178)**
+- [x] **Phase 49: ตัวบอกความคืบหน้าแบบ Real-time Percentage (0%–100%) ครอบคลุมทุก Modal การ Export, Import และ Backup/Restore (Issue #179)**
 
 ---
 

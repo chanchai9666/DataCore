@@ -6,6 +6,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { dbApi } from '../../api/db';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { estimateNativeProgressPercent } from '../../stores/transferMonitorStore';
 import { DbBadge } from '../sidebar/DbBadge';
 import type { NativeCliStatus, NativeProgressEvent } from '../../types/dataTransfer';
 
@@ -37,6 +38,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
   const [outputPath, setOutputPath] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
+  const [progressPct, setProgressPct] = useState<number>(0);
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +52,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
       setLogs([]);
       setIsRunning(false);
       setIsSuccess(false);
+      setProgressPct(0);
 
       const defaultExt = activeConn?.driver === 'postgres' ? 'dump' : activeConn?.driver === 'sqlite' ? 'db' : 'sql';
       const defaultFilename = `${activeConn?.database || 'backup'}_${new Date().toISOString().slice(0, 10)}.${defaultExt}`;
@@ -113,13 +116,22 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
     setIsRunning(true);
     setError(null);
     setIsSuccess(false);
+    setProgressPct(5);
     setLogs([`[INFO] Starting native backup task: ${taskId}`, `[INFO] CLI Tool: ${cliStatus?.path || cliStatus?.cli_name}`]);
 
     let unlisten: (() => void) | null = null;
+    let emittedLines = 0;
+    const heartbeat = setInterval(() => {
+      setProgressPct((prev) => (prev < 85 ? Math.min(85, prev + 2) : prev));
+    }, 600);
     try {
       unlisten = await listen<NativeProgressEvent>('native://progress', (event) => {
         if (event.payload.task_id === taskId) {
+          emittedLines += 1;
           setLogs((prev) => [...prev, event.payload.line]);
+          setProgressPct((prev) =>
+            estimateNativeProgressPercent(prev, event.payload.line, emittedLines)
+          );
         }
       });
 
@@ -135,6 +147,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
       });
 
       if (exitCode === 0) {
+        setProgressPct(100);
         setIsSuccess(true);
         setLogs((prev) => [...prev, '[SUCCESS] Native backup finished successfully!']);
         toast.success('Native backup completed successfully');
@@ -149,6 +162,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
       setLogs((prev) => [...prev, `[ERROR] ${msg}`]);
       toast.error(`Backup failed: ${msg}`);
     } finally {
+      clearInterval(heartbeat);
       setIsRunning(false);
       activeTaskIdRef.current = null;
       if (unlisten) unlisten();
@@ -334,6 +348,37 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
             </div>
           </div>
 
+          {(isRunning || isSuccess) && (
+            <div
+              data-testid="native-backup-progress"
+              className="p-3 bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded space-y-1.5"
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  {isSuccess
+                    ? t('transfer.backupComplete', 'Backup Completed')
+                    : t('transfer.backingUp', 'Running native backup...')}
+                </span>
+                <span
+                  data-testid="native-backup-percent"
+                  className={`font-mono font-semibold ${
+                    isSuccess ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'
+                  }`}
+                >
+                  {progressPct}%
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-200 ${
+                    isSuccess ? 'bg-emerald-500' : 'bg-blue-500'
+                  }`}
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Terminal Logs Output */}
           {logs.length > 0 && (
             <div>
@@ -394,7 +439,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
                 {isRunning ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Backing up...</span>
+                    <span>Backing up ({progressPct}%)...</span>
                   </>
                 ) : (
                   <>

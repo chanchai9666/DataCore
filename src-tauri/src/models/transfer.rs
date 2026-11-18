@@ -54,6 +54,8 @@ pub struct ExportOptions {
     pub job_id: Option<String>,
     #[serde(default, alias = "useNativeCopy")]
     pub use_native_copy: Option<bool>,
+    #[serde(default, alias = "totalRows")]
+    pub total_rows: Option<usize>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -125,6 +127,8 @@ pub struct TransferProgress {
     pub bytes_written: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub elapsed_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub percent: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DataImportWizardModal } from './DataImportWizardModal';
 import * as dataTransferApi from '../../api/dataTransferApi';
@@ -130,6 +130,64 @@ describe('DataImportWizardModal', () => {
     await waitFor(() => {
       expect(screen.getByText(/import completed successfully/i)).toBeInTheDocument();
       expect(screen.getByText('2 / 2 rows')).toBeInTheDocument();
+    });
+  });
+
+  it('displays live percentage badge in Step 5 while importing', async () => {
+    let progressCb: ((p: any) => void) | null = null;
+    vi.mocked(dataTransferApi.onTransferProgress).mockImplementationOnce(async (cb) => {
+      progressCb = cb;
+      return () => {};
+    });
+    vi.mocked(dataTransferApi.pickImportFile).mockResolvedValue('/data/users.csv');
+
+    let resolveImport!: (val: any) => void;
+    vi.mocked(dataTransferApi.importData).mockReturnValueOnce(
+      new Promise((res) => {
+        resolveImport = res;
+      })
+    );
+
+    render(
+      <DataImportWizardModal
+        isOpen={true}
+        onClose={vi.fn()}
+        connectionId="conn_1"
+        driver="sqlite"
+        initialTableName="users"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /browse file/i }));
+    await waitFor(() => expect(screen.getByDisplayValue('/data/users.csv')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    await waitFor(() => expect(screen.getByText(/step 3: column mapping/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    fireEvent.click(screen.getByRole('button', { name: /start import/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('wizard-import-percent')).toBeInTheDocument();
+    });
+
+    const jobId = vi.mocked(dataTransferApi.importData).mock.calls[0][2].job_id;
+    act(() => {
+      progressCb?.({
+        job_id: jobId,
+        current_row: 80,
+        total_rows: 100,
+        percent: 80,
+        status: 'importing',
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('wizard-import-percent')).toHaveTextContent('80%');
+    });
+
+    await act(async () => {
+      resolveImport({ total_rows: 100, imported_rows: 100, skipped_rows: 0, elapsed_ms: 25 });
     });
   });
 });

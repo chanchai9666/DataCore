@@ -15,7 +15,7 @@ use crate::services::data_transfer::{
 };
 use crate::services::table_list::get_table_list_metadata_impl;
 use crate::services::duplicate_table::duplicate_table_impl;
-use crate::services::sql_transfer::{export_sql_impl, import_sql_impl};
+use crate::services::sql_transfer::{export_sql_with_progress_impl, import_sql_impl};
 use crate::services::cross_db_transfer::copy_table_cross_db_impl;
 use crate::services::path_guard::validate_safe_transfer_path;
 use crate::commands::db::resolve_connection_credentials;
@@ -224,6 +224,7 @@ pub async fn duplicate_table(
 
 #[tauri::command]
 pub async fn export_sql(
+    app: AppHandle,
     store: State<'_, ConnectionStore>,
     session_mgr: State<'_, SessionManager>,
     options: SqlExportOptions,
@@ -243,8 +244,12 @@ pub async fn export_sql(
         register_transfer_job(jid, conn.clone());
     }
 
+    let on_progress = move |progress| {
+        let _ = app.emit("transfer://progress", progress);
+    };
+
     let file_str = options.file_path.clone();
-    let res = export_sql_impl(conn.as_ref(), config.driver, &options)
+    let res = export_sql_with_progress_impl(conn.as_ref(), config.driver, &options, Some(on_progress))
         .await
         .map_err(|e| e.to_string());
 

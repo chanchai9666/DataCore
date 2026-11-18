@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { ImportSqlModal } from './ImportSqlModal';
 import { dbApi } from '../../api/db';
 import * as dataTransferApi from '../../api/dataTransferApi';
@@ -240,6 +240,64 @@ describe('ImportSqlModal', () => {
           filePath: '/dump/script.sql',
         })
       );
+    });
+  });
+
+  it('displays live percentage badge during SQL script import', async () => {
+    let progressCb: ((p: any) => void) | null = null;
+    vi.mocked(dataTransferApi.onTransferProgress).mockImplementationOnce(async (cb) => {
+      progressCb = cb;
+      return () => {};
+    });
+    vi.mocked(dataTransferApi.pickSqlImportFile).mockResolvedValueOnce('/dump/large.sql');
+
+    let resolveImport!: (val: any) => void;
+    vi.mocked(dbApi.importSql).mockReturnValueOnce(
+      new Promise((res) => {
+        resolveImport = res;
+      })
+    );
+
+    render(
+      <ImportSqlModal
+        isOpen={true}
+        connectionId="conn-1"
+        schemaName="public"
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Browse.../i }));
+    await waitFor(() => {
+      expect(
+        (screen.getByPlaceholderText('Select or enter path to .sql file') as HTMLInputElement).value
+      ).toBe('/dump/large.sql');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Execute SQL Script/i }));
+
+    await waitFor(() => {
+      expect(dataTransferApi.onTransferProgress).toHaveBeenCalled();
+      expect(screen.getByTestId('import-sql-percent')).toBeInTheDocument();
+    });
+
+    const jobId = vi.mocked(dbApi.importSql).mock.calls[0][0].jobId;
+    act(() => {
+      progressCb?.({
+        job_id: jobId,
+        current_row: 750,
+        total_rows: 1000,
+        percent: 75,
+        status: 'Executing SQL script... (75%)',
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('import-sql-percent')).toHaveTextContent('75%');
+    });
+
+    await act(async () => {
+      resolveImport({ totalStatements: 1000, successfulStatements: 1000, failedStatements: 0 });
     });
   });
 });

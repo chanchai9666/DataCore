@@ -82,6 +82,7 @@ fn test_export_query_result_to_csv() {
         json_structure: None,
         job_id: None,
         use_native_copy: None,
+        total_rows: None,
     };
 
     let (rows, bytes) = export_query_result_to_writer(&query_result, &mut buf, &options).expect("export csv");
@@ -116,6 +117,7 @@ fn test_export_query_result_to_json_array() {
         json_structure: Some(JsonStructure::Array),
         job_id: None,
         use_native_copy: None,
+        total_rows: None,
     };
 
     let (rows, _) = export_query_result_to_writer(&query_result, &mut buf, &options).expect("export json");
@@ -152,6 +154,7 @@ async fn test_streaming_export_data_impl_across_multiple_batches() {
         json_structure: None,
         job_id: None,
         use_native_copy: None,
+        total_rows: None,
     };
 
     let res = export_data_impl(&conn, "SELECT * FROM big_export", &csv_path, &csv_opts)
@@ -194,6 +197,7 @@ fn test_export_cancellation() {
         json_structure: None,
         job_id: Some(job_id.to_string()),
         use_native_copy: None,
+        total_rows: None,
     };
 
     let res = export_query_result_to_writer(&query_result, &mut buf, &options);
@@ -616,6 +620,7 @@ async fn test_streaming_export_cte_and_ndjson_without_limit_offset() {
         json_structure: Some(crate::models::JsonStructure::Ndjson),
         job_id: None,
         use_native_copy: None,
+        total_rows: None,
     };
 
     let res = export_data_impl(
@@ -911,6 +916,7 @@ async fn test_export_data_with_progress_emits_events_and_cleans_up_on_cancel() {
         json_structure: None,
         job_id: Some("exp_prog_job".to_string()),
         use_native_copy: None,
+        total_rows: None,
     };
 
     let res = export_data_with_progress_impl(
@@ -929,8 +935,10 @@ async fn test_export_data_with_progress_emits_events_and_cleans_up_on_cancel() {
     {
         let captured = events.lock().unwrap();
         assert!(!captured.is_empty());
+        assert!(captured.iter().any(|p| p.percent.is_some()));
         let last = captured.last().unwrap();
         assert_eq!(last.status, "done");
+        assert_eq!(last.percent, Some(100.0));
         assert_eq!(last.rows_processed, Some(2));
         assert!(last.bytes_written.unwrap_or(0) > 0);
         assert_eq!(last.job_id.as_deref(), Some("exp_prog_job"));
@@ -950,6 +958,7 @@ async fn test_export_data_with_progress_emits_events_and_cleans_up_on_cancel() {
         json_structure: None,
         job_id: Some(cancel_job.to_string()),
         use_native_copy: None,
+        total_rows: None,
     };
     let err = export_data_with_progress_impl(
         &conn,
@@ -1205,6 +1214,7 @@ async fn test_export_and_import_gzip_and_zstd_on_the_fly() {
         json_structure: None,
         job_id: None,
         use_native_copy: None,
+        total_rows: None,
     };
 
     let exp_gz = export_data_impl(&conn, "SELECT * FROM comp_src", gz_path.to_str().unwrap(), &gz_opts)
@@ -1464,4 +1474,68 @@ async fn test_import_chunked_skip_uses_savepoint_and_keeps_valid_rows() {
     assert!(queries.iter().any(|q| q == "ROLLBACK TO SAVEPOINT sp_dc_batch;"));
     assert!(queries.iter().any(|q| q == "RELEASE SAVEPOINT sp_dc_batch;"));
     assert!(queries.iter().any(|q| q == "COMMIT"));
+}
+
+#[tokio::test]
+async fn test_import_data_emits_percent_progress_from_file_row_count() {
+    use std::sync::{Arc, Mutex};
+
+    let conn = SqliteConnection::open_in_memory().expect("sqlite");
+    conn.execute_query("CREATE TABLE imp_prog (id INTEGER, name TEXT);")
+        .await
+        .unwrap();
+
+    let dir = tempfile::tempdir().unwrap();
+    let csv_path = dir.path().join("imp_prog.csv");
+    std::fs::write(&csv_path, "id,name\n1,Alice\n2,Bob\n3,Charlie\n").unwrap();
+
+    let events: Arc<Mutex<Vec<TransferProgress>>> = Arc::new(Mutex::new(Vec::new()));
+    let events_clone = events.clone();
+
+    let options = ImportOptions {
+        file_path: csv_path.to_str().unwrap().to_string(),
+        format: TransferFormat::Csv,
+        delimiter: Some(','),
+        has_headers: true,
+        column_mappings: vec![
+            ColumnMapping {
+                source_column: "id".to_string(),
+                target_column: "id".to_string(),
+                target_type: Some("INTEGER".to_string()),
+            },
+            ColumnMapping {
+                source_column: "name".to_string(),
+                target_column: "name".to_string(),
+                target_type: Some("TEXT".to_string()),
+            },
+        ],
+        error_policy: ImportErrorPolicy::Abort,
+        batch_size: Some(2),
+        treat_empty_as_null: None,
+        job_id: Some("imp_prog_pct".to_string()),
+        import_mode: None,
+        chunk_commit_rows: None,
+        resume_from_checkpoint: None,
+        use_native_copy: None,
+    };
+
+    let res = import_data_impl(
+        &conn,
+        "imp_prog",
+        &options,
+        "sqlite",
+        Some(move |p: TransferProgress| {
+            events_clone.lock().unwrap().push(p);
+        }),
+    )
+    .await
+    .expect("import with progress");
+    assert_eq!(res.imported_rows, 3);
+
+    let captured = events.lock().unwrap();
+    assert!(captured.len() >= 2);
+    assert!(captured.iter().all(|p| p.total_rows == Some(3) && p.percent.is_some()));
+    let last = captured.last().unwrap();
+    assert_eq!(last.status, "done");
+    assert_eq!(last.percent, Some(100.0));
 }

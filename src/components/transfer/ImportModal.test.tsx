@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ImportModal } from './ImportModal';
 import * as transferApi from '../../api/dataTransferApi';
@@ -185,6 +185,67 @@ describe('ImportModal', () => {
           ],
         })
       );
+    });
+  });
+
+  it('displays live percentage badge while importing rows', async () => {
+    let progressCb: ((p: any) => void) | null = null;
+    vi.mocked(transferApi.onTransferProgress).mockImplementationOnce(async (cb) => {
+      progressCb = cb;
+      return () => {};
+    });
+    vi.mocked(transferApi.pickImportFile).mockResolvedValueOnce('/path/to/customers.csv');
+    vi.mocked(transferApi.previewImportFile).mockResolvedValueOnce({
+      detected_delimiter: ',',
+      headers: ['id', 'name'],
+      preview_rows: [['1', 'Alice']],
+      total_preview_rows: 1,
+    });
+
+    let resolveImport!: (val: any) => void;
+    vi.mocked(transferApi.importData).mockReturnValueOnce(
+      new Promise((res) => {
+        resolveImport = res;
+      })
+    );
+
+    render(
+      <ImportModal
+        isOpen={true}
+        onClose={vi.fn()}
+        connectionId="conn-1"
+        tableName="customers"
+        tableColumns={tableColumns}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('choose-import-file-btn'));
+    await waitFor(() => expect(screen.getByTestId('confirm-import-btn')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('confirm-import-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('import-modal-percent')).toBeInTheDocument();
+    });
+
+    const jobId = vi.mocked(transferApi.importData).mock.calls[0][2].job_id;
+    act(() => {
+      progressCb?.({
+        job_id: jobId,
+        current_row: 65,
+        total_rows: 100,
+        percent: 65,
+        status: 'importing',
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('import-modal-percent')).toHaveTextContent('65%');
+      expect(screen.getByText('Importing (65%)...')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      resolveImport({ total_rows: 100, imported_rows: 100, skipped_rows: 0, elapsed_ms: 20 });
     });
   });
 });

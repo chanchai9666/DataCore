@@ -237,6 +237,20 @@ pub async fn export_sql_impl(
     driver: DatabaseDriver,
     options: &SqlExportOptions,
 ) -> Result<SqlExportResult, AppError> {
+    export_sql_with_progress_impl(conn, driver, options, None::<fn(TransferProgress)>).await
+}
+
+/// Dumps table DDL and data into a local SQL script file with real-time progress reporting.
+pub async fn export_sql_with_progress_impl<F>(
+    conn: &dyn DatabaseConnection,
+    driver: DatabaseDriver,
+    options: &SqlExportOptions,
+    on_progress: Option<F>,
+) -> Result<SqlExportResult, AppError>
+where
+    F: Fn(TransferProgress) + Send + Sync,
+{
+    let start_time = std::time::Instant::now();
     let dialect = match driver {
         DatabaseDriver::Sqlite => "sqlite",
         DatabaseDriver::Mysql => "mysql",
@@ -261,21 +275,61 @@ pub async fn export_sql_impl(
         writeln!(writer, "-- --------------------------------------------------------\n")?;
 
         let batch_size = options.batch_size.unwrap_or(500).max(1);
-        let mut total_rows = 0;
+        let mut total_rows = 0usize;
+
+        let tables_meta = get_table_list_metadata_impl(conn, driver, options.schema.as_deref())
+            .await
+            .unwrap_or_default();
+        let table_row_map: std::collections::HashMap<String, usize> = tables_meta
+            .iter()
+            .map(|t| (t.name.clone(), t.approx_row_count.max(0) as usize))
+            .collect();
 
         let target_tables = if options.tables.is_empty() {
-            let tables_meta = get_table_list_metadata_impl(conn, driver, options.schema.as_deref()).await?;
-            tables_meta.into_iter().map(|t| t.name).collect::<Vec<_>>()
+            if !tables_meta.is_empty() {
+                tables_meta.into_iter().map(|t| t.name).collect::<Vec<_>>()
+            } else {
+                let fallback = get_table_list_metadata_impl(conn, driver, options.schema.as_deref()).await?;
+                fallback.into_iter().map(|t| t.name).collect::<Vec<_>>()
+            }
         } else {
             options.tables.clone()
         };
         let total_tables = target_tables.len();
+        let estimated_total_rows: usize = target_tables
+            .iter()
+            .map(|t| table_row_map.get(t).copied().unwrap_or(0))
+            .sum();
 
-        for table in &target_tables {
+        for (table_idx, table) in target_tables.iter().enumerate() {
             if let Some(ref jid) = options.job_id {
                 if is_transfer_cancelled(jid) {
                     return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
                 }
+            }
+
+            if let Some(ref cb) = on_progress {
+                let pct = if options.include_data && estimated_total_rows > 0 {
+                    ((total_rows as f64 / estimated_total_rows as f64) * 100.0).clamp(0.0, 99.0)
+                } else if total_tables > 0 {
+                    ((table_idx as f64 / total_tables as f64) * 100.0).clamp(0.0, 99.0)
+                } else {
+                    0.0
+                };
+                cb(TransferProgress {
+                    current_row: if estimated_total_rows > 0 { total_rows } else { table_idx },
+                    total_rows: Some(if estimated_total_rows > 0 {
+                        estimated_total_rows.max(total_rows)
+                    } else {
+                        total_tables.max(1)
+                    }),
+                    status: format!("Exporting {} ({}/{})", table, table_idx + 1, total_tables),
+                    job_id: options.job_id.clone(),
+                    rows_processed: Some(total_rows),
+                    bytes_written: std::fs::metadata(&options.file_path).ok().map(|m| m.len()),
+                    elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                    percent: Some(pct),
+                });
             }
 
         writeln!(writer, "--")?;
@@ -452,9 +506,13 @@ pub async fn export_sql_impl(
             let select_sql = format!("SELECT * FROM {};", quoted_table);
             let (tx, mut rx) = tokio::sync::mpsc::channel::<Chunk>(4);
             let stream_fut = conn.stream_query(&select_sql, batch_size, tx);
+            let total_rows_ref = &mut total_rows;
+            let on_progress_ref = &on_progress;
+            let file_path_ref = &options.file_path;
+            let job_id_ref = &options.job_id;
             let consume_fut = async {
                 while let Some(chunk) = rx.recv().await {
-                    if let Some(ref jid) = options.job_id {
+                    if let Some(ref jid) = job_id_ref {
                         if is_transfer_cancelled(jid) {
                             remove_cancellation_token(jid);
                             drop(rx);
@@ -467,7 +525,7 @@ pub async fn export_sql_impl(
                     }
 
                     let fetched_count = chunk.rows.len();
-                    total_rows += fetched_count;
+                    *total_rows_ref += fetched_count;
 
                     let quoted_cols: Vec<String> = chunk
                         .columns
@@ -499,6 +557,31 @@ pub async fn export_sql_impl(
                         drop(rx);
                         return Err(AppError::from(e));
                     }
+
+                    if let Some(ref cb) = on_progress_ref {
+                        let current = *total_rows_ref;
+                        let pct = if estimated_total_rows > 0 {
+                            ((current as f64 / estimated_total_rows as f64) * 100.0).clamp(0.0, 99.0)
+                        } else if total_tables > 0 {
+                            (((table_idx as f64 + 0.5) / total_tables as f64) * 100.0).clamp(0.0, 99.0)
+                        } else {
+                            0.0
+                        };
+                        cb(TransferProgress {
+                            current_row: if estimated_total_rows > 0 { current } else { table_idx + 1 },
+                            total_rows: Some(if estimated_total_rows > 0 {
+                                estimated_total_rows.max(current)
+                            } else {
+                                total_tables.max(1)
+                            }),
+                            status: format!("Exporting {} ({}/{})", table, table_idx + 1, total_tables),
+                            job_id: job_id_ref.clone(),
+                            rows_processed: Some(current),
+                            bytes_written: std::fs::metadata(file_path_ref).ok().map(|m| m.len()),
+                            elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                            percent: Some(pct),
+                        });
+                    }
                 }
                 Ok::<(), AppError>(())
             };
@@ -524,6 +607,19 @@ pub async fn export_sql_impl(
             let metadata = std::fs::metadata(&options.file_path).map_err(|e| {
                 AppError::Other(format!("Failed to read export file metadata: {}", e))
             })?;
+
+            if let Some(ref cb) = on_progress {
+                cb(TransferProgress {
+                    current_row: total_rows,
+                    total_rows: Some(total_rows.max(1)),
+                    status: "done".to_string(),
+                    job_id: options.job_id.clone(),
+                    rows_processed: Some(total_rows),
+                    bytes_written: Some(metadata.len()),
+                    elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                    percent: Some(100.0),
+                });
+            }
 
             Ok(SqlExportResult {
                 total_tables,
@@ -554,6 +650,10 @@ where
         ))
     })?;
 
+    let total_file_bytes = file.metadata().map(|m| m.len()).unwrap_or(0).max(1);
+    let start_time = std::time::Instant::now();
+    let mut bytes_read: u64 = 0;
+
     let reader = BufReader::new(file);
     let continue_on_error = options.error_policy.to_lowercase() == "continue";
     let mut successful_statements = 0;
@@ -576,6 +676,7 @@ where
 
     for line_res in reader.lines() {
         let line = line_res.map_err(|e| AppError::Other(format!("Failed to read SQL script line: {}", e)))?;
+        bytes_read = bytes_read.saturating_add(line.len() as u64 + 1);
         let trimmed_line = line.trim();
 
         // Check cancellation
@@ -695,11 +796,18 @@ where
 
                             executed_count += 1;
                             if let Some(ref cb) = on_progress {
+                                let pct = ((bytes_read as f64 / total_file_bytes as f64) * 100.0).clamp(1.0, 99.0);
+                                let estimated_total_stmts = ((executed_count as f64 / (pct / 100.0)).round() as usize)
+                                    .max(executed_count + 1);
                                 cb(TransferProgress {
                                     current_row: executed_count,
-                                    total_rows: None,
+                                    total_rows: Some(estimated_total_stmts),
                                     status: format!("Executing statement {}", executed_count),
-                                    ..Default::default()
+                                    job_id: options.job_id.clone(),
+                                    rows_processed: Some(executed_count),
+                                    bytes_written: Some(bytes_read),
+                                    elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                                    percent: Some(pct),
                                 });
                             }
 
@@ -746,11 +854,16 @@ where
 
         executed_count += 1;
         if let Some(ref cb) = on_progress {
+            let pct = ((bytes_read as f64 / total_file_bytes as f64) * 100.0).clamp(1.0, 99.0);
             cb(TransferProgress {
                 current_row: executed_count,
-                total_rows: None,
+                total_rows: Some(executed_count),
                 status: format!("Executing statement {}", executed_count),
-                ..Default::default()
+                job_id: options.job_id.clone(),
+                rows_processed: Some(executed_count),
+                bytes_written: Some(bytes_read),
+                elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                percent: Some(pct),
             });
         }
         match conn.execute_query(&trailing).await {
@@ -773,6 +886,19 @@ where
 
     if !continue_on_error {
         let _ = conn.execute_query("COMMIT").await;
+    }
+
+    if let Some(ref cb) = on_progress {
+        cb(TransferProgress {
+            current_row: executed_count,
+            total_rows: Some(executed_count.max(1)),
+            status: "done".to_string(),
+            job_id: options.job_id.clone(),
+            rows_processed: Some(executed_count),
+            bytes_written: Some(total_file_bytes),
+            elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+            percent: Some(100.0),
+        });
     }
 
     if let Some(jid) = job_id {
@@ -828,5 +954,104 @@ mod tests {
             !out_path.exists(),
             "Partial .sql export file must be deleted on cancellation"
         );
+    }
+
+    #[tokio::test]
+    async fn test_export_sql_with_progress_emits_percent_and_total_rows() {
+        use std::sync::{Arc, Mutex};
+
+        let conn = SqliteConnection::open_in_memory().expect("sqlite");
+        conn.execute_query("CREATE TABLE p1 (id INTEGER, name TEXT);")
+            .await
+            .unwrap();
+        conn.execute_query("INSERT INTO p1 VALUES (1, 'a'), (2, 'b');")
+            .await
+            .unwrap();
+        conn.execute_query("CREATE TABLE p2 (id INTEGER, name TEXT);")
+            .await
+            .unwrap();
+        conn.execute_query("INSERT INTO p2 VALUES (3, 'c'), (4, 'd');")
+            .await
+            .unwrap();
+
+        let dir = tempfile::tempdir().unwrap();
+        let out_path = dir.path().join("progress.sql");
+        let events: Arc<Mutex<Vec<TransferProgress>>> = Arc::new(Mutex::new(Vec::new()));
+        let events_clone = events.clone();
+
+        let opts = SqlExportOptions {
+            connection_id: "c1".to_string(),
+            schema: None,
+            tables: vec!["p1".to_string(), "p2".to_string()],
+            file_path: out_path.to_string_lossy().to_string(),
+            include_drop_table: true,
+            include_structure: true,
+            include_data: true,
+            batch_size: Some(1),
+            job_id: Some("sql_prog_1".to_string()),
+        };
+
+        let res = export_sql_with_progress_impl(
+            &conn,
+            DatabaseDriver::Sqlite,
+            &opts,
+            Some(move |p: TransferProgress| {
+                events_clone.lock().unwrap().push(p);
+            }),
+        )
+        .await
+        .expect("sql export with progress");
+        assert_eq!(res.total_rows, 4);
+
+        let captured = events.lock().unwrap();
+        assert!(captured.len() >= 2);
+        assert!(captured.iter().all(|p| p.percent.is_some()));
+        let last = captured.last().unwrap();
+        assert_eq!(last.status, "done");
+        assert_eq!(last.percent, Some(100.0));
+        assert_eq!(last.total_rows, Some(4));
+    }
+
+    #[tokio::test]
+    async fn test_import_sql_emits_percent_progress_to_100() {
+        use std::sync::{Arc, Mutex};
+
+        let conn = SqliteConnection::open_in_memory().expect("sqlite");
+        let dir = tempfile::tempdir().unwrap();
+        let sql_path = dir.path().join("import_prog.sql");
+        std::fs::write(
+            &sql_path,
+            "CREATE TABLE imp_t (id INTEGER);\nINSERT INTO imp_t VALUES (1);\nINSERT INTO imp_t VALUES (2);\n",
+        )
+        .unwrap();
+
+        let events: Arc<Mutex<Vec<TransferProgress>>> = Arc::new(Mutex::new(Vec::new()));
+        let events_clone = events.clone();
+
+        let opts = SqlImportOptions {
+            connection_id: "c1".to_string(),
+            schema: None,
+            file_path: sql_path.to_string_lossy().to_string(),
+            error_policy: "abort".to_string(),
+            job_id: Some("sql_imp_prog_1".to_string()),
+        };
+
+        let res = import_sql_impl(
+            &conn,
+            &opts,
+            Some(move |p: TransferProgress| {
+                events_clone.lock().unwrap().push(p);
+            }),
+        )
+        .await
+        .expect("sql import with progress");
+        assert_eq!(res.successful_statements, 3);
+
+        let captured = events.lock().unwrap();
+        assert!(captured.len() >= 3);
+        assert!(captured.iter().all(|p| p.percent.is_some() && p.total_rows.is_some()));
+        let last = captured.last().unwrap();
+        assert_eq!(last.status, "done");
+        assert_eq!(last.percent, Some(100.0));
     }
 }

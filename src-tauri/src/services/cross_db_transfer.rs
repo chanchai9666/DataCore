@@ -345,6 +345,9 @@ where
                 rows_transferred += fetched_count;
 
                 if let Some(ref cb) = on_progress {
+                    let pct = total_rows_opt
+                        .filter(|&t| t > 0)
+                        .map(|t| ((rows_transferred as f64 / t as f64) * 100.0).clamp(0.0, 99.0));
                     let status = match total_rows_opt {
                         Some(tot) if tot > 0 => format!(
                             "Transferring rows: {} / {} ({}%)",
@@ -359,6 +362,10 @@ where
                         current_row: rows_transferred,
                         total_rows: total_rows_opt,
                         status,
+                        job_id: options.job_id.clone(),
+                        rows_processed: Some(rows_transferred),
+                        elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                        percent: pct,
                         ..Default::default()
                     });
                 }
@@ -376,6 +383,10 @@ where
             current_row: rows_transferred,
             total_rows: total_rows_opt.or(Some(rows_transferred)),
             status: "Transfer completed successfully".to_string(),
+            job_id: options.job_id.clone(),
+            rows_processed: Some(rows_transferred),
+            elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+            percent: Some(100.0),
             ..Default::default()
         });
     }

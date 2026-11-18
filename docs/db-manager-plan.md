@@ -1163,5 +1163,21 @@
   - ใช้กรอบไอคอน (`Icon Badge`) ร่วมกันทุกเมนู รวมถึงอัปเกรดเมนูย่อย `นำเข้า` และ `ส่งออก` ให้มีคำอธิบายย่อย 2 บรรทัด
   - ลบ `uppercase` ออกจากหัวข้อหมวดหมู่ตามแนวทาง `DataCore-UX-UI-Redesign-Guide.md` และเพิ่มคีย์แปลภาษาไทยใน `th.json` / `en.json` ครบ 100%
 
+### Phase 49: ตัวบอกความคืบหน้าแบบ Real-time Percentage (`0%–100%`) สำหรับ Export, Import และ Backup/Restore (Issue #179) [Completed]
+
+- **Data Contract (`src-tauri/src/models/transfer.rs`, `src/types/dataTransfer.ts`):**
+  - เพิ่ม `percent: Option<f64>` (`percent?: number`) ใน `TransferProgress` เพื่อสื่อสารเปอร์เซ็นต์ความคืบหน้า (`0.0–100.0`) ข้าม Tauri IPC โดยตรง
+  - เพิ่ม `total_rows: Option<usize>` (`total_rows?: number`) ใน `ExportOptions` เพื่อให้ Frontend ส่งจำนวนแถวเป้าหมายที่ทราบอยู่แล้วให้ Backend ใช้คำนวณเปอร์เซ็นต์ได้ทันที
+- **Rust Backend Percentage Calculation & Event Emission (`transfer_commands.rs`, `sql_transfer.rs`, `data_transfer.rs`, `cross_db_transfer.rs`):**
+  - **`export_sql` (`export_sql_with_progress_impl`):** ประมาณการจำนวนแถวรวมล่วงหน้าผ่าน `get_table_list_metadata_impl`, ส่ง `transfer://progress` พร้อม `percent`, `current_row`, `total_rows`, `bytes_written` และ `"done"` (`100.0%`)
+  - **`import_sql_impl`:** ติดตามอัตราส่วนขนาดไบต์ที่อ่านเทียบกับไฟล์ทั้งหมด (`bytes_read / total_file_bytes`) ส่ง `percent` ต่อเนื่องจนถึง `100.0%` เมื่อจบสคริปต์
+  - **`export_data_with_progress_impl`:** ใช้ `options.total_rows` หรือประมวลผล `SELECT COUNT(*)` แบบ best-effort เพื่อส่ง `total_rows` และ `percent` (รองรับทั้ง PostgreSQL Fast COPY, CSV และ JSON)
+  - **`import_data_impl`:** นับจำนวนเรคคอร์ดในไฟล์ล่วงหน้า (`count_import_file_records` ผ่าน `spawn_blocking`) เพื่อส่ง `total_rows` และ `percent` อย่างแม่นยำทั้ง Batch Loop และ PostgreSQL Fast COPY
+  - **`copy_table_cross_db_impl`:** ส่ง `percent`, `job_id`, `rows_processed` และ `elapsed_ms` ครบถ้วนทุก batch
+- **Frontend UI & Transfer Monitor (`transferMonitorStore.ts`, `TransferMonitorModal.tsx`, `StatusBar.tsx` และ Modals ทั้ง 6 + Native CLI):**
+  - เพิ่ม `calculateTransferPercent`, `estimateNativeProgressPercent` และฟิลด์ `percent: number | null` ใน `useTransferMonitorStore` พร้อมแสดง `%` บน `StatusBar` และ `TransferMonitorModal`
+  - เพิ่มแถบ Progress Bar พร้อมตัวเลข `0%–100%` แบบ Real-time ใน `ExportSqlModal.tsx`, `ImportSqlModal.tsx`, `ExportModal.tsx`, `DataExportWizardModal.tsx`, `ImportModal.tsx` และ `DataImportWizardModal.tsx`
+  - เพิ่มตัวคำนวณ Progress จาก log ของ Native CLI (`pg_dump`/`pg_restore`/`mysqldump` และ `native://progress`) ใน `NativeBackupModal.tsx` และ `NativeRestoreModal.tsx` แสดง `0%–95%` ระหว่างทำงาน (และ `100%` เมื่อเสร็จสิ้น)
+
 
 
