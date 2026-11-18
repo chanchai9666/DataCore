@@ -27,6 +27,7 @@ import {
   Wand2,
   RefreshCw,
   FileJson,
+  Info,
   ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
@@ -91,6 +92,7 @@ export interface MainToolbarProps {
   onOpenShortcuts?: () => void;
   onCheckUpdates?: () => void;
   onExportDiagnosticBundle?: () => void;
+  onOpenAbout?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   customItems?: ToolbarActionItem[];
@@ -124,6 +126,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenShortcuts,
   onCheckUpdates,
   onExportDiagnosticBundle,
+  onOpenAbout,
   theme = 'dark',
   onToggleTheme,
   customItems,
@@ -453,6 +456,15 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       description: t('toolbar.diagnosticBundleDesc', 'Sanitized system info for bug reporting'),
       onClick: onExportDiagnosticBundle,
     },
+    {
+      show: Boolean(onOpenAbout),
+      testId: 'toolbar-tools-about-btn',
+      icon: Info,
+      iconColor: 'text-blue-400',
+      label: t('toolbar.aboutDataCore', 'About DataCore...'),
+      description: t('toolbar.aboutDataCoreDesc', 'Version, supported databases & project info'),
+      onClick: onOpenAbout,
+    },
   ];
 
   const handleTitleBarDoubleClick = useCallback(async (e: React.MouseEvent) => {
@@ -634,7 +646,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     </div>
 
                     {/* Footer Bar: System & Diagnostics */}
-                    {(onCheckUpdates || onExportDiagnosticBundle) && (
+                    {(onCheckUpdates || onExportDiagnosticBundle || onOpenAbout) && (
                       <div className="border-t border-line bg-black/[0.02] dark:bg-white/[0.02] p-2">
                         <div className="px-2 pb-1 text-[11px] font-semibold text-muted">
                           {t('toolbar.categorySystem', 'System & Diagnostics')}

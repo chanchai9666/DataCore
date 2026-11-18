@@ -1204,6 +1204,12 @@
 - **Native macOS Menu Bar (`src-tauri/src/menu.rs`, `src-tauri/src/lib.rs`, `src/App.tsx`):**
   - สร้างเมนูเนทีฟ macOS ผ่าน `tauri::menu` (`DataCore`, `File`, `Edit`, `View`, `Window`, `Help`) ส่ง event `menu://action` (`new-connection`, `new-query`, `close-tab`, `refresh-schema`, `toggle-theme`, `command-palette`, `keyboard-shortcuts`, `check-updates`, `export-diagnostics`) ไปยัง Frontend `App.tsx` พร้อม Unit Test ฝั่ง Rust (`menu::tests`)
 
+### Phase 53: หน้าต่าง About DataCore (Issue #183) [Completed]
+
+- **`src/components/dialogs/AboutModal.tsx`:** แสดงชื่อโปรแกรม เวอร์ชัน (ดึงจาก Tauri `getVersion()` พร้อม fallback), ฐานข้อมูลที่รองรับ (PostgreSQL, MySQL, SQLite, DuckDB, SQL Server), จุดเด่นด้านความปลอดภัย (AES-256-GCM / Argon2id Local Vault) และประสิทธิภาพ, ผู้พัฒนา, ลิงก์ GitHub พร้อมปุ่ม `Copy Info`, `Check for Updates...`, `Close` รองรับ Light/Dark (Design Tokens) และ i18n ไทย/อังกฤษ (`about.*`)
+- **จุดเข้าถึง:** Native macOS Menu (`DataCore -> About DataCore`, event `menu://action` = `about`), MainToolbar เมนู Tools หมวด `System & Diagnostics`, และ Command Palette (`About DataCore...`)
+- **Tests:** `AboutModal.test.tsx` และอัปเดต `menu::tests` (10 actions)
+
 
 
 

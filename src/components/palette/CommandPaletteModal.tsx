@@ -27,6 +27,7 @@ import {
   Languages,
   RefreshCw,
   FileJson,
+  Info,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { changeLanguage } from '../../i18n';
@@ -88,6 +89,7 @@ export interface CommandPaletteModalProps {
   onOpenUserManager?: () => void;
   onCheckUpdates?: () => void;
   onExportDiagnosticBundle?: () => void;
+  onOpenAbout?: () => void;
   onSelectConnection?: (connectionId: string) => void;
   // For testing / overrides
   initialTables?: TableItem[];
@@ -165,6 +167,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   onOpenUserManager,
   onCheckUpdates,
   onExportDiagnosticBundle,
+  onOpenAbout,
   onSelectConnection,
   initialTables,
   platform,
@@ -588,6 +591,20 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         keywords: ['diagnostic', 'bundle', 'export', 'debug', 'system info', 'logs', 'troubleshoot'],
         onSelect: () => {
           onExportDiagnosticBundle();
+        },
+      });
+    }
+
+    if (onOpenAbout) {
+      items.push({
+        id: 'action-about',
+        title: 'About DataCore...',
+        subtitle: 'Version, supported databases, and project information',
+        category: 'Actions',
+        icon: <Info className="w-4 h-4 text-blue-400" />,
+        keywords: ['about', 'version', 'info', 'datacore', 'github'],
+        onSelect: () => {
+          onOpenAbout();
         },
       });
     }

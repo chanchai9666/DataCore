@@ -22,6 +22,7 @@ import { KeyboardShortcutsModal } from './components/dialogs/KeyboardShortcutsMo
 import { CommandPaletteModal } from './components/palette/CommandPaletteModal';
 import { UpdateCheckerModal } from './components/dialogs/UpdateCheckerModal';
 import { DiagnosticBundleModal } from './components/dialogs/DiagnosticBundleModal';
+import { AboutModal } from './components/dialogs/AboutModal';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
 import { useSchemaStore } from './stores/schemaStore';
@@ -70,6 +71,7 @@ export function App() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isUpdateCheckerOpen, setIsUpdateCheckerOpen] = useState(false);
   const [isDiagnosticBundleOpen, setIsDiagnosticBundleOpen] = useState(false);
+  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
@@ -147,6 +149,9 @@ export function App() {
           break;
         case 'export-diagnostics':
           setIsDiagnosticBundleOpen(true);
+          break;
+        case 'about':
+          setIsAboutModalOpen(true);
           break;
         default:
           break;
@@ -411,6 +416,7 @@ export function App() {
         onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
         onCheckUpdates={() => setIsUpdateCheckerOpen(true)}
         onExportDiagnosticBundle={() => setIsDiagnosticBundleOpen(true)}
+        onOpenAbout={() => setIsAboutModalOpen(true)}
         onEditConnection={(conn) => {
           setConnectionToEdit(conn);
           setIsConnectionDialogOpen(true);
@@ -685,6 +691,7 @@ export function App() {
         }}
         onCheckUpdates={() => setIsUpdateCheckerOpen(true)}
         onExportDiagnosticBundle={() => setIsDiagnosticBundleOpen(true)}
+        onOpenAbout={() => setIsAboutModalOpen(true)}
         onSelectConnection={(connId) => {
           setActiveConnection(connId);
         }}
@@ -700,6 +707,16 @@ export function App() {
       <DiagnosticBundleModal
         isOpen={isDiagnosticBundleOpen}
         onClose={() => setIsDiagnosticBundleOpen(false)}
+      />
+
+      {/* About DataCore Modal */}
+      <AboutModal
+        isOpen={isAboutModalOpen}
+        onClose={() => setIsAboutModalOpen(false)}
+        onCheckUpdates={() => {
+          setIsAboutModalOpen(false);
+          setIsUpdateCheckerOpen(true);
+        }}
       />
 
       {/* Global Toast Notifications */}

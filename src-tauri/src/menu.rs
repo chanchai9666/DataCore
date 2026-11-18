@@ -10,8 +10,10 @@ pub const MENU_COMMAND_PALETTE: &str = "command-palette";
 pub const MENU_KEYBOARD_SHORTCUTS: &str = "keyboard-shortcuts";
 pub const MENU_CHECK_UPDATES: &str = "check-updates";
 pub const MENU_EXPORT_DIAGNOSTICS: &str = "export-diagnostics";
+pub const MENU_ABOUT: &str = "about";
 
 pub const KNOWN_MENU_ACTIONS: &[&str] = &[
+    MENU_ABOUT,
     MENU_NEW_CONNECTION,
     MENU_NEW_QUERY,
     MENU_CLOSE_TAB,
@@ -29,7 +31,7 @@ pub fn is_known_menu_action(id: &str) -> bool {
 
 pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let app_menu = SubmenuBuilder::new(app, "DataCore")
-        .item(&PredefinedMenuItem::about(app, Some("About DataCore"), None)?)
+        .item(&MenuItemBuilder::with_id(MENU_ABOUT, "About DataCore").build(app)?)
         .separator()
         .item(
             &MenuItemBuilder::with_id(MENU_CHECK_UPDATES, "Check for Updates...")
@@ -119,7 +121,8 @@ mod tests {
 
     #[test]
     fn test_known_menu_actions_contains_all_expected_ids() {
-        assert_eq!(KNOWN_MENU_ACTIONS.len(), 9);
+        assert_eq!(KNOWN_MENU_ACTIONS.len(), 10);
+        assert!(is_known_menu_action("about"));
         assert!(is_known_menu_action("new-connection"));
         assert!(is_known_menu_action("new-query"));
         assert!(is_known_menu_action("close-tab"));

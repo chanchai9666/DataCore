@@ -105,7 +105,22 @@
     "checkUpdates": "Check for Updates...",
     "checkUpdatesDesc": "Check for new releases & auto-update",
     "diagnosticBundle": "Export Diagnostic Bundle...",
-    "diagnosticBundleDesc": "Sanitized system info for bug reporting"
+    "diagnosticBundleDesc": "Sanitized system info for bug reporting",
+    "aboutDataCore": "About DataCore...",
+    "aboutDataCoreDesc": "Version, supported databases & project info"
+  },
+  "about": {
+    "title": "About DataCore",
+    "tagline": "A lightweight native macOS database manager for modern developers.",
+    "supportedEngines": "Supported Databases",
+    "securityTitle": "Secure Local Vault",
+    "securityDesc": "Passwords sealed with AES-256-GCM and Argon2id in a local encrypted vault (0600).",
+    "performanceTitle": "Fast & Lightweight",
+    "performanceDesc": "Native Tauri + Rust backend with streaming queries and keyset pagination.",
+    "developedBy": "Developed by",
+    "copyInfo": "Copy Info",
+    "copied": "Copied app info to clipboard",
+    "copyFailed": "Failed to copy app info"
   },
   "status": {
     "ready": "Ready",

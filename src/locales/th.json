@@ -105,7 +105,22 @@
     "checkUpdates": "ตรวจสอบอัปเดต...",
     "checkUpdatesDesc": "ตรวจสอบเวอร์ชันใหม่และอัปเดตอัตโนมัติ",
     "diagnosticBundle": "ส่งออกข้อมูลวินิจฉัยระบบ...",
-    "diagnosticBundleDesc": "ข้อมูลระบบที่ตัดข้อมูลลับแล้วสำหรับแจ้งปัญหา"
+    "diagnosticBundleDesc": "ข้อมูลระบบที่ตัดข้อมูลลับแล้วสำหรับแจ้งปัญหา",
+    "aboutDataCore": "เกี่ยวกับ DataCore...",
+    "aboutDataCoreDesc": "เวอร์ชัน ฐานข้อมูลที่รองรับ และข้อมูลโปรเจกต์"
+  },
+  "about": {
+    "title": "เกี่ยวกับ DataCore",
+    "tagline": "โปรแกรมจัดการฐานข้อมูลเนทีฟสำหรับ macOS ที่เบาและเร็ว สำหรับนักพัฒนายุคใหม่",
+    "supportedEngines": "ฐานข้อมูลที่รองรับ",
+    "securityTitle": "Vault ภายในเครื่องที่ปลอดภัย",
+    "securityDesc": "รหัสผ่านถูกเข้ารหัสด้วย AES-256-GCM และ Argon2id เก็บใน Vault ภายในเครื่อง (สิทธิ์ 0600)",
+    "performanceTitle": "เร็วและเบา",
+    "performanceDesc": "Backend เนทีฟด้วย Tauri + Rust รองรับ Streaming Query และ Keyset Pagination",
+    "developedBy": "พัฒนาโดย",
+    "copyInfo": "คัดลอกข้อมูล",
+    "copied": "คัดลอกข้อมูลโปรแกรมแล้ว",
+    "copyFailed": "คัดลอกข้อมูลโปรแกรมไม่สำเร็จ"
   },
   "status": {
     "ready": "พร้อมทำงาน",
