@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use crate::error::AppError;
-use crate::models::query::{QueryResult, TableFilterState};
+use crate::models::query::{CellValue, ColumnMeta, QueryResult, TableFilterState};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -65,10 +66,75 @@ impl SchemaNode {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Chunk {
+    pub columns: Arc<Vec<ColumnMeta>>,
+    pub rows: Vec<Vec<CellValue>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StreamOutcome {
+    pub rows_sent: u64,
+    pub stopped_early: bool,
+}
+
 #[async_trait]
 pub trait DatabaseConnection: Send + Sync {
     async fn test_connection(&self) -> Result<u64, AppError>; // คืนค่า Latency (ms)
     async fn execute_query(&self, sql: &str) -> Result<QueryResult, AppError>;
+    /// Stream query results in chunks over a bounded mpsc channel for backpressure.
+    async fn stream_query(
+        &self,
+        sql: &str,
+        chunk_rows: usize,
+        tx: tokio::sync::mpsc::Sender<Chunk>,
+    ) -> Result<StreamOutcome, AppError> {
+        let chunk_rows = chunk_rows.max(1);
+        let result = self.execute_query(sql).await?;
+        let columns = Arc::new(result.columns);
+        let mut rows_sent: u64 = 0;
+
+        if result.rows.is_empty() {
+            if !columns.is_empty() {
+                let chunk = Chunk {
+                    columns: Arc::clone(&columns),
+                    rows: Vec::new(),
+                };
+                if tx.send(chunk).await.is_err() {
+                    return Ok(StreamOutcome {
+                        rows_sent: 0,
+                        stopped_early: true,
+                    });
+                }
+            }
+            return Ok(StreamOutcome {
+                rows_sent: 0,
+                stopped_early: false,
+            });
+        }
+
+        let mut iter = result.rows.into_iter().peekable();
+        while iter.peek().is_some() {
+            let batch: Vec<Vec<CellValue>> = iter.by_ref().take(chunk_rows).collect();
+            let count = batch.len() as u64;
+            let chunk = Chunk {
+                columns: Arc::clone(&columns),
+                rows: batch,
+            };
+            if tx.send(chunk).await.is_err() {
+                return Ok(StreamOutcome {
+                    rows_sent,
+                    stopped_early: true,
+                });
+            }
+            rows_sent += count;
+        }
+
+        Ok(StreamOutcome {
+            rows_sent,
+            stopped_early: false,
+        })
+    }
     #[allow(clippy::too_many_arguments)]
     async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>, sort_col: Option<&str>, sort_dir: Option<&str>) -> Result<QueryResult, AppError>;
     async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError>;
@@ -376,5 +442,85 @@ mod tests {
         assert!(validate_table_filter("id = 1; SELECT 1").is_err());
         assert!(validate_table_filter("id = 1 -- comment").is_err());
         assert!(validate_table_filter("id = 1 /* comment */").is_err());
+    }
+
+    struct MockStreamConn {
+        result: QueryResult,
+    }
+
+    #[async_trait]
+    impl DatabaseConnection for MockStreamConn {
+        async fn test_connection(&self) -> Result<u64, AppError> { Ok(1) }
+        async fn execute_query(&self, _sql: &str) -> Result<QueryResult, AppError> {
+            Ok(self.result.clone())
+        }
+        async fn fetch_table_data(&self, _s: Option<&str>, _t: &str, _l: u32, _o: u32, _f: Option<&str>, _sc: Option<&str>, _sd: Option<&str>) -> Result<QueryResult, AppError> {
+            Ok(self.result.clone())
+        }
+        async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError> { Ok(vec![]) }
+        async fn commit(&self) -> Result<(), AppError> { Ok(()) }
+        async fn rollback(&self) -> Result<(), AppError> { Ok(()) }
+        async fn cancel(&self) -> Result<(), AppError> { Ok(()) }
+    }
+
+    #[tokio::test]
+    async fn test_default_stream_query_chunks_and_early_stop() {
+        let cols = vec![ColumnMeta::new("id", "INTEGER", false)];
+        let rows: Vec<Vec<CellValue>> = (1..=10).map(|i| vec![CellValue::Integer(i)]).collect();
+        let conn = MockStreamConn {
+            result: QueryResult::new(cols, rows, 0, None),
+        };
+
+        let (tx, mut rx) = tokio::sync::mpsc::channel(2);
+        let stream_fut = conn.stream_query("SELECT id FROM t", 3, tx);
+        let consume_fut = async move {
+            let mut sizes = Vec::new();
+            while let Some(chunk) = rx.recv().await {
+                assert_eq!(chunk.columns.len(), 1);
+                sizes.push(chunk.rows.len());
+            }
+            sizes
+        };
+        let (outcome_res, sizes) = tokio::join!(stream_fut, consume_fut);
+        let outcome = outcome_res.expect("default stream_query");
+        assert_eq!(sizes, vec![3, 3, 3, 1]);
+        assert_eq!(outcome, StreamOutcome { rows_sent: 10, stopped_early: false });
+
+        // Early stop when rx is dropped
+        let (tx2, mut rx2) = tokio::sync::mpsc::channel(1);
+        let stream_fut2 = conn.stream_query("SELECT id FROM t", 3, tx2);
+        let consume_fut2 = async move {
+            let first = rx2.recv().await.expect("first chunk");
+            assert_eq!(first.rows.len(), 3);
+            drop(rx2);
+        };
+        let (outcome_res2, ()) = tokio::join!(stream_fut2, consume_fut2);
+        let outcome2 = outcome_res2.expect("early stop stream_query");
+        assert!(outcome2.stopped_early);
+        assert!(outcome2.rows_sent < 10);
+    }
+
+    #[tokio::test]
+    async fn test_default_stream_query_empty_with_columns() {
+        let cols = vec![ColumnMeta::new("id", "INTEGER", false)];
+        let conn = MockStreamConn {
+            result: QueryResult::new(cols, vec![], 0, None),
+        };
+        let (tx, mut rx) = tokio::sync::mpsc::channel(2);
+        let (outcome_res, chunks) = tokio::join!(
+            conn.stream_query("SELECT id FROM empty_t", 10, tx),
+            async move {
+                let mut out = Vec::new();
+                while let Some(c) = rx.recv().await {
+                    out.push(c);
+                }
+                out
+            }
+        );
+        let outcome = outcome_res.expect("empty stream_query");
+        assert_eq!(outcome, StreamOutcome { rows_sent: 0, stopped_early: false });
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].columns.len(), 1);
+        assert!(chunks[0].rows.is_empty());
     }
 }

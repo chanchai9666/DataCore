@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
-use crate::drivers::DatabaseConnection;
+use crate::drivers::{Chunk, DatabaseConnection};
 use crate::error::AppError;
 use crate::models::transfer::{SqlExportOptions, SqlExportResult, SqlImportOptions, SqlImportResult, TransferProgress};
 use crate::models::{CellValue, DatabaseDriver};
@@ -425,7 +425,7 @@ pub async fn export_sql_impl(
             }
         }
 
-        // 3. Table Data (Streamed in batches of `batch_size` rows via LIMIT/OFFSET)
+        // 3. Table Data (Streamed in batches of `batch_size` rows via single-statement stream_query)
         if options.include_data {
             let quoted_table = match driver {
                 DatabaseDriver::Sqlite => format!("\"{}\"", table.replace('"', "\"\"")),
@@ -449,62 +449,63 @@ pub async fn export_sql_impl(
                 }
             };
 
-            let mut offset: usize = 0;
-            loop {
-                if let Some(ref jid) = options.job_id {
-                    if is_transfer_cancelled(jid) {
-                        remove_cancellation_token(jid);
-                        return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
+            let select_sql = format!("SELECT * FROM {};", quoted_table);
+            let (tx, mut rx) = tokio::sync::mpsc::channel::<Chunk>(4);
+            let stream_fut = conn.stream_query(&select_sql, batch_size, tx);
+            let consume_fut = async {
+                while let Some(chunk) = rx.recv().await {
+                    if let Some(ref jid) = options.job_id {
+                        if is_transfer_cancelled(jid) {
+                            remove_cancellation_token(jid);
+                            drop(rx);
+                            return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
+                        }
+                    }
+
+                    if chunk.rows.is_empty() || chunk.columns.is_empty() {
+                        continue;
+                    }
+
+                    let fetched_count = chunk.rows.len();
+                    total_rows += fetched_count;
+
+                    let quoted_cols: Vec<String> = chunk
+                        .columns
+                        .iter()
+                        .map(|c| match driver {
+                            DatabaseDriver::Mysql => format!("`{}`", c.name.replace('`', "``")),
+                            _ => format!("\"{}\"", c.name.replace('"', "\"\"")),
+                        })
+                        .collect();
+
+                    let cols_joined = quoted_cols.join(", ");
+
+                    let mut value_tuples = Vec::with_capacity(fetched_count);
+                    for row in &chunk.rows {
+                        let formatted: Vec<String> = row
+                            .iter()
+                            .map(|v| format_cell_value(v, dialect))
+                            .collect();
+                        value_tuples.push(format!("({})", formatted.join(", ")));
+                    }
+
+                    if let Err(e) = writeln!(
+                        writer,
+                        "INSERT INTO {} ({}) VALUES\n{};\n",
+                        quoted_table,
+                        cols_joined,
+                        value_tuples.join(",\n")
+                    ) {
+                        drop(rx);
+                        return Err(AppError::from(e));
                     }
                 }
+                Ok::<(), AppError>(())
+            };
 
-                let select_sql = format!(
-                    "SELECT * FROM {} LIMIT {} OFFSET {};",
-                    quoted_table, batch_size, offset
-                );
-                let query_res = conn.execute_query(&select_sql).await?;
-                let col_names: Vec<String> = query_res.columns.iter().map(|c| c.name.clone()).collect();
-                let rows = query_res.rows;
-
-                if rows.is_empty() || col_names.is_empty() {
-                    break;
-                }
-
-                let fetched_count = rows.len();
-                total_rows += fetched_count;
-
-                let quoted_cols: Vec<String> = col_names
-                    .iter()
-                    .map(|c| match driver {
-                        DatabaseDriver::Mysql => format!("`{}`", c.replace('`', "``")),
-                        _ => format!("\"{}\"", c.replace('"', "\"\"")),
-                    })
-                    .collect();
-
-                let cols_joined = quoted_cols.join(", ");
-
-                let mut value_tuples = Vec::with_capacity(fetched_count);
-                for row in &rows {
-                    let formatted: Vec<String> = row
-                        .iter()
-                        .map(|v| format_cell_value(v, dialect))
-                        .collect();
-                    value_tuples.push(format!("({})", formatted.join(", ")));
-                }
-
-                writeln!(
-                    writer,
-                    "INSERT INTO {} ({}) VALUES\n{};\n",
-                    quoted_table,
-                    cols_joined,
-                    value_tuples.join(",\n")
-                )?;
-
-                if fetched_count < batch_size {
-                    break;
-                }
-                offset += fetched_count;
-            }
+            let (stream_res, consume_res) = tokio::join!(stream_fut, consume_fut);
+            consume_res?;
+            stream_res?;
         }
     }
 

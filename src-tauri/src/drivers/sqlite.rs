@@ -4,7 +4,7 @@ use tokio::sync::Mutex;
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
-use crate::drivers::traits::{build_safe_where_clause, DatabaseConnection, SchemaNode, SchemaNodeType};
+use crate::drivers::traits::{build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome};
 
 #[derive(Clone)]
 pub struct SqliteConnection {
@@ -300,6 +300,121 @@ impl SqliteConnection {
         res.execution_time_ms = start.elapsed().as_millis() as u64;
         Ok(res)
     }
+
+    fn stream_on_conn(
+        conn: &rusqlite::Connection,
+        sql: &str,
+        chunk_rows: usize,
+        tx: &tokio::sync::mpsc::Sender<Chunk>,
+    ) -> Result<StreamOutcome, rusqlite::Error> {
+        let chunk_rows = chunk_rows.max(1);
+        let statements = split_sql_statements(sql);
+        if statements.is_empty() {
+            return Ok(StreamOutcome {
+                rows_sent: 0,
+                stopped_early: false,
+            });
+        }
+
+        let last_idx = statements.len() - 1;
+        for stmt_sql in &statements[..last_idx] {
+            Self::execute_single_stmt(conn, stmt_sql)?;
+        }
+
+        let mut stmt = conn.prepare(&statements[last_idx])?;
+        let col_count = stmt.column_count();
+        if col_count == 0 {
+            stmt.execute([])?;
+            return Ok(StreamOutcome {
+                rows_sent: 0,
+                stopped_early: false,
+            });
+        }
+
+        let columns: Arc<Vec<ColumnMeta>> = Arc::new(
+            stmt.columns()
+                .into_iter()
+                .map(|col| {
+                    ColumnMeta::new(
+                        col.name(),
+                        col.decl_type().unwrap_or("TEXT"),
+                        true,
+                    )
+                })
+                .collect(),
+        );
+
+        let mut rows = stmt.query([])?;
+        let mut batch: Vec<Vec<CellValue>> = Vec::with_capacity(chunk_rows);
+        let mut rows_sent: u64 = 0;
+
+        while let Some(row) = rows.next()? {
+            let mut row_values = Vec::with_capacity(col_count);
+            for i in 0..col_count {
+                let val_ref = row.get_ref(i)?;
+                let cell_val = match val_ref {
+                    rusqlite::types::ValueRef::Null => CellValue::Null,
+                    rusqlite::types::ValueRef::Integer(n) => CellValue::Integer(n),
+                    rusqlite::types::ValueRef::Real(f) => CellValue::Float(f),
+                    rusqlite::types::ValueRef::Text(bytes) => {
+                        CellValue::Text(String::from_utf8_lossy(bytes).into_owned())
+                    }
+                    rusqlite::types::ValueRef::Blob(b) => {
+                        use base64::Engine;
+                        CellValue::Bytes(base64::engine::general_purpose::STANDARD.encode(b))
+                    }
+                };
+                row_values.push(cell_val);
+            }
+            batch.push(row_values);
+
+            if batch.len() >= chunk_rows {
+                let count = batch.len() as u64;
+                let chunk = Chunk {
+                    columns: Arc::clone(&columns),
+                    rows: std::mem::replace(&mut batch, Vec::with_capacity(chunk_rows)),
+                };
+                if tx.blocking_send(chunk).is_err() {
+                    return Ok(StreamOutcome {
+                        rows_sent,
+                        stopped_early: true,
+                    });
+                }
+                rows_sent += count;
+            }
+        }
+
+        if !batch.is_empty() {
+            let count = batch.len() as u64;
+            let chunk = Chunk {
+                columns: Arc::clone(&columns),
+                rows: batch,
+            };
+            if tx.blocking_send(chunk).is_err() {
+                return Ok(StreamOutcome {
+                    rows_sent,
+                    stopped_early: true,
+                });
+            }
+            rows_sent += count;
+        } else if rows_sent == 0 && !columns.is_empty() {
+            let chunk = Chunk {
+                columns,
+                rows: Vec::new(),
+            };
+            if tx.blocking_send(chunk).is_err() {
+                return Ok(StreamOutcome {
+                    rows_sent: 0,
+                    stopped_early: true,
+                });
+            }
+        }
+
+        Ok(StreamOutcome {
+            rows_sent,
+            stopped_early: false,
+        })
+    }
 }
 
 #[async_trait]
@@ -337,6 +452,23 @@ impl DatabaseConnection for SqliteConnection {
                 Err(AppError::from(err))
             }
         }
+    }
+
+    async fn stream_query(
+        &self,
+        sql: &str,
+        chunk_rows: usize,
+        tx: tokio::sync::mpsc::Sender<Chunk>,
+    ) -> Result<StreamOutcome, AppError> {
+        let conn_guard = Arc::clone(&self.conn).lock_owned().await;
+        let sql_owned = sql.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            Self::stream_on_conn(&conn_guard, &sql_owned, chunk_rows, &tx)
+                .map_err(AppError::from)
+        })
+        .await
+        .map_err(|e| AppError::Other(format!("SQLite streaming task failed: {}", e)))?
     }
 
     async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>, sort_col: Option<&str>, sort_dir: Option<&str>) -> Result<QueryResult, AppError> {

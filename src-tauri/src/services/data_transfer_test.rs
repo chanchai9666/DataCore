@@ -559,3 +559,46 @@ fn test_cell_value_to_sql_literal_binary_hex() {
     // Postgres format: '\xDEADBEEF'::bytea
     assert_eq!(cell_value_to_sql_literal(&cell, "postgres"), "'\\xDEADBEEF'::bytea");
 }
+
+#[tokio::test]
+async fn test_streaming_export_cte_and_ndjson_without_limit_offset() {
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite");
+    conn.execute_query("CREATE TABLE cte_export (id INTEGER PRIMARY KEY, val TEXT);")
+        .await
+        .expect("create table");
+
+    let mut values = Vec::new();
+    for i in 1..=1200 {
+        values.push(format!("({}, 'V_{}')", i, i));
+    }
+    conn.execute_query(&format!(
+        "INSERT INTO cte_export (id, val) VALUES {};",
+        values.join(",")
+    ))
+    .await
+    .expect("insert 1200 rows");
+
+    let temp_ndjson = NamedTempFile::new().expect("temp ndjson");
+    let ndjson_path = temp_ndjson.path().to_str().unwrap().to_string();
+
+    let opts = ExportOptions {
+        format: TransferFormat::Json,
+        delimiter: None,
+        include_headers: false,
+        json_structure: Some(crate::models::JsonStructure::Ndjson),
+        job_id: None,
+    };
+
+    let res = export_data_impl(
+        &conn,
+        "WITH filtered AS (SELECT id, val FROM cte_export WHERE id > 100) SELECT * FROM filtered ORDER BY id",
+        &ndjson_path,
+        &opts,
+    )
+    .await
+    .expect("streaming cte ndjson export");
+
+    assert_eq!(res.total_rows, 1100);
+    let content = std::fs::read_to_string(&ndjson_path).expect("read ndjson");
+    assert_eq!(content.lines().count(), 1100);
+}

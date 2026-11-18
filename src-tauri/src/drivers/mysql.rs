@@ -10,7 +10,7 @@ use zeroize::{Zeroize, Zeroizing};
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
-use crate::drivers::traits::{build_safe_where_clause, DatabaseConnection, SchemaNode, SchemaNodeType};
+use crate::drivers::traits::{build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome};
 use crate::services::ssh_tunnel::SshTunnelHandle;
 
 pub struct MySqlConnection {
@@ -175,6 +175,88 @@ impl MySqlConnection {
         let elapsed = start.elapsed().as_millis() as u64;
         Ok(QueryResult::new(columns, rows_out, elapsed, rows_affected))
     }
+
+    async fn stream_raw_sql(
+        conn: &mut sqlx::MySqlConnection,
+        sql: &str,
+        chunk_rows: usize,
+        tx: &tokio::sync::mpsc::Sender<Chunk>,
+        any_sent: &mut bool,
+    ) -> Result<StreamOutcome, sqlx::Error> {
+        let chunk_rows = chunk_rows.max(1);
+        let mut stream = sqlx::raw_sql(sql).fetch_many(&mut *conn);
+        let mut columns: Option<Arc<Vec<ColumnMeta>>> = None;
+        let mut batch: Vec<Vec<CellValue>> = Vec::with_capacity(chunk_rows);
+        let mut rows_sent: u64 = 0;
+
+        while let Some(item) = stream.try_next().await? {
+            match item {
+                Either::Left(_) => {}
+                Either::Right(row) => {
+                    if columns.is_none() {
+                        let cols: Vec<ColumnMeta> = row
+                            .columns()
+                            .iter()
+                            .map(|col| {
+                                ColumnMeta::new(
+                                    col.name(),
+                                    col.type_info().name(),
+                                    true,
+                                )
+                            })
+                            .collect();
+                        columns = Some(Arc::new(cols));
+                    }
+                    let col_len = row.columns().len();
+                    let mut row_values = Vec::with_capacity(col_len);
+                    for i in 0..col_len {
+                        row_values.push(decode_mysql_cell(&row, i));
+                    }
+                    batch.push(row_values);
+
+                    if batch.len() >= chunk_rows {
+                        let count = batch.len() as u64;
+                        let chunk = Chunk {
+                            columns: Arc::clone(columns.as_ref().unwrap()),
+                            rows: std::mem::replace(&mut batch, Vec::with_capacity(chunk_rows)),
+                        };
+                        if tx.send(chunk).await.is_err() {
+                            drop(stream);
+                            return Ok(StreamOutcome {
+                                rows_sent,
+                                stopped_early: true,
+                            });
+                        }
+                        *any_sent = true;
+                        rows_sent += count;
+                    }
+                }
+            }
+        }
+
+        drop(stream);
+
+        if !batch.is_empty() {
+            let count = batch.len() as u64;
+            let chunk = Chunk {
+                columns: Arc::clone(columns.as_ref().unwrap()),
+                rows: batch,
+            };
+            if tx.send(chunk).await.is_err() {
+                return Ok(StreamOutcome {
+                    rows_sent,
+                    stopped_early: true,
+                });
+            }
+            *any_sent = true;
+            rows_sent += count;
+        }
+
+        Ok(StreamOutcome {
+            rows_sent,
+            stopped_early: false,
+        })
+    }
 }
 
 fn decode_mysql_cell(row: &sqlx::mysql::MySqlRow, index: usize) -> CellValue {
@@ -305,6 +387,38 @@ impl DatabaseConnection for MySqlConnection {
                         self.connection_id.store(new_cid, Ordering::SeqCst);
                         *self.ssh_tunnel.lock().await = new_tunnel;
                         return Self::run_raw_sql(&mut conn, sql, std::time::Instant::now())
+                            .await
+                            .map_err(AppError::from);
+                    }
+                }
+                Err(AppError::from(err))
+            }
+        }
+    }
+
+    async fn stream_query(
+        &self,
+        sql: &str,
+        chunk_rows: usize,
+        tx: tokio::sync::mpsc::Sender<Chunk>,
+    ) -> Result<StreamOutcome, AppError> {
+        let mut conn = self.conn.lock().await;
+        let mut any_sent = false;
+
+        match Self::stream_raw_sql(&mut conn, sql, chunk_rows, &tx, &mut any_sent).await {
+            Ok(outcome) => Ok(outcome),
+            Err(err) => {
+                let auto_reconnect = self.config.auto_reconnect.unwrap_or(true);
+                let in_tx = self.in_manual_tx.load(Ordering::SeqCst);
+                if !any_sent && auto_reconnect && !in_tx && Self::is_disconnect_error(&err) {
+                    if let Ok((new_conn, new_opts, new_cid, new_tunnel)) =
+                        Self::establish_raw(&self.config, self.password.as_ref().map(|s| s.as_str())).await
+                    {
+                        *conn = new_conn;
+                        *self.connect_options.lock().await = new_opts;
+                        self.connection_id.store(new_cid, Ordering::SeqCst);
+                        *self.ssh_tunnel.lock().await = new_tunnel;
+                        return Self::stream_raw_sql(&mut conn, sql, chunk_rows, &tx, &mut any_sent)
                             .await
                             .map_err(AppError::from);
                     }

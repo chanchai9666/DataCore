@@ -419,3 +419,93 @@ async fn test_sqlite_schema_tree_and_get_object_ddl() {
     let err = conn.get_object_ddl(None, "non_existent", "table").await;
     assert!(err.is_err());
 }
+
+#[tokio::test]
+async fn test_sqlite_stream_query_chunks_and_backpressure() {
+    use crate::drivers::Chunk;
+
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite in memory");
+    conn.execute_query("CREATE TABLE stream_items (id INTEGER PRIMARY KEY, name TEXT);")
+        .await
+        .expect("create table");
+
+    for i in 1..=25 {
+        conn.execute_query(&format!("INSERT INTO stream_items (id, name) VALUES ({}, 'item_{}');", i, i))
+            .await
+            .expect("insert row");
+    }
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Chunk>(2);
+    let stream_fut = conn.stream_query("SELECT id, name FROM stream_items ORDER BY id;", 7, tx);
+    let consume_fut = async move {
+        let mut chunk_sizes = Vec::new();
+        let mut collected_ids = Vec::new();
+        while let Some(chunk) = rx.recv().await {
+            assert_eq!(chunk.columns.len(), 2);
+            assert_eq!(chunk.columns[0].name, "id");
+            assert_eq!(chunk.columns[1].name, "name");
+            chunk_sizes.push(chunk.rows.len());
+            for row in chunk.rows {
+                collected_ids.push(row[0].as_i64().unwrap());
+            }
+        }
+        (chunk_sizes, collected_ids)
+    };
+
+    let (outcome_res, (chunk_sizes, collected_ids)) = tokio::join!(stream_fut, consume_fut);
+    let outcome = outcome_res.expect("stream_query ok");
+    assert_eq!(outcome.rows_sent, 25);
+    assert!(!outcome.stopped_early);
+    assert_eq!(chunk_sizes, vec![7, 7, 7, 4]);
+    let expected_ids: Vec<i64> = (1..=25).collect();
+    assert_eq!(collected_ids, expected_ids);
+}
+
+#[tokio::test]
+async fn test_sqlite_stream_query_early_stop_and_empty() {
+    use crate::drivers::Chunk;
+
+    let conn = SqliteConnection::open_in_memory().expect("open sqlite in memory");
+    conn.execute_query("CREATE TABLE stream_early (id INTEGER PRIMARY KEY);")
+        .await
+        .expect("create table");
+
+    // Empty table yields 1 chunk with column metadata and 0 rows
+    let (tx_empty, mut rx_empty) = tokio::sync::mpsc::channel::<Chunk>(2);
+    let (empty_res, empty_chunks) = tokio::join!(
+        conn.stream_query("SELECT id FROM stream_early;", 10, tx_empty),
+        async move {
+            let mut v = Vec::new();
+            while let Some(c) = rx_empty.recv().await {
+                v.push(c);
+            }
+            v
+        }
+    );
+    let empty_outcome = empty_res.expect("empty stream");
+    assert_eq!(empty_outcome.rows_sent, 0);
+    assert!(!empty_outcome.stopped_early);
+    assert_eq!(empty_chunks.len(), 1);
+    assert_eq!(empty_chunks[0].columns[0].name, "id");
+    assert!(empty_chunks[0].rows.is_empty());
+
+    // Early stop when receiver drops
+    for i in 1..=25 {
+        conn.execute_query(&format!("INSERT INTO stream_early (id) VALUES ({});", i))
+            .await
+            .expect("insert");
+    }
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Chunk>(1);
+    let (outcome_res, ()) = tokio::join!(
+        conn.stream_query("SELECT id FROM stream_early ORDER BY id;", 5, tx),
+        async move {
+            let first = rx.recv().await.expect("first chunk");
+            assert_eq!(first.rows.len(), 5);
+            drop(rx);
+        }
+    );
+    let outcome = outcome_res.expect("early stop ok");
+    assert!(outcome.stopped_early);
+    assert!(outcome.rows_sent < 25);
+}
