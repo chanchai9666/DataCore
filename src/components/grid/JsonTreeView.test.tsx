@@ -48,4 +48,11 @@ describe('JsonTreeView', () => {
     fireEvent.click(toggleButtons[0]);
     expect(screen.getByText('"city":')).toBeInTheDocument();
   });
+
+  it('uses theme CSS variables instead of hardcoded dark background', () => {
+    render(<JsonTreeView data={{ key: 'value' }} />);
+    const container = screen.getByTestId('json-tree-view');
+    expect(container.style.backgroundColor).toContain('var(--bg-card');
+    expect(container.style.backgroundColor).not.toBe('rgb(15, 23, 42)');
+  });
 });

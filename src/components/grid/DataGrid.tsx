@@ -760,7 +760,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
         flexDirection: 'column',
         width: '100%',
         height: '100%',
-        backgroundColor: 'var(--bg-primary, #181818)',
+        backgroundColor: 'var(--bg-grid)',
         position: 'relative',
         overflow: 'hidden',
       }}

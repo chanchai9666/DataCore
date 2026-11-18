@@ -194,9 +194,9 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
         bottom: 0,
         width: '440px',
         maxWidth: '100vw',
-        backgroundColor: 'var(--bg-primary, #181818)',
-        boxShadow: '-4px 0 24px rgba(0, 0, 0, 0.5)',
-        borderLeft: '1px solid var(--border-color, #333333)',
+        backgroundColor: 'var(--bg-panel)',
+        boxShadow: 'var(--drawer-shadow)',
+        borderLeft: '1px solid var(--border-color)',
         zIndex: 1000,
         display: 'flex',
         flexDirection: 'column',
@@ -209,8 +209,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '12px 16px',
-          borderBottom: '1px solid var(--border-color, #333333)',
-          backgroundColor: 'var(--bg-secondary, #222222)',
+          borderBottom: '1px solid var(--border-color)',
+          backgroundColor: 'var(--bg-toolbar)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -220,7 +220,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
               margin: 0,
               fontSize: '15px',
               fontWeight: 600,
-              color: 'var(--text-primary, #ffffff)',
+              color: 'var(--text-primary)',
             }}
           >
             {t('grid.cellDetails', 'Cell Details')}
@@ -231,8 +231,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 fontSize: '11px',
                 padding: '2px 6px',
                 borderRadius: '4px',
-                backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                color: '#60a5fa',
+                backgroundColor: 'var(--badge-bg)',
+                color: 'var(--badge-text)',
                 fontWeight: 500,
               }}
             >
@@ -243,7 +243,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
             <span
               style={{
                 fontSize: '12px',
-                color: 'var(--text-secondary, #888888)',
+                color: 'var(--text-secondary)',
               }}
             >
               {t('grid.rowNumber', { row: rowIndex + 1, defaultValue: `(Row ${rowIndex + 1})` })}
@@ -257,7 +257,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
           style={{
             background: 'none',
             border: 'none',
-            color: 'var(--text-secondary, #aaaaaa)',
+            color: 'var(--text-secondary)',
             cursor: 'pointer',
             padding: '4px',
             borderRadius: '4px',
@@ -276,15 +276,15 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '10px 16px',
-          backgroundColor: 'var(--bg-tertiary, #1f1f1f)',
-          borderBottom: '1px solid var(--border-color, #2d2d2d)',
+          backgroundColor: 'var(--bg-sidebar)',
+          borderBottom: '1px solid var(--border-color)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span
             style={{
               fontWeight: 600,
-              color: 'var(--text-primary, #ffffff)',
+              color: 'var(--text-primary)',
               fontSize: '13px',
             }}
           >
@@ -296,8 +296,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
               textTransform: 'uppercase',
               padding: '2px 6px',
               borderRadius: '4px',
-              backgroundColor: 'var(--badge-bg, #2b384e)',
-              color: 'var(--badge-text, #60a5fa)',
+              backgroundColor: 'var(--badge-bg)',
+              color: 'var(--badge-text)',
               fontWeight: 500,
             }}
           >
@@ -310,8 +310,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 fontSize: '11px',
                 padding: '2px 6px',
                 borderRadius: '4px',
-                backgroundColor: 'rgba(245, 158, 11, 0.2)',
-                color: '#f59e0b',
+                backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                color: 'var(--warn)',
                 border: '1px solid rgba(245, 158, 11, 0.4)',
                 fontWeight: 600,
               }}
@@ -334,9 +334,9 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                   gap: '4px',
                   padding: '3px 8px',
                   fontSize: '11px',
-                  backgroundColor: isEditing ? '#2563eb' : 'var(--btn-bg, #2e2e2e)',
-                  color: isEditing ? '#ffffff' : 'var(--text-secondary, #cccccc)',
-                  border: isEditing ? '1px solid #1d4ed8' : '1px solid var(--border-color, #444444)',
+                  backgroundColor: isEditing ? 'var(--accent)' : 'var(--btn-bg)',
+                  color: isEditing ? '#ffffff' : 'var(--text-primary)',
+                  border: isEditing ? '1px solid var(--accent)' : '1px solid var(--border-color)',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   fontWeight: isEditing ? 600 : 400,
@@ -355,9 +355,9 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                   gap: '4px',
                   padding: '3px 8px',
                   fontSize: '11px',
-                  backgroundColor: !isEditing ? '#334155' : 'var(--btn-bg, #2e2e2e)',
-                  color: !isEditing ? '#ffffff' : 'var(--text-secondary, #cccccc)',
-                  border: !isEditing ? '1px solid #475569' : '1px solid var(--border-color, #444444)',
+                  backgroundColor: !isEditing ? 'var(--accent)' : 'var(--btn-bg)',
+                  color: !isEditing ? '#ffffff' : 'var(--text-primary)',
+                  border: !isEditing ? '1px solid var(--accent)' : '1px solid var(--border-color)',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   fontWeight: !isEditing ? 600 : 400,
@@ -370,7 +370,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
           )}
 
           {isJson && !isEditing && (
-            <div style={{ display: 'inline-flex', borderRadius: '4px', border: '1px solid var(--border-color, #444444)', overflow: 'hidden' }}>
+            <div style={{ display: 'inline-flex', borderRadius: '4px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
               <button
                 type="button"
                 onClick={() => setViewMode('formatted')}
@@ -379,8 +379,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
-                  backgroundColor: viewMode === 'formatted' ? '#2563eb' : 'var(--btn-bg, #2e2e2e)',
-                  color: viewMode === 'formatted' ? '#ffffff' : 'var(--text-secondary, #cccccc)',
+                  backgroundColor: viewMode === 'formatted' ? 'var(--accent)' : 'var(--btn-bg)',
+                  color: viewMode === 'formatted' ? '#ffffff' : 'var(--text-primary)',
                   border: 'none',
                   cursor: 'pointer',
                   fontWeight: viewMode === 'formatted' ? 600 : 400,
@@ -396,10 +396,10 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
-                  backgroundColor: viewMode === 'tree' ? '#2563eb' : 'var(--btn-bg, #2e2e2e)',
-                  color: viewMode === 'tree' ? '#ffffff' : 'var(--text-secondary, #cccccc)',
-                  borderLeft: '1px solid var(--border-color, #444444)',
-                  borderRight: '1px solid var(--border-color, #444444)',
+                  backgroundColor: viewMode === 'tree' ? 'var(--accent)' : 'var(--btn-bg)',
+                  color: viewMode === 'tree' ? '#ffffff' : 'var(--text-primary)',
+                  borderLeft: '1px solid var(--border-color)',
+                  borderRight: '1px solid var(--border-color)',
                   borderTop: 'none',
                   borderBottom: 'none',
                   cursor: 'pointer',
@@ -416,8 +416,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 style={{
                   padding: '3px 8px',
                   fontSize: '11px',
-                  backgroundColor: viewMode === 'raw' ? '#2563eb' : 'var(--btn-bg, #2e2e2e)',
-                  color: viewMode === 'raw' ? '#ffffff' : 'var(--text-secondary, #cccccc)',
+                  backgroundColor: viewMode === 'raw' ? 'var(--accent)' : 'var(--btn-bg)',
+                  color: viewMode === 'raw' ? '#ffffff' : 'var(--text-primary)',
                   border: 'none',
                   cursor: 'pointer',
                   fontWeight: viewMode === 'raw' ? 600 : 400,
@@ -446,9 +446,9 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 gap: '4px',
                 padding: '3px 8px',
                 fontSize: '11px',
-                backgroundColor: 'var(--btn-bg, #2e2e2e)',
-                color: 'var(--text-secondary, #cccccc)',
-                border: '1px solid var(--border-color, #444444)',
+                backgroundColor: 'var(--btn-bg)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)',
                 borderRadius: '4px',
                 cursor: 'pointer',
               }}
@@ -468,9 +468,9 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
               gap: '4px',
               padding: '3px 8px',
               fontSize: '11px',
-              backgroundColor: copied ? '#065f46' : 'var(--btn-bg, #2e2e2e)',
-              color: copied ? '#34d399' : 'var(--text-primary, #ffffff)',
-              border: '1px solid var(--border-color, #444444)',
+              backgroundColor: copied ? 'var(--success)' : 'var(--btn-bg)',
+              color: copied ? '#ffffff' : 'var(--text-primary)',
+              border: '1px solid var(--border-color)',
               borderRadius: '4px',
               cursor: 'pointer',
               transition: 'background-color 0.15s ease',
@@ -497,18 +497,18 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontWeight: 600, color: '#f59e0b' }}>
+            <span style={{ fontWeight: 600, color: 'var(--warn)' }}>
               Pending Staged Edit (Uncommitted)
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
             <span>Original:</span>
             <code
               style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                backgroundColor: 'var(--code-bg)',
                 padding: '2px 6px',
                 borderRadius: '3px',
-                color: '#cbd5e1',
+                color: 'var(--text-primary)',
                 fontFamily: 'monospace',
                 fontSize: '11px',
               }}
@@ -516,13 +516,13 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
               {extractCellValue(cellInfo.originalValue).displayString}
             </code>
             <span>→</span>
-            <span style={{ color: '#60a5fa', fontWeight: 500 }}>Staged:</span>
+            <span style={{ color: 'var(--accent)', fontWeight: 500 }}>Staged:</span>
             <code
               style={{
-                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                backgroundColor: 'var(--badge-bg)',
                 padding: '2px 6px',
                 borderRadius: '3px',
-                color: '#93c5fd',
+                color: 'var(--badge-text)',
                 fontFamily: 'monospace',
                 fontSize: '11px',
               }}
@@ -539,7 +539,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
           flex: 1,
           overflow: 'auto',
           padding: '16px',
-          backgroundColor: 'var(--bg-editor, #141414)',
+          backgroundColor: 'var(--bg-grid)',
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -560,7 +560,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
               fontSize: '12px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#93c5fd' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--fk-text)' }}>
               <Network size={14} />
               <span>
                 Foreign Key → <strong>{cellInfo.foreignKeyInfo.foreignTable}</strong>(
@@ -581,7 +581,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 style={{
                   padding: '2px 8px',
                   fontSize: '11px',
-                  backgroundColor: '#2563eb',
+                  backgroundColor: 'var(--accent)',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: '4px',
@@ -602,8 +602,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
             style={{
               padding: '10px 12px',
               marginBottom: '12px',
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
               borderRadius: '6px',
               display: 'flex',
               flexDirection: 'column',
@@ -611,20 +611,20 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
               fontSize: '12px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent)', fontWeight: 600 }}>
               <Calendar size={13} />
               <span>Date & Time Info</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', color: '#cbd5e1', fontSize: '11px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', color: 'var(--text-primary)', fontSize: '11px' }}>
               <div>
-                <span style={{ color: '#94a3b8' }}>Local: </span>
+                <span style={{ color: 'var(--text-secondary)' }}>Local: </span>
                 <span style={{ fontFamily: 'monospace' }}>{dateTimeInfo.localFormatted}</span>
               </div>
               <div>
-                <span style={{ color: '#94a3b8' }}>UTC: </span>
+                <span style={{ color: 'var(--text-secondary)' }}>UTC: </span>
                 <span style={{ fontFamily: 'monospace' }}>{dateTimeInfo.utcFormatted}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#a7f3d0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--success)' }}>
                 <Clock size={11} />
                 <span>{dateTimeInfo.relativeFormatted}</span>
               </div>
@@ -639,8 +639,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
             style={{
               padding: '10px',
               marginBottom: '12px',
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
               borderRadius: '6px',
               display: 'flex',
               flexDirection: 'column',
@@ -648,7 +648,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
               alignItems: 'center',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', width: '100%', color: '#f472b6', fontSize: '11px', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', width: '100%', color: 'var(--accent)', fontSize: '11px', fontWeight: 600 }}>
               <ImageIcon size={13} />
               <span>Image Preview</span>
             </div>
@@ -660,8 +660,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 maxHeight: '180px',
                 objectFit: 'contain',
                 borderRadius: '4px',
-                border: '1px solid #475569',
-                backgroundColor: '#0f172a',
+                border: '1px solid var(--border-color)',
+                backgroundColor: 'var(--bg-grid)',
               }}
             />
           </div>
@@ -670,15 +670,15 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
         {isEditing ? (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
             {cellInfo.isStaged && cellInfo.originalValue !== undefined && (
-              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                 Original database value:{' '}
-                <span style={{ fontFamily: 'monospace', color: '#cbd5e1' }}>
+                <span style={{ fontFamily: 'monospace', color: 'var(--text-primary)' }}>
                   {extractCellValue(cellInfo.originalValue).displayString}
                 </span>
               </div>
             )}
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#cbd5e1' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-primary)' }}>
               <input
                 type="checkbox"
                 checked={isNull}
@@ -703,9 +703,9 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                   flex: 1,
                   width: '100%',
                   padding: '10px',
-                  backgroundColor: '#1e293b',
-                  color: '#f8fafc',
-                  border: '1px solid #475569',
+                  backgroundColor: 'var(--bg-input)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-color)',
                   borderRadius: '6px',
                   fontFamily: 'monospace',
                   fontSize: '12px',
@@ -717,7 +717,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '8px' }}>
-              <span style={{ fontSize: '11px', color: '#64748b' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                 {t('grid.tipSaveShortcut', 'Tip: Press ⌘+Enter to save')}
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -727,9 +727,9 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                   style={{
                     padding: '6px 12px',
                     fontSize: '12px',
-                    backgroundColor: '#334155',
-                    color: '#e2e8f0',
-                    border: 'none',
+                    backgroundColor: 'var(--btn-bg)',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-color)',
                     borderRadius: '4px',
                     cursor: 'pointer',
                   }}
@@ -745,7 +745,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                     gap: '5px',
                     padding: '6px 14px',
                     fontSize: '12px',
-                    backgroundColor: '#10b981',
+                    backgroundColor: 'var(--success)',
                     color: '#ffffff',
                     fontWeight: 500,
                     border: 'none',
@@ -764,8 +764,8 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
             style={{
               display: 'inline-block',
               padding: '4px 8px',
-              backgroundColor: 'rgba(156, 163, 175, 0.15)',
-              color: '#9ca3af',
+              backgroundColor: 'var(--code-bg)',
+              color: 'var(--text-secondary)',
               borderRadius: '4px',
               fontStyle: 'italic',
               fontSize: '13px',
@@ -782,7 +782,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
               fontFamily: 'var(--font-mono, "JetBrains Mono", Consolas, monospace)',
               fontSize: '12px',
               lineHeight: 1.6,
-              color: 'var(--text-primary, #e2e8f0)',
+              color: 'var(--text-primary)',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
             }}

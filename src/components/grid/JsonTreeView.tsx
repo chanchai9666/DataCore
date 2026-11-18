@@ -19,8 +19,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({ nodeKey, value, depth = 0 }) => {
   if (value === null) {
     return (
       <div style={{ paddingLeft: `${depth * 16}px`, lineHeight: '1.6', fontFamily: 'monospace', fontSize: '12px' }}>
-        {nodeKey !== undefined && <span style={{ color: '#93c5fd' }}>"{nodeKey}": </span>}
-        <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>null</span>
+        {nodeKey !== undefined && <span style={{ color: 'var(--json-key)' }}>"{nodeKey}": </span>}
+        <span style={{ color: 'var(--json-null)', fontStyle: 'italic' }}>null</span>
       </div>
     );
   }
@@ -28,8 +28,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({ nodeKey, value, depth = 0 }) => {
   if (typeof value === 'boolean') {
     return (
       <div style={{ paddingLeft: `${depth * 16}px`, lineHeight: '1.6', fontFamily: 'monospace', fontSize: '12px' }}>
-        {nodeKey !== undefined && <span style={{ color: '#93c5fd' }}>"{nodeKey}": </span>}
-        <span style={{ color: '#f59e0b', fontWeight: 600 }}>{value ? 'true' : 'false'}</span>
+        {nodeKey !== undefined && <span style={{ color: 'var(--json-key)' }}>"{nodeKey}": </span>}
+        <span style={{ color: 'var(--json-bool)', fontWeight: 600 }}>{value ? 'true' : 'false'}</span>
       </div>
     );
   }
@@ -37,8 +37,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({ nodeKey, value, depth = 0 }) => {
   if (typeof value === 'number') {
     return (
       <div style={{ paddingLeft: `${depth * 16}px`, lineHeight: '1.6', fontFamily: 'monospace', fontSize: '12px' }}>
-        {nodeKey !== undefined && <span style={{ color: '#93c5fd' }}>"{nodeKey}": </span>}
-        <span style={{ color: '#34d399', fontWeight: 500 }}>{value}</span>
+        {nodeKey !== undefined && <span style={{ color: 'var(--json-key)' }}>"{nodeKey}": </span>}
+        <span style={{ color: 'var(--json-number)', fontWeight: 500 }}>{value}</span>
       </div>
     );
   }
@@ -46,8 +46,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({ nodeKey, value, depth = 0 }) => {
   if (typeof value === 'string') {
     return (
       <div style={{ paddingLeft: `${depth * 16}px`, lineHeight: '1.6', fontFamily: 'monospace', fontSize: '12px' }}>
-        {nodeKey !== undefined && <span style={{ color: '#93c5fd' }}>"{nodeKey}": </span>}
-        <span style={{ color: '#38bdf8' }}>"{value}"</span>
+        {nodeKey !== undefined && <span style={{ color: 'var(--json-key)' }}>"{nodeKey}": </span>}
+        <span style={{ color: 'var(--json-string)' }}>"{value}"</span>
       </div>
     );
   }
@@ -67,7 +67,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ nodeKey, value, depth = 0 }) => {
                 border: 'none',
                 padding: '0',
                 cursor: 'pointer',
-                color: '#94a3b8',
+                color: 'var(--text-secondary)',
                 display: 'flex',
                 alignItems: 'center',
               }}
@@ -75,17 +75,17 @@ const TreeNode: React.FC<TreeNodeProps> = ({ nodeKey, value, depth = 0 }) => {
               {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
             </button>
           )}
-          {nodeKey !== undefined && <span style={{ color: '#93c5fd' }}>"{nodeKey}": </span>}
-          <span style={{ color: '#cbd5e1' }}>[</span>
-          {!isExpanded && <span style={{ color: '#64748b' }}> ... {value.length} items </span>}
-          {!isExpanded && <span style={{ color: '#cbd5e1' }}>]</span>}
+          {nodeKey !== undefined && <span style={{ color: 'var(--json-key)' }}>"{nodeKey}": </span>}
+          <span style={{ color: 'var(--text-primary)' }}>[</span>
+          {!isExpanded && <span style={{ color: 'var(--text-secondary)' }}> ... {value.length} items </span>}
+          {!isExpanded && <span style={{ color: 'var(--text-primary)' }}>]</span>}
         </div>
         {isExpanded && !isEmpty && (
           <div>
             {value.map((item, index) => (
               <TreeNode key={index} value={item} depth={depth + 1} />
             ))}
-            <div style={{ paddingLeft: `${depth * 16}px`, color: '#cbd5e1' }}>]</div>
+            <div style={{ paddingLeft: `${depth * 16}px`, color: 'var(--text-primary)' }}>]</div>
           </div>
         )}
       </div>
@@ -108,7 +108,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ nodeKey, value, depth = 0 }) => {
                 border: 'none',
                 padding: '0',
                 cursor: 'pointer',
-                color: '#94a3b8',
+                color: 'var(--text-secondary)',
                 display: 'flex',
                 alignItems: 'center',
               }}
@@ -116,10 +116,10 @@ const TreeNode: React.FC<TreeNodeProps> = ({ nodeKey, value, depth = 0 }) => {
               {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
             </button>
           )}
-          {nodeKey !== undefined && <span style={{ color: '#93c5fd' }}>"{nodeKey}": </span>}
-          <span style={{ color: '#cbd5e1' }}>{'{'}</span>
-          {!isExpanded && <span style={{ color: '#64748b' }}> ... {keys.length} keys </span>}
-          {!isExpanded && <span style={{ color: '#cbd5e1' }}>{'}'}</span>}
+          {nodeKey !== undefined && <span style={{ color: 'var(--json-key)' }}>"{nodeKey}": </span>}
+          <span style={{ color: 'var(--text-primary)' }}>{'{'}</span>
+          {!isExpanded && <span style={{ color: 'var(--text-secondary)' }}> ... {keys.length} keys </span>}
+          {!isExpanded && <span style={{ color: 'var(--text-primary)' }}>{'}'}</span>}
         </div>
         {isExpanded && !isEmpty && (
           <div>
@@ -131,7 +131,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ nodeKey, value, depth = 0 }) => {
                 depth={depth + 1}
               />
             ))}
-            <div style={{ paddingLeft: `${depth * 16}px`, color: '#cbd5e1' }}>{'}'}</div>
+            <div style={{ paddingLeft: `${depth * 16}px`, color: 'var(--text-primary)' }}>{'}'}</div>
           </div>
         )}
       </div>
@@ -139,7 +139,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ nodeKey, value, depth = 0 }) => {
   }
 
   return (
-    <div style={{ paddingLeft: `${depth * 16}px`, fontFamily: 'monospace', fontSize: '12px' }}>
+    <div style={{ paddingLeft: `${depth * 16}px`, fontFamily: 'monospace', fontSize: '12px', color: 'var(--text-primary)' }}>
       {nodeKey !== undefined && <span>"{nodeKey}": </span>}
       <span>{String(value)}</span>
     </div>
@@ -152,9 +152,9 @@ export const JsonTreeView: React.FC<JsonTreeViewProps> = ({ data }) => {
       data-testid="json-tree-view"
       style={{
         padding: '10px',
-        backgroundColor: '#0f172a',
+        backgroundColor: 'var(--bg-card)',
         borderRadius: '6px',
-        border: '1px solid #1e293b',
+        border: '1px solid var(--border-color)',
         overflowX: 'auto',
       }}
     >

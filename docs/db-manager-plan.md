@@ -928,6 +928,11 @@
     - **Data Transfer Wizards & Visual Tools:** แปลและรองรับสองภาษาในตัวช่วยนำเข้า/ส่งออกข้อมูล `DataImportWizardModal.tsx`, `DataExportWizardModal.tsx`, `ExportSqlModal.tsx`, `ImportSqlModal.tsx`, `CrossDbCopyModal.tsx`, `ERDiagramTab.tsx`, และ `VisualQueryBuilderTab.tsx`
     - **Strict Parity & Lexicon Standard:** รักษาความสมบูรณ์ 100% ระหว่าง `en.json` และ `th.json` ด้วย `src/test/i18nParity.test.ts` พร้อมคงคำศัพท์เทคนิคฐานข้อมูลตามมาตรฐานสากลเสมอ
 
+43. **Issue #184: Light Mode Scrollbar & CellDetailDrawer Dual-Theme Compliance (`tokens.css`, `index.css`, `DataGrid.tsx`, `CellDetailDrawer.tsx`, `JsonTreeView.tsx`)**
+    - **Dual-Theme CSS Tokens & Native Color Scheme:** นิยามตัวแปร `--bg-primary`, `--bg-tertiary`, `--bg-editor`, `--bg-card`, `--badge-bg`, `--badge-text`, `--scrollbar-thumb`, `--scrollbar-thumb-hover` และตัวแปร syntax/code สำหรับ Light Mode, Dark Mode และ High-Contrast ใน `src/styles/tokens.css` พร้อมกำหนด `color-scheme: light` (`:root`) และ `color-scheme: dark` (`.dark`)
+    - **Clean Light Mode Scrollbars:** ปรับ `src/index.css` ให้ใช้ `var(--scrollbar-thumb)` / `var(--scrollbar-thumb-hover)` พร้อมเพิ่ม `::-webkit-scrollbar-corner { background: transparent; }` และเปลี่ยนพื้นหลังของ `DataGrid` container (`data-grid-container`) จาก `var(--bg-primary, #181818)` เป็น `var(--bg-grid)` เพื่อไม่ให้พื้นหลังสีดำทะลุขึ้นมาใต้ track ของ scrollbar ใน Light Mode
+    - **CellDetailDrawer & JsonTreeView Light Mode Support:** ปรับสีพื้นหลัง, แถบ meta, ปุ่ม View/Edit, Staged Diff Banner, Foreign Key Banner, Date & Time Intelligence Banner, Image Preview Box, Edit Textarea และ `JsonTreeView` ให้ใช้ CSS variables จาก `tokens.css` ทั้งหมด แทนที่สี dark-only ที่เคยฮาร์ดโค้ดไว้
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)
