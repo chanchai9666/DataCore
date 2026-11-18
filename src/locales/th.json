@@ -402,7 +402,12 @@
     "maintenanceBtn": "บำรุงรักษา",
     "constraintsTab": "Constraints",
     "rlsTab": "RLS และความปลอดภัย",
-    "sqlPreviewTab": "ตัวอย่าง SQL"
+    "sqlPreviewTab": "ตัวอย่าง SQL",
+    "sqlSchemaDef": "นิยามโครงสร้าง SQL (DDL)",
+    "copySql": "คัดลอก SQL",
+    "copied": "คัดลอกแล้ว!",
+    "openInQueryEditor": "เปิดในตัวแก้ไข Query",
+    "destructiveDdlWarning": "ตรวจพบคำสั่ง DDL ที่มีความเสี่ยง: สคริปต์นี้มีคำสั่ง DROP COLUMN หรือ ALTER COLUMN TYPE ซึ่งอาจทำให้ข้อมูลสูญหายได้"
   },
   "tools": {
     "metricsTitle": "ประสิทธิภาพฐานข้อมูลและ Buffer Cache",
@@ -769,7 +774,15 @@
     "closeTab": "ปิดแท็บ",
     "connecting": "กำลังเชื่อมต่อ...",
     "loadTableData": "โหลดข้อมูลตาราง",
-    "connectAndLoad": "เชื่อมต่อและโหลด"
+    "connectAndLoad": "เชื่อมต่อและโหลด",
+    "recordOfTotal": "เรคคอร์ดที่ {{current}} จาก {{total}}",
+    "prevRecord": "เรคคอร์ดก่อนหน้า",
+    "nextRecord": "เรคคอร์ดถัดไป",
+    "filterColumns": "กรองคอลัมน์...",
+    "noRecords": "ไม่มีข้อมูลที่จะแสดง",
+    "setNull": "ตั้งเป็น NULL",
+    "pkBadge": "PK",
+    "fkBadge": "FK"
   },
   "diagram": {
     "title": "ER Diagram",

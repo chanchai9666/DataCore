@@ -402,7 +402,12 @@
     "maintenanceBtn": "Maintenance",
     "constraintsTab": "Constraints",
     "rlsTab": "RLS & Security",
-    "sqlPreviewTab": "SQL Preview"
+    "sqlPreviewTab": "SQL Preview",
+    "sqlSchemaDef": "SQL Schema Definition (DDL)",
+    "copySql": "Copy SQL",
+    "copied": "Copied!",
+    "openInQueryEditor": "Open in Query Editor",
+    "destructiveDdlWarning": "Destructive DDL Detected: This script contains DROP COLUMN or ALTER COLUMN TYPE statements that may cause data loss."
   },
   "tools": {
     "metricsTitle": "Database Performance & Buffer Cache",
@@ -769,7 +774,15 @@
     "closeTab": "Close Tab",
     "connecting": "Connecting...",
     "loadTableData": "Load Table Data",
-    "connectAndLoad": "Connect & Load"
+    "connectAndLoad": "Connect & Load",
+    "recordOfTotal": "Record {{current}} of {{total}}",
+    "prevRecord": "Previous Record",
+    "nextRecord": "Next Record",
+    "filterColumns": "Filter columns...",
+    "noRecords": "No records to display",
+    "setNull": "Set NULL",
+    "pkBadge": "PK",
+    "fkBadge": "FK"
   },
   "diagram": {
     "title": "ER Diagram",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Table as TableIcon,
   Plus,
@@ -20,52 +20,21 @@ import {
   Search,
   FileQuestion,
 } from 'lucide-react';
-import {
-  buildToggleRlsSql,
-  buildGetRlsStatusSql,
-  buildGetRlsPoliciesSql,
-  type RlsPolicy,
-} from '../../api/securityHelpers';
-import { dbApi } from '../../api/db';
 import { useTranslation } from 'react-i18next';
-import {
-  getFetchColumnsSql,
-  parseColumnsFromQueryResult,
-  generateTableDdl,
-  getFetchTableDdlSql,
-  parseTableDdlFromQueryResult,
-  enrichColumnsFromSqliteDdl,
-  enrichForeignKeysFromSqliteDdl,
-  type TableColumnStructure,
-} from './tableStructureHelpers';
-import {
-  getFetchIndexesSql,
-  parseIndexesFromQueryResult,
-  type TableIndexStructure,
-  getFetchForeignKeysSql,
-  parseForeignKeysFromQueryResult,
-  type TableForeignKeyStructure,
-  getFetchConstraintsSql,
-  parseConstraintsFromQueryResult,
-  getFetchTriggersSql,
-  parseTriggersFromQueryResult,
-  type TableConstraintStructure,
-} from './tableManagementHelpers';
-import type { TableTriggerDef } from '../../api/queryBuilder';
 import { DropTableModal } from './DropTableModal';
 import { RenameTableModal } from './RenameTableModal';
 import { TableMaintenanceModal } from './TableMaintenanceModal';
 import { TablePartitionsModal } from '../performance/TablePartitionsModal';
-import { useAuditLogStore } from '../../stores/auditLogStore';
 import { useTabStore } from '../../stores/tabStore';
 import { useSchemaStore } from '../../stores/schemaStore';
 import { detectErrorType } from '../../utils/sqlErrorParser';
-import { formatCellValue } from '../../utils/cellFormatter';
 import { ColumnsTab } from './tabs/ColumnsTab';
 import { IndexesTab } from './tabs/IndexesTab';
 import { ForeignKeysTab } from './tabs/ForeignKeysTab';
 import { ConstraintsTab } from './tabs/ConstraintsTab';
 import { RlsSecurityTab } from './tabs/RlsSecurityTab';
+import { SqlPreviewTab } from './tabs/SqlPreviewTab';
+import { useTableStructureData } from './useTableStructureData';
 
 export interface TableStructureEditorProps {
   tabId: string;
@@ -102,29 +71,13 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   // Filter state
   const [filterText, setFilterText] = useState('');
 
-  // Core table state
-  const [columns, setColumns] = useState<TableColumnStructure[]>([]);
-  const [indexes, setIndexes] = useState<TableIndexStructure[]>([]);
-  const [triggers, setTriggers] = useState<TableTriggerDef[]>([]);
-  const [foreignKeys, setForeignKeys] = useState<TableForeignKeyStructure[]>([]);
-  const [constraints, setConstraints] = useState<TableConstraintStructure[]>([]);
-  const [tableDdl, setTableDdl] = useState<string | null>(null);
-
-  // Tab & loading state
+  // Tab & UI state
   const [activeTab, setActiveTab] = useState<'columns' | 'indexes' | 'foreign-keys' | 'constraints' | 'security' | 'ddl'>('columns');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{
     type: 'success' | 'error';
     text: string;
   } | null>(null);
-  const [copiedDdl, setCopiedDdl] = useState(false);
   const [ddlModalCopied, setDdlModalCopied] = useState(false);
-
-  // RLS state
-  const [rlsEnabled, setRlsEnabled] = useState(false);
-  const [rlsPolicies, setRlsPolicies] = useState<RlsPolicy[]>([]);
-  const [submittingRls, setSubmittingRls] = useState(false);
 
   // Sub-tabs add modal controllers
   const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false);
@@ -149,183 +102,34 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
     }
   }, []);
 
-  // Load column structure & metadata
-  const loadStructure = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await dbApi.openSession(connectionId, tabId);
-      const sql = getFetchColumnsSql(driver, tableName, schemaName);
-      let parsedCols: TableColumnStructure[] = [];
+  const {
+    columns,
+    indexes,
+    triggers,
+    foreignKeys,
+    constraints,
+    tableDdl,
+    loading,
+    error,
+    rlsEnabled,
+    rlsPolicies,
+    submittingRls,
+    loadStructure,
+    handleToggleRls,
+    fullDdl,
+  } = useTableStructureData({
+    tabId,
+    connectionId,
+    tableName,
+    schemaName,
+    driver,
+    showStatus,
+  });
 
-      try {
-        const result = await dbApi.executeQuery(tabId, sql);
-        parsedCols = parseColumnsFromQueryResult(result, driver);
-      } catch (queryErr) {
-        console.warn('Specialized structure query failed, trying fetchTableData fallback:', queryErr);
-      }
-
-      if (parsedCols.length === 0) {
-        const tableData = await dbApi.fetchTableData(tabId, tableName, schemaName, 1, 0);
-        parsedCols = parseColumnsFromQueryResult(
-          { columns: [], rows: [], execution_time_ms: 0 },
-          driver,
-          tableData.columns
-        );
-      }
-
-      let parsedDdl: string | null = null;
-      if ((driver || '').toLowerCase() === 'sqlite') {
-        try {
-          const ddlSql = getFetchTableDdlSql(driver, tableName, schemaName);
-          if (ddlSql) {
-            const ddlRes = await dbApi.executeQuery(tabId, ddlSql);
-            parsedDdl = parseTableDdlFromQueryResult(ddlRes);
-            parsedCols = enrichColumnsFromSqliteDdl(parsedCols, parsedDdl);
-          }
-        } catch (ddlErr) {
-          console.warn('DDL load fallback error:', ddlErr);
-        }
-      }
-      setTableDdl(parsedDdl);
-      setColumns(parsedCols);
-
-      // Fetch indexes
-      try {
-        const idxSql = getFetchIndexesSql(driver, tableName, schemaName);
-        const idxRes = await dbApi.executeQuery(tabId, idxSql);
-        const parsedIdx = parseIndexesFromQueryResult(idxRes, driver);
-        setIndexes(parsedIdx);
-      } catch (idxErr) {
-        console.warn('Index load fallback error:', idxErr);
-      }
-
-      // Fetch triggers (SQLite only)
-      try {
-        const triggerSql = getFetchTriggersSql(driver, tableName);
-        if (triggerSql) {
-          const triggerRes = await dbApi.executeQuery(tabId, triggerSql);
-          setTriggers(parseTriggersFromQueryResult(triggerRes, driver));
-        } else {
-          setTriggers([]);
-        }
-      } catch (triggerErr) {
-        console.warn('Trigger load fallback error:', triggerErr);
-      }
-
-      // Fetch foreign keys
-      try {
-        const fkSql = getFetchForeignKeysSql(driver, tableName, schemaName);
-        const fkRes = await dbApi.executeQuery(tabId, fkSql);
-        let parsedFk = parseForeignKeysFromQueryResult(fkRes, driver);
-        if ((driver || '').toLowerCase().includes('sqlite') && parsedDdl) {
-          parsedFk = enrichForeignKeysFromSqliteDdl(parsedFk, parsedDdl);
-        }
-        setForeignKeys(parsedFk);
-      } catch (fkErr) {
-        console.warn('Foreign key load fallback error:', fkErr);
-      }
-
-      // Fetch constraints
-      try {
-        const constSql = getFetchConstraintsSql(driver, tableName, schemaName);
-        const constRes = await dbApi.executeQuery(tabId, constSql);
-        const parsedConstraints = parseConstraintsFromQueryResult(constRes, driver);
-        setConstraints(parsedConstraints);
-      } catch (constErr) {
-        console.warn('Constraint load fallback error:', constErr);
-      }
-
-      // Fetch Row-Level Security (RLS) status & policies
-      try {
-        const rlsStatusSql = buildGetRlsStatusSql(tableName, schemaName, driver);
-        if (rlsStatusSql && !rlsStatusSql.startsWith('--')) {
-          const rlsRes = await dbApi.executeQuery(tabId, rlsStatusSql);
-          if (rlsRes.rows && rlsRes.rows.length > 0) {
-            const rawVal = rlsRes.rows[0][0];
-            const strVal = formatCellValue(rawVal).toLowerCase();
-            setRlsEnabled(strVal === 'true' || strVal === 't' || strVal === '1');
-          }
-        }
-        const rlsPoliciesSql = buildGetRlsPoliciesSql(tableName, schemaName, driver);
-        if (rlsPoliciesSql && !rlsPoliciesSql.startsWith('--')) {
-          const policiesRes = await dbApi.executeQuery(tabId, rlsPoliciesSql);
-          const parsedPolicies: RlsPolicy[] = (policiesRes.rows || []).map((r) => {
-            const pVal = formatCellValue(r[1]).toLowerCase();
-            return {
-              name: formatCellValue(r[0]),
-              permissive: pVal === 'true' || pVal === 't' || pVal === 'permissive' || pVal === '1',
-              roles: formatCellValue(r[2] ?? 'PUBLIC').split(',').map((x) => x.trim()).filter(Boolean),
-              command: (formatCellValue(r[3] ?? 'ALL').toUpperCase() || 'ALL') as any,
-              usingExpr: r[4] ? formatCellValue(r[4]) : undefined,
-              checkExpr: r[5] ? formatCellValue(r[5]) : undefined,
-            };
-          });
-          setRlsPolicies(parsedPolicies);
-        }
-      } catch (rlsErr) {
-        console.warn('RLS load fallback/unsupported:', rlsErr);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [connectionId, tabId, tableName, schemaName, driver]);
-
-  useEffect(() => {
-    loadStructure();
-  }, [loadStructure]);
-
-  // Toggle RLS handler
-  const handleToggleRls = async () => {
-    setSubmittingRls(true);
-    try {
-      const targetState = !rlsEnabled;
-      const sql = buildToggleRlsSql(tableName, schemaName, targetState, driver);
-      await dbApi.executeQuery(tabId, sql);
-
-      useAuditLogStore.getState().addLog({
-        connectionId,
-        action: 'SECURITY',
-        query: sql,
-        status: 'SUCCESS',
-      });
-
-      setRlsEnabled(targetState);
-      showStatus('success', `${targetState ? 'Enabled' : 'Disabled'} Row-Level Security successfully`);
-      await loadStructure();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      showStatus('error', `Failed to toggle RLS: ${msg}`);
-    } finally {
-      setSubmittingRls(false);
-    }
-  };
-
-  // Full table DDL
-  const fullDdl = useMemo(() => {
-    if ((driver || '').toLowerCase() === 'sqlite' && tableDdl) {
-      return tableDdl;
-    }
-    return generateTableDdl({
-      tableName,
-      schemaName,
-      driver,
-      columns,
-    });
-  }, [tableName, schemaName, driver, columns, tableDdl]);
-
-  const handleCopyDdl = (forModal = false) => {
+  const handleCopyDdl = () => {
     navigator.clipboard.writeText(fullDdl);
-    if (forModal) {
-      setDdlModalCopied(true);
-      setTimeout(() => setDdlModalCopied(false), 2000);
-    } else {
-      setCopiedDdl(true);
-      setTimeout(() => setCopiedDdl(false), 2000);
-    }
+    setDdlModalCopied(true);
+    setTimeout(() => setDdlModalCopied(false), 2000);
   };
 
   return (
@@ -851,31 +655,11 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             onToggleRls={handleToggleRls}
           />
         ) : activeTab === 'ddl' ? (
-          <div className="border border-line bg-panel rounded-lg overflow-hidden flex flex-col h-full shadow-sm">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-line bg-sidebar text-text text-xs font-semibold">
-              <span>SQL Schema Definition (DDL)</span>
-              <button
-                type="button"
-                onClick={() => handleCopyDdl(false)}
-                className="inline-flex items-center space-x-1 px-2.5 py-1 rounded text-[11px] transition-colors border border-line bg-panel hover:bg-black/5 dark:hover:bg-white/10 text-text"
-              >
-                {copiedDdl ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5 text-muted" />
-                    <span>Copy SQL</span>
-                  </>
-                )}
-              </button>
-            </div>
-            <pre className="p-4 font-mono text-xs overflow-auto flex-1 select-text bg-grid text-blue-600 dark:text-blue-300">
-              {fullDdl}
-            </pre>
-          </div>
+          <SqlPreviewTab
+            sql={fullDdl}
+            connectionId={connectionId}
+            tableName={tableName}
+          />
         ) : null}
       </div>
 
@@ -906,7 +690,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             <div className="flex items-center justify-end space-x-2 px-4 py-3 border-t border-line bg-sidebar">
               <button
                 type="button"
-                onClick={() => handleCopyDdl(true)}
+                onClick={() => handleCopyDdl()}
                 className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-medium border border-line bg-panel hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
               >
                 {ddlModalCopied ? (

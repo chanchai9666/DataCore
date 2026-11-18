@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { Toaster, toast } from 'sonner';
 import { MainToolbar } from './components/chrome/MainToolbar';
 import { StatusBar } from './components/chrome/StatusBar';
@@ -23,6 +24,7 @@ import { UpdateCheckerModal } from './components/dialogs/UpdateCheckerModal';
 import { DiagnosticBundleModal } from './components/dialogs/DiagnosticBundleModal';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
+import { useSchemaStore } from './stores/schemaStore';
 import { useTransferMonitorStore } from './stores/transferMonitorStore';
 import { onTransferProgress } from './api/dataTransferApi';
 import {
@@ -83,6 +85,71 @@ export function App() {
     onTransferProgress((progress) => {
       if (mounted) {
         useTransferMonitorStore.getState().handleProgress(progress);
+      }
+    })
+      .then((fn) => {
+        if (mounted) {
+          unlisten = fn;
+        } else {
+          fn();
+        }
+      })
+      .catch(() => {
+        // Ignore in non-Tauri test environments
+      });
+    return () => {
+      mounted = false;
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  // Native macOS Menu Bar action listener (menu://action)
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let mounted = true;
+    listen<string>('menu://action', ({ payload }) => {
+      if (!mounted) return;
+      switch (payload) {
+        case 'new-connection':
+          handleOpenNewConnection();
+          break;
+        case 'new-query':
+          handleNewQuery();
+          break;
+        case 'close-tab': {
+          const currentActiveId = useTabStore.getState().activeTabId;
+          if (currentActiveId) {
+            useTabStore.getState().closeTab(currentActiveId);
+          }
+          break;
+        }
+        case 'refresh-schema': {
+          const connId =
+            useTabStore.getState().tabs.find((t) => t.id === useTabStore.getState().activeTabId)?.connectionId ??
+            useConnectionStore.getState().activeConnectionId;
+          const conn = useConnectionStore.getState().connections.find((c) => c.id === connId);
+          if (connId && conn) {
+            useSchemaStore.getState().fetchSchema(connId, conn.driver);
+          }
+          break;
+        }
+        case 'toggle-theme':
+          handleToggleTheme();
+          break;
+        case 'command-palette':
+          setIsCommandPaletteOpen(true);
+          break;
+        case 'keyboard-shortcuts':
+          setIsShortcutsModalOpen(true);
+          break;
+        case 'check-updates':
+          setIsUpdateCheckerOpen(true);
+          break;
+        case 'export-diagnostics':
+          setIsDiagnosticBundleOpen(true);
+          break;
+        default:
+          break;
       }
     })
       .then((fn) => {

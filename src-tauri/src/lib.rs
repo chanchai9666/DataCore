@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod drivers;
 pub mod error;
+pub mod menu;
 pub mod models;
 pub mod services;
 pub mod session;
@@ -11,6 +12,7 @@ pub use error::*;
 pub use models::*;
 pub use services::*;
 pub use session::*;
+use tauri::Emitter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -18,6 +20,17 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            let app_menu = menu::build_app_menu(app.handle())?;
+            app.set_menu(app_menu)?;
+            Ok(())
+        })
+        .on_menu_event(|app, event| {
+            let id = event.id().as_ref();
+            if menu::is_known_menu_action(id) {
+                let _ = app.emit("menu://action", id);
+            }
+        })
         .manage(ConnectionStore::default())
         .manage(SessionManager::default())
         .manage(AuditLogger::default())

@@ -14,6 +14,7 @@ import { QueryResult, CellValue, TableFilterState, TableSortState } from '../../
 import { CellDetailDrawer } from './CellDetailDrawer';
 import { FilterBar } from './FilterBar';
 import { GridBottomBar } from './GridBottomBar';
+import { RecordFormView } from './RecordFormView';
 import { lightGridTheme, darkGridTheme } from './gridTheme';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { useStatusStore } from '../../stores/statusStore';
@@ -145,6 +146,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
   const handleToggleMask = onToggleMaskProp ?? (() => setInternalIsMasked((prev) => !prev));
 
   const [selectedCell, setSelectedCell] = useState<Item | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'form'>('grid');
+  const [formRowIndex, setFormRowIndex] = useState<number>(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [fkPopoverInfo, setFkPopoverInfo] = useState<{
     isOpen: boolean;
@@ -993,6 +996,37 @@ export const DataGrid: React.FC<DataGridProps> = ({
             <Database size={32} style={{ opacity: 0.3 }} />
             <span>No data to display</span>
           </div>
+        ) : viewMode === 'form' ? (
+          <RecordFormView
+            columns={data.columns || []}
+            rows={data.rows || []}
+            selectedRowIndex={formRowIndex}
+            onSelectRowIndex={(idx) => {
+              setFormRowIndex(idx);
+              setSelectedCell([0, idx]);
+            }}
+            isReadOnly={effectiveReadOnly || !effectiveIsEditable}
+            isMasked={activeIsMasked}
+            foreignKeys={foreignKeys}
+            onEditField={
+              effectiveReadOnly || !effectiveIsEditable
+                ? undefined
+                : (rowIdx, colIdx, newVal) => {
+                    let cell: EditableGridCell;
+                    if (newVal === null) {
+                      cell = { kind: GridCellKind.Text, data: 'NULL', displayData: 'NULL', allowOverlay: true };
+                    } else if (typeof newVal === 'number') {
+                      cell = { kind: GridCellKind.Number, data: newVal, displayData: String(newVal), allowOverlay: true };
+                    } else if (typeof newVal === 'boolean') {
+                      cell = { kind: GridCellKind.Boolean, data: newVal, allowOverlay: false };
+                    } else {
+                      cell = { kind: GridCellKind.Text, data: String(newVal), displayData: String(newVal), allowOverlay: true };
+                    }
+                    handleCellEditedWithStaging([colIdx, rowIdx], cell);
+                  }
+            }
+            onNavigateToRecord={onNavigateToRecord}
+          />
         ) : (
           <ContextMenu.Root>
             <ContextMenu.Trigger asChild>
@@ -1169,6 +1203,13 @@ export const DataGrid: React.FC<DataGridProps> = ({
         onDiscard={handleDiscardChanges}
         isMasked={activeIsMasked}
         onToggleMask={handleToggleMask}
+        viewMode={viewMode}
+        onViewModeChange={(mode) => {
+          if (mode === 'form') {
+            setFormRowIndex(selectedCell ? selectedCell[1] : 0);
+          }
+          setViewMode(mode);
+        }}
       />
 
       {/* Detail Drawer */}

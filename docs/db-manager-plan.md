@@ -1179,5 +1179,31 @@
   - เพิ่มแถบ Progress Bar พร้อมตัวเลข `0%–100%` แบบ Real-time ใน `ExportSqlModal.tsx`, `ImportSqlModal.tsx`, `ExportModal.tsx`, `DataExportWizardModal.tsx`, `ImportModal.tsx` และ `DataImportWizardModal.tsx`
   - เพิ่มตัวคำนวณ Progress จาก log ของ Native CLI (`pg_dump`/`pg_restore`/`mysqldump` และ `native://progress`) ใน `NativeBackupModal.tsx` และ `NativeRestoreModal.tsx` แสดง `0%–95%` ระหว่างทำงาน (และ `100%` เมื่อเสร็จสิ้น)
 
+### Phase 50: ความสอดคล้องของ Light / Dark Theme ด้วย Semantic CSS Design Tokens (Issue #180) [Completed]
+
+- แทนที่สี hardcode (`bg-gray-900`, `bg-[#1e1e1e]`, `border-gray-800` ฯลฯ) ด้วย Semantic Design Tokens (`bg-panel`, `bg-sidebar`, `bg-grid`, `border-line`, `text-text`, `text-muted`, `bg-accent`) ตาม `docs/DataCore-UX-UI-Redesign-Guide.md` ครอบคลุม Modals และ Structure Editor:
+  - Transfer Modals: `ImportModal.tsx`, `ExportSqlModal.tsx`, `ImportSqlModal.tsx`, `NativeBackupModal.tsx`, `NativeRestoreModal.tsx`, `DuplicateTableModal.tsx`
+  - Editor & Grid: `ExplainPlanDiffModal.tsx`, `FilterBar.tsx` (พร้อมอัปเดต `FilterBar.test.tsx`)
+  - Structure Editor & Sub-tabs: `CreateTableModal.tsx`, `TableMaintenanceModal.tsx`, `TableStructureEditor.tsx`, `ColumnsTab.tsx`, `IndexesTab.tsx`, `ForeignKeysTab.tsx`, `ConstraintsTab.tsx`, `RlsSecurityTab.tsx`
+
+### Phase 51: ความครอบคลุมของภาษาไทยและภาษาอังกฤษ 100% (i18n Coverage 100% — Issue #181) [Completed]
+
+- เพิ่มคำแปลภาษาไทย/อังกฤษให้ครบ 100% ใน `src/locales/en.json` และ `src/locales/th.json` พร้อมตรวจสอบความเท่าเทียมของคีย์และตัวแปร Interpolation ผ่าน `src/test/i18nParity.test.ts` และ `src/i18n.test.tsx`
+- เชื่อมต่อ `useTranslation()` ใน Component ที่ยังไม่มีการแปล:
+  - **Transfer:** `ExportModal.tsx`, `ImportModal.tsx`, `DataExportWizardModal.tsx`, `DataImportWizardModal.tsx`, `DuplicateTableModal.tsx`, `NativeBackupModal.tsx`, `NativeRestoreModal.tsx`
+  - **Grid & Table:** `FilterBar.tsx`, `GridBottomBar.tsx`, `CellDetailDrawer.tsx`, `InsertRowModal.tsx`, `ForeignKeyPeekPopover.tsx`, `DisconnectedTableScreen.tsx`
+  - **Structure, Editor, Security, Transactions & Dialogs:** `TableStructureEditor.tsx`, `EditorToolbar.tsx`, `ImpactPreviewModal.tsx`, `DangerousQueryConfirmModal.tsx`, `ConnectionSecurityModal.tsx`, `UpdateCheckerModal.tsx`, `SavepointModal.tsx`, `FolderModal.tsx`
+
+### Phase 52: ฟีเจอร์ UX เสริมจาก DataCore-UX-UI-Redesign-Guide.md (Issue #182) [Completed]
+
+- **Grid ▦ | Form ☰ Record Form View (`src/components/grid/RecordFormView.tsx`):**
+  - เพิ่มมุมมอง Record Form View แนวตั้ง (1 แถวต่อหน้า) พร้อมปุ่มเลื่อน Previous/Next Record, ช่องค้นหาคอลัมน์, Badge `PK`/`FK`/`NULL`, ปุ่ม `Set NULL`, ปุ่มกระโดดไปยังตาราง FK และรองรับการแก้ไขข้อมูลผ่าน Staging/Auto-Commit โดยเชื่อมต่อกับ `DataGrid.tsx` และ `GridBottomBar.tsx` (`viewMode` + `onViewModeChange`)
+- **แยกโมดูล `TableStructureEditor.tsx` & `SqlPreviewTab`:**
+  - แยก state และ `loadStructure` ออกเป็น custom hook `src/components/structure/useTableStructureData.ts`
+  - แยกแท็บ SQL Schema Definition เป็น `src/components/structure/tabs/SqlPreviewTab.tsx` พร้อมปุ่ม `Open in Query Editor`, ปุ่ม `Copy SQL` และแบนเนอร์แจ้งเตือน Destructive DDL (`DROP COLUMN` / `ALTER COLUMN ... TYPE`)
+- **Native macOS Menu Bar (`src-tauri/src/menu.rs`, `src-tauri/src/lib.rs`, `src/App.tsx`):**
+  - สร้างเมนูเนทีฟ macOS ผ่าน `tauri::menu` (`DataCore`, `File`, `Edit`, `View`, `Window`, `Help`) ส่ง event `menu://action` (`new-connection`, `new-query`, `close-tab`, `refresh-schema`, `toggle-theme`, `command-palette`, `keyboard-shortcuts`, `check-updates`, `export-diagnostics`) ไปยัง Frontend `App.tsx` พร้อม Unit Test ฝั่ง Rust (`menu::tests`)
+
+
 
 
