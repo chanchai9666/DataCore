@@ -27,6 +27,7 @@ import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
 import type {
   ColumnMapping,
   ImportErrorPolicy,
+  ImportMode,
   ImportOptions,
   ImportPreview,
   TransferFormat,
@@ -77,6 +78,9 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
   // Step 4: Preview & Policy
   const [errorPolicy, setErrorPolicy] = useState<ImportErrorPolicy>('abort');
   const [batchSize, setBatchSize] = useState<number>(1000);
+  const [importMode, setImportMode] = useState<ImportMode>('atomic');
+  const [resumeFromCheckpoint, setResumeFromCheckpoint] = useState<boolean>(false);
+  const [useNativeCopy, setUseNativeCopy] = useState<boolean>(false);
 
   // Step 5: Execution & Progress
   const [isImporting, setIsImporting] = useState<boolean>(false);
@@ -97,6 +101,9 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
       setPreview(null);
       setMappings({});
       setErrorPolicy('abort');
+      setImportMode('atomic');
+      setResumeFromCheckpoint(false);
+      setUseNativeCopy(false);
       setProgress(null);
       setResult(null);
     }
@@ -283,10 +290,14 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
 
     const column_mappings: ColumnMapping[] = Object.entries(mappings)
       .filter(([_, targetCol]) => Boolean(targetCol))
-      .map(([sourceCol, targetCol]) => ({
-        source_column: sourceCol,
-        target_column: targetCol,
-      }));
+      .map(([sourceCol, targetCol]) => {
+        const matched = targetColumns.find((tc) => tc.name === targetCol);
+        return {
+          source_column: sourceCol,
+          target_column: targetCol,
+          target_type: matched?.dataType,
+        };
+      });
 
     const options: ImportOptions = {
       file_path: filePath,
@@ -297,6 +308,9 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
       error_policy: errorPolicy,
       batch_size: batchSize,
       job_id: jobId,
+      import_mode: importMode,
+      ...(resumeFromCheckpoint ? { resume_from_checkpoint: true } : {}),
+      ...(useNativeCopy ? { use_native_copy: true } : {}),
     };
 
     let unlisten: (() => void) | undefined;
@@ -321,9 +335,11 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
     } catch (err: any) {
       console.error('Import failed:', err);
       const msg = err?.message || String(err);
-      if (msg.includes('cancelled')) {
+      if (msg.toLowerCase().includes('cancelled')) {
+        useTransferMonitorStore.getState().cancelJob(jobId).catch(() => {});
         toast.info('Import cancelled by user.');
       } else {
+        useTransferMonitorStore.getState().failJob(jobId, msg);
         toast.error(`Import failed: ${msg}`);
       }
     } finally {
@@ -695,18 +711,60 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-line/40">
-                    <label className="block text-text font-semibold mb-1">Batch Size:</label>
-                    <select
-                      value={batchSize}
-                      onChange={(e) => setBatchSize(Number(e.target.value))}
-                      className="w-48 h-[34px] bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
-                    >
-                      <option value={200}>200 rows per batch</option>
-                      <option value={500}>500 rows per batch</option>
-                      <option value={1000}>1,000 rows per batch</option>
-                      <option value={2500}>2,500 rows per batch</option>
-                    </select>
+                  <div className="pt-2 border-t border-line/40 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-text font-semibold mb-1">Batch Size:</label>
+                      <select
+                        value={batchSize}
+                        onChange={(e) => setBatchSize(Number(e.target.value))}
+                        className="w-full h-[34px] bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
+                      >
+                        <option value={200}>200 rows per batch</option>
+                        <option value={500}>500 rows per batch</option>
+                        <option value={1000}>1,000 rows per batch</option>
+                        <option value={2500}>2,500 rows per batch</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-text font-semibold mb-1">Import Mode:</label>
+                      <select
+                        data-testid="wizard-import-mode-select"
+                        value={importMode}
+                        onChange={(e) => setImportMode(e.target.value as ImportMode)}
+                        className="w-full h-[34px] bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
+                      >
+                        <option value="atomic">Atomic (Single Transaction)</option>
+                        <option value="chunked">Chunked (Periodic Commits + Checkpoint)</option>
+                        <option value="staging">Staging (Temp Table Swap)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-line/40 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        data-testid="wizard-import-resume-checkpoint"
+                        checked={resumeFromCheckpoint}
+                        onChange={(e) => setResumeFromCheckpoint(e.target.checked)}
+                        className="rounded border-line text-blue-600 focus:ring-0"
+                      />
+                      <span className="text-text font-medium">
+                        Resume from previous checkpoint if available
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        data-testid="wizard-import-use-native-copy"
+                        checked={useNativeCopy}
+                        onChange={(e) => setUseNativeCopy(e.target.checked)}
+                        className="rounded border-line text-blue-600 focus:ring-0"
+                      />
+                      <span className="text-text font-medium">
+                        Use PostgreSQL Fast COPY (CSV, Abort mode)
+                      </span>
+                    </label>
                   </div>
                 </div>
 

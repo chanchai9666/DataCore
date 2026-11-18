@@ -13,6 +13,7 @@ import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
 import type {
   ColumnMapping,
   ImportErrorPolicy,
+  ImportMode,
   ImportOptions,
   ImportPreview,
   TransferFormat,
@@ -41,6 +42,9 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   const [delimiter, setDelimiter] = useState<string>(',');
   const [hasHeaders, setHasHeaders] = useState<boolean>(true);
   const [errorPolicy, setErrorPolicy] = useState<ImportErrorPolicy>('abort');
+  const [importMode, setImportMode] = useState<ImportMode>('atomic');
+  const [resumeFromCheckpoint, setResumeFromCheckpoint] = useState<boolean>(false);
+  const [useNativeCopy, setUseNativeCopy] = useState<boolean>(false);
 
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [mappings, setMappings] = useState<Record<string, string>>({}); // sourceColumn -> targetColumn
@@ -55,6 +59,9 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       setFilePath(null);
       setPreview(null);
       setMappings({});
+      setImportMode('atomic');
+      setResumeFromCheckpoint(false);
+      setUseNativeCopy(false);
       setIsImporting(false);
       setProgress(null);
       activeJobIdRef.current = null;
@@ -140,10 +147,14 @@ export const ImportModal: React.FC<ImportModalProps> = ({
 
     const columnMappings: ColumnMapping[] = Object.entries(mappings)
       .filter(([_, target]) => target && target !== '__SKIP__')
-      .map(([source, target]) => ({
-        source_column: source,
-        target_column: target,
-      }));
+      .map(([source, target]) => {
+        const matched = tableColumns.find((tc) => tc.name === target);
+        return {
+          source_column: source,
+          target_column: target,
+          target_type: matched?.dataType,
+        };
+      });
 
     if (columnMappings.length === 0) {
       toast.error('Please map at least one column to import');
@@ -178,6 +189,9 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         column_mappings: columnMappings,
         error_policy: errorPolicy,
         job_id: jobId,
+        import_mode: importMode,
+        ...(resumeFromCheckpoint ? { resume_from_checkpoint: true } : {}),
+        ...(useNativeCopy ? { use_native_copy: true } : {}),
       };
 
       const result = await importData(connectionId, tableName, options);
@@ -200,6 +214,13 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       onClose();
     } catch (err: any) {
       const msg = err?.message || String(err);
+      if (activeJobIdRef.current) {
+        if (msg.toLowerCase().includes('cancelled')) {
+          useTransferMonitorStore.getState().cancelJob(activeJobIdRef.current).catch(() => {});
+        } else {
+          useTransferMonitorStore.getState().failJob(activeJobIdRef.current, msg);
+        }
+      }
       if (msg.toLowerCase().includes('cancelled')) {
         toast.info('Import cancelled by user');
       } else {
@@ -454,6 +475,46 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                       <strong className="text-white">Skip Invalid Rows</strong> — Insert valid rows
                       and continue past errors
                     </span>
+                  </label>
+                </div>
+
+                {/* Import Mode & Advanced Options */}
+                <div className="pt-2.5 border-t border-gray-800 space-y-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <label htmlFor="import-mode-select" className="text-gray-300 font-medium">
+                      Import Mode
+                    </label>
+                    <select
+                      id="import-mode-select"
+                      data-testid="import-mode-select"
+                      value={importMode}
+                      onChange={(e) => setImportMode(e.target.value as ImportMode)}
+                      className="bg-gray-950 border border-gray-700 rounded px-2.5 py-1 text-xs text-gray-200 focus:border-emerald-500 focus:outline-none"
+                    >
+                      <option value="atomic">Atomic (Single Transaction)</option>
+                      <option value="chunked">Chunked (Periodic Commits + Checkpoint)</option>
+                      <option value="staging">Staging (Temp Table Swap)</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center space-x-2 text-gray-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      data-testid="import-resume-checkpoint"
+                      checked={resumeFromCheckpoint}
+                      onChange={(e) => setResumeFromCheckpoint(e.target.checked)}
+                      className="rounded border-gray-700 text-emerald-600 focus:ring-0 focus:outline-none"
+                    />
+                    <span>Resume from previous checkpoint if available</span>
+                  </label>
+                  <label className="flex items-center space-x-2 text-gray-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      data-testid="import-use-native-copy"
+                      checked={useNativeCopy}
+                      onChange={(e) => setUseNativeCopy(e.target.checked)}
+                      className="rounded border-gray-700 text-emerald-600 focus:ring-0 focus:outline-none"
+                    />
+                    <span>Use PostgreSQL Fast COPY (CSV, Abort mode)</span>
                   </label>
                 </div>
               </div>

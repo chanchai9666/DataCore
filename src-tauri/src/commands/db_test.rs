@@ -1000,7 +1000,7 @@ async fn test_execute_query_with_row_and_byte_cap_triggers_cancel() {
         .expect("row cap query");
     assert_eq!(res_row.rows.len(), 120);
     assert_eq!(res_row.truncated, Some(true));
-    assert_eq!(res_row.truncation_reason.as_deref(), Some("RowCapReached"));
+    assert_eq!(res_row.truncation_reason, Some(crate::models::TruncationReason::RowCapReached));
     assert!(cancel_row.load(Ordering::SeqCst), "cancel() must be called when row cap is reached");
 
     // 2. Byte cap test
@@ -1014,7 +1014,7 @@ async fn test_execute_query_with_row_and_byte_cap_triggers_cancel() {
         .await
         .expect("byte cap query");
     assert_eq!(res_byte.truncated, Some(true));
-    assert_eq!(res_byte.truncation_reason.as_deref(), Some("ByteCapReached"));
+    assert_eq!(res_byte.truncation_reason, Some(crate::models::TruncationReason::ByteCapReached));
     assert!(res_byte.rows.len() <= 3);
     assert!(cancel_byte.load(Ordering::SeqCst), "cancel() must be called when byte cap is reached");
 }
@@ -1092,6 +1092,9 @@ async fn test_keyset_pagination_and_exact_count_sqlite() {
     .expect("page 1");
     assert_eq!(p1.rows.len(), 5);
     assert_eq!(p1.has_more, Some(true));
+    assert_eq!(p1.columns[0].is_primary_key, Some(true));
+    assert_eq!(p1.columns[1].is_primary_key, Some(true));
+    assert_ne!(p1.columns[2].is_primary_key, Some(true));
     assert_eq!(p1.rows[0][1], CellValue::Integer(1));
     assert_eq!(p1.rows[4][1], CellValue::Integer(5));
 
@@ -1134,6 +1137,9 @@ async fn test_keyset_pagination_and_exact_count_sqlite() {
     .await
     .expect("prev to page 1");
     assert_eq!(p1_back.rows.len(), 5);
+    assert_eq!(p1_back.has_more, Some(true));
+    assert_eq!(p1_back.columns[0].is_primary_key, Some(true));
+    assert_eq!(p1_back.columns[1].is_primary_key, Some(true));
     assert_eq!(p1_back.rows[0][1], CellValue::Integer(1));
     assert_eq!(p1_back.rows[4][1], CellValue::Integer(5));
 

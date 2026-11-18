@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Plus,
   Minus,
@@ -97,6 +98,7 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
   isMasked = false,
   onToggleMask,
 }) => {
+  const { t } = useTranslation();
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
 
   return (
@@ -322,7 +324,10 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
       <div className="flex items-center gap-2">
         <span data-testid="grid-row-count" className="text-[11px] text-muted hidden md:inline">
           {isApproximateCount
-            ? `~${totalRows.toLocaleString()} แถว (ค่าประมาณ)`
+            ? t('editor.approximateRows', {
+                count: totalRows.toLocaleString(),
+                defaultValue: `~${totalRows.toLocaleString()} rows (approx.)`,
+              })
             : `${totalRows.toLocaleString()} rows`}
         </span>
         {isApproximateCount && onExactCount && (

@@ -31,7 +31,6 @@
     "actions": "Actions",
     "executing": "Executing...",
     "creating": "Creating...",
-    "actions": "Actions",
     "status": "Status",
     "details": "Details",
     "type": "Type",
@@ -243,6 +242,8 @@
     "rowsAffected": "{{count}} rows affected",
     "executionTime": "{{time}} ms",
     "syntaxError": "Syntax Error: {{error}}",
+    "truncationWarning": "Result truncated at {{rows}} rows{{bytes}} for safety. Please use Export to retrieve the full dataset",
+    "approximateRows": "~{{count}} rows (approx.)",
     "explainDrawer": {
       "title": "Query Execution Plan",
       "cost": "Estimated Cost",

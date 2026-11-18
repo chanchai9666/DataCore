@@ -13,7 +13,12 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { exportData, pickExportFile, cancelTransfer } from '../../api/dataTransferApi';
+import {
+  exportData,
+  pickExportFile,
+  cancelTransfer,
+  type ExportCompression,
+} from '../../api/dataTransferApi';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
 import type {
@@ -52,6 +57,8 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
   const [delimiter, setDelimiter] = useState<string>(',');
   const [includeHeaders, setIncludeHeaders] = useState<boolean>(true);
   const [jsonStructure, setJsonStructure] = useState<JsonStructure>('array');
+  const [compression, setCompression] = useState<ExportCompression>('none');
+  const [useNativeCopy, setUseNativeCopy] = useState<boolean>(false);
 
   // Step 3: Destination & Progress
   const [destinationPath, setDestinationPath] = useState<string | null>(null);
@@ -68,6 +75,8 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
       setDelimiter(',');
       setIncludeHeaders(true);
       setJsonStructure('array');
+      setCompression('none');
+      setUseNativeCopy(false);
       setDestinationPath(null);
       setIsExporting(false);
       setIsCancelling(false);
@@ -92,7 +101,10 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
 
   const handleStartExport = async () => {
     try {
-      const selectedPath = await pickExportFile(tableName, format);
+      const selectedPath =
+        compression === 'none'
+          ? await pickExportFile(tableName, format)
+          : await pickExportFile(tableName, format, compression);
       if (!selectedPath) return;
 
       const jobId = `export_wizard_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
@@ -119,6 +131,7 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
         include_headers: includeHeaders,
         json_structure: format === 'json' ? jsonStructure : undefined,
         job_id: jobId,
+        ...(useNativeCopy ? { use_native_copy: true } : {}),
       };
 
       const res = await exportData(connectionId, sqlToRun, selectedPath, options);
@@ -132,6 +145,13 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
     } catch (err: any) {
       console.error('Export failed:', err);
       const msg = err?.message || String(err);
+      if (activeJobIdRef.current) {
+        if (msg.toLowerCase().includes('cancelled')) {
+          useTransferMonitorStore.getState().cancelJob(activeJobIdRef.current).catch(() => {});
+        } else {
+          useTransferMonitorStore.getState().failJob(activeJobIdRef.current, msg);
+        }
+      }
       if (msg.toLowerCase().includes('cancelled')) {
         toast.info('Export cancelled by user.');
       } else {
@@ -401,6 +421,34 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
                     </div>
                   </div>
                 )}
+
+                <div className="p-4 rounded-lg border border-line bg-panel space-y-3 text-xs">
+                  <div>
+                    <label className="block text-muted font-medium mb-1">Compression:</label>
+                    <select
+                      data-testid="export-compression-select"
+                      value={compression}
+                      onChange={(e) => setCompression(e.target.value as ExportCompression)}
+                      className="w-full h-[34px] bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
+                    >
+                      <option value="none">None (Plaintext)</option>
+                      <option value="gzip">Gzip (.gz)</option>
+                      <option value="zstd">Zstandard (.zst)</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      data-testid="export-use-native-copy"
+                      checked={useNativeCopy}
+                      onChange={(e) => setUseNativeCopy(e.target.checked)}
+                      className="rounded border-line text-blue-600 focus:ring-0"
+                    />
+                    <span className="text-text font-medium">
+                      Use PostgreSQL Fast COPY (CSV streaming)
+                    </span>
+                  </label>
+                </div>
               </div>
             )}
 

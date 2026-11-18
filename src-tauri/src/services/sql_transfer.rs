@@ -253,30 +253,30 @@ pub async fn export_sql_impl(
     })?;
     let mut writer = BufWriter::new(file);
 
-    writeln!(writer, "-- --------------------------------------------------------")?;
-    writeln!(writer, "-- DataCore SQL Dump")?;
-    writeln!(writer, "-- Target: {}", dialect)?;
-    writeln!(writer, "-- Generated at: {}", chrono::Utc::now().to_rfc3339())?;
-    writeln!(writer, "-- --------------------------------------------------------\n")?;
+    let export_res: Result<(usize, usize), AppError> = async {
+        writeln!(writer, "-- --------------------------------------------------------")?;
+        writeln!(writer, "-- DataCore SQL Dump")?;
+        writeln!(writer, "-- Target: {}", dialect)?;
+        writeln!(writer, "-- Generated at: {}", chrono::Utc::now().to_rfc3339())?;
+        writeln!(writer, "-- --------------------------------------------------------\n")?;
 
-    let batch_size = options.batch_size.unwrap_or(500).max(1);
-    let mut total_rows = 0;
+        let batch_size = options.batch_size.unwrap_or(500).max(1);
+        let mut total_rows = 0;
 
-    let target_tables = if options.tables.is_empty() {
-        let tables_meta = get_table_list_metadata_impl(conn, driver, options.schema.as_deref()).await?;
-        tables_meta.into_iter().map(|t| t.name).collect::<Vec<_>>()
-    } else {
-        options.tables.clone()
-    };
-    let total_tables = target_tables.len();
+        let target_tables = if options.tables.is_empty() {
+            let tables_meta = get_table_list_metadata_impl(conn, driver, options.schema.as_deref()).await?;
+            tables_meta.into_iter().map(|t| t.name).collect::<Vec<_>>()
+        } else {
+            options.tables.clone()
+        };
+        let total_tables = target_tables.len();
 
-    for table in &target_tables {
-        if let Some(ref jid) = options.job_id {
-            if is_transfer_cancelled(jid) {
-                remove_cancellation_token(jid);
-                return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
+        for table in &target_tables {
+            if let Some(ref jid) = options.job_id {
+                if is_transfer_cancelled(jid) {
+                    return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
+                }
             }
-        }
 
         writeln!(writer, "--")?;
         writeln!(writer, "-- Table structure and data for `{}`", table)?;
@@ -509,21 +509,33 @@ pub async fn export_sql_impl(
         }
     }
 
-    writer.flush()?;
+        writer.flush()?;
+        Ok((total_tables, total_rows))
+    }
+    .await;
 
+    drop(writer);
     if let Some(ref jid) = options.job_id {
         remove_cancellation_token(jid);
     }
 
-    let metadata = std::fs::metadata(&options.file_path).map_err(|e| {
-        AppError::Other(format!("Failed to read export file metadata: {}", e))
-    })?;
+    match export_res {
+        Ok((total_tables, total_rows)) => {
+            let metadata = std::fs::metadata(&options.file_path).map_err(|e| {
+                AppError::Other(format!("Failed to read export file metadata: {}", e))
+            })?;
 
-    Ok(SqlExportResult {
-        total_tables,
-        total_rows,
-        file_size_bytes: metadata.len(),
-    })
+            Ok(SqlExportResult {
+                total_tables,
+                total_rows,
+                file_size_bytes: metadata.len(),
+            })
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&options.file_path);
+            Err(e)
+        }
+    }
 }
 
 /// Reads and executes SQL script statement-by-statement via streaming BufReader.
@@ -772,4 +784,49 @@ where
         successful_statements,
         failed_statements,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::drivers::SqliteConnection;
+    use crate::services::data_transfer::{register_cancellation_token, trigger_cancellation};
+
+    #[tokio::test]
+    async fn test_export_sql_removes_partial_file_on_cancel() {
+        let conn = SqliteConnection::open_in_memory().expect("sqlite");
+        conn.execute_query("CREATE TABLE t1 (id INTEGER, name TEXT);")
+            .await
+            .unwrap();
+        conn.execute_query("INSERT INTO t1 VALUES (1, 'a'), (2, 'b');")
+            .await
+            .unwrap();
+
+        let dir = tempfile::tempdir().unwrap();
+        let out_path = dir.path().join("cancelled.sql");
+        let job_id = "sql_export_cancel_cleanup_test";
+        register_cancellation_token(job_id);
+        trigger_cancellation(job_id);
+
+        let opts = SqlExportOptions {
+            connection_id: "c1".to_string(),
+            schema: None,
+            tables: vec!["t1".to_string()],
+            file_path: out_path.to_string_lossy().to_string(),
+            include_drop_table: true,
+            include_structure: true,
+            include_data: true,
+            batch_size: Some(10),
+            job_id: Some(job_id.to_string()),
+        };
+
+        let err = export_sql_impl(&conn, DatabaseDriver::Sqlite, &opts)
+            .await
+            .expect_err("cancelled sql export must err");
+        assert!(err.to_string().contains("cancelled"));
+        assert!(
+            !out_path.exists(),
+            "Partial .sql export file must be deleted on cancellation"
+        );
+    }
 }

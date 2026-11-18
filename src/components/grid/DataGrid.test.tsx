@@ -1193,7 +1193,7 @@ describe('DataGrid', () => {
         />
       );
 
-      expect(screen.getByTestId('grid-row-count').textContent).toContain('~12,500,000 แถว (ค่าประมาณ)');
+      expect(screen.getByTestId('grid-row-count').textContent).toContain('~12,500,000 rows (approx.)');
       const exactBtn = screen.getByTestId('exact-count-btn');
       fireEvent.click(exactBtn);
       expect(onExactCount).toHaveBeenCalledTimes(1);

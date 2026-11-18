@@ -1298,3 +1298,170 @@ async fn test_export_and_import_gzip_and_zstd_on_the_fly() {
     .expect("import .csv.zst");
     assert_eq!(imp_zst.imported_rows, 3);
 }
+
+#[tokio::test]
+async fn test_import_probes_target_types_when_none_provided() {
+    let conn = SqliteConnection::open_in_memory().expect("sqlite");
+    conn.execute_query("CREATE TABLE probed_items (id INTEGER, price REAL);")
+        .await
+        .expect("create table");
+
+    let mut temp_csv = NamedTempFile::new().expect("temp csv");
+    writeln!(temp_csv, "id,price").unwrap();
+    writeln!(temp_csv, "1,12.5").unwrap();
+    writeln!(temp_csv, "not_an_int,25.0").unwrap();
+    temp_csv.flush().unwrap();
+
+    // Even with target_type: None (e.g. legacy or unannotated mapping), backend must probe schema types
+    // and catch the invalid integer instead of silently converting to NULL or text.
+    let options = ImportOptions {
+        file_path: temp_csv.path().to_str().unwrap().to_string(),
+        format: TransferFormat::Csv,
+        delimiter: Some(','),
+        has_headers: true,
+        column_mappings: vec![
+            ColumnMapping {
+                source_column: "id".to_string(),
+                target_column: "id".to_string(),
+                target_type: None,
+            },
+            ColumnMapping {
+                source_column: "price".to_string(),
+                target_column: "price".to_string(),
+                target_type: None,
+            },
+        ],
+        error_policy: ImportErrorPolicy::Abort,
+        batch_size: Some(10),
+        treat_empty_as_null: None,
+        job_id: None,
+        import_mode: None,
+        chunk_commit_rows: None,
+        resume_from_checkpoint: None,
+        use_native_copy: None,
+    };
+
+    let err = import_data_impl(&conn, "probed_items", &options, "sqlite", None::<fn(TransferProgress)>)
+        .await
+        .expect_err("dirty integer must be rejected via probed table metadata");
+    let msg = err.to_string();
+    assert!(msg.contains("Row 2"), "Expected Row 2 in error: {}", msg);
+    assert!(msg.contains("not_an_int"), "Expected invalid value in error: {}", msg);
+}
+
+#[tokio::test]
+async fn test_import_chunked_skip_uses_savepoint_and_keeps_valid_rows() {
+    use crate::models::ImportMode;
+    use std::sync::{Arc, Mutex};
+
+    struct SavepointPgSimConn {
+        executed: Arc<Mutex<Vec<String>>>,
+        aborted: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    #[async_trait::async_trait]
+    impl DatabaseConnection for SavepointPgSimConn {
+        async fn test_connection(&self) -> Result<u64, crate::error::AppError> {
+            Ok(1)
+        }
+        async fn execute_query(&self, sql: &str) -> Result<QueryResult, crate::error::AppError> {
+            self.executed.lock().unwrap().push(sql.to_string());
+            if sql == "BEGIN" || sql == "COMMIT" || sql == "ROLLBACK" {
+                self.aborted.store(false, std::sync::atomic::Ordering::SeqCst);
+                return Ok(QueryResult::empty());
+            }
+            if sql.starts_with("ROLLBACK TO SAVEPOINT") {
+                self.aborted.store(false, std::sync::atomic::Ordering::SeqCst);
+                return Ok(QueryResult::empty());
+            }
+            if sql.starts_with("SAVEPOINT") || sql.starts_with("RELEASE SAVEPOINT") {
+                return Ok(QueryResult::empty());
+            }
+            if self.aborted.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err(crate::error::AppError::Database(
+                    "current transaction is aborted (25P02)".to_string(),
+                ));
+            }
+            if sql.contains("bad_dup") {
+                self.aborted.store(true, std::sync::atomic::Ordering::SeqCst);
+                return Err(crate::error::AppError::Database(
+                    "duplicate key value violates unique constraint".to_string(),
+                ));
+            }
+            Ok(QueryResult::new(vec![], vec![], 1, Some(1)))
+        }
+        async fn fetch_table_data(
+            &self,
+            _schema: Option<&str>,
+            _table: &str,
+            _limit: u32,
+            _offset: u32,
+            _filter: Option<&str>,
+            _sort_col: Option<&str>,
+            _sort_dir: Option<&str>,
+        ) -> Result<QueryResult, crate::error::AppError> {
+            unreachable!()
+        }
+        async fn fetch_schema_tree(&self) -> Result<Vec<crate::drivers::SchemaNode>, crate::error::AppError> {
+            Ok(vec![])
+        }
+        async fn commit(&self) -> Result<(), crate::error::AppError> {
+            Ok(())
+        }
+        async fn rollback(&self) -> Result<(), crate::error::AppError> {
+            Ok(())
+        }
+        async fn cancel(&self) -> Result<(), crate::error::AppError> {
+            Ok(())
+        }
+    }
+
+    let executed = Arc::new(Mutex::new(Vec::new()));
+    let conn = SavepointPgSimConn {
+        executed: executed.clone(),
+        aborted: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    };
+
+    let dir = tempfile::tempdir().unwrap();
+    let csv_path = dir.path().join("chunked_skip.csv");
+    std::fs::write(&csv_path, "id,val\n1,ok1\n2,bad_dup\n3,ok2\n4,ok3\n").unwrap();
+
+    let options = ImportOptions {
+        file_path: csv_path.to_str().unwrap().to_string(),
+        format: TransferFormat::Csv,
+        delimiter: Some(','),
+        has_headers: true,
+        column_mappings: vec![
+            ColumnMapping {
+                source_column: "id".to_string(),
+                target_column: "id".to_string(),
+                target_type: Some("INTEGER".to_string()),
+            },
+            ColumnMapping {
+                source_column: "val".to_string(),
+                target_column: "val".to_string(),
+                target_type: Some("TEXT".to_string()),
+            },
+        ],
+        error_policy: ImportErrorPolicy::Skip,
+        batch_size: Some(4),
+        treat_empty_as_null: None,
+        job_id: None,
+        import_mode: Some(ImportMode::Chunked),
+        chunk_commit_rows: Some(100),
+        resume_from_checkpoint: None,
+        use_native_copy: None,
+    };
+
+    let res = import_data_impl(&conn, "pg_tbl", &options, "postgres", None::<fn(TransferProgress)>)
+        .await
+        .expect("chunked skip mode must recover from DB error via SAVEPOINT");
+    assert_eq!(res.imported_rows, 3);
+    assert_eq!(res.skipped_rows, 1);
+
+    let queries = executed.lock().unwrap();
+    assert!(queries.iter().any(|q| q == "SAVEPOINT sp_dc_batch;"));
+    assert!(queries.iter().any(|q| q == "ROLLBACK TO SAVEPOINT sp_dc_batch;"));
+    assert!(queries.iter().any(|q| q == "RELEASE SAVEPOINT sp_dc_batch;"));
+    assert!(queries.iter().any(|q| q == "COMMIT"));
+}

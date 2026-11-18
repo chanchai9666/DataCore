@@ -2,7 +2,12 @@ import React, { useState, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Download, X, Loader2, FileSpreadsheet, FileCode, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { exportData, pickExportFile, cancelTransfer } from '../../api/dataTransferApi';
+import {
+  exportData,
+  pickExportFile,
+  cancelTransfer,
+  type ExportCompression,
+} from '../../api/dataTransferApi';
 import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
 import type { ExportOptions, TransferFormat, JsonStructure } from '../../types/dataTransfer';
 
@@ -28,6 +33,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [includeHeaders, setIncludeHeaders] = useState<boolean>(true);
   const [jsonStructure, setJsonStructure] = useState<JsonStructure>('array');
   const [scope, setScope] = useState<'entire' | 'filtered'>(initialQuery ? 'filtered' : 'entire');
+  const [compression, setCompression] = useState<ExportCompression>('none');
+  const [useNativeCopy, setUseNativeCopy] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const activeJobIdRef = useRef<string | null>(null);
 
@@ -45,7 +52,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   const handleExport = async () => {
     try {
-      const filePath = await pickExportFile(tableName, format);
+      const filePath =
+        compression === 'none'
+          ? await pickExportFile(tableName, format)
+          : await pickExportFile(tableName, format, compression);
       if (!filePath) {
         return; // User cancelled the save dialog
       }
@@ -72,6 +82,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         include_headers: includeHeaders,
         json_structure: format === 'json' ? jsonStructure : undefined,
         job_id: jobId,
+        ...(useNativeCopy ? { use_native_copy: true } : {}),
       };
 
       const result = await exportData(connectionId, sqlToRun, filePath, options);
@@ -262,6 +273,33 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Compression & Fast COPY Options */}
+            <div className="p-3.5 bg-sidebar rounded border border-line space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-text">Compression</label>
+                <select
+                  value={compression}
+                  onChange={(e) => setCompression(e.target.value as ExportCompression)}
+                  data-testid="export-compression-select"
+                  className="bg-grid border border-line rounded px-2.5 py-1 text-xs text-text focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="none">None (Plaintext)</option>
+                  <option value="gzip">Gzip (.gz)</option>
+                  <option value="zstd">Zstandard (.zst)</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="text-text">Use PostgreSQL Fast COPY (CSV)</label>
+                <input
+                  type="checkbox"
+                  checked={useNativeCopy}
+                  onChange={(e) => setUseNativeCopy(e.target.checked)}
+                  data-testid="export-use-native-copy"
+                  className="rounded border-line text-blue-600 focus:ring-0 focus:outline-none"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Footer Actions */}

@@ -273,7 +273,10 @@ make test
 - [x] **Phase 41: Database Session Readiness & Race Condition Elimination** (Issue #160)
 - [x] **Phase 42: Connection State Synchronization & Query Editor Disconnected Guard** (Issue #161)
 - [x] **Phase 43: Context Menu Boundary Clamping & Auto-Flip Positioning** (Issue #162)
-- [ ] **Phase 44: สถาปัตยกรรมรองรับข้อมูลขนาดใหญ่ (Large Scale Data Architecture — Issues #163 - #174):** ปรับปรุงระบบสตรีมมิ่ง Single Statement Stream (`stream_query`), Backend Row & Byte Hard Cap, ป้องกัน Silent NULL Data Loss, ยกระดับ Native Backup CLI ให้ปลอดภัยและรองรับ Parallel, และเพิ่ม Keyset Pagination บน DataGrid
+- [x] **Phase 44: สถาปัตยกรรมรองรับข้อมูลขนาดใหญ่ (Large Scale Data Architecture — Issues #163 - #174):** ปรับปรุงระบบสตรีมมิ่ง Single Statement Stream (`stream_query`), Backend Row & Byte Hard Cap, ป้องกัน Silent NULL Data Loss, ยกระดับ Native Backup CLI ให้ปลอดภัยและรองรับ Parallel, และเพิ่ม Keyset Pagination บน DataGrid
+- [x] **Phase 45: การตรวจสอบความปลอดภัย ความถูกต้องของระบบ และการทำความสะอาดโค้ด (Security, Correctness & Dead Code Audit — Issue #175)**
+- [x] **Phase 46: การจัดการไฟล์ขยะและปรับปรุงระบบ Build (Makefile & Build Optimization — Issue #176)**
+- [x] **Phase 47: การตรวจสอบและแก้ไขคุณภาพโค้ดหลังการรีวิว (Post-Review Standards & Spec Refinements — Issue #177)**
 
 ---
 

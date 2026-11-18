@@ -139,6 +139,26 @@ describe('dataTransferApi', () => {
     expect(res).toBe('/saved/users.csv');
   });
 
+  it('pickExportFile supports gzip and zstd compression extensions', async () => {
+    vi.mocked(dialog.save).mockResolvedValueOnce('/saved/users.csv.gz');
+    const gzRes = await pickExportFile('users', 'csv', 'gzip');
+    expect(dialog.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaultPath: 'users.csv.gz',
+      })
+    );
+    expect(gzRes).toBe('/saved/users.csv.gz');
+
+    vi.mocked(dialog.save).mockResolvedValueOnce('/saved/users.json.zst');
+    const zstRes = await pickExportFile('users', 'json', 'zstd');
+    expect(dialog.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaultPath: 'users.json.zst',
+      })
+    );
+    expect(zstRes).toBe('/saved/users.json.zst');
+  });
+
   it('onTransferProgress subscribes to transfer://progress event', async () => {
     const unlisten = vi.fn();
     vi.mocked(event.listen).mockResolvedValueOnce(unlisten as any);

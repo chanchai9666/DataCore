@@ -1150,7 +1150,7 @@ describe('DockLayout', () => {
     await waitFor(() => {
       const banner = screen.getByTestId('query-truncation-banner');
       expect(banner).toBeInTheDocument();
-      expect(banner.textContent).toContain('ผลลัพธ์ถูกตัดที่ 10 แถว');
+      expect(banner.textContent).toContain('Result truncated at 10 rows');
       expect(banner.textContent).toContain('Export');
     });
   });
@@ -1190,7 +1190,7 @@ describe('DockLayout', () => {
     render(<DockLayout />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('grid-row-count').textContent).toContain('~12,500,000 แถว (ค่าประมาณ)');
+      expect(screen.getByTestId('grid-row-count').textContent).toContain('~12,500,000 rows (approx.)');
     });
 
     const exactBtn = screen.getByTestId('exact-count-btn');

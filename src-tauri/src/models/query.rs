@@ -193,6 +193,13 @@ impl ColumnMeta {
     }
 }
 
+/// Reason why a streaming read query result was truncated before completion.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub enum TruncationReason {
+    RowCapReached,
+    ByteCapReached,
+}
+
 /// Unified query result payload returned from Rust backend to frontend.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Type)]
 pub struct QueryResult {
@@ -203,7 +210,7 @@ pub struct QueryResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub truncated: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub truncation_reason: Option<String>,
+    pub truncation_reason: Option<TruncationReason>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub truncated_bytes: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -250,9 +257,9 @@ impl QueryResult {
         }
     }
 
-    pub fn with_truncation(mut self, reason: impl Into<String>, bytes: u64) -> Self {
+    pub fn with_truncation(mut self, reason: TruncationReason, bytes: u64) -> Self {
         self.truncated = Some(true);
-        self.truncation_reason = Some(reason.into());
+        self.truncation_reason = Some(reason);
         self.truncated_bytes = Some(bytes);
         self
     }

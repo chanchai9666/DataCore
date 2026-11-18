@@ -6,7 +6,7 @@ use crate::drivers::{
 use crate::error::AppError;
 use crate::models::{
     CellValue, ColumnMeta, ConnectionConfig, DatabaseDriver, ImpactSimulationResult, QueryResult,
-    WorkspaceState,
+    TruncationReason, WorkspaceState,
 };
 use crate::services::{AuditLogEntryInput, AuditLogger, ConnectionStore, WorkspaceStore};
 use crate::session::SessionManager;
@@ -55,7 +55,7 @@ pub async fn execute_query_with_cap(
         let mut columns: Vec<ColumnMeta> = Vec::new();
         let mut rows: Vec<Vec<CellValue>> = Vec::new();
         let mut total_bytes: usize = 0;
-        let mut truncation_reason: Option<String> = None;
+        let mut truncation_reason: Option<TruncationReason> = None;
 
         while let Some(chunk) = rx.recv().await {
             if columns.is_empty() && !chunk.columns.is_empty() {
@@ -63,12 +63,12 @@ pub async fn execute_query_with_cap(
             }
             for row in chunk.rows {
                 if rows.len() >= row_cap {
-                    truncation_reason = Some("RowCapReached".to_string());
+                    truncation_reason = Some(TruncationReason::RowCapReached);
                     break;
                 }
                 let row_bytes: usize = row.iter().map(estimate_cell_bytes).sum();
                 if !rows.is_empty() && total_bytes.saturating_add(row_bytes) > byte_cap {
-                    truncation_reason = Some("ByteCapReached".to_string());
+                    truncation_reason = Some(TruncationReason::ByteCapReached);
                     break;
                 }
                 total_bytes = total_bytes.saturating_add(row_bytes);
@@ -380,7 +380,11 @@ pub async fn fetch_table_data_keyset_impl(
     let drv = driver.unwrap_or("postgres");
     let from_clause = quote_keyset_table_ref(schema, table, drv);
     let base_where = build_safe_where_clause(filter, drv)?;
-    let dir = KeysetDirection::from_str_opt(direction);
+    let dir = if cursor_values.is_none() {
+        KeysetDirection::Next
+    } else {
+        KeysetDirection::from_str_opt(direction)
+    };
     let (keyset_pred, order_clause, needs_reverse) = build_keyset_clause(
         &key_columns,
         cursor_values.as_deref(),
@@ -413,6 +417,12 @@ pub async fn fetch_table_data_keyset_impl(
     };
 
     let mut res = conn.execute_query(&sql).await?;
+    for col in &mut res.columns {
+        if key_columns.iter().any(|k| k.eq_ignore_ascii_case(&col.name)) {
+            col.is_primary_key = Some(true);
+        }
+    }
+
     let has_more = res.rows.len() > limit as usize;
     if has_more {
         res.rows.truncate(limit as usize);
@@ -420,6 +430,12 @@ pub async fn fetch_table_data_keyset_impl(
     if needs_reverse {
         res.rows.reverse();
     }
+
+    let has_more_forward = if dir == KeysetDirection::Prev {
+        !res.rows.is_empty()
+    } else {
+        has_more
+    };
 
     let next_cursor = if let Some(last_row) = res.rows.last() {
         let mut vals = Vec::with_capacity(key_columns.len());
@@ -442,7 +458,7 @@ pub async fn fetch_table_data_keyset_impl(
         None
     };
 
-    Ok(res.with_keyset_cursor(next_cursor, has_more))
+    Ok(res.with_keyset_cursor(next_cursor, has_more_forward))
 }
 
 pub async fn cancel_query_impl(

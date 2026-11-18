@@ -31,7 +31,6 @@
     "actions": "การดำเนินการ",
     "executing": "กำลังดำเนินการ...",
     "creating": "กำลังสร้าง...",
-    "actions": "การกระทำ",
     "status": "สถานะ",
     "details": "รายละเอียด",
     "type": "ประเภท",
@@ -243,6 +242,8 @@
     "rowsAffected": "ส่งผลกระทบ {{count}} แถว",
     "executionTime": "{{time}} ms",
     "syntaxError": "Syntax Error: {{error}}",
+    "truncationWarning": "ผลลัพธ์ถูกตัดที่ {{rows}} แถว{{bytes}} เพื่อความปลอดภัย หากต้องการข้อมูลทั้งหมด กรุณาใช้ฟังก์ชัน Export",
+    "approximateRows": "~{{count}} แถว (ค่าประมาณ)",
     "explainDrawer": {
       "title": "Query Execution Plan",
       "cost": "Estimated Cost",

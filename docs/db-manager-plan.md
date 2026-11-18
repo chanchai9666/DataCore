@@ -1138,3 +1138,18 @@
   - ลด `crate-type` ของ `datacore_lib` จาก `["staticlib", "cdylib", "rlib"]` เหลือ `["rlib"]` เพื่อไม่ให้สร้างไฟล์ `libdatacore_lib.a` ขนาด ~2.4 GB ที่ไม่จำเป็นต่อ macOS Desktop build
   - เพิ่ม `repomix-output*`, `*.tmp`, `*.bak` ใน `.gitignore`
 
+### Phase 47: การปรับปรุงมาตรฐานและข้อกำหนดหลังการรีวิวโค้ด (Post-Review Standards & Spec Refinements — Issue #177) [Completed]
+
+- **แก้ไขมาตรฐานและ i18n / Design System:**
+  - ลบคีย์ `"common.actions"` ที่ซ้ำกันใน `src/locales/th.json` และ `src/locales/en.json` พร้อมเพิ่มคีย์ `editor.truncationWarning` และ `editor.approximateRows` แทนข้อความภาษาไทยที่เคย hardcode ใน `DockLayout.tsx` และ `GridBottomBar.tsx`
+  - รวมฟังก์ชันแปลงขนาดไฟล์ `formatCapBytes` ใน `DockLayout.tsx` ให้ใช้ `formatBytes` จาก `transferMonitorStore.ts`
+  - ปรับสีของ `TransferMonitorModal.tsx` และ `TablePartitionsModal.tsx` ให้ใช้ CSS Design Tokens (`bg-panel`, `border-line`, `text-text`, `text-muted`, `bg-accent`) ตาม `DataCore-UX-UI-Redesign-Guide.md`
+  - แทนที่ `QueryResult.truncation_reason: Option<String>` ด้วย enum `TruncationReason` (`RowCapReached` / `ByteCapReached`) ใน `src-tauri/src/models/query.rs` และ `src/types/db.ts`
+- **แก้ไขความครบถ้วนและความถูกต้องของ Data Transfer / Keyset:**
+  - ส่งค่า `target_type` ใน `ColumnMapping` จาก `ImportModal.tsx` และ `DataImportWizardModal.tsx` รวมถึงเพิ่มการ probe ชนิดคอลัมน์จากฐานข้อมูลใน `import_data_impl` เมื่อ `target_type` เป็น `None` เพื่อให้ Client-side Type Validation ป้องกัน silent NULL ทำงานได้จริงทุกเส้นทาง
+  - ใช้ `SAVEPOINT` / `ROLLBACK TO SAVEPOINT` (`execute_batch_with_savepoint`) ในโหมด `Chunked` + `Skip` ของ `data_transfer.rs` ป้องกันสถานะ transaction aborted (`25P02`) บน PostgreSQL ระหว่าง `bisect_insert_rows`
+  - เพิ่ม UI controls สำหรับ `ImportMode` (`Atomic`/`Chunked`/`Staging`), `resume_from_checkpoint`, `use_native_copy`, ตัวเลือกบีบอัดไฟล์ Export (`.gz`/`.zst` ผ่าน `pickExportFile`), และการอัปเดตสถานะ `cancelJob`/`failJob` ใน `catch` ของทุก Transfer Modal
+  - เพิ่มการลบไฟล์ `.sql` ที่เขียนค้างเมื่อยกเลิกหรือเกิด error ใน `export_sql_impl` (`sql_transfer.rs`)
+  - แก้ไข `fetch_table_data_keyset_impl` (`src-tauri/src/commands/db.rs`) ให้เติม `is_primary_key = Some(true)` และคืนค่า `has_more` ที่ถูกต้องเมื่อเลื่อนย้อนหน้า (`prev`) พร้อมคง metadata คอลัมน์ใน `DockLayout.tsx`
+
+

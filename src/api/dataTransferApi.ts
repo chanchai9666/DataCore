@@ -90,25 +90,47 @@ export const pickImportFile = async (): Promise<string | null> => {
   return Array.isArray(selected) ? selected[0] : selected;
 };
 
+export type ExportCompression = 'none' | 'gzip' | 'zstd';
+
 export const pickExportFile = async (
   defaultName: string,
-  format: TransferFormat
+  format: TransferFormat,
+  compression: ExportCompression = 'none'
 ): Promise<string | null> => {
-  const ext = format === 'csv' ? 'csv' : 'json';
-  const finalDefaultName = defaultName.endsWith(`.${ext}`) ? defaultName : `${defaultName}.${ext}`;
+  const baseExt = format === 'csv' ? 'csv' : 'json';
+  const compExt = compression === 'gzip' ? '.gz' : compression === 'zstd' ? '.zst' : '';
+  const fullExt = `${baseExt}${compExt}`;
+  const finalDefaultName = defaultName.endsWith(`.${fullExt}`) ? defaultName : `${defaultName}.${fullExt}`;
+
+  const filters =
+    compression === 'none'
+      ? [
+          {
+            name: format === 'csv' ? 'CSV Document (*.csv)' : 'JSON Document (*.json)',
+            extensions: [baseExt],
+          },
+          {
+            name: 'All Files (*.*)',
+            extensions: ['*'],
+          },
+        ]
+      : [
+          {
+            name:
+              compression === 'gzip'
+                ? `Gzip Compressed ${format.toUpperCase()} (*.${baseExt}.gz)`
+                : `Zstandard Compressed ${format.toUpperCase()} (*.${baseExt}.zst)`,
+            extensions: [compression === 'gzip' ? 'gz' : 'zst'],
+          },
+          {
+            name: 'All Files (*.*)',
+            extensions: ['*'],
+          },
+        ];
 
   const selected = await save({
     defaultPath: finalDefaultName,
-    filters: [
-      {
-        name: format === 'csv' ? 'CSV Document (*.csv)' : 'JSON Document (*.json)',
-        extensions: [ext],
-      },
-      {
-        name: 'All Files (*.*)',
-        extensions: ['*'],
-      },
-    ],
+    filters,
   });
 
   return selected || null;

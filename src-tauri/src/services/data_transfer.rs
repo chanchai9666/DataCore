@@ -1068,6 +1068,43 @@ fn validate_and_filter_chunk(
     Ok((valid, skipped))
 }
 
+/// Executes a batch SQL statement inside a SAVEPOINT when `use_savepoint` is true,
+/// preventing transaction-aborted states (e.g., PostgreSQL 25P02) during `Chunked` + `Skip` bisect.
+async fn execute_batch_with_savepoint(
+    conn: &dyn DatabaseConnection,
+    batch_sql: &str,
+    use_savepoint: bool,
+    dialect: &str,
+) -> Result<QueryResult, AppError> {
+    if !use_savepoint {
+        return conn.execute_query(batch_sql).await;
+    }
+    let is_mssql = dialect.to_lowercase().contains("mssql");
+    let sp_begin = if is_mssql {
+        "SAVE TRANSACTION sp_dc_batch;"
+    } else {
+        "SAVEPOINT sp_dc_batch;"
+    };
+    let _ = conn.execute_query(sp_begin).await;
+    match conn.execute_query(batch_sql).await {
+        Ok(res) => {
+            if !is_mssql {
+                let _ = conn.execute_query("RELEASE SAVEPOINT sp_dc_batch;").await;
+            }
+            Ok(res)
+        }
+        Err(err) => {
+            if is_mssql {
+                let _ = conn.execute_query("ROLLBACK TRANSACTION sp_dc_batch;").await;
+            } else {
+                let _ = conn.execute_query("ROLLBACK TO SAVEPOINT sp_dc_batch;").await;
+                let _ = conn.execute_query("RELEASE SAVEPOINT sp_dc_batch;").await;
+            }
+            Err(err)
+        }
+    }
+}
+
 /// Binary-bisect batch inserter for `Skip` mode: when a batch fails on the DB server,
 /// splits the batch in half recursively to isolate only the failing rows instead of
 /// falling back to row-by-row inserts for the entire batch.
@@ -1080,6 +1117,7 @@ fn bisect_insert_rows<'a>(
     rows: &'a [(usize, Vec<String>)],
     treat_empty_as_null: bool,
     dialect: &'a str,
+    in_tx: bool,
     rejects: &'a mut RejectsWriter,
 ) -> futures::future::BoxFuture<'a, Result<(usize, usize), AppError>> {
     Box::pin(async move {
@@ -1098,7 +1136,7 @@ fn bisect_insert_rows<'a>(
         )
         .map_err(AppError::from)?;
 
-        match conn.execute_query(&batch_sql).await {
+        match execute_batch_with_savepoint(conn, &batch_sql, in_tx, dialect).await {
             Ok(_) => Ok((rows.len(), 0)),
             Err(db_err) => {
                 if rows.len() == 1 {
@@ -1115,6 +1153,7 @@ fn bisect_insert_rows<'a>(
                         &rows[..mid],
                         treat_empty_as_null,
                         dialect,
+                        in_tx,
                         rejects,
                     )
                     .await?;
@@ -1126,6 +1165,7 @@ fn bisect_insert_rows<'a>(
                         &rows[mid..],
                         treat_empty_as_null,
                         dialect,
+                        in_tx,
                         rejects,
                     )
                     .await?;
@@ -1182,7 +1222,8 @@ async fn execute_import_chunk(
     )
     .map_err(AppError::from)?;
 
-    let exec_result = conn.execute_query(&batch_sql).await;
+    let use_savepoint = in_tx && error_policy == ImportErrorPolicy::Skip;
+    let exec_result = execute_batch_with_savepoint(conn, &batch_sql, use_savepoint, dialect).await;
 
     match exec_result {
         Ok(_) => Ok((valid_rows.len(), client_skipped)),
@@ -1210,6 +1251,7 @@ async fn execute_import_chunk(
                     &valid_rows,
                     treat_empty_as_null,
                     dialect,
+                    in_tx,
                     rejects,
                 )
                 .await?;
@@ -1299,11 +1341,35 @@ where
         .iter()
         .map(|m| m.target_column.clone())
         .collect();
-    let target_types: Vec<Option<String>> = options
+    let mut target_types: Vec<Option<String>> = options
         .column_mappings
         .iter()
         .map(|m| m.target_type.clone())
         .collect();
+    if target_types.iter().any(|t| t.is_none()) {
+        let quoted_tbl = quote_table_name(table, dialect);
+        let probe_sql = if dialect.to_lowercase().contains("mssql") {
+            format!("SELECT TOP 0 * FROM {};", quoted_tbl)
+        } else {
+            format!("SELECT * FROM {} WHERE 1=0;", quoted_tbl)
+        };
+        if let Ok(probe_res) = conn.execute_query(&probe_sql).await {
+            for (idx, col_name) in target_columns.iter().enumerate() {
+                if target_types[idx].is_none() {
+                    if let Some(cm) = probe_res
+                        .columns
+                        .iter()
+                        .find(|c| c.name.eq_ignore_ascii_case(col_name))
+                    {
+                        let dt = cm.data_type.trim();
+                        if !dt.is_empty() && !dt.eq_ignore_ascii_case("UNKNOWN") {
+                            target_types[idx] = Some(dt.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
     let treat_empty_as_null = options.treat_empty_as_null.unwrap_or(false);
 
     if target_columns.is_empty() {

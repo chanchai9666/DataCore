@@ -126,14 +126,65 @@ describe('ImportModal', () => {
           delimiter: ',',
           has_headers: true,
           error_policy: 'skip',
+          import_mode: 'atomic',
           column_mappings: [
-            { source_column: 'name', target_column: 'name' },
-            { source_column: 'email', target_column: 'email' },
+            { source_column: 'name', target_column: 'name', target_type: 'TEXT' },
+            { source_column: 'email', target_column: 'email', target_type: 'TEXT' },
           ],
         })
       );
       expect(onImportSuccess).toHaveBeenCalled();
       expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  it('submits importMode, resumeFromCheckpoint, and useNativeCopy when selected', async () => {
+    vi.mocked(transferApi.pickImportFile).mockResolvedValueOnce('/path/to/customers.csv');
+    vi.mocked(transferApi.previewImportFile).mockResolvedValueOnce({
+      detected_delimiter: ',',
+      headers: ['id', 'name'],
+      preview_rows: [['1', 'Alice']],
+      total_preview_rows: 1,
+    });
+    vi.mocked(transferApi.importData).mockResolvedValueOnce({
+      total_rows: 1,
+      imported_rows: 1,
+      skipped_rows: 0,
+      elapsed_ms: 12,
+    });
+
+    render(
+      <ImportModal
+        isOpen={true}
+        onClose={vi.fn()}
+        connectionId="conn-1"
+        tableName="customers"
+        tableColumns={tableColumns}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('choose-import-file-btn'));
+    await waitFor(() => expect(screen.getByTestId('import-mode-select')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByTestId('import-mode-select'), { target: { value: 'staging' } });
+    fireEvent.click(screen.getByTestId('import-resume-checkpoint'));
+    fireEvent.click(screen.getByTestId('import-use-native-copy'));
+    fireEvent.click(screen.getByTestId('confirm-import-btn'));
+
+    await waitFor(() => {
+      expect(transferApi.importData).toHaveBeenCalledWith(
+        'conn-1',
+        'customers',
+        expect.objectContaining({
+          import_mode: 'staging',
+          resume_from_checkpoint: true,
+          use_native_copy: true,
+          column_mappings: [
+            { source_column: 'id', target_column: 'id', target_type: 'INTEGER' },
+            { source_column: 'name', target_column: 'name', target_type: 'TEXT' },
+          ],
+        })
+      );
     });
   });
 });

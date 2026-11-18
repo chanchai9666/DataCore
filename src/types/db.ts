@@ -97,13 +97,15 @@ export interface ColumnMeta {
   is_auto_increment?: boolean;
 }
 
+export type TruncationReason = 'RowCapReached' | 'ByteCapReached';
+
 export interface QueryResult {
   columns: ColumnMeta[];
   rows: CellValue[][];
   execution_time_ms: number;
   rows_affected?: number | null;
   truncated?: boolean | null;
-  truncation_reason?: 'RowCapReached' | 'ByteCapReached' | string | null;
+  truncation_reason?: TruncationReason | null;
   truncated_bytes?: number | null;
   is_approximate_count?: boolean | null;
   next_cursor?: CellValue[] | null;

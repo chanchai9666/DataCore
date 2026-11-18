@@ -87,4 +87,41 @@ describe('ExportModal', () => {
       expect(onClose).toHaveBeenCalled();
     });
   });
+
+  it('passes compression and use_native_copy options when selected', async () => {
+    const onClose = vi.fn();
+    vi.mocked(transferApi.pickExportFile).mockResolvedValueOnce('/path/to/users.csv.gz');
+    vi.mocked(transferApi.exportData).mockResolvedValueOnce({
+      total_rows: 100,
+      file_size_bytes: 1024,
+      elapsed_ms: 15,
+    });
+
+    render(
+      <ExportModal
+        isOpen={true}
+        onClose={onClose}
+        connectionId="conn-1"
+        tableName="users"
+      />
+    );
+
+    fireEvent.change(screen.getByTestId('export-compression-select'), { target: { value: 'gzip' } });
+    fireEvent.click(screen.getByTestId('export-use-native-copy'));
+    fireEvent.click(screen.getByTestId('confirm-export-btn'));
+
+    await waitFor(() => {
+      expect(transferApi.pickExportFile).toHaveBeenCalledWith('users', 'csv', 'gzip');
+      expect(transferApi.exportData).toHaveBeenCalledWith(
+        'conn-1',
+        'SELECT * FROM users',
+        '/path/to/users.csv.gz',
+        expect.objectContaining({
+          format: 'csv',
+          use_native_copy: true,
+        })
+      );
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
 });

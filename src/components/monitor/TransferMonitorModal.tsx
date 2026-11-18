@@ -108,9 +108,9 @@ const SpeedSparkline: React.FC<{ job: TransferJobState }> = ({ job }) => {
   return (
     <div
       data-testid="transfer-speed-chart"
-      className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 p-3"
+      className="rounded-lg border border-line bg-black/5 dark:bg-white/5 p-3"
     >
-      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1.5">
+      <div className="flex items-center justify-between text-[11px] text-muted mb-1.5">
         <span>Throughput History</span>
         <span className="font-mono">
           Peak: {Math.max(...samples.map((s) => s.mbPerSec), 0).toFixed(2)} MB/s
@@ -124,8 +124,8 @@ const SpeedSparkline: React.FC<{ job: TransferJobState }> = ({ job }) => {
       >
         <defs>
           <linearGradient id="transferSpeedGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="var(--accent, #3b82f6)" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="var(--accent, #3b82f6)" stopOpacity="0.02" />
           </linearGradient>
         </defs>
         <line
@@ -134,14 +134,14 @@ const SpeedSparkline: React.FC<{ job: TransferJobState }> = ({ job }) => {
           x2={width - padX}
           y2={height - padY}
           stroke="currentColor"
-          className="text-slate-200 dark:text-slate-800"
+          className="text-line"
           strokeWidth="1"
         />
         <path d={areaPath} fill="url(#transferSpeedGrad)" />
         <path
           d={linePath}
           fill="none"
-          stroke="#3b82f6"
+          stroke="var(--accent, #3b82f6)"
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -184,18 +184,18 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
       aria-label={t('monitor.transferDashboardTitle', 'Transfer Monitor Dashboard')}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in"
     >
-      <div className="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-3xl rounded-xl bg-panel shadow-2xl border border-line overflow-hidden flex flex-col text-text">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/15 text-accent">
               <Gauge className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              <h3 className="text-base font-semibold text-text">
                 {t('monitor.transferDashboardTitle', 'Transfer Monitor Dashboard')}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-muted">
                 {t(
                   'monitor.transferDashboardDesc',
                   'Real-time throughput, ETA, and server-side cancellation for active data transfers'
@@ -208,7 +208,7 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
               <button
                 type="button"
                 onClick={clearCompleted}
-                className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="inline-flex items-center gap-1 rounded-md border border-line bg-panel px-2.5 py-1 text-xs text-text hover:bg-black/5 dark:hover:bg-white/5"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 {t('monitor.clearCompleted', 'Clear Completed')}
@@ -218,7 +218,7 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
               type="button"
               onClick={onClose}
               aria-label={t('common.close', 'Close')}
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              className="rounded-lg p-1.5 text-muted hover:bg-black/5 hover:text-text dark:hover:bg-white/10"
             >
               <X className="h-5 w-5" />
             </button>
@@ -230,13 +230,13 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
           {!activeJob ? (
             <div
               data-testid="transfer-monitor-empty"
-              className="flex flex-col items-center justify-center h-48 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 text-slate-400"
+              className="flex flex-col items-center justify-center h-48 rounded-lg border border-dashed border-line text-muted"
             >
-              <Activity className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-2" />
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <Activity className="h-10 w-10 text-muted/60 mb-2" />
+              <p className="text-sm font-medium text-text">
                 {t('monitor.noActiveTransfers', 'No Active Transfers')}
               </p>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 {t(
                   'monitor.noActiveTransfersDesc',
                   'Start an Export, Import, or Cross-DB Copy to monitor live throughput here.'
@@ -255,8 +255,8 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
                       onClick={() => selectJob(job.jobId)}
                       className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs border transition-colors ${
                         job.jobId === activeJob.jobId
-                          ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
-                          : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                          ? 'border-accent bg-accent/15 text-accent font-medium'
+                          : 'border-line text-muted hover:bg-black/5 dark:hover:bg-white/5 hover:text-text'
                       }`}
                     >
                       {getDirectionIcon(job.direction)}
@@ -267,16 +267,16 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
               )}
 
               {/* Active Job Header & Cancel */}
-              <div className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 px-4 py-3">
+              <div className="flex items-center justify-between rounded-lg border border-line bg-black/5 dark:bg-white/5 px-4 py-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     {getDirectionIcon(activeJob.direction)}
-                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                    <span className="text-sm font-semibold text-text truncate">
                       {activeJob.label}
                     </span>
                     {getStatusBadge(activeJob)}
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-mono truncate">
+                  <p className="text-xs text-muted mt-0.5 font-mono truncate">
                     {activeJob.errorMessage || activeJob.statusText}
                   </p>
                 </div>
@@ -296,7 +296,7 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
 
               {/* Progress Bar */}
               <div>
-                <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400 mb-1">
+                <div className="flex justify-between text-xs text-muted mb-1">
                   <span>
                     {activeJob.rowsProcessed.toLocaleString()}
                     {activeJob.totalRows
@@ -307,7 +307,7 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
                     {progressPct !== null ? `${progressPct}%` : activeJob.status === 'completed' ? '100%' : 'Streaming...'}
                   </span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                <div className="h-2 w-full rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
                   <div
                     className={`h-full transition-all duration-200 ${
                       activeJob.status === 'cancelled'
@@ -316,7 +316,7 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
                         ? 'bg-red-500'
                         : activeJob.status === 'completed'
                         ? 'bg-emerald-500'
-                        : 'bg-blue-500'
+                        : 'bg-accent'
                     }`}
                     style={{
                       width:
@@ -332,56 +332,56 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
 
               {/* Metrics Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                    <Gauge className="h-3.5 w-3.5 text-blue-500" />
+                <div className="rounded-lg border border-line bg-panel p-3">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted">
+                    <Gauge className="h-3.5 w-3.5 text-accent" />
                     <span>{t('monitor.speedMb', 'Throughput (MB/s)')}</span>
                   </div>
                   <div
                     data-testid="transfer-speed-mbs"
-                    className="mt-1 text-base font-semibold font-mono text-slate-900 dark:text-slate-100"
+                    className="mt-1 text-base font-semibold font-mono text-text"
                   >
                     {activeJob.mbPerSec.toFixed(2)} MB/s
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="rounded-lg border border-line bg-panel p-3">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted">
                     <Rows3 className="h-3.5 w-3.5 text-emerald-500" />
                     <span>{t('monitor.speedRows', 'Rows / sec')}</span>
                   </div>
                   <div
                     data-testid="transfer-speed-rows"
-                    className="mt-1 text-base font-semibold font-mono text-slate-900 dark:text-slate-100"
+                    className="mt-1 text-base font-semibold font-mono text-text"
                   >
                     {activeJob.rowsPerSec.toLocaleString()} /s
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="rounded-lg border border-line bg-panel p-3">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted">
                     <HardDrive className="h-3.5 w-3.5 text-purple-500" />
                     <span>{t('monitor.bytesProcessed', 'Data Processed')}</span>
                   </div>
                   <div
                     data-testid="transfer-bytes-written"
-                    className="mt-1 text-base font-semibold font-mono text-slate-900 dark:text-slate-100"
+                    className="mt-1 text-base font-semibold font-mono text-text"
                   >
                     {formatBytes(activeJob.bytesWritten)}
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="rounded-lg border border-line bg-panel p-3">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted">
                     <Clock className="h-3.5 w-3.5 text-amber-500" />
                     <span>{t('monitor.eta', 'ETA / Elapsed')}</span>
                   </div>
                   <div
                     data-testid="transfer-eta"
-                    className="mt-1 text-base font-semibold font-mono text-slate-900 dark:text-slate-100"
+                    className="mt-1 text-base font-semibold font-mono text-text"
                   >
                     {formatEta(activeJob.etaSeconds)}{' '}
-                    <span className="text-xs font-normal text-slate-400">
+                    <span className="text-xs font-normal text-muted">
                       ({formatEta(Math.round(activeJob.elapsedMs / 1000))})
                     </span>
                   </div>
@@ -395,11 +395,11 @@ export const TransferMonitorModal: React.FC<TransferMonitorModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-right dark:border-slate-800 dark:bg-slate-900/60">
+        <div className="border-t border-line bg-black/5 dark:bg-white/5 px-5 py-3 text-right">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            className="rounded-md border border-line bg-panel px-3 py-1.5 text-xs font-medium text-text shadow-2xs hover:bg-black/5 dark:hover:bg-white/5"
           >
             {t('common.close', 'Close')}
           </button>

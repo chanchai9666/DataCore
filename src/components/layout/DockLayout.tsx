@@ -40,12 +40,7 @@ import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/ta
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
 import type { CellValue, ConnectionConfig, QueryResult, Tab, TableFilterState, TableSortState } from '../../types/db';
 import { saveWorkspaceDebounced } from '../../utils/workspacePersistence';
-
-function formatCapBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${bytes} B`;
-}
+import { formatBytes } from '../../stores/transferMonitorStore';
 
 export interface DockLayoutProps {
   theme?: 'dark' | 'light';
@@ -490,18 +485,33 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           tab.sortState?.direction ?? 'ASC',
           driver
         );
-        setTableStates((prev) => ({
-          ...prev,
-          [tab.id]: {
-            ...prev[tab.id],
-            data: result,
-            loading: false,
-            page: nextPage,
-            pageSize,
-            hasMoreKeyset: Boolean(result.has_more),
-            error: null,
-          },
-        }));
+        setTableStates((prev) => {
+          const prevCols = prev[tab.id]?.data?.columns;
+          const mergedColumns = prevCols
+            ? result.columns.map((c) => {
+                const existing = prevCols.find((p) => p.name === c.name);
+                return existing
+                  ? {
+                      ...c,
+                      is_primary_key: c.is_primary_key ?? existing.is_primary_key,
+                      is_auto_increment: c.is_auto_increment ?? existing.is_auto_increment,
+                    }
+                  : c;
+              })
+            : result.columns;
+          return {
+            ...prev,
+            [tab.id]: {
+              ...prev[tab.id],
+              data: { ...result, columns: mergedColumns },
+              loading: false,
+              page: nextPage,
+              pageSize,
+              hasMoreKeyset: Boolean(result.has_more),
+              error: null,
+            },
+          };
+        });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         setTableStates((prev) => ({
@@ -1609,11 +1619,18 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                             >
                               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
                               <span>
-                                ผลลัพธ์ถูกตัดที่ {activeResult.rows.length.toLocaleString()} แถว
-                                {activeResult.truncation_reason === 'ByteCapReached' && activeResult.truncated_bytes
-                                  ? ` (${formatCapBytes(activeResult.truncated_bytes)})`
-                                  : ''}{' '}
-                                เพื่อความปลอดภัย หากต้องการข้อมูลทั้งหมด กรุณาใช้ฟังก์ชัน Export
+                                {t('editor.truncationWarning', {
+                                  rows: activeResult.rows.length.toLocaleString(),
+                                  bytes:
+                                    activeResult.truncation_reason === 'ByteCapReached' && activeResult.truncated_bytes
+                                      ? ` (${formatBytes(activeResult.truncated_bytes)})`
+                                      : '',
+                                  defaultValue: `Result truncated at ${activeResult.rows.length.toLocaleString()} rows${
+                                    activeResult.truncation_reason === 'ByteCapReached' && activeResult.truncated_bytes
+                                      ? ` (${formatBytes(activeResult.truncated_bytes)})`
+                                      : ''
+                                  } for safety. Please use Export to retrieve the full dataset`,
+                                })}
                               </span>
                             </div>
                           )}

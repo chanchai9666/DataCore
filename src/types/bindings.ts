@@ -138,7 +138,7 @@ export type QueryResult_Deserialize = {
 	execution_time_ms: number,
 	rows_affected?: number | null,
 	truncated?: boolean | null,
-	truncation_reason?: string | null,
+	truncation_reason?: TruncationReason | null,
 	truncated_bytes?: number | null,
 	is_approximate_count?: boolean | null,
 	next_cursor?: CellValue[] | null,
@@ -152,7 +152,7 @@ export type QueryResult_Serialize = {
 	execution_time_ms: number,
 	rows_affected: number | null,
 	truncated?: boolean,
-	truncation_reason?: string,
+	truncation_reason?: TruncationReason,
 	truncated_bytes?: number,
 	is_approximate_count?: boolean,
 	next_cursor?: CellValue[],
@@ -224,6 +224,9 @@ export type TableFilterState_Serialize = {
 	conjunction: string,
 	conditions: FilterCondition_Serialize[],
 };
+
+/**  Reason why a streaming read query result was truncated before completion. */
+export type TruncationReason = "RowCapReached" | "ByteCapReached";
 
 export type Value = null | boolean | number | string | Value[] | { [key in string]: Value };
 

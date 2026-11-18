@@ -181,6 +181,13 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
+      if (activeJobIdRef.current) {
+        if (msg.toLowerCase().includes('cancelled')) {
+          useTransferMonitorStore.getState().cancelJob(activeJobIdRef.current).catch(() => {});
+        } else {
+          useTransferMonitorStore.getState().failJob(activeJobIdRef.current, msg);
+        }
+      }
       if (msg.toLowerCase().includes('cancelled')) {
         toast.info('Transfer cancelled by user');
       } else {
