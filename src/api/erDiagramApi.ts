@@ -9,6 +9,16 @@ import type {
 import { formatCellValue } from '../utils/cellFormatter';
 import { formatSqlLiteral } from './queryBuilder';
 import { dbApi } from './db';
+import { quoteIdentifier } from './queryBuilder';
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 import {
   parseForeignKeysFromQueryResult,
   type TableForeignKeyStructure,
@@ -635,14 +645,14 @@ export function exportERDiagramAsSvg(
     tablesSvg += `  <g transform="translate(${table.x}, ${table.y})">\n`;
     tablesSvg += `    <rect width="${cardWidth}" height="${cardH}" rx="6" fill="${cardBg}" stroke="${cardBorder}" stroke-width="1.5" />\n`;
     tablesSvg += `    <rect width="${cardWidth}" height="${headerHeight}" rx="6" fill="${headerBg}" />\n`;
-    tablesSvg += `    <text x="14" y="23" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="600" font-size="13" fill="${textColor}">${table.name}</text>\n`;
+    tablesSvg += `    <text x="14" y="23" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="600" font-size="13" fill="${textColor}">${escapeXml(table.name)}</text>\n`;
 
     table.columns.forEach((col, idx) => {
       const cy = headerHeight + 18 + idx * colHeight;
       const pkMarker = col.isPrimaryKey ? '🔑 ' : '   ';
       const colColor = col.isPrimaryKey ? '#F59E0B' : textColor;
-      tablesSvg += `    <text x="14" y="${cy}" font-family="monospace" font-size="11" fill="${colColor}">${pkMarker}${col.name}</text>\n`;
-      tablesSvg += `    <text x="${cardWidth - 14}" y="${cy}" text-anchor="end" font-family="monospace" font-size="11" fill="${mutedText}">${col.dataType}</text>\n`;
+      tablesSvg += `    <text x="14" y="${cy}" font-family="monospace" font-size="11" fill="${colColor}">${pkMarker}${escapeXml(col.name)}</text>\n`;
+      tablesSvg += `    <text x="${cardWidth - 14}" y="${cy}" text-anchor="end" font-family="monospace" font-size="11" fill="${mutedText}">${escapeXml(col.dataType)}</text>\n`;
     });
 
     tablesSvg += `  </g>\n`;
@@ -670,7 +680,7 @@ export function generateERDiagramSql(
     const colDefs = table.columns.map((col) => {
       const nullability = col.isNullable ? '' : ' NOT NULL';
       const pk = col.isPrimaryKey ? ' PRIMARY KEY' : '';
-      return `  "${col.name}" ${col.dataType}${nullability}${pk}`;
+      return `  ${quoteIdentifier(col.name, _driver)} ${col.dataType}${nullability}${pk}`;
     });
 
     // Add foreign keys originating from this table
@@ -679,13 +689,13 @@ export function generateERDiagramSql(
     );
 
     tableRels.forEach((rel) => {
-      let fkDef = `  FOREIGN KEY ("${rel.fromColumn}") REFERENCES "${rel.toTable}" ("${rel.toColumn}")`;
+      let fkDef = `  FOREIGN KEY (${quoteIdentifier(rel.fromColumn, _driver)}) REFERENCES ${quoteIdentifier(rel.toTable, _driver)} (${quoteIdentifier(rel.toColumn, _driver)})`;
       if (rel.onDelete) fkDef += ` ON DELETE ${rel.onDelete}`;
       if (rel.onUpdate) fkDef += ` ON UPDATE ${rel.onUpdate}`;
       colDefs.push(fkDef);
     });
 
-    statements.push(`CREATE TABLE "${table.name}" (\n${colDefs.join(',\n')}\n);`);
+    statements.push(`CREATE TABLE ${quoteIdentifier(table.name, _driver)} (\n${colDefs.join(',\n')}\n);`);
   });
 
   return statements.join('\n\n');

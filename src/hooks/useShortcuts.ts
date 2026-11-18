@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTabStore } from '../stores/tabStore';
 import { useConnectionStore } from '../stores/connectionStore';
+import { useShortcutStore } from '../stores/shortcutStore';
 import { openQueryTab } from '../components/sidebar/tabHelpers';
 import type { Tab } from '../types/db';
 
@@ -31,9 +32,32 @@ export function useShortcuts({
   const closeTab = useTabStore((s) => s.closeTab);
   const activeConnectionId = useConnectionStore((s) => s.activeConnectionId);
   const connectedConnectionIds = useConnectionStore((s) => s.connectedConnectionIds);
+  const preset = useShortcutStore((s) => s.preset);
+  const lastShiftTimeRef = useRef<number>(0);
 
   useEffect(() => {
+    const triggerSidebarToggle = () => {
+      if (onToggleSidebar) {
+        onToggleSidebar();
+      } else if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('datacore:toggle-sidebar'));
+      }
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      // DataGrip: Double-Shift opens Command Palette
+      if (preset === 'datagrip' && e.key === 'Shift' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const now = Date.now();
+        if (now - lastShiftTimeRef.current < 350) {
+          lastShiftTimeRef.current = 0;
+          e.preventDefault();
+          onOpenCommandPalette?.();
+          return;
+        }
+        lastShiftTimeRef.current = now;
+        return;
+      }
+
       // Prevent F5 reload
       if (e.key === 'F5') {
         e.preventDefault();
@@ -43,6 +67,13 @@ export function useShortcuts({
       // Escape: Close modals, drawers, or dismiss overlays
       if (e.key === 'Escape') {
         onEscape?.();
+        return;
+      }
+
+      // DataGrip Win/Linux: Alt+1 toggles sidebar
+      if (preset === 'datagrip' && e.altKey && e.key === '1' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        triggerSidebarToggle();
         return;
       }
 
@@ -64,9 +95,12 @@ export function useShortcuts({
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
       if (!isCmdOrCtrl) return;
 
-      // Prevent native browser reload (Cmd+R, Cmd+Shift+R)
+      // Prevent native browser reload (Cmd+R, Cmd+Shift+R); in TablePlus preset Cmd+R runs query
       if (e.key.toLowerCase() === 'r' && !e.altKey) {
         e.preventDefault();
+        if (preset === 'tableplus' && !e.shiftKey && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('datacore:run-query'));
+        }
         return;
       }
 
@@ -84,6 +118,20 @@ export function useShortcuts({
         return;
       }
 
+      // VS Code: Cmd+Shift+P opens Command Palette
+      if (preset === 'vscode' && e.shiftKey && e.key.toLowerCase() === 'p' && !e.altKey) {
+        e.preventDefault();
+        onOpenCommandPalette?.();
+        return;
+      }
+
+      // DataGrip: Cmd+O opens Search / Quick Open
+      if (preset === 'datagrip' && e.key.toLowerCase() === 'o' && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        onOpenCommandPalette?.();
+        return;
+      }
+
       // Cmd+K / Ctrl+K or Cmd+P / Ctrl+P: Command Palette / Quick Open
       if (
         (e.key.toLowerCase() === 'k' || e.key.toLowerCase() === 'p') &&
@@ -95,14 +143,13 @@ export function useShortcuts({
         return;
       }
 
-      // Cmd+B or Ctrl+B: Toggle Sidebar Visibility
-      if (e.key.toLowerCase() === 'b' && !e.shiftKey && !e.altKey) {
+      // Toggle Sidebar Visibility (DataGrip: Cmd+1; others: Cmd+B)
+      if (
+        (preset === 'datagrip' && e.key === '1' && !e.shiftKey && !e.altKey) ||
+        (preset !== 'datagrip' && e.key.toLowerCase() === 'b' && !e.shiftKey && !e.altKey)
+      ) {
         e.preventDefault();
-        if (onToggleSidebar) {
-          onToggleSidebar();
-        } else if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('datacore:toggle-sidebar'));
-        }
+        triggerSidebarToggle();
         return;
       }
 
@@ -179,10 +226,16 @@ export function useShortcuts({
         return;
       }
 
-      // Cmd+N: New Connection
+      // Cmd+N: New Query Tab in DataGrip/VSCode presets; New Connection otherwise
       if (e.key.toLowerCase() === 'n' && !e.shiftKey && !e.altKey) {
         e.preventDefault();
-        onNewConnection?.();
+        if (preset === 'datagrip' || preset === 'vscode') {
+          if (activeConnectionId && connectedConnectionIds.includes(activeConnectionId)) {
+            openQueryTab({ connectionId: activeConnectionId });
+          }
+        } else {
+          onNewConnection?.();
+        }
         return;
       }
 
@@ -195,8 +248,11 @@ export function useShortcuts({
         return;
       }
 
-      // Cmd+W: Close Active Tab
-      if (e.key.toLowerCase() === 'w' && !e.shiftKey && !e.altKey) {
+      // Cmd+W (or Ctrl+F4 in DataGrip): Close Active Tab
+      if (
+        (e.key.toLowerCase() === 'w' && !e.shiftKey && !e.altKey) ||
+        (preset === 'datagrip' && e.ctrlKey && e.key === 'F4' && !e.shiftKey && !e.altKey)
+      ) {
         e.preventDefault();
         if (activeTabId) {
           closeTab(activeTabId);
@@ -212,6 +268,7 @@ export function useShortcuts({
     closeTab,
     activeConnectionId,
     connectedConnectionIds,
+    preset,
     onNewConnection,
     onToggleTheme,
     onOpenShortcuts,

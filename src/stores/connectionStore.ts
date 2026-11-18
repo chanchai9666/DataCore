@@ -46,14 +46,23 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
 
   addConnection: async (connection: ConnectionConfig, password?: string) => {
     await dbApi.saveConnection(connection, password);
+    const sanitized = { ...connection };
+    if (sanitized.ssh_tunnel) {
+      const { passphrase: _p, ...rest } = sanitized.ssh_tunnel;
+      sanitized.ssh_tunnel = rest;
+    }
+    if (sanitized.sshTunnel) {
+      const { passphrase: _p, ...rest } = sanitized.sshTunnel;
+      sanitized.sshTunnel = rest;
+    }
     const existing = get().connections;
-    const index = existing.findIndex((c) => c.id === connection.id);
+    const index = existing.findIndex((c) => c.id === sanitized.id);
     if (index >= 0) {
       const updated = [...existing];
-      updated[index] = connection;
+      updated[index] = sanitized;
       set({ connections: updated });
     } else {
-      set({ connections: [...existing, connection] });
+      set({ connections: [...existing, sanitized] });
     }
   },
 

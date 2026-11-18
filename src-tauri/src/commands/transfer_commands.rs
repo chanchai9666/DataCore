@@ -18,22 +18,23 @@ use crate::services::duplicate_table::duplicate_table_impl;
 use crate::services::sql_transfer::{export_sql_impl, import_sql_impl};
 use crate::services::cross_db_transfer::copy_table_cross_db_impl;
 use crate::services::path_guard::validate_safe_transfer_path;
+use crate::commands::db::resolve_connection_credentials;
 use crate::session::SessionManager;
 
 const ALLOWED_DATA_EXTS: &[&str] = &["csv", "tsv", "json", "ndjson", "jsonl", "txt"];
 const ALLOWED_SQL_EXTS: &[&str] = &["sql", "txt"];
+const ALLOWED_BACKUP_EXTS: &[&str] = &["sql", "dump", "backup", "tar", "db", "sqlite", "sqlite3", "bak", "txt"];
 
 #[tauri::command]
 pub async fn get_table_list_metadata(
     store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<TableMetadata>, String> {
-    let config = store
-        .get(&connection_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
-    let password = store.get_password(&connection_id).map_err(|e| e.to_string())?;
+    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
     let conn = SessionManager::create_connection(&config, password.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -56,6 +57,7 @@ pub async fn preview_import_file(
 #[tauri::command]
 pub async fn export_data(
     store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
     connection_id: String,
     sql: String,
     file_path: String,
@@ -68,11 +70,9 @@ pub async fn export_data(
         register_cancellation_token(jid);
     }
 
-    let config = store
-        .get(&connection_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
-    let password = store.get_password(&connection_id).map_err(|e| e.to_string())?;
+    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
     let conn = SessionManager::create_connection(&config, password.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -104,6 +104,7 @@ pub async fn export_data(
 pub async fn import_data(
     app: AppHandle,
     store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
     connection_id: String,
     table: String,
     options: ImportOptions,
@@ -112,11 +113,9 @@ pub async fn import_data(
     let mut options = options;
     options.file_path = safe_path.to_string_lossy().to_string();
 
-    let config = store
-        .get(&connection_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
-    let password = store.get_password(&connection_id).map_err(|e| e.to_string())?;
+    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
     let conn = SessionManager::create_connection(&config, password.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -170,13 +169,12 @@ pub async fn import_data(
 #[tauri::command]
 pub async fn duplicate_table(
     store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
     options: DuplicateTableOptions,
 ) -> Result<(), String> {
-    let config = store
-        .get(&options.connection_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Connection '{}' not found", options.connection_id))?;
-    let password = store.get_password(&options.connection_id).map_err(|e| e.to_string())?;
+    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
     let conn = SessionManager::create_connection(&config, password.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -208,6 +206,7 @@ pub async fn duplicate_table(
 #[tauri::command]
 pub async fn export_sql(
     store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
     options: SqlExportOptions,
 ) -> Result<SqlExportResult, String> {
     let safe_path = validate_safe_transfer_path(&options.file_path, ALLOWED_SQL_EXTS)?;
@@ -218,11 +217,9 @@ pub async fn export_sql(
         register_cancellation_token(jid);
     }
 
-    let config = store
-        .get(&options.connection_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Connection '{}' not found", options.connection_id))?;
-    let password = store.get_password(&options.connection_id).map_err(|e| e.to_string())?;
+    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
     let conn = SessionManager::create_connection(&config, password.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -253,17 +250,16 @@ pub async fn export_sql(
 pub async fn import_sql(
     app: AppHandle,
     store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
     options: SqlImportOptions,
 ) -> Result<SqlImportResult, String> {
     let safe_path = validate_safe_transfer_path(&options.file_path, ALLOWED_SQL_EXTS)?;
     let mut options = options;
     options.file_path = safe_path.to_string_lossy().to_string();
 
-    let config = store
-        .get(&options.connection_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Connection '{}' not found", options.connection_id))?;
-    let password = store.get_password(&options.connection_id).map_err(|e| e.to_string())?;
+    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
     let conn = SessionManager::create_connection(&config, password.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -308,26 +304,23 @@ pub async fn cancel_transfer(job_id: String) -> Result<bool, String> {
 pub async fn copy_table_cross_db(
     app: AppHandle,
     store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
     options: CrossDbCopyTableOptions,
 ) -> Result<CrossDbCopyResult, String> {
     if let Some(ref jid) = options.job_id {
         register_cancellation_token(jid);
     }
 
-    let src_config = store
-        .get(&options.source_connection_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Source connection '{}' not found", options.source_connection_id))?;
-    let src_pass = store.get_password(&options.source_connection_id).map_err(|e| e.to_string())?;
+    let (src_config, src_pass) = resolve_connection_credentials(&store, &session_mgr, &options.source_connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
     let src_conn = SessionManager::create_connection(&src_config, src_pass.as_deref())
         .await
         .map_err(|e| e.to_string())?;
 
-    let tgt_config = store
-        .get(&options.target_connection_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Target connection '{}' not found", options.target_connection_id))?;
-    let tgt_pass = store.get_password(&options.target_connection_id).map_err(|e| e.to_string())?;
+    let (tgt_config, tgt_pass) = resolve_connection_credentials(&store, &session_mgr, &options.target_connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
     let tgt_conn = SessionManager::create_connection(&tgt_config, tgt_pass.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -375,16 +368,24 @@ pub async fn check_native_cli_availability(
 pub async fn start_native_backup(
     app: AppHandle,
     store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
     task_id: String,
     options: crate::services::NativeBackupOptions,
 ) -> Result<i32, String> {
-    let config = store
-        .get(&options.connection_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Connection '{}' not found", options.connection_id))?;
-    let password = store.get_password(&options.connection_id).map_err(|e| e.to_string())?;
+    let allowed_exts: &[&str] = if options.format.as_deref() == Some("directory") {
+        &[]
+    } else {
+        ALLOWED_BACKUP_EXTS
+    };
+    let safe_path = validate_safe_transfer_path(&options.output_file, allowed_exts)?;
+    let mut options = options;
+    options.output_file = safe_path.to_string_lossy().to_string();
 
-    let (bin, args, envs) = crate::services::build_backup_command(&config, password.as_deref(), &options)
+    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let spec = crate::services::build_backup_command(&config, password.as_deref(), &options)
         .map_err(|e| e.to_string())?;
 
     let app_clone = app.clone();
@@ -392,7 +393,7 @@ pub async fn start_native_backup(
         let _ = app_clone.emit("native://progress", evt);
     };
 
-    crate::services::run_native_cli_streaming(task_id, bin, args, envs, callback)
+    crate::services::run_native_cli_streaming(task_id, spec, Some(safe_path), callback)
         .await
         .map_err(|e| e.to_string())
 }
@@ -401,16 +402,24 @@ pub async fn start_native_backup(
 pub async fn start_native_restore(
     app: AppHandle,
     store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
     task_id: String,
     options: crate::services::NativeRestoreOptions,
 ) -> Result<i32, String> {
-    let config = store
-        .get(&options.connection_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Connection '{}' not found", options.connection_id))?;
-    let password = store.get_password(&options.connection_id).map_err(|e| e.to_string())?;
+    let allowed_exts: &[&str] = if std::path::Path::new(&options.input_file).is_dir() {
+        &[]
+    } else {
+        ALLOWED_BACKUP_EXTS
+    };
+    let safe_path = validate_safe_transfer_path(&options.input_file, allowed_exts)?;
+    let mut options = options;
+    options.input_file = safe_path.to_string_lossy().to_string();
 
-    let (bin, args, envs) = crate::services::build_restore_command(&config, password.as_deref(), &options)
+    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let spec = crate::services::build_restore_command(&config, password.as_deref(), &options)
         .map_err(|e| e.to_string())?;
 
     let app_clone = app.clone();
@@ -418,7 +427,7 @@ pub async fn start_native_restore(
         let _ = app_clone.emit("native://progress", evt);
     };
 
-    crate::services::run_native_cli_streaming(task_id, bin, args, envs, callback)
+    crate::services::run_native_cli_streaming(task_id, spec, None, callback)
         .await
         .map_err(|e| e.to_string())
 }

@@ -213,10 +213,8 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       label: t('toolbar.tools', 'Tools'),
       icon: Wrench,
       onClick: handleToolsClick,
-      disabled: !isConnected,
-      title: isConnected
-        ? t('toolbar.toolsTitle', 'Database tools, performance metrics & audit logs')
-        : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
+      disabled: false,
+      title: t('toolbar.toolsTitle', 'Database tools, performance metrics & audit logs'),
       testId: 'toolbar-tools-btn',
     },
     {
@@ -388,11 +386,12 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   <button
                     type="button"
                     data-testid="toolbar-tools-metrics-btn"
+                    disabled={!isConnected}
                     onClick={() => {
                       setActiveDropdown(null);
                       onOpenMetrics();
                     }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
                   >
                     <Cpu className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
@@ -405,11 +404,12 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   <button
                     type="button"
                     data-testid="toolbar-tools-activity-monitor-btn"
+                    disabled={!isConnected}
                     onClick={() => {
                       setActiveDropdown(null);
                       onOpenActivityMonitor();
                     }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
                   >
                     <Activity className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
@@ -422,11 +422,12 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   <button
                     type="button"
                     data-testid="toolbar-tools-locks-btn"
+                    disabled={!isConnected}
                     onClick={() => {
                       setActiveDropdown(null);
                       onOpenLocks();
                     }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
                   >
                     <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
@@ -446,11 +447,12 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   <button
                     type="button"
                     data-testid="toolbar-tools-er-diagram-btn"
+                    disabled={!isConnected}
                     onClick={() => {
                       setActiveDropdown(null);
                       onOpenERDiagram();
                     }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
                   >
                     <Network className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
@@ -463,11 +465,12 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   <button
                     type="button"
                     data-testid="toolbar-tools-query-builder-btn"
+                    disabled={!isConnected}
                     onClick={() => {
                       setActiveDropdown(null);
                       onOpenQueryBuilder();
                     }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
                   >
                     <Wand2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
@@ -480,11 +483,12 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   <button
                     type="button"
                     data-testid="toolbar-tools-schema-diff-btn"
+                    disabled={!isConnected}
                     onClick={() => {
                       setActiveDropdown(null);
                       onOpenSchemaDiff();
                     }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
                   >
                     <GitCompare className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">
@@ -538,11 +542,12 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   <button
                     type="button"
                     data-testid="toolbar-tools-user-manager-btn"
+                    disabled={!isConnected}
                     onClick={() => {
                       setActiveDropdown(null);
                       onOpenUserManager();
                     }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
                   >
                     <Users className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
                     <div className="flex flex-col min-w-0">

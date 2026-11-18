@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { DataGrid } from './DataGrid';
-import { PaginationBar } from './PaginationBar';
 import { CellDetailDrawer } from './CellDetailDrawer';
 import { createGridColumns, createCellContent } from './gridUtils';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
@@ -146,93 +145,6 @@ describe('Grid Utilities', () => {
     const colMeta = mockQueryResult.columns[4]; // avatar
     const cell = createCellContent({ Bytes: 'AQID' }, colMeta);
     expect(getDisplayData(cell)).toContain('Binary');
-  });
-});
-
-describe('PaginationBar', () => {
-  it('renders page info, total rows and handles page navigation', () => {
-    const onPageChange = vi.fn();
-    const onPageSizeChange = vi.fn();
-    const onRefresh = vi.fn();
-
-    render(
-      <PaginationBar
-        page={2}
-        pageSize={100}
-        totalRows={350}
-        onPageChange={onPageChange}
-        onPageSizeChange={onPageSizeChange}
-        onRefresh={onRefresh}
-      />
-    );
-
-    expect(screen.getByText(/Page 2 of 4/i)).toBeInTheDocument();
-    expect(screen.getByText(/350 rows/i)).toBeInTheDocument();
-
-    const prevButton = screen.getByRole('button', { name: /previous/i });
-    const nextButton = screen.getByRole('button', { name: /next/i });
-    const refreshButton = screen.getByRole('button', { name: /refresh/i });
-
-    expect(prevButton).not.toBeDisabled();
-    expect(nextButton).not.toBeDisabled();
-
-    fireEvent.click(prevButton);
-    expect(onPageChange).toHaveBeenCalledWith(1);
-
-    fireEvent.click(nextButton);
-    expect(onPageChange).toHaveBeenCalledWith(3);
-
-    fireEvent.click(refreshButton);
-    expect(onRefresh).toHaveBeenCalled();
-  });
-
-  it('disables previous button on first page and next button on last page', () => {
-    const onPageChange = vi.fn();
-
-    const { rerender } = render(
-      <PaginationBar
-        page={1}
-        pageSize={100}
-        totalRows={100}
-        onPageChange={onPageChange}
-      />
-    );
-
-    const prevButton = screen.getByRole('button', { name: /previous/i });
-    const nextButton = screen.getByRole('button', { name: /next/i });
-
-    expect(prevButton).toBeDisabled();
-    expect(nextButton).toBeDisabled();
-
-    rerender(
-      <PaginationBar
-        page={3}
-        pageSize={100}
-        totalRows={250}
-        onPageChange={onPageChange}
-      />
-    );
-
-    expect(screen.getByRole('button', { name: /previous/i })).not.toBeDisabled();
-    expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
-  });
-
-  it('allows changing page size', () => {
-    const onPageSizeChange = vi.fn();
-
-    render(
-      <PaginationBar
-        page={1}
-        pageSize={100}
-        totalRows={500}
-        onPageChange={() => {}}
-        onPageSizeChange={onPageSizeChange}
-      />
-    );
-
-    const select = screen.getByRole('combobox');
-    fireEvent.change(select, { target: { value: '200' } });
-    expect(onPageSizeChange).toHaveBeenCalledWith(200);
   });
 });
 

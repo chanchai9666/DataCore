@@ -20,7 +20,6 @@ export interface ExplainHistoryState {
   snapshots: ExplainSnapshot[];
   selectedSnapshotAId: string | null;
   selectedSnapshotBId: string | null;
-  isDiffModalOpen: boolean;
 
   addSnapshot: (
     data: Omit<ExplainSnapshot, 'id' | 'timestamp'> & { id?: string; timestamp?: number }
@@ -28,7 +27,6 @@ export interface ExplainHistoryState {
   removeSnapshot: (id: string) => void;
   clearSnapshots: () => void;
   setSelectedSnapshots: (idA: string | null, idB: string | null) => void;
-  setDiffModalOpen: (open: boolean) => void;
 }
 
 function parseCostNumber(costStr?: string): number | undefined {
@@ -61,7 +59,6 @@ export const useExplainHistoryStore = create<ExplainHistoryState>()(
       snapshots: [],
       selectedSnapshotAId: null,
       selectedSnapshotBId: null,
-      isDiffModalOpen: false,
 
       addSnapshot: (data) => {
         const id = data.id || `snapshot-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -110,10 +107,6 @@ export const useExplainHistoryStore = create<ExplainHistoryState>()(
           selectedSnapshotAId: idA,
           selectedSnapshotBId: idB,
         });
-      },
-
-      setDiffModalOpen: (open) => {
-        set({ isDiffModalOpen: open });
       },
     }),
     {

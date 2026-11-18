@@ -28,6 +28,8 @@ pub struct NativeBackupOptions {
     pub tables: Option<Vec<String>>,
     pub schemas: Option<Vec<String>>,
     pub compression_level: Option<u32>,
+    #[serde(default)]
+    pub parallel_jobs: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +40,8 @@ pub struct NativeRestoreOptions {
     pub single_transaction: Option<bool>,
     pub schema_only: Option<bool>,
     pub data_only: Option<bool>,
+    #[serde(default)]
+    pub parallel_jobs: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,15 +133,96 @@ pub async fn check_cli_availability_for_driver(driver: DatabaseDriver) -> Native
     }
 }
 
-pub type CliCommandParts = (PathBuf, Vec<String>, HashMap<String, String>);
+pub struct NativeCommandSpec {
+    pub bin: PathBuf,
+    pub args: Vec<String>,
+    pub envs: HashMap<String, String>,
+    pub stdin_file: Option<PathBuf>,
+    pub temp_files: Vec<tempfile::NamedTempFile>,
+}
+
+pub fn validate_cli_arg_no_leading_dash(label: &str, value: &str) -> Result<(), AppError> {
+    if value.contains('\0') || value.contains('\n') || value.contains('\r') {
+        return Err(AppError::Other(format!(
+            "Invalid {}: contains forbidden control characters",
+            label
+        )));
+    }
+    if value.trim().is_empty() {
+        return Err(AppError::Other(format!("Invalid {}: cannot be empty", label)));
+    }
+    if value.trim_start().starts_with('-') {
+        return Err(AppError::Other(format!(
+            "Invalid {}: cannot start with '-' (option injection blocked)",
+            label
+        )));
+    }
+    Ok(())
+}
+
+fn validate_no_control_chars(label: &str, value: &str) -> Result<(), AppError> {
+    if value.contains('\0') || value.contains('\n') || value.contains('\r') {
+        return Err(AppError::Other(format!(
+            "Invalid {}: contains forbidden control characters",
+            label
+        )));
+    }
+    Ok(())
+}
+
+fn create_mysql_defaults_file(password: &str) -> Result<tempfile::NamedTempFile, AppError> {
+    use std::io::Write;
+
+    let mut tmp = tempfile::NamedTempFile::new()
+        .map_err(|e| AppError::Other(format!("Failed to create temporary MySQL defaults file: {}", e)))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| AppError::Other(format!("Failed to set 0600 permissions on MySQL defaults file: {}", e)))?;
+    }
+
+    let escaped = password
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r");
+    writeln!(tmp, "[client]")
+        .and_then(|_| writeln!(tmp, "password=\"{}\"", escaped))
+        .and_then(|_| tmp.flush())
+        .map_err(|e| AppError::Other(format!("Failed to write MySQL defaults file: {}", e)))?;
+
+    Ok(tmp)
+}
 
 pub fn build_backup_command(
     config: &ConnectionConfig,
     password: Option<&str>,
     opts: &NativeBackupOptions,
-) -> Result<CliCommandParts, AppError> {
+) -> Result<NativeCommandSpec, AppError> {
     let mut args = Vec::new();
     let mut envs = HashMap::new();
+    let mut temp_files = Vec::new();
+
+    if let Some(host) = &config.host {
+        validate_cli_arg_no_leading_dash("host", host)?;
+    }
+    if let Some(user) = &config.user {
+        validate_cli_arg_no_leading_dash("user", user)?;
+    }
+    validate_cli_arg_no_leading_dash("database", &config.database)?;
+    if let Some(schemas) = &opts.schemas {
+        for s in schemas {
+            validate_cli_arg_no_leading_dash("schema", s)?;
+        }
+    }
+    if let Some(tables) = &opts.tables {
+        for t in tables {
+            validate_cli_arg_no_leading_dash("table", t)?;
+        }
+    }
+    validate_no_control_chars("output_file", &opts.output_file)?;
 
     match config.driver {
         DatabaseDriver::Postgres => {
@@ -158,12 +243,20 @@ pub fn build_backup_command(
                 args.push(user.clone());
             }
 
+            let is_directory = opts.format.as_deref() == Some("directory");
             if let Some(fmt) = &opts.format {
                 match fmt.as_str() {
                     "custom" => args.push("-Fc".to_string()),
                     "tar" => args.push("-Ft".to_string()),
                     "directory" => args.push("-Fd".to_string()),
                     _ => args.push("-Fp".to_string()),
+                }
+            }
+
+            if is_directory {
+                if let Some(jobs) = opts.parallel_jobs.filter(|&j| j > 1) {
+                    args.push("-j".to_string());
+                    args.push(jobs.to_string());
                 }
             }
 
@@ -204,12 +297,31 @@ pub fn build_backup_command(
                 envs.insert("PGPASSWORD".to_string(), pwd.to_string());
             }
 
-            Ok((bin, args, envs))
+            Ok(NativeCommandSpec {
+                bin,
+                args,
+                envs,
+                stdin_file: None,
+                temp_files,
+            })
         }
         DatabaseDriver::Mysql => {
             let bin = find_cli_binary("mysqldump").ok_or_else(|| {
                 AppError::NotFound("mysqldump CLI not found on system. Please install MySQL client tools.".into())
             })?;
+
+            // --defaults-extra-file MUST be the first argument for mysqldump
+            if let Some(pwd) = password {
+                match create_mysql_defaults_file(pwd) {
+                    Ok(tf) => {
+                        args.push(format!("--defaults-extra-file={}", tf.path().display()));
+                        temp_files.push(tf);
+                    }
+                    Err(_) => {
+                        envs.insert("MYSQL_PWD".to_string(), pwd.to_string());
+                    }
+                }
+            }
 
             if let Some(host) = &config.host {
                 args.push(format!("--host={}", host));
@@ -220,9 +332,8 @@ pub fn build_backup_command(
             if let Some(user) = &config.user {
                 args.push(format!("--user={}", user));
             }
-            if let Some(pwd) = password {
-                args.push(format!("--password={}", pwd));
-            }
+
+            args.push("--single-transaction".to_string());
 
             if opts.schema_only.unwrap_or(false) {
                 args.push("--no-data".to_string());
@@ -243,7 +354,13 @@ pub fn build_backup_command(
                 }
             }
 
-            Ok((bin, args, envs))
+            Ok(NativeCommandSpec {
+                bin,
+                args,
+                envs,
+                stdin_file: None,
+                temp_files,
+            })
         }
         DatabaseDriver::Sqlite => {
             let bin = find_cli_binary("sqlite3").ok_or_else(|| {
@@ -251,13 +368,21 @@ pub fn build_backup_command(
             })?;
 
             args.push(config.database.clone());
+            let escaped_out = opts.output_file.replace('\'', "''");
             if opts.schema_only.unwrap_or(false) {
+                args.push(format!(".output '{}'", escaped_out));
                 args.push(".schema".to_string());
             } else {
-                args.push(format!(".backup '{}'", opts.output_file.replace('\'', "''")));
+                args.push(format!(".backup '{}'", escaped_out));
             }
 
-            Ok((bin, args, envs))
+            Ok(NativeCommandSpec {
+                bin,
+                args,
+                envs,
+                stdin_file: None,
+                temp_files,
+            })
         }
         DatabaseDriver::Duckdb | DatabaseDriver::Mssql => {
             Err(AppError::NotSupported("Native CLI backup for DuckDB / MSSQL is not supported via wrapper. Please use SQL Export.".into()))
@@ -269,9 +394,19 @@ pub fn build_restore_command(
     config: &ConnectionConfig,
     password: Option<&str>,
     opts: &NativeRestoreOptions,
-) -> Result<CliCommandParts, AppError> {
+) -> Result<NativeCommandSpec, AppError> {
     let mut args = Vec::new();
     let mut envs = HashMap::new();
+    let mut temp_files = Vec::new();
+
+    if let Some(host) = &config.host {
+        validate_cli_arg_no_leading_dash("host", host)?;
+    }
+    if let Some(user) = &config.user {
+        validate_cli_arg_no_leading_dash("user", user)?;
+    }
+    validate_cli_arg_no_leading_dash("database", &config.database)?;
+    validate_no_control_chars("input_file", &opts.input_file)?;
 
     match config.driver {
         DatabaseDriver::Postgres => {
@@ -294,9 +429,16 @@ pub fn build_restore_command(
             if opts.clean.unwrap_or(false) {
                 args.push("--clean".to_string());
             }
-            if opts.single_transaction.unwrap_or(false) {
+
+            let parallel_jobs = opts.parallel_jobs.filter(|&j| j > 1);
+            if let Some(jobs) = parallel_jobs {
+                args.push("-j".to_string());
+                args.push(jobs.to_string());
+            } else if opts.single_transaction.unwrap_or(false) {
+                // pg_restore forbids --single-transaction together with -j
                 args.push("--single-transaction".to_string());
             }
+
             if opts.schema_only.unwrap_or(false) {
                 args.push("--schema-only".to_string());
             }
@@ -312,12 +454,31 @@ pub fn build_restore_command(
                 envs.insert("PGPASSWORD".to_string(), pwd.to_string());
             }
 
-            Ok((bin, args, envs))
+            Ok(NativeCommandSpec {
+                bin,
+                args,
+                envs,
+                stdin_file: None,
+                temp_files,
+            })
         }
         DatabaseDriver::Mysql => {
             let bin = find_cli_binary("mysql").ok_or_else(|| {
                 AppError::NotFound("mysql CLI not found on system.".into())
             })?;
+
+            // --defaults-extra-file MUST be the first argument for mysql
+            if let Some(pwd) = password {
+                match create_mysql_defaults_file(pwd) {
+                    Ok(tf) => {
+                        args.push(format!("--defaults-extra-file={}", tf.path().display()));
+                        temp_files.push(tf);
+                    }
+                    Err(_) => {
+                        envs.insert("MYSQL_PWD".to_string(), pwd.to_string());
+                    }
+                }
+            }
 
             if let Some(host) = &config.host {
                 args.push(format!("--host={}", host));
@@ -328,14 +489,16 @@ pub fn build_restore_command(
             if let Some(user) = &config.user {
                 args.push(format!("--user={}", user));
             }
-            if let Some(pwd) = password {
-                args.push(format!("--password={}", pwd));
-            }
 
             args.push(format!("--database={}", config.database));
-            args.push(format!("--execute=source {}", opts.input_file));
 
-            Ok((bin, args, envs))
+            Ok(NativeCommandSpec {
+                bin,
+                args,
+                envs,
+                stdin_file: Some(PathBuf::from(&opts.input_file)),
+                temp_files,
+            })
         }
         DatabaseDriver::Sqlite => {
             let bin = find_cli_binary("sqlite3").ok_or_else(|| {
@@ -345,7 +508,13 @@ pub fn build_restore_command(
             args.push(config.database.clone());
             args.push(format!(".restore '{}'", opts.input_file.replace('\'', "''")));
 
-            Ok((bin, args, envs))
+            Ok(NativeCommandSpec {
+                bin,
+                args,
+                envs,
+                stdin_file: None,
+                temp_files,
+            })
         }
         DatabaseDriver::Duckdb | DatabaseDriver::Mssql => {
             Err(AppError::NotSupported("Native CLI restore for DuckDB / MSSQL is not supported via wrapper. Please use SQL Import.".into()))
@@ -365,14 +534,21 @@ pub async fn cancel_running_native_task(task_id: &str) -> Result<(), AppError> {
 
 pub async fn run_native_cli_streaming<F>(
     task_id: String,
-    bin_path: PathBuf,
-    args: Vec<String>,
-    envs: HashMap<String, String>,
+    spec: NativeCommandSpec,
+    cleanup_path: Option<PathBuf>,
     progress_callback: F,
 ) -> Result<i32, AppError>
 where
     F: Fn(NativeProgressEvent) + Send + Sync + 'static,
 {
+    let NativeCommandSpec {
+        bin,
+        args,
+        envs,
+        stdin_file,
+        temp_files: _temp_files,
+    } = spec;
+
     let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel::<()>();
 
     {
@@ -380,11 +556,17 @@ where
         map.insert(task_id.clone(), cancel_tx);
     }
 
-    let mut cmd = Command::new(bin_path);
+    let mut cmd = Command::new(bin);
     cmd.args(&args)
         .envs(&envs)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+
+    if let Some(in_path) = stdin_file {
+        let file = std::fs::File::open(&in_path)
+            .map_err(|e| AppError::Other(format!("Failed to open input file '{}': {}", in_path.display(), e)))?;
+        cmd.stdin(std::process::Stdio::from(file));
+    }
 
     let mut child = cmd.spawn().map_err(|e| AppError::Other(format!("Failed to spawn process: {}", e)))?;
 
@@ -429,7 +611,28 @@ where
 
     let exit_code = tokio::select! {
         _ = &mut cancel_rx => {
-            let _ = child.kill().await;
+            #[cfg(unix)]
+            if let Some(pid) = child.id() {
+                let _ = Command::new("kill")
+                    .args(["-TERM", &pid.to_string()])
+                    .status()
+                    .await;
+            }
+            let wait_res = tokio::time::timeout(
+                std::time::Duration::from_secs(3),
+                child.wait(),
+            ).await;
+            if wait_res.is_err() {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+            }
+            if let Some(ref path) = cleanup_path {
+                if path.is_dir() {
+                    let _ = std::fs::remove_dir_all(path);
+                } else if path.exists() {
+                    let _ = std::fs::remove_file(path);
+                }
+            }
             {
                 let mut map = get_running_native_tasks().lock().await;
                 map.remove(&task_id);

@@ -33,6 +33,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
   const [dataOnly, setDataOnly] = useState<boolean>(false);
   const [clean, setClean] = useState<boolean>(true);
   const [compression, setCompression] = useState<number>(6);
+  const [parallelJobs, setParallelJobs] = useState<number>(1);
   const [outputPath, setOutputPath] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
@@ -130,6 +131,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
         data_only: dataOnly,
         clean,
         compression_level: compression > 0 ? compression : undefined,
+        parallel_jobs: format === 'directory' && parallelJobs > 1 ? parallelJobs : undefined,
       });
 
       if (exitCode === 0) {
@@ -263,6 +265,21 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
                   <option value="tar">Tar Archive (-Ft)</option>
                   <option value="directory">Directory Format (-Fd)</option>
                 </select>
+              </div>
+            )}
+
+            {activeConn?.driver === 'postgres' && format === 'directory' && (
+              <div className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300">
+                <span>Parallel Jobs (-j):</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="16"
+                  value={parallelJobs}
+                  disabled={isRunning}
+                  onChange={(e) => setParallelJobs(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-16 px-2 py-1 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
+                />
               </div>
             )}
 

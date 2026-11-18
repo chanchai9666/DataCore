@@ -379,6 +379,36 @@ impl DatabaseConnection for SqliteConnection {
         if total_count.is_some() {
             res.rows_affected = total_count;
         }
+
+        // Populate is_primary_key and is_auto_increment from PRAGMA table_info
+        let pragma_sql = if let Some(sch) = schema {
+            format!("PRAGMA \"{}\".table_info(\"{}\");", sch.replace('"', "\"\""), escaped_table)
+        } else {
+            format!("PRAGMA table_info(\"{}\");", escaped_table)
+        };
+        if let Ok(info_res) = self.execute_query(&pragma_sql).await {
+            let mut pk_count = 0usize;
+            let mut col_flags: std::collections::HashMap<String, (bool, bool)> = std::collections::HashMap::new();
+            for row in &info_res.rows {
+                if let (Some(CellValue::Text(name)), Some(CellValue::Text(col_type)), Some(CellValue::Integer(pk))) =
+                    (row.get(1), row.get(2), row.get(5))
+                {
+                    let is_pk = *pk > 0;
+                    if is_pk {
+                        pk_count += 1;
+                    }
+                    let is_int_pk = is_pk && col_type.eq_ignore_ascii_case("INTEGER");
+                    col_flags.insert(name.clone(), (is_pk, is_int_pk));
+                }
+            }
+            for col in &mut res.columns {
+                if let Some(&(is_pk, is_int_pk)) = col_flags.get(&col.name) {
+                    col.is_primary_key = Some(is_pk);
+                    col.is_auto_increment = Some(is_int_pk && pk_count == 1);
+                }
+            }
+        }
+
         Ok(res)
     }
 

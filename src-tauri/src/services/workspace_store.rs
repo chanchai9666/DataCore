@@ -26,10 +26,6 @@ impl WorkspaceStore {
         }
     }
 
-    pub fn storage_path(&self) -> &Path {
-        &self.storage_path
-    }
-
     /// Load saved workspace state from disk
     pub fn load(&self) -> Result<Option<WorkspaceState>, AppError> {
         if !self.storage_path.exists() {

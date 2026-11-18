@@ -75,18 +75,6 @@ impl SessionManager {
         }
     }
 
-    /// Wipes and zeroizes all temporary in-memory session secrets
-    pub async fn clear_all_session_secrets(&self) {
-        let mut pwds = self.session_passwords.write().await;
-        for (_, mut p) in pwds.drain() {
-            p.zeroize();
-        }
-        let mut phrases = self.session_ssh_passphrases.write().await;
-        for (_, mut p) in phrases.drain() {
-            p.zeroize();
-        }
-    }
-
     /// Factory method to create a database connection based on config and optional password
     pub async fn create_connection(
         config: &ConnectionConfig,

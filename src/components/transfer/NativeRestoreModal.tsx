@@ -33,6 +33,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
   const [singleTransaction, setSingleTransaction] = useState<boolean>(true);
   const [schemaOnly, setSchemaOnly] = useState<boolean>(false);
   const [dataOnly, setDataOnly] = useState<boolean>(false);
+  const [parallelJobs, setParallelJobs] = useState<number>(1);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [logs, setLogs] = useState<string[]>([]);
@@ -116,9 +117,10 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
         connection_id: connectionId,
         input_file: inputPath,
         clean,
-        single_transaction: singleTransaction,
+        single_transaction: parallelJobs > 1 ? false : singleTransaction,
         schema_only: schemaOnly,
         data_only: dataOnly,
+        parallel_jobs: parallelJobs > 1 ? parallelJobs : undefined,
       });
 
       if (exitCode === 0) {
@@ -251,8 +253,8 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
               <label className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={singleTransaction}
-                  disabled={isRunning}
+                  checked={parallelJobs > 1 ? false : singleTransaction}
+                  disabled={isRunning || parallelJobs > 1}
                   onChange={(e) => setSingleTransaction(e.target.checked)}
                   className="rounded text-emerald-600 focus:ring-0"
                 />
@@ -281,6 +283,31 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                 <span>Data only</span>
               </label>
             </div>
+
+            {activeConn?.driver === 'postgres' && (
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300">
+                  <span>Parallel Jobs (-j):</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="16"
+                    value={parallelJobs}
+                    disabled={isRunning}
+                    onChange={(e) => setParallelJobs(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-16 px-2 py-1 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                {parallelJobs > 1 && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    {t(
+                      'transfer.parallelRestoreNonAtomicWarning',
+                      'Parallel restore (-j) is not atomic; --single-transaction is automatically disabled.'
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Terminal Logs Output */}

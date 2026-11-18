@@ -2,6 +2,7 @@ import type { DbUser, CreateUserOptions } from '../types/userManager';
 import type { QueryResult, CellValue } from '../types/db';
 import { formatCellValue } from '../utils/cellFormatter';
 import { dbApi } from './db';
+import { quoteIdentifier } from './queryBuilder';
 
 export const SUPPORTED_PRIVILEGES = [
   'SELECT',
@@ -149,6 +150,39 @@ export function parseUsersResult(
   });
 }
 
+function escapeStringLiteral(val: string, isMysql: boolean): string {
+  const s = isMysql ? val.replace(/\\/g, '\\\\') : val;
+  return s.replace(/'/g, "''");
+}
+
+function assertValidPrivilege(privilege: string): string {
+  const parts = privilege
+    .split(',')
+    .map((p) => p.trim().toUpperCase())
+    .filter(Boolean);
+  if (parts.length === 0) {
+    throw new Error(`Unsupported privilege: ${privilege}`);
+  }
+  for (const part of parts) {
+    if (!(SUPPORTED_PRIVILEGES as readonly string[]).includes(part)) {
+      throw new Error(`Unsupported privilege: ${privilege}`);
+    }
+  }
+  return parts.join(', ');
+}
+
+function quoteMysqlObject(objectName: string): string {
+  const trimmed = objectName.trim();
+  if (trimmed === '*.*' || trimmed === '*') return trimmed;
+  if (trimmed.includes('.')) {
+    return trimmed
+      .split('.')
+      .map((part) => (part.trim() === '*' ? '*' : quoteIdentifier(part.trim(), 'mysql')))
+      .join('.');
+  }
+  return quoteIdentifier(trimmed, 'mysql');
+}
+
 /**
  * Returns SQL to create a new database user / role.
  */
@@ -157,11 +191,13 @@ export function buildCreateUserSql(
   driver: string
 ): string {
   const d = (driver || '').toLowerCase();
-  const escapedName = options.name.replace(/["']/g, '');
 
   if (d.includes('mysql')) {
-    const host = options.host || '%';
-    const pwd = options.password ? ` IDENTIFIED BY '${options.password.replace(/'/g, "''")}'` : '';
+    const escapedName = escapeStringLiteral(options.name, true);
+    const host = escapeStringLiteral(options.host || '%', true);
+    const pwd = options.password
+      ? ` IDENTIFIED BY '${escapeStringLiteral(options.password, true)}'`
+      : '';
     let sql = `CREATE USER '${escapedName}'@'${host}'${pwd};`;
     if (options.isSuperuser) {
       sql += `\nGRANT ALL PRIVILEGES ON *.* TO '${escapedName}'@'${host}';`;
@@ -176,10 +212,10 @@ export function buildCreateUserSql(
   if (options.canCreateDb) flags.push('CREATEDB');
   if (options.canCreateRole) flags.push('CREATEROLE');
   if (options.password) {
-    flags.push(`PASSWORD '${options.password.replace(/'/g, "''")}'`);
+    flags.push(`PASSWORD '${escapeStringLiteral(options.password, false)}'`);
   }
 
-  return `CREATE ROLE "${escapedName}" WITH ${flags.join(' ')};`;
+  return `CREATE ROLE ${quoteIdentifier(options.name, 'postgres')} WITH ${flags.join(' ')};`;
 }
 
 /**
@@ -191,13 +227,12 @@ export function buildDropUserSql(
   driver: string
 ): string {
   const d = (driver || '').toLowerCase();
-  const cleanName = name.replace(/["']/g, '');
 
   if (d.includes('mysql')) {
-    return `DROP USER '${cleanName}'@'${host || '%'}';`;
+    return `DROP USER '${escapeStringLiteral(name, true)}'@'${escapeStringLiteral(host || '%', true)}';`;
   }
 
-  return `DROP ROLE "${cleanName}";`;
+  return `DROP ROLE ${quoteIdentifier(name, 'postgres')};`;
 }
 
 /**
@@ -210,14 +245,15 @@ export function buildAlterUserPasswordSql(
   driver: string
 ): string {
   const d = (driver || '').toLowerCase();
-  const cleanName = name.replace(/["']/g, '');
-  const cleanPass = newPassword.replace(/'/g, "''");
 
   if (d.includes('mysql')) {
-    return `ALTER USER '${cleanName}'@'${host || '%'}' IDENTIFIED BY '${cleanPass}';`;
+    const cleanName = escapeStringLiteral(name, true);
+    const cleanHost = escapeStringLiteral(host || '%', true);
+    const cleanPass = escapeStringLiteral(newPassword, true);
+    return `ALTER USER '${cleanName}'@'${cleanHost}' IDENTIFIED BY '${cleanPass}';`;
   }
 
-  return `ALTER ROLE "${cleanName}" WITH PASSWORD '${cleanPass}';`;
+  return `ALTER ROLE ${quoteIdentifier(name, 'postgres')} WITH PASSWORD '${escapeStringLiteral(newPassword, false)}';`;
 }
 
 /**
@@ -231,14 +267,15 @@ export function buildGrantPrivilegeSql(
   driver: string
 ): string {
   const d = (driver || '').toLowerCase();
-  const cleanUser = userName.replace(/["']/g, '');
-  const cleanObj = objectName.replace(/["']/g, '');
+  const validPriv = assertValidPrivilege(privilege);
 
   if (d.includes('mysql')) {
-    return `GRANT ${privilege} ON ${cleanObj} TO '${cleanUser}'@'${host || '%'}';`;
+    const cleanUser = escapeStringLiteral(userName, true);
+    const cleanHost = escapeStringLiteral(host || '%', true);
+    return `GRANT ${validPriv} ON ${quoteMysqlObject(objectName)} TO '${cleanUser}'@'${cleanHost}';`;
   }
 
-  return `GRANT ${privilege} ON TABLE "${cleanObj}" TO "${cleanUser}";`;
+  return `GRANT ${validPriv} ON TABLE ${quoteIdentifier(objectName, 'postgres')} TO ${quoteIdentifier(userName, 'postgres')};`;
 }
 
 /**
@@ -252,14 +289,15 @@ export function buildRevokePrivilegeSql(
   driver: string
 ): string {
   const d = (driver || '').toLowerCase();
-  const cleanUser = userName.replace(/["']/g, '');
-  const cleanObj = objectName.replace(/["']/g, '');
+  const validPriv = assertValidPrivilege(privilege);
 
   if (d.includes('mysql')) {
-    return `REVOKE ${privilege} ON ${cleanObj} FROM '${cleanUser}'@'${host || '%'}';`;
+    const cleanUser = escapeStringLiteral(userName, true);
+    const cleanHost = escapeStringLiteral(host || '%', true);
+    return `REVOKE ${validPriv} ON ${quoteMysqlObject(objectName)} FROM '${cleanUser}'@'${cleanHost}';`;
   }
 
-  return `REVOKE ${privilege} ON TABLE "${cleanObj}" FROM "${cleanUser}";`;
+  return `REVOKE ${validPriv} ON TABLE ${quoteIdentifier(objectName, 'postgres')} FROM ${quoteIdentifier(userName, 'postgres')};`;
 }
 
 /**

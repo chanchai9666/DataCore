@@ -46,17 +46,23 @@ describe('MainToolbar Component', () => {
     expect(onConnect).toHaveBeenCalledTimes(1);
   });
 
-  it('disables query, table, tools, backup, import, export when no active connection is present', () => {
-    render(<MainToolbar />);
+  it('disables query, table, backup, import, export when no active connection is present, keeping tools clickable', () => {
+    render(<MainToolbar onOpenMetrics={vi.fn()} onCheckUpdates={vi.fn()} onExportDiagnosticBundle={vi.fn()} />);
     expect(screen.getByRole('button', { name: /new query/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /table/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /tools/i })).toBeDisabled();
+    const toolsBtn = screen.getByRole('button', { name: /tools/i });
+    expect(toolsBtn).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /backup/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /import/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /export/i })).toBeDisabled();
+
+    fireEvent.click(toolsBtn);
+    expect(screen.getByTestId('toolbar-tools-metrics-btn')).toBeDisabled();
+    expect(screen.getByTestId('toolbar-tools-check-updates-btn')).not.toBeDisabled();
+    expect(screen.getByTestId('toolbar-tools-diagnostic-bundle-btn')).not.toBeDisabled();
   });
 
-  it('disables query, table, tools, backup, import, export when connection is selected but not connected to database', () => {
+  it('disables query, table, backup, import, export when connection is selected but not connected to database', () => {
     useConnectionStore.setState({
       activeConnectionId: 'c1',
       connectedConnectionIds: [],
@@ -64,7 +70,7 @@ describe('MainToolbar Component', () => {
     render(<MainToolbar />);
     expect(screen.getByRole('button', { name: /new query/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /table/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /tools/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /tools/i })).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /backup/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /import/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /export/i })).toBeDisabled();

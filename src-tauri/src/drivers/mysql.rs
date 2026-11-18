@@ -384,6 +384,40 @@ impl DatabaseConnection for MySqlConnection {
                     .collect();
             }
         }
+        if !res.columns.is_empty() {
+            let meta_sql = if let Some(sch) = schema {
+                format!(
+                    "SELECT COLUMN_NAME, COLUMN_KEY = 'PRI' AS is_pk, EXTRA LIKE '%auto_increment%' AS is_auto \
+                     FROM information_schema.COLUMNS \
+                     WHERE TABLE_NAME = '{}' AND TABLE_SCHEMA = '{}';",
+                    table.replace('\'', "''"),
+                    sch.replace('\'', "''")
+                )
+            } else {
+                format!(
+                    "SELECT COLUMN_NAME, COLUMN_KEY = 'PRI' AS is_pk, EXTRA LIKE '%auto_increment%' AS is_auto \
+                     FROM information_schema.COLUMNS \
+                     WHERE TABLE_NAME = '{}' AND TABLE_SCHEMA = DATABASE();",
+                    table.replace('\'', "''")
+                )
+            };
+            if let Ok(meta_res) = self.execute_query(&meta_sql).await {
+                let mut flags: std::collections::HashMap<String, (bool, bool)> = std::collections::HashMap::new();
+                for r in &meta_res.rows {
+                    if let Some(CellValue::Text(name)) = r.first() {
+                        let is_pk = matches!(r.get(1), Some(CellValue::Boolean(true)) | Some(CellValue::Integer(1)));
+                        let is_auto = matches!(r.get(2), Some(CellValue::Boolean(true)) | Some(CellValue::Integer(1)));
+                        flags.insert(name.clone(), (is_pk, is_auto));
+                    }
+                }
+                for col in &mut res.columns {
+                    if let Some(&(is_pk, is_auto)) = flags.get(&col.name) {
+                        col.is_primary_key = Some(is_pk);
+                        col.is_auto_increment = Some(is_auto);
+                    }
+                }
+            }
+        }
         Ok(res)
     }
 

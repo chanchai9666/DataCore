@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use crate::error::AppError;
 use crate::models::ConnectionConfig;
-use crate::services::keychain::Vault;
+use crate::services::keychain::{set_secure_dir_permissions, set_secure_permissions, Vault};
 
 #[derive(Debug, Clone)]
 pub struct ConnectionStore {
@@ -136,17 +136,13 @@ impl ConnectionStore {
         self.vault.save_password(id, password)
     }
 
-    /// Save SSH passphrase directly into the vault
-    pub fn save_ssh_passphrase(&self, id: &str, passphrase: &str) -> Result<(), AppError> {
-        self.vault.save_password(&format!("{}:ssh", id), passphrase)
-    }
-
     /// Helper to write connection list to disk atomically with directory creation
     fn persist_connections(&self, connections: &[ConnectionConfig]) -> Result<(), AppError> {
         if let Some(parent) = self.storage_path.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent)?;
             }
+            set_secure_dir_permissions(parent)?;
         }
 
         let json = serde_json::to_string_pretty(connections)?;
@@ -160,7 +156,9 @@ impl ConnectionStore {
             .with_file_name(format!("{}.tmp", file_name));
 
         fs::write(&tmp_path, json)?;
+        set_secure_permissions(&tmp_path)?;
         fs::rename(&tmp_path, &self.storage_path)?;
+        set_secure_permissions(&self.storage_path)?;
 
         Ok(())
     }

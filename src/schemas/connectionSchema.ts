@@ -66,8 +66,6 @@ export const testConnectionSchema = z.discriminatedUnion('driver', [
   testNetworkConnectionSchema,
 ]);
 
-export type ConnectionFormValues = z.infer<typeof connectionSchema>;
-
 export function validateConnectionForm(
   data: unknown,
   isTesting: boolean = false

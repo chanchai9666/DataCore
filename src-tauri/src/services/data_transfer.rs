@@ -441,11 +441,6 @@ pub fn quote_table_name(table_name: &str, dialect: &str) -> String {
     }
 }
 
-/// Formats a raw string cell value into valid SQL literal.
-pub fn format_sql_literal(val: &str, dialect: &str) -> String {
-    format_sql_literal_with_options(val, None, false, dialect)
-}
-
 /// Formats a raw string cell value into valid SQL literal respecting target type and empty string policy.
 pub fn format_sql_literal_with_options(
     val: &str,

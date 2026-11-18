@@ -624,7 +624,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
                 executionTimeMs: res.execution_time_ms,
                 rowsAffected: res.rows_affected ?? (res.rows ? res.rows.length : 0),
                 status: 'SUCCESS',
-              });
+              }, { skipBackendSync: true });
 
               // Check schema cache invalidation on DDL
               if (/^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(stmt) && currentTab?.connectionId) {
@@ -697,7 +697,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
               executionTimeMs: result.execution_time_ms,
               rowsAffected: result.rows_affected ?? (result.rows ? result.rows.length : 0),
               status: 'SUCCESS',
-            });
+            }, { skipBackendSync: true });
 
             // Invalidate schema cache on DDL
             if (/^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sqlToRun) && currentTab?.connectionId) {
@@ -755,7 +755,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
             query: sqlToRun,
             status: 'FAILURE',
             errorMessage: msg,
-          });
+          }, { skipBackendSync: true });
 
           onError?.(err);
         } finally {
@@ -933,7 +933,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           connectionName: connection?.name,
           query: sql,
           status: 'SUCCESS',
-        });
+        }, { skipBackendSync: true });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         toast.error(`Failed to set isolation level: ${msg}`);

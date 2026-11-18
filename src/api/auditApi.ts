@@ -2,8 +2,6 @@ import { invoke } from '@tauri-apps/api/core';
 import type { AuditLogEntry, AuditIntegrityResult } from '../stores/auditLogStore';
 import { redactSensitiveSql } from '../utils/sqlSanitizer';
 
-export { redactSensitiveSql };
-
 export const getAuditLogs = async (
   limit?: number,
   offset?: number
