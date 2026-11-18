@@ -23,6 +23,7 @@ import { dbApi } from '../../api/db';
 import { formatCellValue } from '../../utils/cellFormatter';
 import { formatSqlLiteral } from '../../api/queryBuilder';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
 import type {
   ColumnMapping,
   ImportErrorPolicy,
@@ -300,11 +301,20 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
 
     let unlisten: (() => void) | undefined;
     try {
+      useTransferMonitorStore.getState().startJob({
+        jobId,
+        label: `Import into ${targetTable}`,
+        direction: 'import',
+      });
       unlisten = await onTransferProgress((p) => {
         setProgress(p);
       });
 
       const res = await importData(connectionId, targetTable, options);
+      useTransferMonitorStore.getState().completeJob(jobId, {
+        rowsProcessed: res.imported_rows,
+        elapsedMs: res.elapsed_ms,
+      });
       setResult(res);
       toast.success(`Import completed: ${res.imported_rows} rows imported.`);
       onImportSuccess?.();

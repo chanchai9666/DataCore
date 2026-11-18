@@ -84,6 +84,7 @@ export interface CommandPaletteModalProps {
   onOpenHistory?: () => void;
   onOpenSchemaDiff?: () => void;
   onOpenActivityMonitor?: () => void;
+  onOpenTransferMonitor?: () => void;
   onOpenUserManager?: () => void;
   onCheckUpdates?: () => void;
   onExportDiagnosticBundle?: () => void;
@@ -160,6 +161,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   onOpenHistory,
   onOpenSchemaDiff,
   onOpenActivityMonitor,
+  onOpenTransferMonitor,
   onOpenUserManager,
   onCheckUpdates,
   onExportDiagnosticBundle,
@@ -527,6 +529,18 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     });
 
     items.push({
+      id: 'action-transfer-monitor',
+      title: 'Transfer Monitor Dashboard',
+      subtitle: 'Monitor real-time export/import throughput, ETA, and cancel transfers',
+      category: 'Actions',
+      icon: <Activity className="w-4 h-4 text-blue-400" />,
+      keywords: ['transfer', 'export', 'import', 'monitor', 'speed', 'eta', 'cancel'],
+      onSelect: () => {
+        onOpenTransferMonitor?.();
+      },
+    });
+
+    items.push({
       id: 'action-user-manager',
       title: 'User & Privilege Manager',
       subtitle: 'Manage database users, grant permissions, and configure roles',
@@ -685,6 +699,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     onOpenHistory,
     onOpenSchemaDiff,
     onOpenActivityMonitor,
+    onOpenTransferMonitor,
     onOpenUserManager,
     onOpenTable,
     onSelectConnection,

@@ -13,6 +13,7 @@ import { ConnectionSecurityModal } from './components/security/ConnectionSecurit
 import { HistorySnippetsDrawer } from './components/editor/HistorySnippetsDrawer';
 import { SchemaDiffModal } from './components/diff/SchemaDiffModal';
 import { ActivityMonitorModal } from './components/monitor/ActivityMonitorModal';
+import { TransferMonitorModal } from './components/monitor/TransferMonitorModal';
 import { UserPrivilegeManagerModal } from './components/security/UserPrivilegeManagerModal';
 import { DataImportWizardModal } from './components/transfer/DataImportWizardModal';
 import { DataExportWizardModal } from './components/transfer/DataExportWizardModal';
@@ -22,6 +23,8 @@ import { UpdateCheckerModal } from './components/dialogs/UpdateCheckerModal';
 import { DiagnosticBundleModal } from './components/dialogs/DiagnosticBundleModal';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
+import { useTransferMonitorStore } from './stores/transferMonitorStore';
+import { onTransferProgress } from './api/dataTransferApi';
 import {
   openQueryTab,
   openTableListTab,
@@ -36,6 +39,11 @@ import { restoreWorkspaceState, saveWorkspaceDebounced } from './utils/workspace
 export function App() {
   const { loadConnections, setActiveConnection, activeConnectionId, connectedConnectionIds, connections } = useConnectionStore();
   const { tabs, activeTabId } = useTabStore();
+  const {
+    isDashboardOpen: isTransferDashboardOpen,
+    openDashboard: openTransferDashboard,
+    closeDashboard: closeTransferDashboard,
+  } = useTransferMonitorStore();
   const [isConnectionDialogOpen, setIsConnectionDialogOpen] = useState(false);
   const [connectionToEdit, setConnectionToEdit] = useState<ConnectionConfig | null>(null);
   const [lastSavedConnectionId, setLastSavedConnectionId] = useState<string | null>(null);
@@ -67,6 +75,31 @@ export function App() {
     resolvedConnectionId && connectedConnectionIds.includes(resolvedConnectionId)
   );
   const activeConnection = connections.find((c) => c.id === resolvedConnectionId);
+
+  // Global subscription to backend transfer://progress events
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let mounted = true;
+    onTransferProgress((progress) => {
+      if (mounted) {
+        useTransferMonitorStore.getState().handleProgress(progress);
+      }
+    })
+      .then((fn) => {
+        if (mounted) {
+          unlisten = fn;
+        } else {
+          fn();
+        }
+      })
+      .catch(() => {
+        // Ignore in non-Tauri test environments
+      });
+    return () => {
+      mounted = false;
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   // Theme initialization: restore from localStorage or system preference
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -304,6 +337,7 @@ export function App() {
         onOpenActivityMonitor={() => {
           if (isDbConnected) setIsActivityMonitorModalOpen(true);
         }}
+        onOpenTransferMonitor={openTransferDashboard}
         onOpenUserManager={() => {
           if (isDbConnected) setIsUserManagerModalOpen(true);
         }}
@@ -462,6 +496,12 @@ export function App() {
         connectionId={resolvedConnectionId || undefined}
       />
 
+      {/* Global Real-Time Transfer Monitor Dashboard */}
+      <TransferMonitorModal
+        isOpen={isTransferDashboardOpen}
+        onClose={closeTransferDashboard}
+      />
+
       {/* Global Database User & Privilege Manager Modal */}
       <UserPrivilegeManagerModal
         isOpen={isUserManagerModalOpen}
@@ -572,6 +612,7 @@ export function App() {
         onOpenActivityMonitor={() => {
           if (isDbConnected) setIsActivityMonitorModalOpen(true);
         }}
+        onOpenTransferMonitor={openTransferDashboard}
         onOpenUserManager={() => {
           if (isDbConnected) setIsUserManagerModalOpen(true);
         }}

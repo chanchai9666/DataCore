@@ -9,6 +9,7 @@ import {
   onTransferProgress,
   cancelTransfer,
 } from '../../api/dataTransferApi';
+import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
 import type {
   ColumnMapping,
   ImportErrorPolicy,
@@ -154,6 +155,11 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       const jobId = `import_modal_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       activeJobIdRef.current = jobId;
       setIsImporting(true);
+      useTransferMonitorStore.getState().startJob({
+        jobId,
+        label: `Import into ${tableName}`,
+        direction: 'import',
+      });
       setProgress({
         current_row: 0,
         total_rows: undefined,
@@ -175,6 +181,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       };
 
       const result = await importData(connectionId, tableName, options);
+      useTransferMonitorStore.getState().completeJob(jobId, {
+        rowsProcessed: result.imported_rows,
+        elapsedMs: result.elapsed_ms,
+      });
 
       if (result.skipped_rows > 0) {
         toast.warning(
