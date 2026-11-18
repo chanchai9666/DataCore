@@ -686,6 +686,7 @@ where
                                     current_row: executed_count,
                                     total_rows: None,
                                     status: format!("Executing statement {}", executed_count),
+                                    ..Default::default()
                                 });
                             }
 
@@ -736,6 +737,7 @@ where
                 current_row: executed_count,
                 total_rows: None,
                 status: format!("Executing statement {}", executed_count),
+                ..Default::default()
             });
         }
         match conn.execute_query(&trailing).await {

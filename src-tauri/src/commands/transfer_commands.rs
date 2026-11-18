@@ -10,8 +10,8 @@ use crate::models::transfer::{
 use crate::services::audit_logger::{AuditLogEntryInput, AuditLogger};
 use crate::services::connection_store::ConnectionStore;
 use crate::services::data_transfer::{
-    export_data_impl, import_data_impl, preview_import_file_impl,
-    register_cancellation_token, trigger_cancellation,
+    cancel_transfer_job, export_data_with_progress_impl, import_data_impl,
+    preview_import_file_impl, register_transfer_job, remove_cancellation_token,
 };
 use crate::services::table_list::get_table_list_metadata_impl;
 use crate::services::duplicate_table::duplicate_table_impl;
@@ -20,7 +20,9 @@ use crate::services::cross_db_transfer::copy_table_cross_db_impl;
 use crate::services::path_guard::validate_safe_transfer_path;
 use crate::session::SessionManager;
 
-const ALLOWED_DATA_EXTS: &[&str] = &["csv", "tsv", "json", "ndjson", "jsonl", "txt"];
+const ALLOWED_DATA_EXTS: &[&str] = &[
+    "csv", "tsv", "json", "ndjson", "jsonl", "txt", "gz", "gzip", "zst", "zstd",
+];
 const ALLOWED_SQL_EXTS: &[&str] = &["sql", "txt"];
 
 #[tauri::command]
@@ -55,6 +57,7 @@ pub async fn preview_import_file(
 
 #[tauri::command]
 pub async fn export_data(
+    app: AppHandle,
     store: State<'_, ConnectionStore>,
     connection_id: String,
     sql: String,
@@ -64,22 +67,38 @@ pub async fn export_data(
     let safe_path = validate_safe_transfer_path(&file_path, ALLOWED_DATA_EXTS)?;
     let safe_str = safe_path.to_string_lossy().to_string();
 
-    if let Some(ref jid) = options.job_id {
-        register_cancellation_token(jid);
-    }
-
     let config = store
         .get(&connection_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
     let password = store.get_password(&connection_id).map_err(|e| e.to_string())?;
-    let conn = SessionManager::create_connection(&config, password.as_deref())
-        .await
-        .map_err(|e| e.to_string())?;
+    let conn = match SessionManager::create_connection(&config, password.as_deref()).await {
+        Ok(c) => c,
+        Err(e) => {
+            if let Some(ref jid) = options.job_id {
+                remove_cancellation_token(jid);
+            }
+            return Err(e.to_string());
+        }
+    };
 
-    let res = export_data_impl(conn.as_ref(), &sql, &safe_str, &options)
-        .await
-        .map_err(|e| e.to_string());
+    if let Some(ref jid) = options.job_id {
+        register_transfer_job(jid, conn.clone());
+    }
+
+    let on_progress = move |progress| {
+        let _ = app.emit("transfer://progress", progress);
+    };
+
+    let res = export_data_with_progress_impl(
+        conn.as_ref(),
+        &sql,
+        &safe_str,
+        &options,
+        Some(on_progress),
+    )
+    .await
+    .map_err(|e| e.to_string());
 
     let (status, rows, err) = match &res {
         Ok(r) => ("SUCCESS", Some(r.total_rows as u64), None),
@@ -134,7 +153,7 @@ pub async fn import_data(
     };
 
     if let Some(ref jid) = options.job_id {
-        register_cancellation_token(jid);
+        register_transfer_job(jid, conn.clone());
     }
 
     let file_str = options.file_path.clone();
@@ -214,10 +233,6 @@ pub async fn export_sql(
     let mut options = options;
     options.file_path = safe_path.to_string_lossy().to_string();
 
-    if let Some(ref jid) = options.job_id {
-        register_cancellation_token(jid);
-    }
-
     let config = store
         .get(&options.connection_id)
         .map_err(|e| e.to_string())?
@@ -226,6 +241,10 @@ pub async fn export_sql(
     let conn = SessionManager::create_connection(&config, password.as_deref())
         .await
         .map_err(|e| e.to_string())?;
+
+    if let Some(ref jid) = options.job_id {
+        register_transfer_job(jid, conn.clone());
+    }
 
     let file_str = options.file_path.clone();
     let res = export_sql_impl(conn.as_ref(), config.driver, &options)
@@ -273,7 +292,7 @@ pub async fn import_sql(
     };
 
     if let Some(ref jid) = options.job_id {
-        register_cancellation_token(jid);
+        register_transfer_job(jid, conn.clone());
     }
 
     let file_str = options.file_path.clone();
@@ -301,7 +320,7 @@ pub async fn import_sql(
 
 #[tauri::command]
 pub async fn cancel_transfer(job_id: String) -> Result<bool, String> {
-    Ok(trigger_cancellation(&job_id))
+    Ok(cancel_transfer_job(&job_id).await)
 }
 
 #[tauri::command]
@@ -310,10 +329,6 @@ pub async fn copy_table_cross_db(
     store: State<'_, ConnectionStore>,
     options: CrossDbCopyTableOptions,
 ) -> Result<CrossDbCopyResult, String> {
-    if let Some(ref jid) = options.job_id {
-        register_cancellation_token(jid);
-    }
-
     let src_config = store
         .get(&options.source_connection_id)
         .map_err(|e| e.to_string())?
@@ -322,6 +337,10 @@ pub async fn copy_table_cross_db(
     let src_conn = SessionManager::create_connection(&src_config, src_pass.as_deref())
         .await
         .map_err(|e| e.to_string())?;
+
+    if let Some(ref jid) = options.job_id {
+        register_transfer_job(jid, src_conn.clone());
+    }
 
     let tgt_config = store
         .get(&options.target_connection_id)

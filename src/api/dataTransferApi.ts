@@ -68,8 +68,8 @@ export const pickImportFile = async (): Promise<string | null> => {
     directory: false,
     filters: [
       {
-        name: 'Supported Data Files (*.csv, *.json, *.ndjson)',
-        extensions: ['csv', 'json', 'ndjson', 'jsonl', 'txt'],
+        name: 'Supported Data Files (*.csv, *.json, *.ndjson, *.gz, *.zst)',
+        extensions: ['csv', 'json', 'ndjson', 'jsonl', 'txt', 'gz', 'gzip', 'zst', 'zstd'],
       },
       {
         name: 'CSV Files (*.csv)',

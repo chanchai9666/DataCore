@@ -4,6 +4,8 @@ export type JsonStructure = 'array' | 'ndjson';
 
 export type ImportErrorPolicy = 'abort' | 'skip';
 
+export type ImportMode = 'atomic' | 'chunked' | 'staging';
+
 export interface ImportPreview {
   detected_delimiter: string;
   headers: string[];
@@ -18,6 +20,7 @@ export interface ExportOptions {
   json_structure?: JsonStructure;
   job_id?: string;
   jobId?: string;
+  use_native_copy?: boolean;
 }
 
 export interface ExportResult {
@@ -43,6 +46,10 @@ export interface ImportOptions {
   treat_empty_as_null?: boolean;
   job_id?: string;
   jobId?: string;
+  import_mode?: ImportMode;
+  chunk_commit_rows?: number;
+  resume_from_checkpoint?: boolean;
+  use_native_copy?: boolean;
 }
 
 export interface ImportResult {
@@ -50,12 +57,17 @@ export interface ImportResult {
   imported_rows: number;
   skipped_rows: number;
   elapsed_ms: number;
+  rejects_file_path?: string;
 }
 
 export interface TransferProgress {
   current_row: number;
   total_rows?: number;
   status: string;
+  job_id?: string;
+  rows_processed?: number;
+  bytes_written?: number;
+  elapsed_ms?: number;
 }
 
 export interface TableMetadata {
