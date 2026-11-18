@@ -260,15 +260,15 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150" />
         <Dialog.Content
           aria-describedby="import-modal-desc"
-          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-2xl w-full flex flex-col text-gray-200 max-h-[90vh] focus:outline-none"
+          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-panel border border-line rounded-lg shadow-2xl max-w-2xl w-full flex flex-col text-text max-h-[90vh] focus:outline-none"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800 bg-gray-950/40">
-            <div className="flex items-center space-x-2 text-emerald-400">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-panel">
+            <div className="flex items-center space-x-2 text-emerald-500">
               <Upload className="w-5 h-5" />
               <Dialog.Title asChild>
-                <h2 id="import-modal-title" className="text-base font-semibold">
-                  Import Data into <span className="font-mono text-white">{tableName}</span>
+                <h2 id="import-modal-title" className="text-base font-semibold text-text">
+                  Import Data into <span className="font-mono text-text">{tableName}</span>
                 </h2>
               </Dialog.Title>
             </div>
@@ -277,7 +277,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                 type="button"
                 onClick={handleCancelOrClose}
                 aria-label="Close dialog"
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-muted hover:text-text transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -290,11 +290,11 @@ export const ImportModal: React.FC<ImportModalProps> = ({
           {/* Body */}
           <div className="flex-1 overflow-y-auto p-5 space-y-5 text-xs">
             {/* File Picker Section */}
-            <div className="p-4 bg-gray-950/60 rounded border border-gray-800 space-y-3">
+            <div className="p-4 bg-sidebar rounded border border-line space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="font-medium text-gray-200 block">Select Data Source</span>
-                  <span className="text-gray-400 text-[11px]">
+                  <span className="font-medium text-text block">Select Data Source</span>
+                  <span className="text-muted text-[11px]">
                     Supported formats: CSV, JSON Array, and NDJSON
                   </span>
                 </div>
@@ -303,19 +303,19 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                   onClick={handleChooseFile}
                   disabled={isImporting}
                   data-testid="choose-import-file-btn"
-                  className="px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-200 font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 rounded bg-panel hover:bg-black/5 dark:hover:bg-white/10 border border-line text-text font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-50"
                 >
-                  <FileUp className="w-3.5 h-3.5 text-blue-400" />
+                  <FileUp className="w-3.5 h-3.5 text-blue-500" />
                   <span>{filePath ? 'Change File...' : 'Choose File...'}</span>
                 </button>
               </div>
 
               {filePath && (
-                <div className="pt-2 border-t border-gray-800/80 flex items-center justify-between font-mono text-[11px] text-gray-300">
+                <div className="pt-2 border-t border-line flex items-center justify-between font-mono text-[11px] text-text">
                   <span className="truncate max-w-sm" title={filePath}>
                     {filePath}
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 uppercase font-semibold">
+                  <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-500 uppercase font-semibold">
                     {format}
                   </span>
                 </div>
@@ -324,14 +324,14 @@ export const ImportModal: React.FC<ImportModalProps> = ({
 
             {/* Delimiter & Header Options (CSV) */}
             {filePath && format === 'csv' && (
-              <div className="grid grid-cols-2 gap-4 p-3 bg-gray-950/40 rounded border border-gray-800">
+              <div className="grid grid-cols-2 gap-4 p-3 bg-sidebar rounded border border-line">
                 <div className="flex items-center justify-between">
-                  <label className="text-gray-300">Delimiter</label>
+                  <label className="text-text">Delimiter</label>
                   <select
                     value={delimiter}
                     onChange={(e) => handleDelimiterChange(e.target.value)}
                     data-testid="import-delimiter-select"
-                    className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 focus:border-blue-500 focus:outline-none"
+                    className="bg-grid border border-line rounded px-2 py-1 text-xs text-text focus:border-blue-500 focus:outline-none"
                   >
                     <option value=",">Comma ( , )</option>
                     <option value=";">Semicolon ( ; )</option>
@@ -339,13 +339,13 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                   </select>
                 </div>
                 <div className="flex items-center justify-between">
-                  <label className="text-gray-300">First row is Header</label>
+                  <label className="text-text">First row is Header</label>
                   <input
                     type="checkbox"
                     checked={hasHeaders}
                     onChange={(e) => setHasHeaders(e.target.checked)}
                     data-testid="import-has-headers-checkbox"
-                    className="rounded border-gray-700 text-blue-600 focus:ring-0 focus:outline-none"
+                    className="rounded border-line text-blue-600 focus:ring-0 focus:outline-none"
                   />
                 </div>
               </div>
@@ -353,8 +353,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({
 
             {/* Preview Section */}
             {isLoadingPreview && (
-              <div className="p-6 text-center text-gray-400 flex flex-col items-center justify-center space-y-2">
-                <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+              <div className="p-6 text-center text-muted flex flex-col items-center justify-center space-y-2">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
                 <span>Reading file preview...</span>
               </div>
             )}
@@ -362,17 +362,17 @@ export const ImportModal: React.FC<ImportModalProps> = ({
             {preview && preview.preview_rows.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-gray-300 flex items-center space-x-1.5">
-                    <Table className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="font-medium text-text flex items-center space-x-1.5">
+                    <Table className="w-3.5 h-3.5 text-blue-500" />
                     <span>File Preview (First {preview.preview_rows.length} rows)</span>
                   </span>
-                  <span className="text-[11px] text-gray-500">
+                  <span className="text-[11px] text-muted">
                     {preview.headers.length} columns detected
                   </span>
                 </div>
-                <div className="border border-gray-800 rounded overflow-x-auto max-h-36">
+                <div className="border border-line rounded overflow-x-auto max-h-36">
                   <table className="w-full text-left text-[11px] border-collapse font-mono">
-                    <thead className="bg-gray-950 text-gray-400 sticky top-0 border-b border-gray-800">
+                    <thead className="bg-sidebar text-muted sticky top-0 border-b border-line">
                       <tr>
                         {preview.headers.map((h, i) => (
                           <th key={i} className="px-2.5 py-1.5 font-semibold whitespace-nowrap">
@@ -381,16 +381,16 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-800/50 bg-gray-900/30">
+                    <tbody className="divide-y divide-line bg-grid">
                       {preview.preview_rows.map((row, rIdx) => (
-                        <tr key={rIdx} className="hover:bg-gray-800/30">
+                        <tr key={rIdx} className="hover:bg-black/5 dark:hover:bg-white/5">
                           {row.map((cell, cIdx) => (
                             <td
                               key={cIdx}
-                              className="px-2.5 py-1 truncate max-w-xs text-gray-300"
+                              className="px-2.5 py-1 truncate max-w-xs text-text"
                               title={cell}
                             >
-                              {cell === '' ? <span className="text-gray-600 italic">empty</span> : cell}
+                              {cell === '' ? <span className="text-muted italic">empty</span> : cell}
                             </td>
                           ))}
                         </tr>
@@ -405,27 +405,27 @@ export const ImportModal: React.FC<ImportModalProps> = ({
             {preview && preview.headers.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-gray-300">Column Mapping</span>
-                  <span className="text-[11px] text-gray-400">
+                  <span className="font-medium text-text">Column Mapping</span>
+                  <span className="text-[11px] text-muted">
                     Map file columns to destination table columns
                   </span>
                 </div>
-                <div className="border border-gray-800 rounded overflow-hidden">
+                <div className="border border-line rounded overflow-hidden">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-gray-950/80 text-[11px] text-gray-400 border-b border-gray-800">
+                    <thead className="bg-sidebar text-[11px] text-muted border-b border-line">
                       <tr>
                         <th className="px-3 py-2 w-1/2">Source File Column</th>
                         <th className="px-1 py-2 text-center w-8"></th>
                         <th className="px-3 py-2 w-1/2">Target Table Column</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-800/60 bg-gray-900/40">
+                    <tbody className="divide-y divide-line bg-grid">
                       {preview.headers.map((srcCol, idx) => (
-                        <tr key={srcCol} className="hover:bg-gray-800/20">
-                          <td className="px-3 py-2 font-mono text-gray-200 truncate">
+                        <tr key={srcCol} className="hover:bg-black/5 dark:hover:bg-white/5">
+                          <td className="px-3 py-2 font-mono text-text truncate">
                             {srcCol}
                           </td>
-                          <td className="px-1 py-2 text-center text-gray-500">
+                          <td className="px-1 py-2 text-center text-muted">
                             <ArrowRight className="w-3.5 h-3.5 inline" />
                           </td>
                           <td className="px-3 py-1.5">
@@ -433,10 +433,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                               value={mappings[srcCol] || '__SKIP__'}
                               onChange={(e) => handleMappingChange(srcCol, e.target.value)}
                               data-testid={`mapping-select-${idx}`}
-                              className={`w-full bg-gray-950 border rounded px-2.5 py-1 text-xs focus:outline-none ${
+                              className={`w-full bg-grid border rounded px-2.5 py-1 text-xs focus:outline-none ${
                                 mappings[srcCol] && mappings[srcCol] !== '__SKIP__'
-                                  ? 'border-emerald-500/50 text-emerald-300'
-                                  : 'border-gray-700 text-gray-500 italic'
+                                  ? 'border-emerald-500/60 text-emerald-600 dark:text-emerald-400'
+                                  : 'border-line text-muted italic'
                               }`}
                             >
                               <option value="__SKIP__">(Skip this column)</option>
@@ -457,12 +457,12 @@ export const ImportModal: React.FC<ImportModalProps> = ({
 
             {/* Error Handling Policy */}
             {preview && (
-              <div className="p-3.5 bg-gray-950/60 rounded border border-gray-800 space-y-2">
-                <label className="block text-gray-300 font-medium mb-1">
+              <div className="p-3.5 bg-sidebar rounded border border-line space-y-2">
+                <label className="block text-text font-medium mb-1">
                   Error Handling Policy
                 </label>
                 <div className="space-y-1.5">
-                  <label className="flex items-center space-x-2 text-gray-300 cursor-pointer">
+                  <label className="flex items-center space-x-2 text-muted cursor-pointer">
                     <input
                       type="radio"
                       name="error-policy"
@@ -470,14 +470,14 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                       checked={errorPolicy === 'abort'}
                       onChange={() => setErrorPolicy('abort')}
                       data-testid="error-policy-abort"
-                      className="rounded border-gray-700 text-emerald-600 focus:ring-0 focus:outline-none"
+                      className="rounded border-line text-emerald-600 focus:ring-0 focus:outline-none"
                     />
                     <span>
-                      <strong className="text-white">Atomic Transaction (Rollback on error)</strong>{' '}
+                      <strong className="text-text">Atomic Transaction (Rollback on error)</strong>{' '}
                       — Discard all changes if any row fails
                     </span>
                   </label>
-                  <label className="flex items-center space-x-2 text-gray-300 cursor-pointer">
+                  <label className="flex items-center space-x-2 text-muted cursor-pointer">
                     <input
                       type="radio"
                       name="error-policy"
@@ -485,19 +485,19 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                       checked={errorPolicy === 'skip'}
                       onChange={() => setErrorPolicy('skip')}
                       data-testid="error-policy-skip"
-                      className="rounded border-gray-700 text-emerald-600 focus:ring-0 focus:outline-none"
+                      className="rounded border-line text-emerald-600 focus:ring-0 focus:outline-none"
                     />
                     <span>
-                      <strong className="text-white">Skip Invalid Rows</strong> — Insert valid rows
+                      <strong className="text-text">Skip Invalid Rows</strong> — Insert valid rows
                       and continue past errors
                     </span>
                   </label>
                 </div>
 
                 {/* Import Mode & Advanced Options */}
-                <div className="pt-2.5 border-t border-gray-800 space-y-2.5">
+                <div className="pt-2.5 border-t border-line space-y-2.5">
                   <div className="flex items-center justify-between gap-3">
-                    <label htmlFor="import-mode-select" className="text-gray-300 font-medium">
+                    <label htmlFor="import-mode-select" className="text-text font-medium">
                       Import Mode
                     </label>
                     <select
@@ -505,30 +505,30 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                       data-testid="import-mode-select"
                       value={importMode}
                       onChange={(e) => setImportMode(e.target.value as ImportMode)}
-                      className="bg-gray-950 border border-gray-700 rounded px-2.5 py-1 text-xs text-gray-200 focus:border-emerald-500 focus:outline-none"
+                      className="bg-grid border border-line rounded px-2.5 py-1 text-xs text-text focus:border-emerald-500 focus:outline-none"
                     >
                       <option value="atomic">Atomic (Single Transaction)</option>
                       <option value="chunked">Chunked (Periodic Commits + Checkpoint)</option>
                       <option value="staging">Staging (Temp Table Swap)</option>
                     </select>
                   </div>
-                  <label className="flex items-center space-x-2 text-gray-300 cursor-pointer">
+                  <label className="flex items-center space-x-2 text-text cursor-pointer">
                     <input
                       type="checkbox"
                       data-testid="import-resume-checkpoint"
                       checked={resumeFromCheckpoint}
                       onChange={(e) => setResumeFromCheckpoint(e.target.checked)}
-                      className="rounded border-gray-700 text-emerald-600 focus:ring-0 focus:outline-none"
+                      className="rounded border-line text-emerald-600 focus:ring-0 focus:outline-none"
                     />
                     <span>Resume from previous checkpoint if available</span>
                   </label>
-                  <label className="flex items-center space-x-2 text-gray-300 cursor-pointer">
+                  <label className="flex items-center space-x-2 text-text cursor-pointer">
                     <input
                       type="checkbox"
                       data-testid="import-use-native-copy"
                       checked={useNativeCopy}
                       onChange={(e) => setUseNativeCopy(e.target.checked)}
-                      className="rounded border-gray-700 text-emerald-600 focus:ring-0 focus:outline-none"
+                      className="rounded border-line text-emerald-600 focus:ring-0 focus:outline-none"
                     />
                     <span>Use PostgreSQL Fast COPY (CSV, Abort mode)</span>
                   </label>
@@ -538,26 +538,26 @@ export const ImportModal: React.FC<ImportModalProps> = ({
 
             {/* Real-time Progress Bar */}
             {isImporting && (
-              <div className="p-4 bg-gray-950 rounded border border-emerald-500/30 space-y-2">
+              <div className="p-4 bg-sidebar rounded border border-emerald-500/30 space-y-2">
                 <div className="flex items-center justify-between text-xs font-medium">
-                  <span className="text-emerald-300 flex items-center space-x-1.5">
+                  <span className="text-emerald-500 flex items-center space-x-1.5">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span>Importing rows...</span>
                   </span>
                   <div className="flex items-center gap-2 font-mono">
-                    <span className="text-gray-400">
+                    <span className="text-muted">
                       {progress?.current_row?.toLocaleString() || 0}{' '}
                       {progress?.total_rows ? `/ ${progress.total_rows.toLocaleString()} rows` : 'rows processed'}
                     </span>
                     <span
                       data-testid="import-modal-percent"
-                      className="font-semibold text-emerald-400"
+                      className="font-semibold text-emerald-500"
                     >
                       {progressPct}%
                     </span>
                   </div>
                 </div>
-                <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-grid h-2 rounded-full overflow-hidden">
                   <div
                     className="bg-emerald-500 h-full transition-all duration-200"
                     style={{ width: `${progressPct}%` }}
@@ -568,11 +568,11 @@ export const ImportModal: React.FC<ImportModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end space-x-2 px-5 py-3 border-t border-gray-800 bg-gray-950/40">
+          <div className="flex items-center justify-end space-x-2 px-5 py-3 border-t border-line bg-panel">
             <button
               type="button"
               onClick={handleCancelOrClose}
-              className="px-3 py-1.5 rounded text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              className="px-3 py-1.5 rounded text-xs text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             >
               Cancel
             </button>

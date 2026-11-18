@@ -329,34 +329,22 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   return (
     <div
       data-testid="table-structure-editor"
-      className={`flex flex-col h-full ${isDark ? 'bg-gray-950 text-gray-100' : 'bg-gray-50 text-gray-900'}`}
+      className="flex flex-col h-full bg-grid text-text"
     >
       {/* Tier 1: Table Master Bar (Table Identity & Global Operations) */}
-      <div
-        className={`flex items-center justify-between px-4 py-2 border-b select-none flex-shrink-0 ${
-          isDark ? 'border-gray-800 bg-gray-900/80' : 'border-gray-200 bg-white'
-        }`}
-      >
+      <div className="flex items-center justify-between px-4 py-2 border-b border-line bg-panel select-none flex-shrink-0">
         {/* Left: Mode Switcher + Table Identity */}
         <div className="flex items-center space-x-3">
           {/* Mode Switcher (Data / Structure) */}
-          <div
-            className={`flex items-center p-0.5 rounded-lg border ${
-              isDark ? 'border-gray-800 bg-gray-950/70' : 'border-gray-200 bg-gray-100'
-            }`}
-          >
+          <div className="flex items-center p-0.5 rounded-lg border border-line bg-sidebar">
             <button
               type="button"
               data-testid="table-mode-data-btn"
               onClick={() => onModeChange?.('data')}
               className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                 currentMode === 'data'
-                  ? isDark
-                    ? 'bg-gray-800 text-white shadow-xs'
-                    : 'bg-white text-gray-900 shadow-xs'
-                  : isDark
-                  ? 'text-gray-400 hover:text-gray-200'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-panel text-text shadow-xs'
+                  : 'text-muted hover:text-text'
               }`}
             >
               <TableIcon className="w-3.5 h-3.5 text-blue-500" />
@@ -368,12 +356,8 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               onClick={() => onModeChange?.('structure')}
               className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                 currentMode === 'structure'
-                  ? isDark
-                    ? 'bg-gray-800 text-white shadow-xs'
-                    : 'bg-white text-gray-900 shadow-xs'
-                  : isDark
-                  ? 'text-gray-400 hover:text-gray-200'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-panel text-text shadow-xs'
+                  : 'text-muted hover:text-text'
               }`}
             >
               <Wrench className="w-3.5 h-3.5 text-amber-500" />
@@ -381,34 +365,24 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             </button>
           </div>
 
-          <div className={`h-4 w-px ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`} />
+          <div className="h-4 w-px bg-line" />
 
           {/* Table Identity */}
           <div className="flex items-center space-x-2">
-            <div
-              className={`p-1 rounded-md ${
-                isDark ? 'bg-blue-950/40 border border-blue-900/40' : 'bg-blue-50 border border-blue-200'
-              }`}
-            >
-              <TableIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <div className="p-1 rounded-md bg-blue-500/10 border border-blue-500/30">
+              <TableIcon className="w-3.5 h-3.5 text-blue-500" />
             </div>
             <div className="flex items-baseline space-x-1 font-mono text-xs">
               {schemaName && (
-                <span className="text-gray-400 dark:text-gray-500 font-normal">
+                <span className="text-muted font-normal">
                   {schemaName}.
                 </span>
               )}
-              <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm tracking-tight">
+              <span className="font-semibold text-text text-sm tracking-tight">
                 {tableName}
               </span>
             </div>
-            <span
-              className={`text-[10px] uppercase font-mono px-1.5 py-0.5 rounded-md font-semibold border ${
-                isDark
-                  ? 'border-gray-700 bg-gray-800 text-gray-400'
-                  : 'border-gray-200 bg-gray-100 text-gray-600'
-              }`}
-            >
+            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded-md font-semibold border border-line bg-sidebar text-muted">
               {driver}
             </span>
           </div>
@@ -416,14 +390,10 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
           {statusMessage && (
             <div
               data-testid="structure-status-badge"
-              className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md text-xs font-medium ${
+              className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md text-xs font-medium border ${
                 statusMessage.type === 'success'
-                  ? isDark
-                    ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/60'
-                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  : isDark
-                  ? 'bg-red-950/60 text-red-300 border border-red-800/60'
-                  : 'bg-red-50 text-red-700 border border-red-200'
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/30'
+                  : 'bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/30'
               }`}
             >
               {statusMessage.type === 'success' ? (
@@ -444,11 +414,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             onClick={loadStructure}
             disabled={loading}
             title="Refresh Structure"
-            className={`p-1.5 rounded-md transition-colors ${
-              isDark
-                ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'
-                : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-            }`}
+            className="p-1.5 rounded-md transition-colors hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-text"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-500' : ''}`} />
           </button>
@@ -458,13 +424,9 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             data-testid="view-ddl-btn"
             onClick={() => setIsDdlModalOpen(true)}
             title="View DDL / CREATE TABLE"
-            className={`inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors shadow-xs ${
-              isDark
-                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-700 text-gray-200'
-                : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
-            }`}
+            className="inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-line bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors shadow-xs"
           >
-            <Code className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+            <Code className="w-3.5 h-3.5 text-blue-500" />
             <span>DDL</span>
           </button>
 
@@ -473,13 +435,9 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             data-testid="partitions-table-toolbar-btn"
             onClick={() => setIsPartitionsModalOpen(true)}
             title="Table Partitions & Ranges"
-            className={`inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors shadow-xs ${
-              isDark
-                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-700 text-gray-200'
-                : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
-            }`}
+            className="inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-line bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors shadow-xs"
           >
-            <Split className="w-3.5 h-3.5 text-teal-500 dark:text-teal-400" />
+            <Split className="w-3.5 h-3.5 text-teal-500" />
             <span>Partitions</span>
           </button>
 
@@ -488,13 +446,9 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             data-testid="maintenance-table-toolbar-btn"
             onClick={() => setIsMaintenanceModalOpen(true)}
             title="Table Maintenance & Diagnostics"
-            className={`inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors shadow-xs ${
-              isDark
-                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-700 text-gray-200'
-                : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
-            }`}
+            className="inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-line bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors shadow-xs"
           >
-            <Wrench className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+            <Wrench className="w-3.5 h-3.5 text-emerald-500" />
             <span>Maintain</span>
           </button>
 
@@ -503,28 +457,20 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             data-testid="rename-table-toolbar-btn"
             onClick={() => setIsRenameTableModalOpen(true)}
             title="Rename Table"
-            className={`inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors shadow-xs ${
-              isDark
-                ? 'border-gray-700 bg-gray-800/80 hover:bg-gray-700 text-gray-200'
-                : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
-            }`}
+            className="inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-line bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors shadow-xs"
           >
-            <Pencil className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+            <Pencil className="w-3.5 h-3.5 text-blue-500" />
             <span>Rename</span>
           </button>
 
-          <div className={`h-4 w-px ${isDark ? 'bg-gray-800' : 'bg-gray-200'} mx-0.5`} />
+          <div className="h-4 w-px bg-line mx-0.5" />
 
           <button
             type="button"
             data-testid="drop-table-toolbar-btn"
             onClick={() => setIsDropTableModalOpen(true)}
             title="Drop Table"
-            className={`inline-flex items-center space-x-1 px-2 py-1 text-xs font-medium rounded-md transition-colors border ${
-              isDark
-                ? 'border-red-900/40 bg-red-950/20 hover:bg-red-900/40 text-red-400'
-                : 'border-red-200 bg-red-50/70 hover:bg-red-100 text-red-600'
-            }`}
+            className="inline-flex items-center space-x-1 px-2 py-1 text-xs font-medium rounded-md transition-colors border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-500"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Drop</span>
@@ -533,176 +479,43 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
       </div>
 
       {/* Tier 2: Sub-navigation Tabs & Contextual Action Toolbar */}
-      <div
-        className={`flex items-center justify-between px-4 py-1.5 border-b select-none flex-shrink-0 ${
-          isDark ? 'border-gray-800 bg-gray-900/40' : 'border-gray-200 bg-gray-50/70'
-        }`}
-      >
+      <div className="flex items-center justify-between px-4 py-1.5 border-b border-line bg-sidebar select-none flex-shrink-0">
         {/* Left: Section Sub-navigation Tabs */}
-        <div
-          className={`flex items-center p-0.5 rounded-lg border ${
-            isDark ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-100/80'
-          }`}
-        >
-          <button
-            type="button"
-            data-testid="tab-columns-btn"
-            aria-label={`Columns (${columns.length})`}
-            onClick={() => setActiveTab('columns')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
-              activeTab === 'columns'
-                ? isDark
-                  ? 'bg-gray-800 text-white shadow-xs'
-                  : 'bg-white text-gray-900 shadow-xs'
-                : isDark
-                ? 'text-gray-400 hover:text-gray-200'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <TableIcon className="w-3 h-3 text-blue-500" />
-            <span>Columns</span>
-            <span
-              className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                activeTab === 'columns'
-                  ? isDark
-                    ? 'bg-gray-700 text-gray-200'
-                    : 'bg-gray-100 text-gray-800'
-                  : isDark
-                  ? 'bg-gray-800/80 text-gray-400'
-                  : 'bg-gray-200 text-gray-600'
+        <div className="flex items-center p-0.5 rounded-lg border border-line bg-panel">
+          {(
+            [
+              { id: 'columns', label: 'Columns', count: columns.length, icon: <TableIcon className="w-3 h-3 text-blue-500" /> },
+              { id: 'indexes', label: 'Indexes', count: indexes.length, icon: <Layers className="w-3 h-3 text-emerald-500" /> },
+              { id: 'foreign-keys', label: 'Foreign Keys', count: foreignKeys.length, icon: <Link2 className="w-3 h-3 text-indigo-500" /> },
+              { id: 'constraints', label: 'Constraints', count: constraints.length, icon: <ShieldAlert className="w-3 h-3 text-purple-500" /> },
+              { id: 'security', label: 'Security / RLS', count: rlsPolicies.length, icon: <Shield className="w-3 h-3 text-rose-500" /> },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              data-testid={`tab-${tab.id}-btn`}
+              aria-label={`${tab.label} (${tab.count})`}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
+                activeTab === tab.id
+                  ? 'bg-grid text-text shadow-xs'
+                  : 'text-muted hover:text-text'
               }`}
             >
-              ({columns.length})
-            </span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="tab-indexes-btn"
-            aria-label={`Indexes (${indexes.length})`}
-            onClick={() => setActiveTab('indexes')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
-              activeTab === 'indexes'
-                ? isDark
-                  ? 'bg-gray-800 text-white shadow-xs'
-                  : 'bg-white text-gray-900 shadow-xs'
-                : isDark
-                ? 'text-gray-400 hover:text-gray-200'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Layers className="w-3 h-3 text-emerald-500" />
-            <span>Indexes</span>
-            <span
-              className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                activeTab === 'indexes'
-                  ? isDark
-                    ? 'bg-gray-700 text-gray-200'
-                    : 'bg-gray-100 text-gray-800'
-                  : isDark
-                  ? 'bg-gray-800/80 text-gray-400'
-                  : 'bg-gray-200 text-gray-600'
-              }`}
-            >
-              ({indexes.length})
-            </span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="tab-foreign-keys-btn"
-            aria-label={`Foreign Keys (${foreignKeys.length})`}
-            onClick={() => setActiveTab('foreign-keys')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
-              activeTab === 'foreign-keys'
-                ? isDark
-                  ? 'bg-gray-800 text-white shadow-xs'
-                  : 'bg-white text-gray-900 shadow-xs'
-                : isDark
-                ? 'text-gray-400 hover:text-gray-200'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Link2 className="w-3 h-3 text-indigo-500" />
-            <span>Foreign Keys</span>
-            <span
-              className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                activeTab === 'foreign-keys'
-                  ? isDark
-                    ? 'bg-gray-700 text-gray-200'
-                    : 'bg-gray-100 text-gray-800'
-                  : isDark
-                  ? 'bg-gray-800/80 text-gray-400'
-                  : 'bg-gray-200 text-gray-600'
-              }`}
-            >
-              ({foreignKeys.length})
-            </span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="tab-constraints-btn"
-            aria-label={`Constraints (${constraints.length})`}
-            onClick={() => setActiveTab('constraints')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
-              activeTab === 'constraints'
-                ? isDark
-                  ? 'bg-gray-800 text-white shadow-xs'
-                  : 'bg-white text-gray-900 shadow-xs'
-                : isDark
-                ? 'text-gray-400 hover:text-gray-200'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <ShieldAlert className="w-3 h-3 text-purple-500" />
-            <span>Constraints</span>
-            <span
-              className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                activeTab === 'constraints'
-                  ? isDark
-                    ? 'bg-gray-700 text-gray-200'
-                    : 'bg-gray-100 text-gray-800'
-                  : isDark
-                  ? 'bg-gray-800/80 text-gray-400'
-                  : 'bg-gray-200 text-gray-600'
-              }`}
-            >
-              ({constraints.length})
-            </span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="tab-security-btn"
-            aria-label={`Security / RLS (${rlsPolicies.length})`}
-            onClick={() => setActiveTab('security')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
-              activeTab === 'security'
-                ? isDark
-                  ? 'bg-gray-800 text-white shadow-xs'
-                  : 'bg-white text-gray-900 shadow-xs'
-                : isDark
-                ? 'text-gray-400 hover:text-gray-200'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Shield className="w-3 h-3 text-rose-500" />
-            <span>Security / RLS</span>
-            <span
-              className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                activeTab === 'security'
-                  ? isDark
-                    ? 'bg-gray-700 text-gray-200'
-                    : 'bg-gray-100 text-gray-800'
-                  : isDark
-                  ? 'bg-gray-800/80 text-gray-400'
-                  : 'bg-gray-200 text-gray-600'
-              }`}
-            >
-              ({rlsPolicies.length})
-            </span>
-          </button>
+              {tab.icon}
+              <span>{tab.label}</span>
+              <span
+                className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                  activeTab === tab.id
+                    ? 'bg-sidebar text-text'
+                    : 'bg-grid text-muted'
+                }`}
+              >
+                ({tab.count})
+              </span>
+            </button>
+          ))}
 
           <button
             type="button"
@@ -710,12 +523,8 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             onClick={() => setActiveTab('ddl')}
             className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
               activeTab === 'ddl'
-                ? isDark
-                  ? 'bg-gray-800 text-white shadow-xs'
-                  : 'bg-white text-gray-900 shadow-xs'
-                : isDark
-                ? 'text-gray-400 hover:text-gray-200'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-grid text-text shadow-xs'
+                : 'text-muted hover:text-text'
             }`}
           >
             <Code className="w-3 h-3 text-blue-500" />
@@ -727,23 +536,19 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         <div className="flex items-center space-x-2.5">
           {/* Quick Search / Filter Box */}
           <div className="relative flex items-center">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 text-gray-400 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 text-muted pointer-events-none" />
             <input
               type="text"
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               placeholder={`Filter ${activeTab}...`}
-              className={`pl-8 pr-6 py-1 text-xs rounded-md border transition-all w-40 focus:w-52 focus:outline-none focus:border-blue-500 ${
-                isDark
-                  ? 'border-gray-700 bg-gray-900 text-gray-100 placeholder-gray-500'
-                  : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400 shadow-2xs'
-              }`}
+              className="pl-8 pr-6 py-1 text-xs rounded-md border border-line bg-grid text-text placeholder:text-muted transition-all w-40 focus:w-52 focus:outline-none focus:border-blue-500"
             />
             {filterText && (
               <button
                 type="button"
                 onClick={() => setFilterText('')}
-                className="absolute right-1.5 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="absolute right-1.5 p-0.5 text-muted hover:text-text"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -848,37 +653,19 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               return (
                 <div
                   data-testid="table-not-found-screen"
-                  className={`max-w-xl mx-auto my-8 p-6 rounded-2xl border text-center flex flex-col items-center transition-colors ${
-                    !isDark
-                      ? 'bg-white border-amber-200/80 shadow-md shadow-amber-900/5 text-amber-950'
-                      : 'bg-zinc-900/90 border-amber-900/40 shadow-xl shadow-black/40 text-amber-100'
-                  }`}
+                  className="max-w-xl mx-auto my-8 p-6 rounded-2xl border border-amber-500/30 bg-panel shadow-lg text-center flex flex-col items-center transition-colors text-text"
                 >
-                  <div
-                    className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-transform ${
-                      !isDark
-                        ? 'bg-amber-50 text-amber-600 ring-8 ring-amber-50/50'
-                        : 'bg-amber-500/10 text-amber-400 ring-8 ring-amber-500/5'
-                    }`}
-                  >
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 bg-amber-500/10 text-amber-500 ring-8 ring-amber-500/5">
                     <FileQuestion className="w-7 h-7" />
                   </div>
 
-                  <h3
-                    className={`text-lg font-semibold tracking-tight mb-2 ${
-                      !isDark ? 'text-gray-900' : 'text-gray-100'
-                    }`}
-                  >
+                  <h3 className="text-lg font-semibold tracking-tight mb-2 text-text">
                     Table Not Found in Database
                   </h3>
 
-                  <p
-                    className={`text-xs max-w-md mb-4 leading-relaxed ${
-                      !isDark ? 'text-gray-600' : 'text-gray-400'
-                    }`}
-                  >
+                  <p className="text-xs max-w-md mb-4 leading-relaxed text-muted">
                     The table{' '}
-                    <span className="font-mono font-semibold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200">
+                    <span className="font-mono font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-300">
                       &quot;{tableName}&quot;
                     </span>{' '}
                     does not exist in schema{' '}
@@ -887,14 +674,8 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                   </p>
 
                   {/* Technical Database Error Details */}
-                  <div
-                    className={`w-full max-w-md p-3 rounded-lg border font-mono text-[11px] text-left mb-6 break-all select-text ${
-                      !isDark
-                        ? 'bg-red-50/70 border-red-200 text-red-800'
-                        : 'bg-red-950/40 border-red-900/50 text-red-300'
-                    }`}
-                  >
-                    <span className="font-semibold block mb-1 text-[10px] uppercase tracking-wider text-red-600 dark:text-red-400">
+                  <div className="w-full max-w-md p-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300 font-mono text-[11px] text-left mb-6 break-all select-text">
+                    <span className="font-semibold block mb-1 text-[10px] uppercase tracking-wider text-red-500">
                       Database error:
                     </span>
                     {error}
@@ -927,11 +708,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                           console.warn('Failed to refresh schema:', e);
                         }
                       }}
-                      className={`px-3.5 py-2 rounded-lg text-xs font-medium border shadow-xs transition-colors flex items-center space-x-1.5 ${
-                        !isDark
-                          ? 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'
-                          : 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-gray-200'
-                      }`}
+                      className="px-3.5 py-2 rounded-lg text-xs font-medium border border-line bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text shadow-xs transition-colors flex items-center space-x-1.5"
                     >
                       <RefreshCw className="w-3.5 h-3.5 text-blue-500" />
                       <span>Refresh Schema</span>
@@ -940,11 +717,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
                     <button
                       type="button"
                       onClick={loadStructure}
-                      className={`px-3.5 py-2 rounded-lg text-xs font-medium border shadow-xs transition-colors ${
-                        !isDark
-                          ? 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'
-                          : 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-gray-200'
-                      }`}
+                      className="px-3.5 py-2 rounded-lg text-xs font-medium border border-line bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text shadow-xs transition-colors"
                     >
                       Retry
                     </button>
@@ -1076,44 +849,28 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             onToggleRls={handleToggleRls}
           />
         ) : activeTab === 'ddl' ? (
-          <div
-            className={`border rounded-lg overflow-hidden flex flex-col h-full shadow-sm ${
-              isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
-            }`}
-          >
-            <div
-              className={`flex items-center justify-between px-3 py-2 border-b text-xs font-semibold ${
-                isDark ? 'bg-gray-900 border-gray-800 text-gray-300' : 'bg-gray-100 border-gray-200 text-gray-700'
-              }`}
-            >
+          <div className="border border-line bg-panel rounded-lg overflow-hidden flex flex-col h-full shadow-sm">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-line bg-sidebar text-text text-xs font-semibold">
               <span>SQL Schema Definition (DDL)</span>
               <button
                 type="button"
                 onClick={() => handleCopyDdl(false)}
-                className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded text-[11px] transition-colors border ${
-                  isDark
-                    ? 'border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-200'
-                    : 'border-gray-300 bg-white hover:bg-gray-50 text-gray-700'
-                }`}
+                className="inline-flex items-center space-x-1 px-2.5 py-1 rounded text-[11px] transition-colors border border-line bg-panel hover:bg-black/5 dark:hover:bg-white/10 text-text"
               >
                 {copiedDdl ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
                     <span>Copied!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5 text-gray-400" />
+                    <Copy className="w-3.5 h-3.5 text-muted" />
                     <span>Copy SQL</span>
                   </>
                 )}
               </button>
             </div>
-            <pre
-              className={`p-4 font-mono text-xs overflow-auto flex-1 select-text ${
-                isDark ? 'text-blue-300 bg-gray-950/60' : 'text-blue-900 bg-gray-50'
-              }`}
-            >
+            <pre className="p-4 font-mono text-xs overflow-auto flex-1 select-text bg-grid text-blue-600 dark:text-blue-300">
               {fullDdl}
             </pre>
           </div>
@@ -1123,63 +880,41 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
       {/* DDL Standalone Modal */}
       {isDdlModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div
-            className={`w-full max-w-2xl rounded-xl border shadow-2xl flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150 ${
-              isDark ? 'bg-gray-900 border-gray-800 text-gray-100' : 'bg-white border-gray-200 text-gray-900'
-            }`}
-          >
-            <div
-              className={`flex items-center justify-between px-4 py-3 border-b ${
-                isDark ? 'border-gray-800' : 'border-gray-200'
-              }`}
-            >
+          <div className="w-full max-w-2xl rounded-xl border border-line bg-panel text-text shadow-2xl flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
               <div className="flex items-center space-x-2">
-                <Code className="w-4 h-4 text-blue-400" />
+                <Code className="w-4 h-4 text-blue-500" />
                 <h3 className="text-sm font-semibold">Table DDL — {tableName}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsDdlModalOpen(false)}
-                className={`p-1 rounded transition-colors ${
-                  isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
-                }`}
+                className="p-1 rounded transition-colors hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-text"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="flex-1 p-4 overflow-auto">
-              <pre
-                className={`p-4 rounded font-mono text-xs overflow-auto select-text border leading-relaxed ${
-                  isDark ? 'bg-gray-950 border-gray-800 text-blue-300' : 'bg-gray-50 border-gray-200 text-blue-900'
-                }`}
-              >
+              <pre className="p-4 rounded font-mono text-xs overflow-auto select-text border border-line bg-grid text-blue-600 dark:text-blue-300 leading-relaxed">
                 {fullDdl}
               </pre>
             </div>
 
-            <div
-              className={`flex items-center justify-end space-x-2 px-4 py-3 border-t ${
-                isDark ? 'border-gray-800 bg-gray-900/80' : 'border-gray-200 bg-gray-50'
-              }`}
-            >
+            <div className="flex items-center justify-end space-x-2 px-4 py-3 border-t border-line bg-sidebar">
               <button
                 type="button"
                 onClick={() => handleCopyDdl(true)}
-                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
-                  isDark
-                    ? 'border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-200'
-                    : 'border-gray-300 bg-white hover:bg-gray-100 text-gray-700'
-                }`}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-medium border border-line bg-panel hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
               >
                 {ddlModalCopied ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
                     <span>Copied!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5 text-gray-400" />
+                    <Copy className="w-3.5 h-3.5 text-muted" />
                     <span>Copy SQL</span>
                   </>
                 )}

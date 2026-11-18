@@ -260,12 +260,10 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
       {rlsPolicies.length === 0 ? (
         <div
           data-testid="no-policies-view"
-          className={`p-8 text-center border rounded-lg ${
-            isDark ? 'border-gray-800 bg-gray-900/40 text-gray-400' : 'border-gray-200 bg-white text-gray-500'
-          }`}
+          className="p-8 text-center border border-line bg-panel text-muted rounded-lg"
         >
-          <ShieldAlert className="w-8 h-8 mx-auto mb-2 opacity-30 text-amber-400" />
-          <h4 className="font-semibold text-xs mb-1">No Security Policies Defined</h4>
+          <ShieldAlert className="w-8 h-8 mx-auto mb-2 opacity-30 text-amber-500" />
+          <h4 className="font-semibold text-xs text-text mb-1">No Security Policies Defined</h4>
           <p className="text-[11px] max-w-sm mx-auto mb-3 opacity-80">
             {rlsEnabled
               ? 'Because RLS is enabled without any policy, queries executed by non-superusers will return zero rows.'
@@ -282,16 +280,8 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
           </button>
         </div>
       ) : (
-        <div
-          className={`border rounded-lg overflow-hidden ${
-            isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
-          }`}
-        >
-          <div
-            className={`flex items-center justify-between px-3 py-2 border-b text-xs font-semibold ${
-              isDark ? 'bg-gray-900 border-gray-800 text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-700'
-            }`}
-          >
+        <div className="border border-line bg-panel rounded-lg overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-line bg-sidebar text-text text-xs font-semibold">
             <span>Configured Policies ({rlsPolicies.length})</span>
             <button
               type="button"
@@ -306,11 +296,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
 
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr
-                className={`border-b text-[11px] font-medium ${
-                  isDark ? 'bg-gray-900/80 border-gray-800 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-500'
-                }`}
-              >
+              <tr className="border-b border-line bg-sidebar text-muted text-[11px] font-medium">
                 <th className="py-2 px-3">Policy Name</th>
                 <th className="py-2 px-3 w-20 text-center">Command</th>
                 <th className="py-2 px-3 w-32">Roles</th>
@@ -319,38 +305,36 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                 <th className="py-2 px-3 w-16 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className={`divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-100'}`}>
+            <tbody className="divide-y divide-line bg-grid">
               {rlsPolicies.map((p) => (
                 <tr
                   key={p.name}
                   data-testid={`policy-row-${p.name}`}
-                  className={`transition-colors ${
-                    isDark ? 'hover:bg-gray-800/40 text-gray-200' : 'hover:bg-gray-50/80 text-gray-900'
-                  }`}
+                  className="transition-colors hover:bg-black/5 dark:hover:bg-white/5 text-text"
                 >
                   <td className="py-2 px-3 font-medium font-mono text-xs text-blue-600 dark:text-blue-300">
                     {p.name}
                   </td>
                   <td className="py-2 px-3 text-center">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-sidebar text-text border border-line">
                       {p.command}
                     </span>
                   </td>
-                  <td className="py-2 px-3 text-gray-700 dark:text-gray-300 font-mono text-[11px]">
+                  <td className="py-2 px-3 text-text font-mono text-[11px]">
                     {p.roles.join(', ')}
                   </td>
                   <td className="py-2 px-3 font-mono text-[11px]">
                     {p.usingExpr ? (
-                      <span className="text-emerald-700 dark:text-emerald-300/90 font-medium">{p.usingExpr}</span>
+                      <span className="text-emerald-600 dark:text-emerald-300 font-medium">{p.usingExpr}</span>
                     ) : (
-                      <span className="text-gray-400 dark:text-gray-600">-</span>
+                      <span className="text-muted">-</span>
                     )}
                   </td>
                   <td className="py-2 px-3 font-mono text-[11px]">
                     {p.checkExpr ? (
-                      <span className="text-blue-700 dark:text-blue-300/90 font-medium">{p.checkExpr}</span>
+                      <span className="text-blue-600 dark:text-blue-300 font-medium">{p.checkExpr}</span>
                     ) : (
-                      <span className="text-gray-400 dark:text-gray-600">-</span>
+                      <span className="text-muted">-</span>
                     )}
                   </td>
                   <td className="py-2 px-3 text-right">
@@ -359,7 +343,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                       data-testid={`drop-policy-btn-${p.name}`}
                       onClick={() => setDropPolicyTarget(p)}
                       title="Drop Policy"
-                      className="p-1 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      className="p-1 rounded text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -378,24 +362,16 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div
-            className={`w-full max-w-lg rounded-lg shadow-xl border overflow-hidden ${
-              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-            }`}
-          >
-            <div
-              className={`flex items-center justify-between px-4 py-3 border-b ${
-                isDark ? 'border-gray-800 bg-gray-850' : 'border-gray-200 bg-gray-50'
-              }`}
-            >
+          <div className="w-full max-w-lg rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
               <div className="flex items-center space-x-2">
-                <Shield className="w-4 h-4 text-emerald-400" />
+                <Shield className="w-4 h-4 text-emerald-500" />
                 <h3 className="text-sm font-semibold">Add RLS Policy to {tableName}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setAddOpen(false)}
-                className="p-1 rounded text-gray-400 hover:text-gray-200"
+                className="p-1 rounded text-muted hover:text-text"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -404,7 +380,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
             <form onSubmit={handleAddPolicySubmit} className="p-4 space-y-3.5 text-xs">
               <div>
                 <label className="block font-medium mb-1">
-                  Policy Name <span className="text-red-400">*</span>
+                  Policy Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -413,9 +389,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                   placeholder="e.g. policy_user_isolation, tenant_access"
                   value={newPolicyName}
                   onChange={(e) => setNewPolicyName(e.target.value)}
-                  className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-emerald-500 ${
-                    isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  }`}
+                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -425,9 +399,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                   <select
                     value={newPolicyCmd}
                     onChange={(e) => setNewPolicyCmd(e.target.value as PolicyCommand)}
-                    className={`w-full px-2.5 py-1.5 rounded border text-xs outline-none focus:border-emerald-500 ${
-                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                    }`}
+                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs outline-none focus:border-emerald-500"
                   >
                     <option value="ALL">ALL (SELECT, INSERT, UPDATE, DELETE)</option>
                     <option value="SELECT">SELECT</option>
@@ -444,9 +416,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                     placeholder="PUBLIC or authenticated, anon"
                     value={newPolicyRoles}
                     onChange={(e) => setNewPolicyRoles(e.target.value)}
-                    className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-emerald-500 ${
-                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                    }`}
+                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
@@ -461,9 +431,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                   placeholder="e.g. user_id = current_user OR auth.uid() = user_id"
                   value={newPolicyUsingExpr}
                   onChange={(e) => setNewPolicyUsingExpr(e.target.value)}
-                  className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-emerald-500 ${
-                    isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  }`}
+                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -476,31 +444,27 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                   placeholder="e.g. user_id = current_user"
                   value={newPolicyCheckExpr}
                   onChange={(e) => setNewPolicyCheckExpr(e.target.value)}
-                  className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-emerald-500 ${
-                    isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  }`}
+                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-emerald-500"
                 />
               </div>
 
               {addPolicyPreviewSql && (
                 <div>
-                  <label className="block font-medium mb-1 text-gray-400">SQL Preview</label>
+                  <label className="block font-medium mb-1 text-muted">SQL Preview</label>
                   <div
                     data-testid="add-policy-preview-sql"
-                    className="p-2 rounded bg-gray-950 border border-gray-800 font-mono text-[11px] text-emerald-300 select-text break-all"
+                    className="p-2 rounded bg-sidebar border border-line font-mono text-[11px] text-emerald-600 dark:text-emerald-300 select-text break-all"
                   >
                     {addPolicyPreviewSql}
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-800">
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-line">
                 <button
                   type="button"
                   onClick={() => setAddOpen(false)}
-                  className={`px-3 py-1.5 rounded transition-colors ${
-                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  className="px-3 py-1.5 rounded transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   Cancel
                 </button>
@@ -525,26 +489,22 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div
-            className={`w-full max-w-sm rounded-lg shadow-xl border overflow-hidden ${
-              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-            }`}
-          >
+          <div className="w-full max-w-sm rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
             <div className="p-4 space-y-3 text-xs">
-              <div className="flex items-center space-x-2 text-red-400 font-semibold text-sm">
+              <div className="flex items-center space-x-2 text-red-500 font-semibold text-sm">
                 <ShieldAlert className="w-5 h-5 flex-shrink-0" />
                 <h3 className="text-sm font-semibold">Drop RLS Policy</h3>
               </div>
 
-              <p className="text-gray-300">
+              <p className="text-muted">
                 Are you sure you want to drop policy{' '}
-                <strong className="text-white font-mono bg-red-950/60 px-1 py-0.5 rounded border border-red-900/60">
+                <strong className="text-red-500 font-mono bg-red-500/10 px-1 py-0.5 rounded border border-red-500/30">
                   {dropPolicyTarget.name}
                 </strong>{' '}
-                from table <strong className="font-mono text-white">{tableName}</strong>?
+                from table <strong className="font-mono text-text">{tableName}</strong>?
               </p>
 
-              <div className="p-2 rounded bg-gray-950 border border-gray-800 font-mono text-[11px] text-red-300">
+              <div className="p-2 rounded bg-sidebar border border-line font-mono text-[11px] text-red-500">
                 {buildDropPolicySql(dropPolicyTarget.name, tableName, schemaName, driver)}
               </div>
 
@@ -552,9 +512,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                 <button
                   type="button"
                   onClick={() => setDropPolicyTarget(null)}
-                  className={`px-3 py-1.5 rounded transition-colors ${
-                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  className="px-3 py-1.5 rounded transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   Cancel
                 </button>

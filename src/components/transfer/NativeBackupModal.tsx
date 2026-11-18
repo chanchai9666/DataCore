@@ -183,12 +183,12 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-xl flex flex-col overflow-hidden max-h-[90vh]">
+      <div className="bg-panel rounded-lg shadow-2xl border border-line text-text w-full max-w-xl flex flex-col overflow-hidden max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-sidebar">
           <div className="flex items-center space-x-2">
             <Download className="w-5 h-5 text-blue-500" />
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            <h2 className="text-base font-semibold text-text">
               {t('transfer.nativeBackupTitle', 'Native Database Backup')}
             </h2>
             {activeConn?.driver && <DbBadge driver={activeConn.driver} />}
@@ -197,7 +197,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={isRunning}
-            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded disabled:opacity-40"
+            className="p-1 text-muted hover:text-text rounded disabled:opacity-40"
           >
             <X className="w-4 h-4" />
           </button>
@@ -207,7 +207,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {/* CLI Status Banner */}
           {checkingCli ? (
-            <div className="flex items-center space-x-2 text-xs text-gray-500 animate-pulse">
+            <div className="flex items-center space-x-2 text-xs text-muted animate-pulse">
               <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
               <span>Checking database CLI client tools...</span>
             </div>
@@ -239,7 +239,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
           {/* Form Options */}
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-xs font-medium text-text mb-1">
                 Output File Destination
               </label>
               <div className="flex space-x-2">
@@ -249,13 +249,13 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
                   onChange={(e) => setOutputPath(e.target.value)}
                   disabled={isRunning}
                   placeholder="/path/to/backup.dump"
-                  className="flex-1 px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 font-mono"
+                  className="flex-1 px-3 py-1.5 text-xs bg-grid border border-line text-text rounded focus:outline-none focus:border-blue-500 font-mono"
                 />
                 <button
                   type="button"
                   onClick={handlePickFile}
                   disabled={isRunning}
-                  className="px-2.5 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded flex items-center space-x-1"
+                  className="px-2.5 py-1.5 text-xs font-medium bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text border border-line rounded flex items-center space-x-1"
                 >
                   <FolderOpen className="w-3.5 h-3.5" />
                   <span>Browse</span>
@@ -265,14 +265,14 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
 
             {activeConn?.driver === 'postgres' && (
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-xs font-medium text-text mb-1">
                   Format
                 </label>
                 <select
                   value={format}
                   onChange={(e) => setFormat(e.target.value)}
                   disabled={isRunning}
-                  className="w-full px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-1.5 text-xs bg-grid border border-line text-text rounded focus:outline-none focus:border-blue-500"
                 >
                   <option value="custom">Custom Archive (-Fc - recommended for pg_restore)</option>
                   <option value="plain">Plain SQL Script (-Fp)</option>
@@ -283,7 +283,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
             )}
 
             {activeConn?.driver === 'postgres' && format === 'directory' && (
-              <div className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300">
+              <div className="flex items-center space-x-2 text-xs text-text">
                 <span>Parallel Jobs (-j):</span>
                 <input
                   type="number"
@@ -292,13 +292,13 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
                   value={parallelJobs}
                   disabled={isRunning}
                   onChange={(e) => setParallelJobs(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-16 px-2 py-1 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
+                  className="w-16 px-2 py-1 bg-grid border border-line text-text rounded focus:outline-none focus:border-blue-500"
                 />
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-3 pt-1">
-              <label className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+              <label className="flex items-center space-x-2 text-xs text-text cursor-pointer">
                 <input
                   type="checkbox"
                   checked={schemaOnly}
@@ -309,7 +309,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
                 <span>Schema only (No data)</span>
               </label>
 
-              <label className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+              <label className="flex items-center space-x-2 text-xs text-text cursor-pointer">
                 <input
                   type="checkbox"
                   checked={dataOnly}
@@ -320,7 +320,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
                 <span>Data only (No DDL)</span>
               </label>
 
-              <label className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+              <label className="flex items-center space-x-2 text-xs text-text cursor-pointer">
                 <input
                   type="checkbox"
                   checked={clean}
@@ -332,7 +332,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
               </label>
 
               {activeConn?.driver === 'postgres' && (
-                <div className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300">
+                <div className="flex items-center space-x-2 text-xs text-text">
                   <span>Compression (0-9):</span>
                   <input
                     type="number"
@@ -341,7 +341,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
                     value={compression}
                     onChange={(e) => setCompression(Number(e.target.value))}
                     disabled={isRunning}
-                    className="w-14 px-2 py-0.5 text-xs bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded"
+                    className="w-14 px-2 py-0.5 text-xs bg-grid border border-line text-text rounded"
                   />
                 </div>
               )}
@@ -351,10 +351,10 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
           {(isRunning || isSuccess) && (
             <div
               data-testid="native-backup-progress"
-              className="p-3 bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded space-y-1.5"
+              className="p-3 bg-sidebar border border-line rounded space-y-1.5"
             >
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-gray-700 dark:text-gray-300">
+                <span className="font-medium text-text">
                   {isSuccess
                     ? t('transfer.backupComplete', 'Backup Completed')
                     : t('transfer.backingUp', 'Running native backup...')}
@@ -362,13 +362,13 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
                 <span
                   data-testid="native-backup-percent"
                   className={`font-mono font-semibold ${
-                    isSuccess ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'
+                    isSuccess ? 'text-emerald-500' : 'text-blue-500'
                   }`}
                 >
                   {progressPct}%
                 </span>
               </div>
-              <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-grid rounded-full overflow-hidden">
                 <div
                   className={`h-full transition-all duration-200 ${
                     isSuccess ? 'bg-emerald-500' : 'bg-blue-500'
@@ -382,8 +382,8 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
           {/* Terminal Logs Output */}
           {logs.length > 0 && (
             <div>
-              <div className="flex items-center space-x-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                <Terminal className="w-3.5 h-3.5 text-blue-400" />
+              <div className="flex items-center space-x-1.5 text-xs font-semibold text-text mb-1">
+                <Terminal className="w-3.5 h-3.5 text-blue-500" />
                 <span>Process Output & Progress</span>
               </div>
               <div
@@ -400,7 +400,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
           )}
 
           {error && (
-            <div className="p-2.5 rounded bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 text-xs text-red-600 dark:text-red-400 flex items-start space-x-2">
+            <div className="p-2.5 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-500 flex items-start space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -408,7 +408,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+        <div className="flex items-center justify-between px-5 py-3 border-t border-line bg-sidebar">
           <div>
             {isRunning && (
               <button
@@ -425,7 +425,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={isRunning}
-              className="px-3.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-40"
+              className="px-3.5 py-1.5 text-xs font-medium text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors disabled:opacity-40"
             >
               {isSuccess ? 'Done' : 'Close'}
             </button>

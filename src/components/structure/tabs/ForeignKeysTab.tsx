@@ -35,7 +35,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
   tableName,
   schemaName,
   driver = 'postgres',
-  isDark,
+  isDark: _isDark,
   foreignKeys,
   columns,
   indexes,
@@ -287,24 +287,14 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
           </button>
         </div>
       ) : filteredForeignKeys.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-40 text-gray-400 space-y-2">
+        <div className="flex flex-col items-center justify-center h-40 text-muted space-y-2">
           <span className="text-xs">No foreign keys match &quot;{filterText}&quot;</span>
         </div>
       ) : (
-        <div
-          className={`border rounded-lg overflow-hidden shadow-xs ${
-            isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
-          }`}
-        >
+        <div className="border border-line bg-panel rounded-lg overflow-hidden shadow-xs">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr
-                className={`border-b font-medium ${
-                  isDark
-                    ? 'bg-gray-900/90 border-gray-800 text-gray-400'
-                    : 'bg-gray-100/90 border-gray-200 text-gray-600'
-                }`}
-              >
+              <tr className="border-b border-line bg-sidebar text-muted font-medium">
                 <th className="py-2.5 px-3 w-12 text-center">#</th>
                 <th className="py-2.5 px-3">Constraint Name</th>
                 <th className="py-2.5 px-3">Local Column</th>
@@ -314,18 +304,14 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                 <th className="py-2.5 px-3 w-24 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className={`divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-100'}`}>
+            <tbody className="divide-y divide-line bg-grid">
               {filteredForeignKeys.map((fk, i) => (
                 <tr
                   key={fk.name}
                   data-testid={`fk-row-${fk.name}`}
-                  className={`transition-colors ${
-                    isDark
-                      ? 'hover:bg-gray-800/40 text-gray-200'
-                      : 'hover:bg-gray-50/80 text-gray-900'
-                  }`}
+                  className="transition-colors hover:bg-black/5 dark:hover:bg-white/5 text-text"
                 >
-                  <td className="py-2 px-3 text-center text-gray-400 dark:text-gray-500 font-mono text-[11px]">
+                  <td className="py-2 px-3 text-center text-muted font-mono text-[11px]">
                     {i + 1}
                   </td>
                   <td className="py-2 px-3 font-medium flex items-center space-x-1.5">
@@ -335,19 +321,19 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                   <td className="py-2 px-3 font-mono text-xs text-blue-600 dark:text-blue-400 font-medium">
                     {fk.columnNames.join(', ')}
                   </td>
-                  <td className="py-2 px-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                  <td className="py-2 px-3 font-mono text-xs text-text">
                     <span className="font-semibold text-emerald-600 dark:text-emerald-400 mr-1">
                       {fk.foreignTableName}
                     </span>
                     <span>({fk.foreignColumnNames.join(', ')})</span>
                   </td>
                   <td className="py-2 px-3 text-center">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-sidebar text-text border border-line">
                       {fk.onDelete || 'NO ACTION'}
                     </span>
                   </td>
                   <td className="py-2 px-3 text-center">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-sidebar text-text border border-line">
                       {fk.onUpdate || 'NO ACTION'}
                     </span>
                   </td>
@@ -357,7 +343,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                       data-testid={`drop-fk-btn-${fk.name}`}
                       onClick={() => setDropFkTarget(fk)}
                       title="Drop Foreign Key"
-                      className="p-1 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      className="p-1 rounded text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -376,24 +362,16 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div
-            className={`w-full max-w-lg rounded-lg shadow-xl border overflow-hidden ${
-              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-            }`}
-          >
-            <div
-              className={`flex items-center justify-between px-4 py-3 border-b ${
-                isDark ? 'border-gray-800 bg-gray-850' : 'border-gray-200 bg-gray-50'
-              }`}
-            >
+          <div className="w-full max-w-lg rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
               <div className="flex items-center space-x-2">
-                <Link2 className="w-4 h-4 text-blue-400" />
+                <Link2 className="w-4 h-4 text-blue-500" />
                 <h3 className="text-sm font-semibold">Add Foreign Key to {tableName}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setAddOpen(false)}
-                className="p-1 rounded text-gray-400 hover:text-gray-200"
+                className="p-1 rounded text-muted hover:text-text"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -401,7 +379,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
 
             <form onSubmit={handleAddFkSubmit} className="p-4 space-y-3.5 text-xs">
               {driver?.toLowerCase().includes('sqlite') && (
-                <div data-testid="sqlite-fk-rebuild-notice" className="p-2.5 rounded bg-blue-950/40 border border-blue-800 text-[11px] text-blue-200">
+                <div data-testid="sqlite-fk-rebuild-notice" className="p-2.5 rounded bg-blue-500/10 border border-blue-500/30 text-[11px] text-blue-600 dark:text-blue-200">
                   ℹ️ <strong>SQLite Table Rebuild:</strong> SQLite does not support <code className="font-mono">ALTER TABLE ADD CONSTRAINT</code>. A safe table rebuild migration will be executed to recreate the table with the new foreign key.
                 </div>
               )}
@@ -413,25 +391,21 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                   placeholder={`fk_${tableName}_col`}
                   value={newFkName}
                   onChange={(e) => setNewFkName(e.target.value)}
-                  className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-blue-500 ${
-                    isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  }`}
+                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-medium mb-1">
-                    Local Column <span className="text-red-400">*</span>
+                    Local Column <span className="text-red-500">*</span>
                   </label>
                   <select
                     required
                     data-testid="new-fk-col-select"
                     value={newFkCol}
                     onChange={(e) => setNewFkCol(e.target.value)}
-                    className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-blue-500 ${
-                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                    }`}
+                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
                   >
                     <option value="">Select column...</option>
                     {columns.map((c) => (
@@ -444,7 +418,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
 
                 <div>
                   <label className="block font-medium mb-1">
-                    Referenced Table <span className="text-red-400">*</span>
+                    Referenced Table <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -453,16 +427,14 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                     placeholder="e.g. users, customers"
                     value={newFkForeignTable}
                     onChange={(e) => setNewFkForeignTable(e.target.value)}
-                    className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-blue-500 ${
-                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                    }`}
+                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block font-medium mb-1">
-                  Referenced Column <span className="text-red-400">*</span>
+                  Referenced Column <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -471,9 +443,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                   placeholder="e.g. id"
                   value={newFkForeignCol}
                   onChange={(e) => setNewFkForeignCol(e.target.value)}
-                  className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-blue-500 ${
-                    isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  }`}
+                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -483,9 +453,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                   <select
                     value={newFkOnDelete}
                     onChange={(e) => setNewFkOnDelete(e.target.value)}
-                    className={`w-full px-2.5 py-1.5 rounded border text-xs outline-none focus:border-blue-500 ${
-                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                    }`}
+                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs outline-none focus:border-blue-500"
                   >
                     <option value="NO ACTION">NO ACTION</option>
                     <option value="CASCADE">CASCADE</option>
@@ -499,9 +467,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                   <select
                     value={newFkOnUpdate}
                     onChange={(e) => setNewFkOnUpdate(e.target.value)}
-                    className={`w-full px-2.5 py-1.5 rounded border text-xs outline-none focus:border-blue-500 ${
-                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                    }`}
+                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs outline-none focus:border-blue-500"
                   >
                     <option value="NO ACTION">NO ACTION</option>
                     <option value="CASCADE">CASCADE</option>
@@ -513,23 +479,21 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
 
               {addFkPreviewSql && (
                 <div>
-                  <label className="block font-medium mb-1 text-gray-400">SQL Preview</label>
+                  <label className="block font-medium mb-1 text-muted">SQL Preview</label>
                   <div
                     data-testid="add-fk-preview-sql"
-                    className="p-2 rounded bg-gray-950 border border-gray-800 font-mono text-[11px] text-blue-300 select-text break-all"
+                    className="p-2 rounded bg-sidebar border border-line font-mono text-[11px] text-blue-600 dark:text-blue-300 select-text break-all"
                   >
                     {addFkPreviewSql}
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-800">
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-line">
                 <button
                   type="button"
                   onClick={() => setAddOpen(false)}
-                  className={`px-3 py-1.5 rounded transition-colors ${
-                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  className="px-3 py-1.5 rounded transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   Cancel
                 </button>
@@ -554,26 +518,22 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div
-            className={`w-full max-w-sm rounded-lg shadow-xl border overflow-hidden ${
-              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-            }`}
-          >
+          <div className="w-full max-w-sm rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
             <div className="p-4 space-y-3 text-xs">
-              <div className="flex items-center space-x-2 text-red-400 font-semibold text-sm">
+              <div className="flex items-center space-x-2 text-red-500 font-semibold text-sm">
                 <ShieldAlert className="w-5 h-5 flex-shrink-0" />
                 <h3 className="text-sm font-semibold">Drop Foreign Key</h3>
               </div>
 
-              <p className="text-gray-300">
+              <p className="text-muted">
                 Are you sure you want to drop foreign key{' '}
-                <strong className="text-white font-mono bg-red-950/60 px-1 py-0.5 rounded border border-red-900/60">
+                <strong className="text-red-500 font-mono bg-red-500/10 px-1 py-0.5 rounded border border-red-500/30">
                   {dropFkTarget.name}
                 </strong>{' '}
-                from table <strong className="font-mono text-white">{tableName}</strong>?
+                from table <strong className="font-mono text-text">{tableName}</strong>?
               </p>
 
-              <div className="p-2 rounded bg-gray-950 border border-gray-800 font-mono text-[11px] text-red-300">
+              <div className="p-2 rounded bg-sidebar border border-line font-mono text-[11px] text-red-500">
                 {dropFkPreviewSql}
               </div>
 
@@ -581,9 +541,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                 <button
                   type="button"
                   onClick={() => setDropFkTarget(null)}
-                  className={`px-3 py-1.5 rounded transition-colors ${
-                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  className="px-3 py-1.5 rounded transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   Cancel
                 </button>

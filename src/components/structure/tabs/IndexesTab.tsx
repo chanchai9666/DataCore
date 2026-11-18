@@ -27,7 +27,7 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
   tableName,
   schemaName,
   driver = 'postgres',
-  isDark,
+  isDark: _isDark,
   indexes,
   columns,
   filterText,
@@ -190,20 +190,10 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
           <span className="text-xs">No indexes match &quot;{filterText}&quot;</span>
         </div>
       ) : (
-        <div
-          className={`border rounded-lg overflow-hidden shadow-xs ${
-            isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
-          }`}
-        >
+        <div className="border border-line bg-panel rounded-lg overflow-hidden shadow-xs">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr
-                className={`border-b font-medium ${
-                  isDark
-                    ? 'bg-gray-900/90 border-gray-800 text-gray-400'
-                    : 'bg-gray-100/90 border-gray-200 text-gray-600'
-                }`}
-              >
+              <tr className="border-b border-line bg-sidebar text-muted font-medium">
                 <th className="py-2.5 px-3 w-12 text-center">#</th>
                 <th className="py-2.5 px-3">Index Name</th>
                 <th className="py-2.5 px-3">Indexed Columns</th>
@@ -212,18 +202,14 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
                 <th className="py-2.5 px-3 w-24 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className={`divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-100'}`}>
+            <tbody className="divide-y divide-line bg-grid">
               {filteredIndexes.map((idx, i) => (
                 <tr
                   key={idx.name}
                   data-testid={`index-row-${idx.name}`}
-                  className={`transition-colors ${
-                    isDark
-                      ? 'hover:bg-gray-800/40 text-gray-200'
-                      : 'hover:bg-gray-50/80 text-gray-900'
-                  }`}
+                  className="transition-colors hover:bg-black/5 dark:hover:bg-white/5 text-text"
                 >
-                  <td className="py-2 px-3 text-center text-gray-400 dark:text-gray-500 font-mono text-[11px]">
+                  <td className="py-2 px-3 text-center text-muted font-mono text-[11px]">
                     {i + 1}
                   </td>
 
@@ -238,24 +224,24 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
                     <span className="font-mono text-xs">{idx.name}</span>
                   </td>
 
-                  <td className="py-2 px-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                  <td className="py-2 px-3 font-mono text-xs text-text">
                     {idx.columns.join(', ')}
                   </td>
 
                   <td className="py-2 px-3 text-center">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-sidebar text-text border border-line">
                       {idx.indexType || 'BTREE'}
                     </span>
                   </td>
 
                   <td className="py-2 px-3 text-center space-x-1">
                     {idx.isPrimary && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shadow-2xs">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/40 shadow-2xs">
                         PK
                       </span>
                     )}
                     {idx.isUnique && !idx.isPrimary && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-2xs">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/15 text-blue-600 dark:text-blue-300 border border-blue-500/40 shadow-2xs">
                         UNIQUE
                       </span>
                     )}
@@ -268,7 +254,7 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
                         data-testid={`drop-index-btn-${idx.name}`}
                         onClick={() => setDropIndexTarget(idx)}
                         title="Drop Index"
-                        className="p-1 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        className="p-1 rounded text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -288,24 +274,16 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div
-            className={`w-full max-w-md rounded-lg shadow-xl border overflow-hidden ${
-              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-            }`}
-          >
-            <div
-              className={`flex items-center justify-between px-4 py-3 border-b ${
-                isDark ? 'border-gray-800 bg-gray-850' : 'border-gray-200 bg-gray-50'
-              }`}
-            >
+          <div className="w-full max-w-md rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
               <div className="flex items-center space-x-2">
-                <Plus className="w-4 h-4 text-emerald-400" />
+                <Plus className="w-4 h-4 text-emerald-500" />
                 <h3 className="text-sm font-semibold">Add New Index</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setAddOpen(false)}
-                className="p-1 rounded text-gray-400 hover:text-gray-200"
+                className="p-1 rounded text-muted hover:text-text"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -313,8 +291,8 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
 
             <form onSubmit={handleAddIndexSubmit} className="p-4 space-y-3.5 text-xs">
               <div>
-                <label className="block text-gray-400 mb-1 font-medium">
-                  Index Name <span className="text-red-400">*</span>
+                <label className="block text-muted mb-1 font-medium">
+                  Index Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -323,17 +301,15 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
                   value={newIndexName}
                   onChange={(e) => setNewIndexName(e.target.value)}
                   data-testid="new-index-name-input"
-                  className={`w-full px-2.5 py-1.5 rounded border font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                    isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  }`}
+                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-1 font-medium">
-                  Indexed Columns <span className="text-red-400">*</span>
+                <label className="block text-muted mb-1 font-medium">
+                  Indexed Columns <span className="text-red-500">*</span>
                 </label>
-                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded border-gray-800 bg-gray-950/40">
+                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded border-line bg-sidebar">
                   {columns.map((col) => {
                     const isSelected = newIndexCols.includes(col.name);
                     return (
@@ -341,8 +317,8 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
                         key={col.name}
                         className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded cursor-pointer border text-xs transition-colors ${
                           isSelected
-                            ? 'bg-blue-950 text-blue-300 border-blue-600 font-semibold'
-                            : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-600'
+                            ? 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border-blue-500/50 font-semibold'
+                            : 'bg-panel text-muted border-line hover:text-text'
                         }`}
                       >
                         <input
@@ -366,14 +342,12 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-1 font-medium">Index Type / Structure</label>
+                <label className="block text-muted mb-1 font-medium">Index Type / Structure</label>
                 <select
                   value={newIndexType}
                   onChange={(e) => setNewIndexType(e.target.value as IndexType)}
                   data-testid="new-index-type-select"
-                  className={`w-full px-2.5 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs ${
-                    isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  }`}
+                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
                 >
                   <option value="BTREE">B-Tree (Balanced Tree - General Purpose)</option>
                   <option value="HASH">Hash (Hash Table - Equality lookups O(1))</option>
@@ -389,36 +363,32 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
                   checked={newIndexUnique}
                   onChange={(e) => setNewIndexUnique(e.target.checked)}
                   data-testid="new-index-unique-checkbox"
-                  className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-0"
+                  className="rounded border-line bg-grid text-blue-500 focus:ring-0"
                 />
-                <label htmlFor="new-index-unique" className="text-gray-300 select-none cursor-pointer">
+                <label htmlFor="new-index-unique" className="text-text select-none cursor-pointer">
                   Unique Index (disallow duplicate values)
                 </label>
               </div>
 
               {addIndexPreviewSql && (
                 <div className="space-y-1">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">
                     SQL Preview
                   </div>
                   <pre
                     data-testid="add-index-preview-sql"
-                    className={`p-2 rounded font-mono text-[11px] overflow-x-auto border ${
-                      isDark ? 'bg-gray-950 border-gray-800 text-emerald-300' : 'bg-gray-100 border-gray-200 text-emerald-700'
-                    }`}
+                    className="p-2 rounded font-mono text-[11px] overflow-x-auto border border-line bg-sidebar text-emerald-600 dark:text-emerald-300"
                   >
                     {addIndexPreviewSql}
                   </pre>
                 </div>
               )}
 
-              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-800">
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-line">
                 <button
                   type="button"
                   onClick={() => setAddOpen(false)}
-                  className={`px-3 py-1.5 rounded transition-colors ${
-                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  className="px-3 py-1.5 rounded transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   Cancel
                 </button>
@@ -443,26 +413,22 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div
-            className={`w-full max-w-sm rounded-lg shadow-xl border overflow-hidden ${
-              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-            }`}
-          >
+          <div className="w-full max-w-sm rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
             <div className="p-4 space-y-3 text-xs">
-              <div className="flex items-center space-x-2 text-red-400 font-semibold text-sm">
+              <div className="flex items-center space-x-2 text-red-500 font-semibold text-sm">
                 <ShieldAlert className="w-5 h-5 flex-shrink-0" />
                 <h3 className="text-sm font-semibold">Drop Index</h3>
               </div>
 
-              <p className="text-gray-300">
+              <p className="text-muted">
                 Are you sure you want to drop index{' '}
-                <strong className="text-white font-mono bg-red-950/60 px-1 py-0.5 rounded border border-red-900/60">
+                <strong className="text-red-500 font-mono bg-red-500/10 px-1 py-0.5 rounded border border-red-500/30">
                   {dropIndexTarget.name}
                 </strong>{' '}
-                from table <strong className="font-mono text-white">{tableName}</strong>?
+                from table <strong className="font-mono text-text">{tableName}</strong>?
               </p>
 
-              <div className="p-2 rounded bg-gray-950 border border-gray-800 font-mono text-[11px] text-red-300">
+              <div className="p-2 rounded bg-sidebar border border-line font-mono text-[11px] text-red-500">
                 {buildDropIndexSql({
                   tableName,
                   schemaName,
@@ -475,9 +441,7 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
                 <button
                   type="button"
                   onClick={() => setDropIndexTarget(null)}
-                  className={`px-3 py-1.5 rounded transition-colors ${
-                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  className="px-3 py-1.5 rounded transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   Cancel
                 </button>

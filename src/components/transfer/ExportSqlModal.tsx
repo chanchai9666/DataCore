@@ -241,12 +241,12 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
       aria-labelledby="export-sql-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
     >
-      <div className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#333333] rounded-lg shadow-2xl w-full max-w-md overflow-hidden text-gray-800 dark:text-gray-200">
+      <div className="bg-panel border border-line rounded-lg shadow-2xl w-full max-w-md overflow-hidden text-text">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 dark:border-[#2d2d2d] bg-gray-50 dark:bg-[#252526]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-sidebar">
           <div className="flex items-center space-x-2">
-            <Download className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-            <h2 id="export-sql-title" className="text-sm font-semibold text-gray-900 dark:text-white">
+            <Download className="w-4 h-4 text-blue-500" />
+            <h2 id="export-sql-title" className="text-sm font-semibold text-text">
               {t('transfer.sqlExportTitle', 'Export as SQL Dump')}
             </h2>
           </div>
@@ -254,7 +254,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 rounded hover:bg-gray-200 dark:hover:bg-[#333333] transition-colors"
+            className="text-muted hover:text-text p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -282,7 +282,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
               <div>
                 <label
                   htmlFor="source-connection-select"
-                  className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1"
+                  className="block text-[11px] font-medium text-muted mb-1"
                 >
                   {t('transfer.connection', 'Connection:')}
                 </label>
@@ -292,7 +292,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                   value={selectedConnectionId}
                   onChange={(e) => handleConnectionChange(e.target.value)}
                   disabled={loading}
-                  className="w-full h-[34px] px-2.5 py-1.5 text-xs bg-white dark:bg-[#141414] border border-gray-300 dark:border-[#333333] rounded text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 truncate"
+                  className="w-full h-[34px] px-2.5 py-1.5 text-xs bg-grid border border-line rounded text-text focus:outline-none focus:border-blue-500 truncate"
                 >
                   {connOptions.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -305,7 +305,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
               <div>
                 <label
                   htmlFor="source-schema-input"
-                  className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1"
+                  className="block text-[11px] font-medium text-muted mb-1"
                 >
                   {isMysql ? t('transfer.dbSchema', 'Database / Schema:') : t('transfer.schema', 'Schema:')}
                 </label>
@@ -325,8 +325,8 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                   disabled={loading || isSqlite}
                   className={`w-full h-[34px] px-2.5 py-1.5 text-xs font-mono border rounded focus:outline-none transition-colors ${
                     isSqlite
-                      ? 'bg-gray-100 dark:bg-[#181818] border-gray-200 dark:border-[#2a2a2a] text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                      : 'bg-white dark:bg-[#141414] border-gray-300 dark:border-[#333333] text-gray-900 dark:text-gray-100 focus:border-blue-500'
+                      ? 'bg-sidebar border-line text-muted opacity-70 cursor-not-allowed'
+                      : 'bg-grid border-line text-text focus:border-blue-500'
                   }`}
                 />
               </div>
@@ -334,10 +334,10 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            <label className="block text-xs font-medium text-muted mb-1">
               {t('transfer.targetScope', 'Target Scope')}
             </label>
-            <div className="px-3 py-2 text-xs font-mono bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded text-gray-700 dark:text-gray-300">
+            <div className="px-3 py-2 text-xs font-mono bg-sidebar border border-line rounded text-text">
               {isSqlite
                 ? tableName || t('transfer.allDatabaseTables', 'All database tables')
                 : isMysql
@@ -357,7 +357,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+            <label className="block text-xs font-medium text-muted mb-2">
               {t('transfer.dumpContent', 'Dump Content')}
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -367,8 +367,8 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                 disabled={loading}
                 className={`flex flex-col items-center justify-center p-2.5 rounded border text-xs transition-colors ${
                   mode === 'both'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-200'
-                    : 'border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#141414] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#252526]'
+                    ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-300'
+                    : 'border-line bg-sidebar text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
                 }`}
               >
                 <FileCode className="w-4 h-4 mb-1" />
@@ -381,8 +381,8 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                 disabled={loading}
                 className={`flex flex-col items-center justify-center p-2.5 rounded border text-xs transition-colors ${
                   mode === 'structure'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-200'
-                    : 'border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#141414] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#252526]'
+                    ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-300'
+                    : 'border-line bg-sidebar text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
                 }`}
               >
                 <FileCode className="w-4 h-4 mb-1" />
@@ -395,8 +395,8 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                 disabled={loading}
                 className={`flex flex-col items-center justify-center p-2.5 rounded border text-xs transition-colors ${
                   mode === 'data'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-200'
-                    : 'border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#141414] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#252526]'
+                    ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-300'
+                    : 'border-line bg-sidebar text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5'
                 }`}
               >
                 <FileCode className="w-4 h-4 mb-1" />
@@ -412,9 +412,9 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
                 checked={includeDropTable}
                 onChange={(e) => setIncludeDropTable(e.target.checked)}
                 disabled={loading || mode === 'data'}
-                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-blue-600 focus:ring-blue-500"
+                className="w-4 h-4 rounded border-line bg-grid text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-xs text-gray-700 dark:text-gray-300">
+              <span className="text-xs text-text">
                 {t('transfer.includeDropTable', 'Include DROP TABLE IF EXISTS statement')}
               </span>
             </label>
@@ -423,27 +423,27 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
           {loading && (
             <div
               data-testid="export-sql-progress"
-              className="p-3 bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded space-y-2"
+              className="p-3 bg-sidebar border border-line rounded space-y-2"
             >
-              <div className="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
+              <div className="flex items-center justify-between text-xs text-text">
                 <span className="truncate pr-2">
                   {progress?.status || t('transfer.exporting', 'Exporting SQL dump...')}
                 </span>
                 <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
                   {progress?.total_rows !== undefined && progress.total_rows > 0 && (
-                    <span className="text-gray-500 dark:text-gray-400">
+                    <span className="text-muted">
                       {progress.current_row.toLocaleString()} / {progress.total_rows.toLocaleString()}
                     </span>
                   )}
                   <span
                     data-testid="export-sql-percent"
-                    className="font-semibold text-blue-600 dark:text-blue-400"
+                    className="font-semibold text-blue-500"
                   >
                     {progressPct}%
                   </span>
                 </div>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
+              <div className="w-full bg-grid h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-blue-500 h-full transition-all duration-150"
                   style={{ width: `${progressPct}%` }}
@@ -453,11 +453,11 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
           )}
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-200 dark:border-[#2d2d2d]">
+          <div className="flex items-center justify-end space-x-2 pt-3 border-t border-line">
             <button
               type="button"
               onClick={handleCancelExport}
-              className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 hover:bg-gray-200 dark:bg-[#2d2d2d] dark:hover:bg-[#383838] transition-colors"
+              className="px-3.5 py-1.5 text-xs font-medium rounded text-muted hover:text-text bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 border border-line transition-colors"
             >
               {t('common.cancel', 'Cancel')}
             </button>

@@ -363,29 +363,19 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
   return (
     <div>
       {columns.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 text-gray-400 space-y-2">
+        <div className="flex flex-col items-center justify-center h-48 text-muted space-y-2">
           <Layers className="w-10 h-10 opacity-30" />
           <span className="text-xs">No columns found in this table.</span>
         </div>
       ) : filteredColumns.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-40 text-gray-400 space-y-2">
+        <div className="flex flex-col items-center justify-center h-40 text-muted space-y-2">
           <span className="text-xs">No columns match &quot;{filterText}&quot;</span>
         </div>
       ) : (
-        <div
-          className={`border rounded-lg overflow-hidden shadow-xs ${
-            isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
-          }`}
-        >
+        <div className="border border-line bg-panel rounded-lg overflow-hidden shadow-xs">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr
-                className={`border-b font-medium ${
-                  isDark
-                    ? 'bg-gray-900/90 border-gray-800 text-gray-400'
-                    : 'bg-gray-100/90 border-gray-200 text-gray-600'
-                }`}
-              >
+              <tr className="border-b border-line bg-sidebar text-muted font-medium">
                 <th className="py-2.5 px-3 w-12 text-center">#</th>
                 <th className="py-2.5 px-3">Column Name</th>
                 <th className="py-2.5 px-3">Data Type</th>
@@ -395,18 +385,14 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                 <th className="py-2.5 px-3 w-24 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className={`divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-100'}`}>
+            <tbody className="divide-y divide-line bg-grid">
               {filteredColumns.map((col) => (
                 <tr
                   key={col.name}
                   data-testid={`column-row-${col.name}`}
-                  className={`transition-colors ${
-                    isDark
-                      ? 'hover:bg-gray-800/40 text-gray-200'
-                      : 'hover:bg-gray-50/80 text-gray-900'
-                  }`}
+                  className="transition-colors hover:bg-black/5 dark:hover:bg-white/5 text-text"
                 >
-                  <td className="py-2 px-3 text-center text-gray-400 dark:text-gray-500 font-mono text-[11px]">
+                  <td className="py-2 px-3 text-center text-muted font-mono text-[11px]">
                     {col.ordinalPosition}
                   </td>
 
@@ -420,13 +406,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                   </td>
 
                   <td className="py-2 px-3">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded font-mono text-[11px] font-medium ${
-                        isDark
-                          ? 'bg-blue-950/60 text-blue-300 border border-blue-900/50'
-                          : 'bg-blue-50 text-blue-700 border border-blue-200'
-                      }`}
-                    >
+                    <span className="inline-block px-2 py-0.5 rounded font-mono text-[11px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-500/30">
                       {col.dataType}
                     </span>
                   </td>
@@ -435,12 +415,8 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                     <span
                       className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
                         col.isNullable
-                          ? isDark
-                            ? 'bg-gray-800 text-gray-300'
-                            : 'bg-gray-100 text-gray-600 border border-gray-200'
-                          : isDark
-                          ? 'bg-amber-950/60 text-amber-300 border border-amber-900/40'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          ? 'bg-sidebar text-muted border border-line'
+                          : 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-500/30'
                       }`}
                     >
                       {col.isNullable ? 'YES' : 'NO'}
@@ -449,20 +425,20 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
 
                   <td className="py-2 px-3 font-mono text-xs">
                     {col.defaultValue ? (
-                      <span className="text-gray-900 dark:text-gray-300">{col.defaultValue}</span>
+                      <span className="text-text">{col.defaultValue}</span>
                     ) : (
-                      <span className="text-gray-400 dark:text-gray-500 italic">NULL</span>
+                      <span className="text-muted italic">NULL</span>
                     )}
                   </td>
 
                   <td className="py-2 px-3 text-center">
                     {col.isPrimaryKey ? (
-                      <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/80 shadow-2xs">
-                        <Key className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                      <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/40 shadow-2xs">
+                        <Key className="w-2.5 h-2.5 text-amber-500" />
                         <span>PK</span>
                       </span>
                     ) : (
-                      <span className="text-gray-400 dark:text-gray-600">-</span>
+                      <span className="text-muted">-</span>
                     )}
                   </td>
 
@@ -473,11 +449,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                         data-testid={`edit-column-btn-${col.name}`}
                         onClick={() => openEditModal(col)}
                         title="Edit Column"
-                        className={`p-1 rounded transition-colors ${
-                          isDark
-                            ? 'hover:bg-gray-700 text-gray-400 hover:text-blue-300'
-                            : 'hover:bg-gray-200 text-gray-500 hover:text-blue-600'
-                        }`}
+                        className="p-1 rounded transition-colors hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-blue-500"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -487,7 +459,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                         data-testid={`drop-column-btn-${col.name}`}
                         onClick={() => setDropColTarget(col)}
                         title="Drop Column"
-                        className="p-1 rounded hover:bg-red-950/60 text-gray-400 hover:text-red-400 transition-colors"
+                        className="p-1 rounded hover:bg-red-500/15 text-muted hover:text-red-500 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -507,18 +479,10 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div
-            className={`w-full max-w-md rounded-lg shadow-xl border overflow-hidden ${
-              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-            }`}
-          >
-            <div
-              className={`flex items-center justify-between px-4 py-3 border-b ${
-                isDark ? 'border-gray-800 bg-gray-850' : 'border-gray-200 bg-gray-50'
-              }`}
-            >
+          <div className="w-full max-w-md rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
               <div className="flex items-center space-x-2">
-                <Plus className="w-4 h-4 text-emerald-400" />
+                <Plus className="w-4 h-4 text-emerald-500" />
                 <h3 className="text-sm font-semibold">
                   Add Column to {tableName}
                 </h3>
@@ -526,7 +490,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
               <button
                 type="button"
                 onClick={() => setAddOpen(false)}
-                className="p-1 rounded text-gray-400 hover:text-gray-200"
+                className="p-1 rounded text-muted hover:text-text"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -535,7 +499,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
             <form onSubmit={handleAddColumnSubmit} className="p-4 space-y-3.5 text-xs">
               <div>
                 <label className="block font-medium mb-1">
-                  Column Name <span className="text-red-400">*</span>
+                  Column Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -543,9 +507,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                   placeholder="e.g. description, status, age"
                   value={newColName}
                   onChange={(e) => setNewColName(e.target.value)}
-                  className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
-                    isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
-                  }`}
+                  className="w-full px-3 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
                   autoFocus
                 />
               </div>
@@ -556,7 +518,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                   <label className="font-medium">Data Type</label>
                   <label className="font-medium">
                     Length / Values{' '}
-                    <span className="text-gray-400 font-normal">
+                    <span className="text-muted font-normal">
                       {newSpec.hasLength ? `(${newSpec.lengthPlaceholder || 'e.g. 30, 5, 10,2'})` : '(Not applicable)'}
                     </span>
                   </label>
@@ -566,9 +528,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                     data-testid="add-col-type-select"
                     value={newColBaseType}
                     onChange={(e) => handleNewColBaseTypeChange(e.target.value)}
-                    className={`w-full px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono ${
-                      isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
-                    }`}
+                    className="w-full px-2 py-1.5 rounded border border-line bg-grid text-text text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
                   >
                     {BASE_TYPES.map((t) => (
                       <option key={t} value={t}>
@@ -585,25 +545,23 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                     value={newColLength}
                     disabled={!newSpec.hasLength || newColBaseType === 'CUSTOM'}
                     onChange={(e) => setNewColLength(e.target.value)}
-                    className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
+                    className={`w-full px-3 py-1.5 rounded border border-line text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
                       !newSpec.hasLength || newColBaseType === 'CUSTOM'
-                        ? 'opacity-40 cursor-not-allowed bg-gray-800'
-                        : isDark
-                        ? 'bg-gray-950 border-gray-700 text-white'
-                        : 'bg-white border-gray-300'
+                        ? 'opacity-40 cursor-not-allowed bg-sidebar'
+                        : 'bg-grid'
                     }`}
                   />
                 </div>
 
                 {!newSpec.hasLength && newColBaseType !== 'CUSTOM' && (
-                  <p className="text-[10px] text-gray-500 mt-1">
+                  <p className="text-[10px] text-muted mt-1">
                     ประเภท {newColBaseType} เป็นประเภทข้อมูลที่ไม่ต้องระบุความยาว/ขนาด
                   </p>
                 )}
 
                 {newColBaseType === 'CUSTOM' && (
                   <div className="mt-2">
-                    <label className="block text-[11px] font-medium text-gray-400 mb-0.5">
+                    <label className="block text-[11px] font-medium text-muted mb-0.5">
                       Custom Type Definition
                     </label>
                     <input
@@ -612,16 +570,14 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                       placeholder="e.g. VARCHAR(30), INT(5), geometry(Point, 4326)"
                       value={newColCustomType}
                       onChange={(e) => setNewColCustomType(e.target.value)}
-                      className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
-                        isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
-                      }`}
+                      className="w-full px-3 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
                     />
                   </div>
                 )}
 
                 {/* Quick Presets */}
                 <div className="mt-2">
-                  <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">
+                  <div className="text-[10px] text-muted uppercase tracking-wider font-semibold mb-1">
                     Quick Presets:
                   </div>
                   <div className="flex flex-wrap gap-1">
@@ -634,9 +590,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                         className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors border ${
                           computedNewColType === p
                             ? 'bg-blue-600 text-white border-blue-500'
-                            : isDark
-                            ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
-                            : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                            : 'bg-sidebar border-line text-text hover:bg-black/5 dark:hover:bg-white/10'
                         }`}
                       >
                         {p}
@@ -661,20 +615,18 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
 
               <div>
                 <label className="block font-medium mb-1">
-                  Default Value <span className="text-gray-400 font-normal">(Optional)</span>
+                  Default Value <span className="text-muted font-normal">(Optional)</span>
                 </label>
                 <input
                   type="text"
                   placeholder={newSpec.defaultPlaceholder || "e.g. 'active', 0, now(), gen_random_uuid()"}
                   value={newColDefault}
                   onChange={(e) => setNewColDefault(e.target.value)}
-                  className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
-                    isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
-                  }`}
+                  className="w-full px-3 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
                 />
                 {newSpec.defaultSuggestions && newSpec.defaultSuggestions.length > 0 && (
                   <div className="flex items-center space-x-1.5 mt-1.5 flex-wrap gap-y-1">
-                    <span className="text-[10px] text-gray-400">Suggestions:</span>
+                    <span className="text-[10px] text-muted">Suggestions:</span>
                     {newSpec.defaultSuggestions.map((sug) => (
                       <button
                         key={sug}
@@ -683,9 +635,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                         className={`px-1.5 py-0.5 rounded text-[10px] font-mono border transition-colors ${
                           newColDefault === sug
                             ? 'bg-emerald-600 text-white border-emerald-500'
-                            : isDark
-                            ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
-                            : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                            : 'bg-sidebar border-line text-text hover:bg-black/5 dark:hover:bg-white/10'
                         }`}
                       >
                         {sug}
@@ -698,28 +648,20 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
               {/* SQL Preview */}
               {addColumnPreviewSql && (
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-1">
                     SQL Preview
                   </div>
-                  <pre
-                    className={`p-2 rounded font-mono text-[11px] overflow-x-auto border ${
-                      isDark
-                        ? 'bg-gray-950 border-gray-800 text-emerald-400'
-                        : 'bg-gray-50 border-gray-200 text-emerald-700'
-                    }`}
-                  >
+                  <pre className="p-2 rounded font-mono text-[11px] overflow-x-auto border border-line bg-sidebar text-emerald-600 dark:text-emerald-400">
                     {addColumnPreviewSql}
                   </pre>
                 </div>
               )}
 
-              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-800">
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-line">
                 <button
                   type="button"
                   onClick={() => setAddOpen(false)}
-                  className={`px-3 py-1.5 rounded transition-colors ${
-                    isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  className="px-3 py-1.5 rounded transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   Cancel
                 </button>
@@ -744,26 +686,18 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div
-            className={`w-full max-w-md rounded-lg shadow-xl border overflow-hidden ${
-              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-            }`}
-          >
-            <div
-              className={`flex items-center justify-between px-4 py-3 border-b ${
-                isDark ? 'border-gray-800 bg-gray-850' : 'border-gray-200 bg-gray-50'
-              }`}
-            >
+          <div className="w-full max-w-md rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
               <div className="flex items-center space-x-2">
-                <Edit2 className="w-4 h-4 text-blue-400" />
+                <Edit2 className="w-4 h-4 text-blue-500" />
                 <h3 className="text-sm font-semibold">
-                  Edit Column: <span className="font-mono text-blue-400">{editColTarget.name}</span>
+                  Edit Column: <span className="font-mono text-blue-500">{editColTarget.name}</span>
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setEditColTarget(null)}
-                className="p-1 rounded text-gray-400 hover:text-gray-200"
+                className="p-1 rounded text-muted hover:text-text"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -772,16 +706,14 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
             <form onSubmit={handleEditColumnSubmit} className="p-4 space-y-3.5 text-xs">
               <div>
                 <label className="block font-medium mb-1">
-                  Column Name <span className="text-red-400">*</span>
+                  Column Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={editColName}
                   onChange={(e) => setEditColName(e.target.value)}
-                  className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
-                    isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
-                  }`}
+                  className="w-full px-3 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
                 />
               </div>
 
@@ -800,9 +732,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                   <select
                     value={editColBaseType}
                     onChange={(e) => handleEditColBaseTypeChange(e.target.value)}
-                    className={`w-full px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono ${
-                      isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
-                    }`}
+                    className="w-full px-2 py-1.5 rounded border border-line bg-grid text-text text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
                   >
                     {BASE_TYPES.map((t) => (
                       <option key={t} value={t}>
@@ -818,12 +748,10 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                     value={editColLength}
                     disabled={!editSpec.hasLength || editColBaseType === 'CUSTOM'}
                     onChange={(e) => setEditColLength(e.target.value)}
-                    className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
+                    className={`w-full px-3 py-1.5 rounded border border-line text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
                       !editSpec.hasLength || editColBaseType === 'CUSTOM'
-                        ? 'opacity-40 cursor-not-allowed bg-gray-800'
-                        : isDark
-                        ? 'bg-gray-950 border-gray-700 text-white'
-                        : 'bg-white border-gray-300'
+                        ? 'opacity-40 cursor-not-allowed bg-sidebar'
+                        : 'bg-grid'
                     }`}
                   />
                 </div>
@@ -893,20 +821,18 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
 
               <div>
                 <label className="block font-medium mb-1">
-                  Default Value <span className="text-gray-400 font-normal">(Optional)</span>
+                  Default Value <span className="text-muted font-normal">(Optional)</span>
                 </label>
                 <input
                   type="text"
                   placeholder={editSpec.defaultPlaceholder || "e.g. 'active', 0, now()"}
                   value={editColDefault}
                   onChange={(e) => setEditColDefault(e.target.value)}
-                  className={`w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
-                    isDark ? 'bg-gray-950 border-gray-700 text-white' : 'bg-white border-gray-300'
-                  }`}
+                  className="w-full px-3 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
                 />
                 {editSpec.defaultSuggestions && editSpec.defaultSuggestions.length > 0 && (
                   <div className="flex items-center space-x-1.5 mt-1.5 flex-wrap gap-y-1">
-                    <span className="text-[10px] text-gray-400">Suggestions:</span>
+                    <span className="text-[10px] text-muted">Suggestions:</span>
                     {editSpec.defaultSuggestions.map((sug) => (
                       <button
                         key={sug}
@@ -915,9 +841,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                         className={`px-1.5 py-0.5 rounded text-[10px] font-mono border transition-colors ${
                           editColDefault === sug
                             ? 'bg-blue-600 text-white border-blue-500'
-                            : isDark
-                            ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
-                            : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                            : 'bg-sidebar border-line text-text hover:bg-black/5 dark:hover:bg-white/10'
                         }`}
                       >
                         {sug}
@@ -930,16 +854,10 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
               {/* Preview SQL */}
               {editColumnPreviewSqls.length > 0 && (
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                  <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-1">
                     SQL Preview
                   </div>
-                  <pre
-                    className={`p-2 rounded font-mono text-[11px] overflow-x-auto border space-y-1 ${
-                      isDark
-                        ? 'bg-gray-950 border-gray-800 text-blue-400'
-                        : 'bg-gray-50 border-gray-200 text-blue-700'
-                    }`}
-                  >
+                  <pre className="p-2 rounded font-mono text-[11px] overflow-x-auto border border-line bg-sidebar text-blue-600 dark:text-blue-400 space-y-1">
                     {editColumnPreviewSqls.map((s, idx) => (
                       <div key={idx}>{s}</div>
                     ))}
@@ -947,13 +865,11 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                 </div>
               )}
 
-              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-800">
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-line">
                 <button
                   type="button"
                   onClick={() => setEditColTarget(null)}
-                  className={`px-3 py-1.5 rounded transition-colors ${
-                    isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  className="px-3 py-1.5 rounded transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   Cancel
                 </button>
@@ -977,28 +893,22 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div
-            className={`w-full max-w-sm rounded-lg shadow-xl border overflow-hidden p-4 space-y-3 ${
-              isDark ? 'bg-gray-900 border-gray-800 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-            }`}
-          >
-            <div className="flex items-center space-x-2 text-red-400">
+          <div className="w-full max-w-sm rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden p-4 space-y-3">
+            <div className="flex items-center space-x-2 text-red-500">
               <Trash2 className="w-5 h-5 flex-shrink-0" />
               <h3 className="text-sm font-semibold">Drop Column Confirmation</h3>
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-muted">
               Are you sure you want to drop column{' '}
-              <span className="font-mono text-red-400 font-semibold">{dropColTarget.name}</span> from{' '}
-              <span className="font-mono text-gray-200">{tableName}</span>? This action is irreversible and all data in
+              <span className="font-mono text-red-500 font-semibold">{dropColTarget.name}</span> from{' '}
+              <span className="font-mono text-text font-semibold">{tableName}</span>? This action is irreversible and all data in
               this column will be deleted.
             </p>
-            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-800">
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-line">
               <button
                 type="button"
                 onClick={() => setDropColTarget(null)}
-                className={`px-3 py-1.5 rounded text-xs transition-colors ${
-                  isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
-                }`}
+                className="px-3 py-1.5 rounded text-xs transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
               >
                 Cancel
               </button>

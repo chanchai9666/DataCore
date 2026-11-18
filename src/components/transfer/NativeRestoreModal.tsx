@@ -172,12 +172,12 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-xl flex flex-col overflow-hidden max-h-[90vh]">
+      <div className="bg-panel rounded-lg shadow-2xl border border-line text-text w-full max-w-xl flex flex-col overflow-hidden max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-sidebar">
           <div className="flex items-center space-x-2">
             <Upload className="w-5 h-5 text-emerald-500" />
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            <h2 className="text-base font-semibold text-text">
               {t('transfer.nativeRestoreTitle', 'Native Database Restore')}
             </h2>
             {activeConn?.driver && <DbBadge driver={activeConn.driver} />}
@@ -186,7 +186,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={isRunning}
-            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded disabled:opacity-40"
+            className="p-1 text-muted hover:text-text rounded disabled:opacity-40"
           >
             <X className="w-4 h-4" />
           </button>
@@ -196,7 +196,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {/* CLI Status Banner */}
           {checkingCli ? (
-            <div className="flex items-center space-x-2 text-xs text-gray-500 animate-pulse">
+            <div className="flex items-center space-x-2 text-xs text-muted animate-pulse">
               <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
               <span>Checking database CLI restore tools...</span>
             </div>
@@ -228,7 +228,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
           {/* Form Options */}
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-xs font-medium text-text mb-1">
                 Backup File to Restore
               </label>
               <div className="flex space-x-2">
@@ -238,13 +238,13 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                   onChange={(e) => setInputPath(e.target.value)}
                   disabled={isRunning}
                   placeholder="Select .dump, .sql or .db file..."
-                  className="flex-1 px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-emerald-500 font-mono"
+                  className="flex-1 px-3 py-1.5 text-xs bg-grid border border-line text-text rounded focus:outline-none focus:border-emerald-500 font-mono"
                 />
                 <button
                   type="button"
                   onClick={handlePickFile}
                   disabled={isRunning}
-                  className="px-2.5 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded flex items-center space-x-1"
+                  className="px-2.5 py-1.5 text-xs font-medium bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text border border-line rounded flex items-center space-x-1"
                 >
                   <FolderOpen className="w-3.5 h-3.5" />
                   <span>Browse</span>
@@ -253,7 +253,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-3 pt-1">
-              <label className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+              <label className="flex items-center space-x-2 text-xs text-text cursor-pointer">
                 <input
                   type="checkbox"
                   checked={clean}
@@ -264,7 +264,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                 <span>Clean before restore (--clean)</span>
               </label>
 
-              <label className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+              <label className="flex items-center space-x-2 text-xs text-text cursor-pointer">
                 <input
                   type="checkbox"
                   checked={parallelJobs > 1 ? false : singleTransaction}
@@ -275,7 +275,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                 <span>Single transaction (--single-transaction)</span>
               </label>
 
-              <label className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+              <label className="flex items-center space-x-2 text-xs text-text cursor-pointer">
                 <input
                   type="checkbox"
                   checked={schemaOnly}
@@ -286,7 +286,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                 <span>Schema only</span>
               </label>
 
-              <label className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+              <label className="flex items-center space-x-2 text-xs text-text cursor-pointer">
                 <input
                   type="checkbox"
                   checked={dataOnly}
@@ -300,7 +300,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
 
             {activeConn?.driver === 'postgres' && (
               <div className="space-y-1.5 pt-1">
-                <div className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300">
+                <div className="flex items-center space-x-2 text-xs text-text">
                   <span>Parallel Jobs (-j):</span>
                   <input
                     type="number"
@@ -309,11 +309,11 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                     value={parallelJobs}
                     disabled={isRunning}
                     onChange={(e) => setParallelJobs(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-16 px-2 py-1 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-emerald-500"
+                    className="w-16 px-2 py-1 bg-grid border border-line text-text rounded focus:outline-none focus:border-emerald-500"
                   />
                 </div>
                 {parallelJobs > 1 && (
-                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                  <p className="text-[11px] text-amber-500">
                     {t(
                       'transfer.parallelRestoreNonAtomicWarning',
                       'Parallel restore (-j) is not atomic; --single-transaction is automatically disabled.'
@@ -327,22 +327,22 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
           {(isRunning || isSuccess) && (
             <div
               data-testid="native-restore-progress"
-              className="p-3 bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded space-y-1.5"
+              className="p-3 bg-sidebar border border-line rounded space-y-1.5"
             >
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-gray-700 dark:text-gray-300">
+                <span className="font-medium text-text">
                   {isSuccess
                     ? t('transfer.restoreComplete', 'Restore Completed')
                     : t('transfer.restoring', 'Running native restore...')}
                 </span>
                 <span
                   data-testid="native-restore-percent"
-                  className="font-mono font-semibold text-emerald-600 dark:text-emerald-400"
+                  className="font-mono font-semibold text-emerald-500"
                 >
                   {progressPct}%
                 </span>
               </div>
-              <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-grid rounded-full overflow-hidden">
                 <div
                   className="bg-emerald-500 h-full transition-all duration-200"
                   style={{ width: `${progressPct}%` }}
@@ -354,8 +354,8 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
           {/* Terminal Logs Output */}
           {logs.length > 0 && (
             <div>
-              <div className="flex items-center space-x-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="flex items-center space-x-1.5 text-xs font-semibold text-text mb-1">
+                <Terminal className="w-3.5 h-3.5 text-emerald-500" />
                 <span>Process Output & Progress</span>
               </div>
               <div
@@ -372,7 +372,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
           )}
 
           {error && (
-            <div className="p-2.5 rounded bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 text-xs text-red-600 dark:text-red-400 flex items-start space-x-2">
+            <div className="p-2.5 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-500 flex items-start space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -380,7 +380,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+        <div className="flex items-center justify-between px-5 py-3 border-t border-line bg-sidebar">
           <div>
             {isRunning && (
               <button
@@ -397,7 +397,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={isRunning}
-              className="px-3.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-40"
+              className="px-3.5 py-1.5 text-xs font-medium text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors disabled:opacity-40"
             >
               {isSuccess ? 'Done' : 'Close'}
             </button>

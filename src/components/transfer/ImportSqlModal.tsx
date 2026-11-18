@@ -218,19 +218,19 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
       aria-labelledby="import-sql-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
     >
-      <div className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#333333] rounded-lg shadow-2xl w-full max-w-md overflow-hidden text-gray-800 dark:text-gray-200">
+      <div className="bg-panel border border-line rounded-lg shadow-2xl w-full max-w-md overflow-hidden text-text">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 dark:border-[#2d2d2d] bg-gray-50 dark:bg-[#252526]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-sidebar">
           <div className="flex items-center space-x-2">
-            <Upload className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <h2 id="import-sql-title" className="text-sm font-semibold text-gray-900 dark:text-white">
+            <Upload className="w-4 h-4 text-emerald-500" />
+            <h2 id="import-sql-title" className="text-sm font-semibold text-text">
               {t('transfer.sqlImportTitle', 'Execute SQL Script (Import)')}
             </h2>
           </div>
           <button
             type="button"
             onClick={handleCancelOrClose}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 rounded hover:bg-gray-200 dark:hover:bg-[#333333] transition-colors"
+            className="text-muted hover:text-text p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -258,7 +258,7 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
               <div>
                 <label
                   htmlFor="destination-connection-select"
-                  className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1"
+                  className="block text-[11px] font-medium text-muted mb-1"
                 >
                   {t('transfer.connection', 'Connection:')}
                 </label>
@@ -268,7 +268,7 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
                   value={selectedConnectionId}
                   onChange={(e) => handleConnectionChange(e.target.value)}
                   disabled={loading}
-                  className="w-full h-[34px] px-2.5 py-1.5 text-xs bg-white dark:bg-[#141414] border border-gray-300 dark:border-[#333333] rounded text-gray-900 dark:text-gray-100 focus:outline-none focus:border-emerald-500 truncate"
+                  className="w-full h-[34px] px-2.5 py-1.5 text-xs bg-grid border border-line rounded text-text focus:outline-none focus:border-emerald-500 truncate"
                 >
                   {connOptions.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -281,7 +281,7 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
               <div>
                 <label
                   htmlFor="destination-schema-input"
-                  className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1"
+                  className="block text-[11px] font-medium text-muted mb-1"
                 >
                   {isMysql ? t('transfer.dbSchema', 'Database / Schema:') : t('transfer.schema', 'Schema:')}
                 </label>
@@ -301,8 +301,8 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
                   disabled={loading || isSqlite}
                   className={`w-full h-[34px] px-2.5 py-1.5 text-xs font-mono border rounded focus:outline-none transition-colors ${
                     isSqlite
-                      ? 'bg-gray-100 dark:bg-[#181818] border-gray-200 dark:border-[#2a2a2a] text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                      : 'bg-white dark:bg-[#141414] border-gray-300 dark:border-[#333333] text-gray-900 dark:text-gray-100 focus:border-emerald-500'
+                      ? 'bg-sidebar border-line text-muted opacity-70 cursor-not-allowed'
+                      : 'bg-grid border-line text-text focus:border-emerald-500'
                   }`}
                 />
               </div>
@@ -310,10 +310,10 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            <label className="block text-xs font-medium text-muted mb-1">
               {t('transfer.targetDbSchema', 'Target Database / Schema')}
             </label>
-            <div className="px-3 py-2 text-xs font-mono bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded text-gray-700 dark:text-gray-300">
+            <div className="px-3 py-2 text-xs font-mono bg-sidebar border border-line rounded text-text">
               {isSqlite
                 ? t('transfer.sqliteDb', { name: destConn?.name || 'Local', defaultValue: `SQLite Database (${destConn?.name || 'Local'})` })
                 : isMysql
@@ -323,8 +323,8 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-              {t('transfer.sqlFile', 'SQL File')} <span className="text-red-500 dark:text-red-400">*</span>
+            <label className="block text-xs font-medium text-muted mb-1">
+              {t('transfer.sqlFile', 'SQL File')} <span className="text-red-500">*</span>
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -333,13 +333,13 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
                 onChange={(e) => setFilePath(e.target.value)}
                 placeholder={t('transfer.sqlFilePlaceholder', 'Select or enter path to .sql file')}
                 disabled={loading}
-                className="flex-1 px-3 py-1.5 text-xs font-mono bg-white dark:bg-[#141414] border border-gray-300 dark:border-[#333333] rounded text-gray-900 dark:text-white focus:outline-none focus:border-emerald-500 truncate"
+                className="flex-1 px-3 py-1.5 text-xs font-mono bg-grid border border-line rounded text-text focus:outline-none focus:border-emerald-500 truncate"
               />
               <button
                 type="button"
                 onClick={handlePickFile}
                 disabled={loading}
-                className="px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-[#2d2d2d] dark:hover:bg-[#383838] text-gray-700 dark:text-gray-200 rounded border border-gray-300 dark:border-[#444444] transition-colors shrink-0"
+                className="px-3 py-1.5 text-xs font-medium bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text rounded border border-line transition-colors shrink-0"
               >
                 {t('transfer.browse', 'Browse...')}
               </button>
@@ -347,7 +347,7 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            <label className="block text-xs font-medium text-muted mb-1">
               {t('transfer.errorPolicy', 'Error Handling Policy')}
             </label>
             <div className="flex items-center gap-4 text-xs">
@@ -359,9 +359,9 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
                   checked={errorPolicy === 'abort'}
                   onChange={() => setErrorPolicy('abort')}
                   disabled={loading}
-                  className="text-emerald-500 focus:ring-emerald-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                  className="text-emerald-500 focus:ring-emerald-500 bg-grid border-line"
                 />
-                <span className="text-gray-700 dark:text-gray-300">{t('transfer.abortOnError', 'Abort on error (Rollback)')}</span>
+                <span className="text-text">{t('transfer.abortOnError', 'Abort on error (Rollback)')}</span>
               </label>
 
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -372,35 +372,35 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
                   checked={errorPolicy === 'continue'}
                   onChange={() => setErrorPolicy('continue')}
                   disabled={loading}
-                  className="text-emerald-500 focus:ring-emerald-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                  className="text-emerald-500 focus:ring-emerald-500 bg-grid border-line"
                 />
-                <span className="text-gray-700 dark:text-gray-300">{t('transfer.continueOnError', 'Continue on error')}</span>
+                <span className="text-text">{t('transfer.continueOnError', 'Continue on error')}</span>
               </label>
             </div>
           </div>
 
           {/* Progress display */}
           {loading && (
-            <div className="p-3 bg-gray-50 dark:bg-[#141414] border border-gray-200 dark:border-[#333333] rounded space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
+            <div className="p-3 bg-sidebar border border-line rounded space-y-2">
+              <div className="flex items-center justify-between text-xs text-text">
                 <span className="truncate pr-2">
                   {progress?.status || t('transfer.executingStatements', 'Executing statements...')}
                 </span>
                 <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
                   {progress?.total_rows !== undefined && progress.total_rows > 0 && (
-                    <span className="text-gray-500 dark:text-gray-400">
+                    <span className="text-muted">
                       {progress.current_row} / {progress.total_rows}
                     </span>
                   )}
                   <span
                     data-testid="import-sql-percent"
-                    className="font-semibold text-emerald-600 dark:text-emerald-400"
+                    className="font-semibold text-emerald-500"
                   >
                     {progressPct}%
                   </span>
                 </div>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
+              <div className="w-full bg-grid h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-emerald-500 h-full transition-all duration-150"
                   style={{ width: `${progressPct}%` }}
@@ -410,11 +410,11 @@ export const ImportSqlModal: React.FC<ImportSqlModalProps> = ({
           )}
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-200 dark:border-[#2d2d2d]">
+          <div className="flex items-center justify-end space-x-2 pt-3 border-t border-line">
             <button
               type="button"
               onClick={handleCancelOrClose}
-              className="px-3.5 py-1.5 text-xs font-medium rounded text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 hover:bg-gray-200 dark:bg-[#2d2d2d] dark:hover:bg-[#383838] transition-colors"
+              className="px-3.5 py-1.5 text-xs font-medium rounded text-muted hover:text-text bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 border border-line transition-colors"
             >
               {t('common.cancel', 'Cancel')}
             </button>

@@ -140,7 +140,7 @@ describe('FilterBar', () => {
     );
   });
 
-  it('renders correctly with light theme classes (Issue #122)', () => {
+  it('renders using semantic design token classes for Light/Dark themes (Phase 50)', () => {
     render(
       <FilterBar
         columns={mockColumns}
@@ -153,8 +153,10 @@ describe('FilterBar', () => {
     );
 
     const filterBar = screen.getByTestId('filter-bar');
-    expect(filterBar.className).toContain('bg-gray-50');
-    expect(screen.getByText('Filter:').parentElement?.className).toContain('text-gray-700');
-    expect(screen.getByTestId('clear-filter-btn').className).toContain('bg-white');
+    expect(filterBar.className).toContain('bg-panel');
+    expect(filterBar.className).toContain('border-line');
+    expect(filterBar.className).toContain('text-text');
+    expect(screen.getByText('Filter:').parentElement?.className).toContain('text-text');
+    expect(screen.getByTestId('clear-filter-btn').className).toContain('bg-panel');
   });
 });

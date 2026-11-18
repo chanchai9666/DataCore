@@ -30,7 +30,7 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
   tableName,
   schemaName,
   driver = 'postgres',
-  isDark,
+  isDark: _isDark,
   constraints,
   columns,
   filterText,
@@ -190,20 +190,10 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
           <span className="text-xs">No constraints match &quot;{filterText}&quot;</span>
         </div>
       ) : (
-        <div
-          className={`border rounded-lg overflow-hidden shadow-xs ${
-            isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'
-          }`}
-        >
+        <div className="border border-line bg-panel rounded-lg overflow-hidden shadow-xs">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr
-                className={`border-b font-medium ${
-                  isDark
-                    ? 'bg-gray-900/90 border-gray-800 text-gray-400'
-                    : 'bg-gray-100/90 border-gray-200 text-gray-600'
-                }`}
-              >
+              <tr className="border-b border-line bg-sidebar text-muted font-medium">
                 <th className="py-2.5 px-3 w-12 text-center">#</th>
                 <th className="py-2.5 px-3">Constraint Name</th>
                 <th className="py-2.5 px-3 w-28 text-center">Type</th>
@@ -211,18 +201,14 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                 <th className="py-2.5 px-3 w-24 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className={`divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-100'}`}>
+            <tbody className="divide-y divide-line bg-grid">
               {filteredConstraints.map((c, i) => (
                 <tr
                   key={c.name}
                   data-testid={`constraint-row-${c.name}`}
-                  className={`transition-colors ${
-                    isDark
-                      ? 'hover:bg-gray-800/40 text-gray-200'
-                      : 'hover:bg-gray-50/80 text-gray-900'
-                  }`}
+                  className="transition-colors hover:bg-black/5 dark:hover:bg-white/5 text-text"
                 >
-                  <td className="py-2 px-3 text-center text-gray-400 dark:text-gray-500 font-mono text-[11px]">
+                  <td className="py-2 px-3 text-center text-muted font-mono text-[11px]">
                     {i + 1}
                   </td>
                   <td className="py-2 px-3 font-medium flex items-center space-x-1.5">
@@ -231,16 +217,16 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                   </td>
                   <td className="py-2 px-3 text-center">
                     <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
                         c.type === 'CHECK'
-                          ? 'bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
-                          : 'bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                          ? 'bg-purple-500/10 text-purple-600 dark:text-purple-300 border-purple-500/30'
+                          : 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/30'
                       }`}
                     >
                       {c.type}
                     </span>
                   </td>
-                  <td className="py-2 px-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                  <td className="py-2 px-3 font-mono text-xs text-text">
                     {c.definition || (c.columns && c.columns.join(', ')) || '-'}
                   </td>
                   <td className="py-2 px-3 text-right">
@@ -249,7 +235,7 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                       data-testid={`drop-constraint-btn-${c.name}`}
                       onClick={() => setDropConstraintTarget(c)}
                       title="Drop Constraint"
-                      className="p-1 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      className="p-1 rounded text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -268,24 +254,16 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div
-            className={`w-full max-w-md rounded-lg shadow-xl border overflow-hidden ${
-              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-            }`}
-          >
-            <div
-              className={`flex items-center justify-between px-4 py-3 border-b ${
-                isDark ? 'border-gray-800 bg-gray-850' : 'border-gray-200 bg-gray-50'
-              }`}
-            >
+          <div className="w-full max-w-md rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
               <div className="flex items-center space-x-2">
-                <ShieldAlert className="w-4 h-4 text-purple-400" />
+                <ShieldAlert className="w-4 h-4 text-purple-500" />
                 <h3 className="text-sm font-semibold">Add Constraint to {tableName}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setAddOpen(false)}
-                className="p-1 rounded text-gray-400 hover:text-gray-200"
+                className="p-1 rounded text-muted hover:text-text"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -294,7 +272,7 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
             <form onSubmit={handleAddConstraintSubmit} className="p-4 space-y-3.5 text-xs">
               <div>
                 <label className="block font-medium mb-1">
-                  Constraint Name <span className="text-red-400">*</span>
+                  Constraint Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -303,9 +281,7 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                   placeholder="e.g. chk_price_positive, uq_user_email"
                   value={newConstraintName}
                   onChange={(e) => setNewConstraintName(e.target.value)}
-                  className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-purple-500 ${
-                    isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                  }`}
+                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-purple-500"
                 />
               </div>
 
@@ -340,7 +316,7 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
               {newConstraintType === 'CHECK' ? (
                 <div>
                   <label className="block font-medium mb-1">
-                    Check Expression <span className="text-red-400">*</span>
+                    Check Expression <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     required
@@ -349,25 +325,19 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                     placeholder="e.g. price > 0 AND quantity >= 0"
                     value={newConstraintExpr}
                     onChange={(e) => setNewConstraintExpr(e.target.value)}
-                    className={`w-full px-2.5 py-1.5 rounded border text-xs font-mono outline-none focus:border-purple-500 ${
-                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-                    }`}
+                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-purple-500"
                   />
                 </div>
               ) : (
                 <div>
                   <label className="block font-medium mb-1">
-                    Columns to Include in Unique Constraint <span className="text-red-400">*</span>
+                    Columns to Include in Unique Constraint <span className="text-red-500">*</span>
                   </label>
-                  <div
-                    className={`max-h-32 overflow-y-auto p-2 rounded border space-y-1 ${
-                      isDark ? 'bg-gray-800/80 border-gray-700' : 'bg-gray-50 border-gray-200'
-                    }`}
-                  >
+                  <div className="max-h-32 overflow-y-auto p-2 rounded border border-line bg-sidebar space-y-1">
                     {columns.map((c) => (
                       <label
                         key={c.name}
-                        className="flex items-center space-x-2 py-0.5 px-1 hover:bg-gray-700/30 rounded cursor-pointer"
+                        className="flex items-center space-x-2 py-0.5 px-1 hover:bg-black/5 dark:hover:bg-white/10 rounded cursor-pointer"
                       >
                         <input
                           type="checkbox"
@@ -382,7 +352,7 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                           className="rounded text-purple-600 focus:ring-0"
                         />
                         <span className="font-mono text-xs">{c.name}</span>
-                        <span className="text-[10px] text-gray-500">({c.dataType})</span>
+                        <span className="text-[10px] text-muted">({c.dataType})</span>
                       </label>
                     ))}
                   </div>
@@ -391,23 +361,21 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
 
               {addConstraintPreviewSql && (
                 <div>
-                  <label className="block font-medium mb-1 text-gray-400">SQL Preview</label>
+                  <label className="block font-medium mb-1 text-muted">SQL Preview</label>
                   <div
                     data-testid="add-constraint-preview-sql"
-                    className="p-2 rounded bg-gray-950 border border-gray-800 font-mono text-[11px] text-purple-300 select-text break-all"
+                    className="p-2 rounded bg-sidebar border border-line font-mono text-[11px] text-purple-600 dark:text-purple-300 select-text break-all"
                   >
                     {addConstraintPreviewSql}
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-800">
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-line">
                 <button
                   type="button"
                   onClick={() => setAddOpen(false)}
-                  className={`px-3 py-1.5 rounded transition-colors ${
-                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  className="px-3 py-1.5 rounded transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   Cancel
                 </button>
@@ -436,26 +404,22 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div
-            className={`w-full max-w-sm rounded-lg shadow-xl border overflow-hidden ${
-              isDark ? 'bg-gray-900 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-            }`}
-          >
+          <div className="w-full max-w-sm rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
             <div className="p-4 space-y-3 text-xs">
-              <div className="flex items-center space-x-2 text-red-400 font-semibold text-sm">
+              <div className="flex items-center space-x-2 text-red-500 font-semibold text-sm">
                 <ShieldAlert className="w-5 h-5 flex-shrink-0" />
                 <h3 className="text-sm font-semibold">Drop Constraint</h3>
               </div>
 
-              <p className="text-gray-300">
+              <p className="text-muted">
                 Are you sure you want to drop constraint{' '}
-                <strong className="text-white font-mono bg-red-950/60 px-1 py-0.5 rounded border border-red-900/60">
+                <strong className="text-red-500 font-mono bg-red-500/10 px-1 py-0.5 rounded border border-red-500/30">
                   {dropConstraintTarget.name}
                 </strong>{' '}
-                from table <strong className="font-mono text-white">{tableName}</strong>?
+                from table <strong className="font-mono text-text">{tableName}</strong>?
               </p>
 
-              <div className="p-2 rounded bg-gray-950 border border-gray-800 font-mono text-[11px] text-red-300">
+              <div className="p-2 rounded bg-sidebar border border-line font-mono text-[11px] text-red-500">
                 {buildDropConstraintSql({
                   tableName,
                   schemaName,
@@ -469,9 +433,7 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                 <button
                   type="button"
                   onClick={() => setDropConstraintTarget(null)}
-                  className={`px-3 py-1.5 rounded transition-colors ${
-                    isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  className="px-3 py-1.5 rounded transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   Cancel
                 </button>

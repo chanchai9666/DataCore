@@ -34,7 +34,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onApply,
   onClear,
   onClose,
-  theme = 'dark',
+  theme: _theme = 'dark',
   driver,
 }) => {
   const sqlPreview = useMemo(() => {
@@ -113,28 +113,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     }
   };
 
-  const isDark = theme === 'dark';
-
-  const inputCls = isDark
-    ? 'bg-gray-800 text-gray-200 border-gray-700 placeholder-gray-500'
-    : 'bg-white text-gray-800 border-gray-300 placeholder-gray-400';
-
-  const secondaryBtnCls = isDark
-    ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-700'
-    : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300';
-
-  const previewBadgeCls = isDark
-    ? 'text-blue-300 bg-blue-950/40 border-blue-900/50'
-    : 'text-blue-700 bg-blue-50 border-blue-200';
+  const inputCls = 'bg-grid text-text border-line placeholder:text-muted';
+  const secondaryBtnCls = 'bg-panel hover:bg-black/5 dark:hover:bg-white/10 text-text border-line';
+  const previewBadgeCls = 'text-accent bg-accent/10 border-accent/30';
 
   return (
     <div
       data-testid="filter-bar"
-      className={`border-t px-3 py-2 text-xs select-none transition-colors ${
-        isDark
-          ? 'bg-gray-900/95 border-gray-800 text-gray-200'
-          : 'bg-gray-50 border-gray-200 text-gray-800'
-      }`}
+      className="border-t px-3 py-2 text-xs select-none transition-colors bg-panel border-line text-text"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center space-x-2">
@@ -145,32 +131,22 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               aria-label="Toggle Filter Active"
               checked={filterState.enabled}
               onChange={handleToggleEnabled}
-              className={`rounded focus:ring-0 focus:ring-offset-0 ${
-                isDark
-                  ? 'border-gray-700 bg-gray-800 text-blue-500'
-                  : 'border-gray-300 bg-white text-blue-600'
-              }`}
+              className="rounded focus:ring-0 focus:ring-offset-0 border-line bg-grid text-accent"
             />
-            <span className={`flex items-center space-x-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              <Filter className="w-3.5 h-3.5 text-blue-400" />
+            <span className="flex items-center space-x-1 text-text">
+              <Filter className="w-3.5 h-3.5 text-accent" />
               <span>Filter:</span>
             </span>
           </label>
 
           {/* Conjunction toggle (AND / OR) */}
-          <div
-            className={`inline-flex rounded-md shadow-sm border p-0.5 text-[11px] ${
-              isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-200'
-            }`}
-          >
+          <div className="inline-flex rounded-md shadow-sm border p-0.5 text-[11px] border-line bg-sidebar">
             <button
               type="button"
               className={`px-2 py-0.5 rounded font-medium transition-colors ${
                 filterState.conjunction === 'AND'
-                  ? 'bg-blue-600 text-white'
-                  : isDark
-                  ? 'text-gray-400 hover:text-gray-200'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-accent text-white'
+                  : 'text-muted hover:text-text'
               }`}
               onClick={() => handleConjunctionChange('AND')}
             >
@@ -180,10 +156,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               type="button"
               className={`px-2 py-0.5 rounded font-medium transition-colors ${
                 filterState.conjunction === 'OR'
-                  ? 'bg-blue-600 text-white'
-                  : isDark
-                  ? 'text-gray-400 hover:text-gray-200'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-accent text-white'
+                  : 'text-muted hover:text-text'
               }`}
               onClick={() => handleConjunctionChange('OR')}
             >
@@ -228,11 +202,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               data-testid="close-filter-bar-btn"
               onClick={onClose}
               title="Close Filter Bar"
-              className={`p-1 rounded transition-colors ${
-                isDark
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  : 'text-gray-500 hover:text-gray-800 hover:bg-gray-200'
-              }`}
+              className="p-1 rounded transition-colors text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -247,7 +217,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
           return (
             <div key={cond.id || idx} className="flex items-center space-x-2">
-              <span className={`text-[11px] w-4 text-right ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              <span className="text-[11px] w-4 text-right text-muted">
                 {idx === 0 ? '' : filterState.conjunction}
               </span>
 
@@ -297,11 +267,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 type="button"
                 onClick={() => handleRemoveCondition(cond.id)}
                 title="Remove Condition"
-                className={`p-1 rounded transition-colors ${
-                  isDark
-                    ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800'
-                    : 'text-gray-400 hover:text-red-600 hover:bg-gray-200'
-                }`}
+                className="p-1 rounded transition-colors text-muted hover:text-red-500 hover:bg-black/5 dark:hover:bg-white/10"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -311,7 +277,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       </div>
 
       {/* Add Condition Footer */}
-      <div className={`mt-1.5 pt-1 border-t flex items-center ${isDark ? 'border-gray-800/60' : 'border-gray-200'}`}>
+      <div className="mt-1.5 pt-1 border-t border-line flex items-center">
         <button
           type="button"
           onClick={handleAddCondition}
