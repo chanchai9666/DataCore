@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Copy, Check, Code, Edit2, Save, Eye, Clock, Calendar, Image as ImageIcon, Network } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { CellValue } from '../../types/db';
 import { extractCellValue } from './gridUtils';
 import { detectDateTime, detectImage } from './cellDetailHelpers';
@@ -32,6 +33,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
   onSaveValue,
   onNavigateToForeignKey,
 }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<'formatted' | 'raw' | 'tree'>('formatted');
   const [isEditing, setIsEditing] = useState(Boolean(onSaveValue));
@@ -221,7 +223,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
               color: 'var(--text-primary, #ffffff)',
             }}
           >
-            Cell Details
+            {t('grid.cellDetails', 'Cell Details')}
           </h3>
           {isEditing && (
             <span
@@ -234,7 +236,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 fontWeight: 500,
               }}
             >
-              Editing
+              {t('grid.editing', 'Editing')}
             </span>
           )}
           {rowIndex !== undefined && (
@@ -244,7 +246,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 color: 'var(--text-secondary, #888888)',
               }}
             >
-              (Row {rowIndex + 1})
+              {t('grid.rowNumber', { row: rowIndex + 1, defaultValue: `(Row ${rowIndex + 1})` })}
             </span>
           )}
         </div>
@@ -314,7 +316,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 fontWeight: 600,
               }}
             >
-              Staged
+              {t('grid.staged', 'Staged')}
             </span>
           )}
         </div>
@@ -341,7 +343,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 }}
               >
                 <Edit2 size={12} />
-                Edit
+                {t('grid.edit', 'Edit')}
               </button>
               <button
                 type="button"
@@ -362,7 +364,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                 }}
               >
                 <Eye size={12} />
-                View
+                {t('grid.view', 'View')}
               </button>
             </>
           )}
@@ -384,7 +386,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                   fontWeight: viewMode === 'formatted' ? 600 : 400,
                 }}
               >
-                Formatted
+                {t('grid.formatted', 'Formatted')}
               </button>
               <button
                 type="button"
@@ -404,7 +406,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                   fontWeight: viewMode === 'tree' ? 600 : 400,
                 }}
               >
-                Tree
+                {t('grid.tree', 'Tree')}
               </button>
               <button
                 type="button"
@@ -716,7 +718,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '8px' }}>
               <span style={{ fontSize: '11px', color: '#64748b' }}>
-                Tip: Press ⌘+Enter to save
+                {t('grid.tipSaveShortcut', 'Tip: Press ⌘+Enter to save')}
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
@@ -732,7 +734,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                     cursor: 'pointer',
                   }}
                 >
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </button>
                 <button
                   type="button"
@@ -752,7 +754,7 @@ export const CellDetailDrawer: React.FC<CellDetailDrawerProps> = ({
                   }}
                 >
                   <Save size={13} />
-                  Save Changes
+                  {t('grid.saveChanges', 'Save Changes')}
                 </button>
               </div>
             </div>

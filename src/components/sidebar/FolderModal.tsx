@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Folder, Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { FOLDER_COLORS } from '../../stores/folderStore';
 
 export interface FolderModalProps {
@@ -22,6 +23,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
   existingFolders,
   onSubmit,
 }) => {
+  const { t } = useTranslation();
   const [folderName, setFolderName] = useState(initialFolderName);
   const [selectedColor, setSelectedColor] = useState(initialColor);
   const [error, setError] = useState<string | null>(null);
@@ -40,14 +42,14 @@ export const FolderModal: React.FC<FolderModalProps> = ({
 
     if (mode !== 'color') {
       if (!trimmed) {
-        setError('Folder name is required');
+        setError(t('dialogs.folderNameRequired', 'Folder name is required'));
         return;
       }
       if (
         trimmed.toLowerCase() !== initialFolderName.toLowerCase() &&
         existingFolders.some((f) => f.toLowerCase() === trimmed.toLowerCase())
       ) {
-        setError('A folder with this name already exists');
+        setError(t('dialogs.folderAlreadyExists', 'A folder with this name already exists'));
         return;
       }
     }
@@ -61,10 +63,10 @@ export const FolderModal: React.FC<FolderModalProps> = ({
 
   const title =
     mode === 'create'
-      ? 'Create New Connection Folder'
+      ? t('dialogs.createFolderTitle', 'Create New Connection Folder')
       : mode === 'rename'
-      ? 'Rename Folder'
-      : 'Change Folder Color';
+      ? t('dialogs.renameFolderTitle', 'Rename Folder')
+      : t('dialogs.changeFolderColorTitle', 'Change Folder Color');
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -96,7 +98,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
             {mode !== 'color' && (
               <div>
                 <label htmlFor="folder-name-input" className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  Folder Name <span className="text-red-500">*</span>
+                  {t('dialogs.folderNameLabel', 'Folder Name')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="folder-name-input"
@@ -116,7 +118,7 @@ export const FolderModal: React.FC<FolderModalProps> = ({
 
             {mode !== 'rename' && (
               <div>
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2">Folder Color</label>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2">{t('dialogs.folderColorLabel', 'Folder Color')}</label>
                 <div className="grid grid-cols-5 gap-2.5">
                   {FOLDER_COLORS.map((c) => {
                     const isSelected = selectedColor.toLowerCase() === c.value.toLowerCase();
@@ -145,13 +147,13 @@ export const FolderModal: React.FC<FolderModalProps> = ({
                 onClick={onClose}
                 className="px-3 py-1.5 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-xs font-medium transition-colors border border-zinc-300 dark:border-zinc-700"
               >
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 type="submit"
                 className="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors"
               >
-                {mode === 'create' ? 'Create' : 'Save'}
+                {mode === 'create' ? t('common.create', 'Create') : t('common.save', 'Save')}
               </button>
             </div>
           </form>

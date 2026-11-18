@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X, RefreshCw, CheckCircle2, Download, AlertCircle, ArrowUpCircle } from 'lucide-react';
 import { check } from '@tauri-apps/plugin-updater';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export interface UpdateCheckerModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
   onClose,
   currentVersion = '0.1.0',
 }) => {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<UpdateStatus>({ state: 'checking' });
 
   const checkForUpdates = async () => {
@@ -107,7 +109,7 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
               <ArrowUpCircle className="w-5 h-5 text-blue-400" />
               <Dialog.Title asChild>
                 <h2 className="text-base font-semibold text-text">
-                  Software Update
+                  {t('dialogs.softwareUpdateTitle', 'Software Update')}
                 </h2>
               </Dialog.Title>
             </div>
@@ -131,8 +133,8 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
             {status.state === 'checking' && (
               <div className="py-6 flex flex-col items-center justify-center space-y-3 text-center">
                 <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
-                <p className="text-sm font-medium text-text">Checking for updates...</p>
-                <p className="text-xs text-muted">Current version: v{currentVersion}</p>
+                <p className="text-sm font-medium text-text">{t('dialogs.checkingUpdates', 'Checking for updates...')}</p>
+                <p className="text-xs text-muted">{t('dialogs.currentVersionLabel', { version: currentVersion, defaultValue: `Current version: v${currentVersion}` })}</p>
               </div>
             )}
 
@@ -142,9 +144,9 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
                   <CheckCircle2 className="w-7 h-7" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-text">You're up to date!</h3>
+                  <h3 className="text-sm font-semibold text-text">{t('dialogs.upToDateTitle', "You're up to date!")}</h3>
                   <p className="text-xs text-muted mt-1">
-                    DataCore v{currentVersion} is currently the newest version available.
+                    {t('dialogs.upToDateDesc', { version: currentVersion, defaultValue: `DataCore v${currentVersion} is currently the newest version available.` })}
                   </p>
                 </div>
               </div>
@@ -153,7 +155,7 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
             {status.state === 'available' && (
               <div className="space-y-3">
                 <div className="p-3.5 rounded-lg bg-blue-500/10 border border-blue-500/20 space-y-1.5">
-                  <span className="text-xs font-semibold text-blue-400">New Version Available</span>
+                  <span className="text-xs font-semibold text-blue-400">{t('dialogs.newVersionAvailable', 'New Version Available')}</span>
                   <div className="flex items-baseline gap-2">
                     <span className="text-base font-bold text-text">DataCore v{status.version}</span>
                     <span className="text-xs text-muted">(Current: v{currentVersion})</span>
@@ -162,7 +164,7 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
 
                 {status.body && (
                   <div>
-                    <label className="block text-xs font-medium text-muted mb-1">Release Notes</label>
+                    <label className="block text-xs font-medium text-muted mb-1">{t('dialogs.releaseNotes', 'Release Notes')}</label>
                     <div className="max-h-36 overflow-y-auto p-2.5 rounded bg-sidebar border border-line text-xs text-muted whitespace-pre-wrap">
                       {status.body}
                     </div>
@@ -174,7 +176,7 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
             {status.state === 'downloading' && (
               <div className="py-6 space-y-3 text-center">
                 <Download className="w-8 h-8 mx-auto animate-bounce text-blue-400" />
-                <p className="text-sm font-medium text-text">Downloading Update... {status.progress}%</p>
+                <p className="text-sm font-medium text-text">{t('dialogs.downloadingUpdate', { progress: status.progress, defaultValue: `Downloading Update... ${status.progress}%` })}</p>
                 <div className="w-full bg-sidebar rounded-full h-2 overflow-hidden border border-line">
                   <div
                     className="bg-blue-600 h-2 transition-all duration-300"
@@ -187,9 +189,9 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
             {status.state === 'downloaded' && (
               <div className="py-6 text-center space-y-2">
                 <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-400" />
-                <p className="text-sm font-medium text-text">Update Ready!</p>
+                <p className="text-sm font-medium text-text">{t('dialogs.updateReady', 'Update Ready!')}</p>
                 <p className="text-xs text-muted">
-                  Please restart DataCore to apply the new version.
+                  {t('dialogs.restartToApply', 'Please restart DataCore to apply the new version.')}
                 </p>
               </div>
             )}
@@ -198,11 +200,11 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
               <div className="py-4 space-y-2">
                 <div className="flex items-center gap-2 text-amber-400 text-xs font-semibold">
                   <AlertCircle className="w-4 h-4" />
-                  <span>Update Check Notice</span>
+                  <span>{t('dialogs.updateCheckNotice', 'Update Check Notice')}</span>
                 </div>
                 <p className="text-xs text-muted leading-relaxed">{status.message}</p>
                 <p className="text-[11px] text-muted/70">
-                  You can also download the latest release directly from GitHub Releases.
+                  {t('dialogs.downloadFromGithub', 'You can also download the latest release directly from GitHub Releases.')}
                 </p>
               </div>
             )}
@@ -217,7 +219,7 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
                   onClick={onClose}
                   className="px-3 py-1.5 rounded text-xs text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 >
-                  Later
+                  {t('dialogs.later', 'Later')}
                 </button>
                 <button
                   type="button"
@@ -225,7 +227,7 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download & Install</span>
+                  <span>{t('dialogs.downloadAndInstall', 'Download & Install')}</span>
                 </button>
               </>
             ) : status.state === 'error' ? (
@@ -236,14 +238,14 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-sidebar hover:bg-black/5 dark:hover:bg-white/5 border border-line text-xs text-text transition-colors"
                 >
                   <RefreshCw className="w-3 h-3" />
-                  <span>Retry</span>
+                  <span>{t('dialogs.retry', 'Retry')}</span>
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
                   className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors"
                 >
-                  Close
+                  {t('common.close', 'Close')}
                 </button>
               </>
             ) : (
@@ -252,7 +254,7 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
                 onClick={onClose}
                 className="px-3 py-1.5 rounded bg-sidebar hover:bg-black/5 dark:hover:bg-white/5 border border-line text-xs text-text transition-colors"
               >
-                Done
+                {t('common.done', 'Done')}
               </button>
             )}
           </div>

@@ -229,7 +229,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-text mb-1">
-                Backup File to Restore
+                {t('transfer.backupFileToRestore', 'Backup File to Restore')}
               </label>
               <div className="flex space-x-2">
                 <input
@@ -247,7 +247,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                   className="px-2.5 py-1.5 text-xs font-medium bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text border border-line rounded flex items-center space-x-1"
                 >
                   <FolderOpen className="w-3.5 h-3.5" />
-                  <span>Browse</span>
+                  <span>{t('transfer.browseShort', 'Browse')}</span>
                 </button>
               </div>
             </div>
@@ -261,7 +261,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                   onChange={(e) => setClean(e.target.checked)}
                   className="rounded text-emerald-600 focus:ring-0"
                 />
-                <span>Clean before restore (--clean)</span>
+                <span>{t('transfer.cleanBeforeRestore', 'Clean before restore (--clean)')}</span>
               </label>
 
               <label className="flex items-center space-x-2 text-xs text-text cursor-pointer">
@@ -272,7 +272,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                   onChange={(e) => setSingleTransaction(e.target.checked)}
                   className="rounded text-emerald-600 focus:ring-0"
                 />
-                <span>Single transaction (--single-transaction)</span>
+                <span>{t('transfer.singleTransactionOpt', 'Single transaction (--single-transaction)')}</span>
               </label>
 
               <label className="flex items-center space-x-2 text-xs text-text cursor-pointer">
@@ -283,7 +283,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                   onChange={(e) => setSchemaOnly(e.target.checked)}
                   className="rounded text-emerald-600 focus:ring-0"
                 />
-                <span>Schema only</span>
+                <span>{t('transfer.schemaOnlyOpt', 'Schema only')}</span>
               </label>
 
               <label className="flex items-center space-x-2 text-xs text-text cursor-pointer">
@@ -294,7 +294,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                   onChange={(e) => setDataOnly(e.target.checked)}
                   className="rounded text-emerald-600 focus:ring-0"
                 />
-                <span>Data only</span>
+                <span>{t('transfer.dataOnlyOpt', 'Data only')}</span>
               </label>
             </div>
 
@@ -356,7 +356,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
             <div>
               <div className="flex items-center space-x-1.5 text-xs font-semibold text-text mb-1">
                 <Terminal className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Process Output & Progress</span>
+                <span>{t('transfer.processOutputProgress', 'Process Output & Progress')}</span>
               </div>
               <div
                 ref={logContainerRef}
@@ -388,7 +388,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                 onClick={handleCancel}
                 className="px-3 py-1.5 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
               >
-                Cancel Process
+                {t('transfer.cancelProcess', 'Cancel Process')}
               </button>
             )}
           </div>
@@ -399,7 +399,7 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
               disabled={isRunning}
               className="px-3.5 py-1.5 text-xs font-medium text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors disabled:opacity-40"
             >
-              {isSuccess ? 'Done' : 'Close'}
+              {isSuccess ? t('common.done', 'Done') : t('common.close', 'Close')}
             </button>
             {!isSuccess && (
               <button
@@ -411,12 +411,12 @@ export const NativeRestoreModal: React.FC<NativeRestoreModalProps> = ({
                 {isRunning ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Restoring ({progressPct}%)...</span>
+                    <span>{t('transfer.restoringPct', { percent: progressPct, defaultValue: `Restoring (${progressPct}%)...` })}</span>
                   </>
                 ) : (
                   <>
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Start Restore</span>
+                    <span>{t('transfer.startRestore', 'Start Restore')}</span>
                   </>
                 )}
               </button>

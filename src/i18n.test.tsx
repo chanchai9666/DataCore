@@ -135,5 +135,16 @@ describe('i18n Internationalization System', () => {
       expect(screen.getByText('Connect')).toBeInTheDocument();
       expect(screen.getByText('New Query')).toBeInTheDocument();
     });
+
+    it('renders newly localized transfer and grid keys in Thai when language is th', async () => {
+      await act(async () => {
+        await changeLanguage('th');
+      });
+
+      expect(i18n.t('transfer.duplicateTitle')).toBe('ทำสำเนาตาราง (Duplicate Table)');
+      expect(i18n.t('grid.addRow')).toBe('เพิ่มแถว');
+      expect(i18n.t('dialogs.dangerousQueryTitle')).toBe('คำเตือนคำสั่ง SQL ที่มีความเสี่ยงสูง');
+      expect(i18n.t('security.tlsEncrypted')).toBe('เข้ารหัส TLS แล้ว');
+    });
   });
 });

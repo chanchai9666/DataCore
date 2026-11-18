@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { AlertTriangle, ShieldAlert, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { DangerousQueryAnalysis } from '../../utils/dangerousQueryDetector';
 
 export interface DangerousQueryConfirmModalProps {
@@ -22,6 +23,7 @@ export const DangerousQueryConfirmModal: React.FC<DangerousQueryConfirmModalProp
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useTranslation();
   const [confirmInput, setConfirmInput] = useState('');
 
   useEffect(() => {
@@ -57,9 +59,9 @@ export const DangerousQueryConfirmModal: React.FC<DangerousQueryConfirmModalProp
             >
               <ShieldAlert className="w-5 h-5 shrink-0 text-red-500" />
               <div>
-                <div className="uppercase tracking-wider font-bold text-[11px]">Production Safe Mode Guardrail</div>
+                <div className="uppercase tracking-wider font-bold text-[11px]">{t('dialogs.prodSafeModeTitle', 'Production Safe Mode Guardrail')}</div>
                 <div className="text-[11px] font-normal opacity-90">
-                  Target connection {connectionName ? `"${connectionName}"` : ''} is in PRODUCTION. Destructive operations require explicit confirmation.
+                  {t('dialogs.prodSafeModeDesc', { name: connectionName ? `"${connectionName}"` : '', defaultValue: `Target connection ${connectionName ? `"${connectionName}"` : ''} is in PRODUCTION. Destructive operations require explicit confirmation.` })}
                 </div>
               </div>
             </div>
@@ -72,7 +74,7 @@ export const DangerousQueryConfirmModal: React.FC<DangerousQueryConfirmModalProp
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
                 <Dialog.Title className="text-base font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                  <span>Dangerous Query Warning</span>
+                  <span>{t('dialogs.dangerousQueryTitle', 'Dangerous Query Warning')}</span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${isCritical ? 'bg-red-500/20 text-red-500 dark:text-red-400 border border-red-500/30' : 'bg-amber-500/20 text-amber-500 dark:text-amber-400 border border-amber-500/30'}`}>
                     {isProduction ? 'PRODUCTION' : (analysis.riskLevel ?? 'HIGH RISK')}
                   </span>
@@ -93,7 +95,7 @@ export const DangerousQueryConfirmModal: React.FC<DangerousQueryConfirmModalProp
               </Dialog.Description>
 
               <div className="mt-4">
-                <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">Query to be executed:</div>
+                <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('dialogs.queryToExecute', 'Query to be executed:')}</div>
                 <pre className="p-3 rounded-lg bg-zinc-50 dark:bg-black/60 border border-zinc-200 dark:border-zinc-800 text-xs font-mono text-red-700 dark:text-red-200 overflow-x-auto max-h-32 select-text">
                   {sql}
                 </pre>
@@ -139,7 +141,7 @@ export const DangerousQueryConfirmModal: React.FC<DangerousQueryConfirmModalProp
                   : 'bg-red-600 hover:bg-red-500 shadow-red-900/30 cursor-pointer'
               }`}
             >
-              Execute Anyway
+              {t('dialogs.executeAnyway', 'Execute Anyway')}
             </button>
           </div>
         </Dialog.Content>

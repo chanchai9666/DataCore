@@ -18,6 +18,7 @@ import {
   Columns2,
   Rows2,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { IsolationLevel } from '../../api/transactionHelpers';
 import type { SafeLimitOption } from '../../utils/sqlLimitHelper';
 import { ImpactPreviewModal } from './ImpactPreviewModal';
@@ -89,6 +90,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   connectionId,
   sql,
 }) => {
+  const { t } = useTranslation();
   const [isImpactModalOpen, setIsImpactModalOpen] = useState(false);
 
   const handleImpactPreviewClick = () => {
@@ -144,7 +146,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           }}
         >
           <Play size={14} fill="currentColor" />
-          <span>Run</span>
+          <span>{t('editorToolbar.run', 'Run')}</span>
           <span style={{ fontSize: '11px', opacity: 0.85 }}>({shortcutHint})</span>
         </button>
 
@@ -172,7 +174,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           }}
         >
           <Square size={13} fill={isRunning ? 'currentColor' : 'none'} />
-          <span>Cancel</span>
+          <span>{t('editorToolbar.cancel', 'Cancel')}</span>
         </button>
 
         {/* Explain Buttons */}
@@ -201,7 +203,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               }}
             >
               <Activity size={13} className={isExecutionDisabled ? 'text-gray-400' : 'text-blue-500'} />
-              <span>Explain</span>
+              <span>{t('editorToolbar.explain', 'Explain')}</span>
             </button>
 
             <button
@@ -227,7 +229,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               }}
             >
               <Zap size={13} className={isExecutionDisabled ? 'text-gray-400' : 'text-amber-500'} />
-              <span>Analyze</span>
+              <span>{t('editorToolbar.analyze', 'Analyze')}</span>
             </button>
           </div>
         )}
@@ -256,7 +258,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           }}
         >
           <Eye size={13} className={isExecutionDisabled ? 'text-gray-400' : 'text-blue-500'} />
-          <span>Impact Preview</span>
+          <span>{t('editorToolbar.impactPreview', 'Impact Preview')}</span>
         </button>
 
         {/* Format SQL Button */}
@@ -285,7 +287,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             }}
           >
             <AlignLeft size={13} className="text-purple-600" />
-            <span>Format</span>
+            <span>{t('editorToolbar.format', 'Format')}</span>
           </button>
         )}
 
@@ -328,7 +330,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             />
           </button>
           <span style={{ fontSize: '12px', userSelect: 'none', color: '#374151' }}>
-            Auto-Commit: {autoCommit ? 'ON' : 'OFF'}
+            {autoCommit ? t('editorToolbar.autoCommitOn', 'Auto-Commit: ON') : t('editorToolbar.autoCommitOff', 'Auto-Commit: OFF')}
           </span>
         </div>
 
@@ -355,7 +357,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           }}
         >
           <Check size={14} />
-          <span>Commit</span>
+          <span>{t('editorToolbar.commit', 'Commit')}</span>
         </button>
 
         {/* Rollback Button */}
@@ -381,7 +383,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           }}
         >
           <RotateCcw size={14} />
-          <span>Rollback</span>
+          <span>{t('editorToolbar.rollback', 'Rollback')}</span>
         </button>
 
         {/* Isolation Level Selector */}
@@ -437,7 +439,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             }}
           >
             <Flag size={13} className={!isConnected ? 'text-gray-400' : 'text-blue-500'} />
-            <span>Savepoint</span>
+            <span>{t('editorToolbar.savepoint', 'Savepoint')}</span>
           </button>
         )}
 
@@ -465,7 +467,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             }}
           >
             <Lock size={13} className={!isConnected ? 'text-gray-400' : 'text-amber-500'} />
-            <span>Locks</span>
+            <span>{t('editorToolbar.locks', 'Locks')}</span>
           </button>
         )}
 
@@ -496,7 +498,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             }}
           >
             <Cpu size={13} className={!isConnected ? 'text-gray-400' : 'text-indigo-500'} />
-            <span>Metrics</span>
+            <span>{t('editorToolbar.metrics', 'Metrics')}</span>
           </button>
         )}
 
@@ -523,7 +525,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             }}
           >
             <ShieldCheck size={13} className="text-emerald-500" />
-            <span>Audit Log</span>
+            <span>{t('editorToolbar.auditLog', 'Audit Log')}</span>
           </button>
         )}
 
@@ -555,7 +557,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             }}
           >
             <History size={13} />
-            <span>History</span>
+            <span>{t('editorToolbar.history', 'History')}</span>
           </button>
         )}
 
@@ -582,7 +584,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             }}
           >
             <Bookmark size={13} />
-            <span>Snippets</span>
+            <span>{t('editorToolbar.snippets', 'Snippets')}</span>
           </button>
         )}
 
@@ -594,7 +596,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         {/* Safe Limit Dropdown */}
         {onChangeSafeLimit && (
           <div style={{ display: 'inline-flex', alignItems: 'center', height: '28px', gap: '5px' }}>
-            <span style={{ fontSize: '11px', color: '#6b7280', userSelect: 'none' }}>Limit:</span>
+            <span style={{ fontSize: '11px', color: '#6b7280', userSelect: 'none' }}>{t('editorToolbar.limit', 'Limit:')}</span>
             <select
               aria-label="Safe Limit"
               value={String(safeLimit)}

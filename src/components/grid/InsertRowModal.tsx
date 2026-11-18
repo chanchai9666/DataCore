@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { ColumnMeta } from '../../types/db';
 
 export interface InsertRowModalProps {
@@ -40,6 +41,7 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
   onSubmit,
   theme = 'dark',
 }) => {
+  const { t } = useTranslation();
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [nullFlags, setNullFlags] = useState<Record<string, boolean>>(() => {
     // Default auto-generated columns to NULL so DB generates them
@@ -184,7 +186,7 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Plus size={18} style={{ color: '#10b981' }} />
             <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>
-              Insert New Row:{' '}
+              {t('grid.insertNewRow', 'Insert New Row:')}{' '}
               <span style={{ color: '#3b82f6' }}>
                 {schemaName ? `${schemaName}.${tableName}` : tableName}
               </span>
@@ -248,7 +250,7 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
                   fontSize: '13px',
                 }}
               >
-                No columns found for this table.
+                {t('grid.noColumnsFound', 'No columns found for this table.')}
               </div>
             ) : (
               columns.map((col) => {
@@ -305,7 +307,7 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
                         onChange={() => handleNullToggle(col.name)}
                         style={{ cursor: 'pointer' }}
                       />
-                      <span>NULL {isIdCol ? '(auto-gen)' : ''}</span>
+                      <span>{isIdCol ? t('grid.nullAutoGen', 'NULL (auto-gen)') : 'NULL'}</span>
                     </label>
                   </div>
 
@@ -316,8 +318,8 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
                     value={isNullChecked ? '' : (fieldValues[col.name] ?? '')}
                     placeholder={
                       isNullChecked
-                        ? 'NULL (will not be inserted or auto-generated)'
-                        : `Enter ${col.name}...`
+                        ? t('grid.nullWillNotInsert', 'NULL (will not be inserted or auto-generated)')
+                        : t('grid.enterColumn', { name: col.name, defaultValue: `Enter ${col.name}...` })
                     }
                     onChange={(e) => handleValueChange(col.name, e.target.value)}
                     style={{
@@ -362,7 +364,7 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
                 cursor: 'pointer',
               }}
             >
-              Cancel
+              {t('common.cancel', 'Cancel')}
             </button>
             <button
               type="submit"
@@ -383,7 +385,7 @@ export const InsertRowModal: React.FC<InsertRowModalProps> = ({
               }}
             >
               <Plus size={14} />
-              {isSubmitting ? 'Inserting...' : 'Insert Row'}
+              {isSubmitting ? t('grid.inserting', 'Inserting...') : t('grid.insertRow', 'Insert Row')}
             </button>
           </div>
         </form>

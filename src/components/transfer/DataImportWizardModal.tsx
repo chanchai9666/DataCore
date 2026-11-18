@@ -12,6 +12,7 @@ import {
   FileCode,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import {
   previewImportFile,
   importData,
@@ -57,6 +58,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
   initialSchemaName,
   onImportSuccess,
 }) => {
+  const { t } = useTranslation();
   const connections = useConnectionStore((s) => s.connections);
   const targetConn = connections.find((c) => c.id === connectionId);
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -387,10 +389,10 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
               <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
               <div>
                 <Dialog.Title className="text-sm font-semibold text-text">
-                  Data Import Wizard
+                  {t('transfer.importTitle', 'Data Import Wizard')}
                 </Dialog.Title>
                 <Dialog.Description className="text-xs text-muted">
-                  Step-by-step assistant for importing CSV, TSV, and JSON data into your database
+                  {t('transfer.importWizardDesc', 'Step-by-step assistant for importing CSV, TSV, and JSON data into your database')}
                 </Dialog.Description>
               </div>
             </div>
@@ -408,11 +410,11 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
           {/* Stepper Wizard Indicator */}
           <div className="px-5 py-2.5 border-b border-line bg-black/5 dark:bg-white/5 flex items-center justify-between text-xs">
             {[
-              { num: 1, label: 'Source File' },
-              { num: 2, label: 'Destination Table' },
-              { num: 3, label: 'Column Mapping' },
-              { num: 4, label: 'Options & Policy' },
-              { num: 5, label: 'Execution' },
+              { num: 1, label: t('transfer.stepSourceFile', 'Source File') },
+              { num: 2, label: t('transfer.stepDestTable', 'Destination Table') },
+              { num: 3, label: t('transfer.stepColMapping', 'Column Mapping') },
+              { num: 4, label: t('transfer.stepOptionsPolicy', 'Options & Policy') },
+              { num: 5, label: t('transfer.stepExecution', 'Execution') },
             ].map((step, idx) => {
               const isActive = currentStep === step.num;
               const isPast = currentStep > step.num;
@@ -449,7 +451,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
             {/* STEP 1: Source File & Format */}
             {currentStep === 1 && (
               <div className="space-y-5 max-w-xl mx-auto">
-                <h3 className="text-sm font-semibold text-text">Step 1: Source File & Format</h3>
+                <h3 className="text-sm font-semibold text-text">{t('transfer.step1ImportTitle', 'Step 1: Source File & Format')}</h3>
 
                 {/* Destination Context Header */}
                 <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between">
@@ -459,7 +461,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                     </div>
                     <div>
                       <div className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                        Destination Target
+                        {t('transfer.destTarget', 'Destination Target')}
                       </div>
                       <div className="text-xs font-semibold text-text flex items-center gap-1.5">
                         <span>{targetConn?.name || connectionId}</span>
@@ -479,18 +481,18 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                     </div>
                   </div>
                   <div className="text-[11px] text-muted font-medium">
-                    {targetConn?.database || 'Target Database'}
+                    {targetConn?.database || t('transfer.targetDatabase', 'Target Database')}
                   </div>
                 </div>
 
                 {/* File picker */}
                 <div className="p-4 rounded-lg border border-line bg-black/5 dark:bg-white/5 space-y-3">
-                  <label className="block text-xs font-medium text-text">Choose file to import:</label>
+                  <label className="block text-xs font-medium text-text">{t('transfer.chooseFileToImport', 'Choose file to import:')}</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       readOnly
-                      placeholder="No file chosen..."
+                      placeholder={t('transfer.noFileChosen', 'No file chosen...')}
                       value={filePath || ''}
                       className="flex-1 text-xs bg-panel border border-line rounded px-3 py-2 text-text outline-none"
                     />
@@ -500,7 +502,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                       className="px-3.5 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium flex items-center gap-1.5 transition-colors shrink-0"
                     >
                       <Upload className="w-3.5 h-3.5" />
-                      <span>Browse File</span>
+                      <span>{t('transfer.browseFile', 'Browse File')}</span>
                     </button>
                   </div>
                 </div>
@@ -521,8 +523,8 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                   >
                     <FileSpreadsheet className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                     <div>
-                      <div className="text-xs font-semibold text-text">Delimited Text (CSV / TSV)</div>
-                      <div className="text-[11px] text-muted mt-0.5">Comma, tab, or custom separated table rows</div>
+                      <div className="text-xs font-semibold text-text">{t('transfer.delimitedTextTitle', 'Delimited Text (CSV / TSV)')}</div>
+                      <div className="text-[11px] text-muted mt-0.5">{t('transfer.delimitedTextDesc', 'Comma, tab, or custom separated table rows')}</div>
                     </div>
                   </button>
 
@@ -537,8 +539,8 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                   >
                     <FileCode className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
                     <div>
-                      <div className="text-xs font-semibold text-text">JSON Array / NDJSON</div>
-                      <div className="text-[11px] text-muted mt-0.5">Array of objects or newline-delimited JSON</div>
+                      <div className="text-xs font-semibold text-text">{t('transfer.jsonArrayNdjsonTitle', 'JSON Array / NDJSON')}</div>
+                      <div className="text-[11px] text-muted mt-0.5">{t('transfer.jsonArrayNdjsonDesc', 'Array of objects or newline-delimited JSON')}</div>
                     </div>
                   </button>
                 </div>
@@ -546,16 +548,16 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                 {format === 'csv' && (
                   <div className="grid grid-cols-2 gap-4 p-4 rounded-lg border border-line bg-panel text-xs">
                     <div>
-                      <label className="block text-muted mb-1 font-medium">Delimiter:</label>
+                      <label className="block text-muted mb-1 font-medium">{t('transfer.delimiter', 'Delimiter:')}</label>
                       <select
                         value={delimiter}
                         onChange={(e) => setDelimiter(e.target.value)}
                         className="w-full h-[34px] bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
                       >
-                        <option value=",">Comma (,)</option>
-                        <option value="&#9;">Tab (\t)</option>
-                        <option value=";">Semicolon (;)</option>
-                        <option value="|">Pipe (|)</option>
+                        <option value=",">{t('transfer.commaOption', 'Comma (,)')}</option>
+                        <option value="&#9;">{t('transfer.tabOption', 'Tab (\\t)')}</option>
+                        <option value=";">{t('transfer.semicolonOption', 'Semicolon (;)')}</option>
+                        <option value="|">{t('transfer.pipeOption', 'Pipe (|)')}</option>
                       </select>
                     </div>
 
@@ -567,7 +569,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                           onChange={(e) => setHasHeaders(e.target.checked)}
                           className="rounded border-line text-blue-600 focus:ring-0"
                         />
-                        <span className="text-text font-medium">First row contains column headers</span>
+                        <span className="text-text font-medium">{t('transfer.firstRowContainsHeaders', 'First row contains column headers')}</span>
                       </label>
                     </div>
                   </div>
@@ -578,17 +580,17 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
             {/* STEP 2: Destination Table Selection */}
             {currentStep === 2 && (
               <div className="space-y-5 max-w-xl mx-auto">
-                <h3 className="text-sm font-semibold text-text">Step 2: Destination Table</h3>
+                <h3 className="text-sm font-semibold text-text">{t('transfer.step2ImportTitle', 'Step 2: Destination Table')}</h3>
 
                 <div className="p-4 rounded-lg border border-line bg-black/5 dark:bg-white/5 space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-text mb-1.5">
-                      Select target table in database:
+                      {t('transfer.selectTargetTable', 'Select target table in database:')}
                     </label>
                     {isLoadingTables ? (
                       <div className="flex items-center gap-2 text-xs text-muted py-2">
                         <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                        <span>Loading tables...</span>
+                        <span>{t('transfer.loadingTables', 'Loading tables...')}</span>
                       </div>
                     ) : (
                       <select
@@ -608,7 +610,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                   {targetColumns.length > 0 && (
                     <div className="pt-2">
                       <span className="text-xs text-muted block mb-2 font-medium">
-                        Target Table Columns ({targetColumns.length}):
+                        {t('transfer.targetTableColumnsCount', { count: targetColumns.length, defaultValue: `Target Table Columns (${targetColumns.length}):` })}
                       </span>
                       <div className="flex flex-wrap gap-1.5">
                         {targetColumns.map((col) => (
@@ -630,29 +632,29 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
             {currentStep === 3 && (
               <div className="space-y-4 max-w-2xl mx-auto">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-text">Step 3: Column Mapping</h3>
+                  <h3 className="text-sm font-semibold text-text">{t('transfer.step3ImportTitle', 'Step 3: Column Mapping')}</h3>
                   <span className="text-xs text-muted">
-                    Match file columns with target database columns
+                    {t('transfer.matchColumnsHelp', 'Match file columns with target database columns')}
                   </span>
                 </div>
 
                 {isLoadingPreview ? (
                   <div className="flex flex-col items-center justify-center p-12 text-muted text-xs">
                     <Loader2 className="w-6 h-6 animate-spin text-blue-500 mb-2" />
-                    <span>Parsing source file preview...</span>
+                    <span>{t('transfer.parsingPreview', 'Parsing source file preview...')}</span>
                   </div>
                 ) : !preview ? (
                   <div className="text-xs text-rose-400 p-4 border border-rose-500/20 rounded">
-                    Unable to load preview for column mapping.
+                    {t('transfer.unableLoadPreview', 'Unable to load preview for column mapping.')}
                   </div>
                 ) : (
                   <div className="border border-line rounded-lg overflow-hidden">
                     <table className="w-full text-xs text-left">
                       <thead className="bg-black/10 dark:bg-white/5 border-b border-line text-muted font-medium">
                         <tr>
-                          <th className="py-2 px-3 w-1/3">Source File Column</th>
+                          <th className="py-2 px-3 w-1/3">{t('transfer.sourceFileColumn', 'Source File Column')}</th>
                           <th className="py-2 px-3 w-10 text-center"></th>
-                          <th className="py-2 px-3 w-1/3">Target DB Column</th>
+                          <th className="py-2 px-3 w-1/3">{t('transfer.targetDbColumn', 'Target DB Column')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-line/30 font-mono text-[11px]">
@@ -675,7 +677,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                                 }
                                 className="w-full bg-black/10 dark:bg-white/5 border border-line rounded px-2 py-1 text-text outline-none focus:border-accent"
                               >
-                                <option value="">-- Ignore Column --</option>
+                                <option value="">{t('transfer.ignoreColumn', '-- Ignore Column --')}</option>
                                 {targetColumns.map((tc) => (
                                   <option key={tc.name} value={tc.name}>
                                     {tc.name} ({tc.dataType})
@@ -695,11 +697,11 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
             {/* STEP 4: Options & Error Policy */}
             {currentStep === 4 && (
               <div className="space-y-5 max-w-xl mx-auto">
-                <h3 className="text-sm font-semibold text-text">Step 4: Preview & Error Policy</h3>
+                <h3 className="text-sm font-semibold text-text">{t('transfer.step4ImportTitle', 'Step 4: Preview & Error Policy')}</h3>
 
                 <div className="p-4 rounded-lg border border-line bg-panel space-y-4 text-xs">
                   <div>
-                    <label className="block text-text font-semibold mb-2">Error Handling Policy:</label>
+                    <label className="block text-text font-semibold mb-2">{t('transfer.errorHandlingPolicy', 'Error Handling Policy:')}</label>
                     <div className="space-y-2">
                       <label className="flex items-start gap-2.5 cursor-pointer">
                         <input
@@ -711,9 +713,9 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                           className="mt-0.5 text-blue-600 focus:ring-0"
                         />
                         <div>
-                          <span className="font-medium text-text block">Abort on Error (Recommended)</span>
+                          <span className="font-medium text-text block">{t('transfer.abortOnErrorRec', 'Abort on Error (Recommended)')}</span>
                           <span className="text-muted text-[11px]">
-                            Stop import and rollback transaction if any row encounters a constraint violation or type error.
+                            {t('transfer.abortOnErrorDesc', 'Stop import and rollback transaction if any row encounters a constraint violation or type error.')}
                           </span>
                         </div>
                       </label>
@@ -728,9 +730,9 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                           className="mt-0.5 text-blue-600 focus:ring-0"
                         />
                         <div>
-                          <span className="font-medium text-text block">Skip Invalid Rows</span>
+                          <span className="font-medium text-text block">{t('transfer.errorPolicySkip', 'Skip Invalid Rows')}</span>
                           <span className="text-muted text-[11px]">
-                            Continue importing valid rows and skip individual rows that fail constraint checks.
+                            {t('transfer.skipInvalidDesc', 'Continue importing valid rows and skip individual rows that fail constraint checks.')}
                           </span>
                         </div>
                       </label>
@@ -739,29 +741,29 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
 
                   <div className="pt-2 border-t border-line/40 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-text font-semibold mb-1">Batch Size:</label>
+                      <label className="block text-text font-semibold mb-1">{t('transfer.batchSizeLabel', 'Batch Size:')}</label>
                       <select
                         value={batchSize}
                         onChange={(e) => setBatchSize(Number(e.target.value))}
                         className="w-full h-[34px] bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
                       >
-                        <option value={200}>200 rows per batch</option>
-                        <option value={500}>500 rows per batch</option>
-                        <option value={1000}>1,000 rows per batch</option>
-                        <option value={2500}>2,500 rows per batch</option>
+                        <option value={200}>{t('transfer.rowsPerBatch', { count: 200, defaultValue: '200 rows per batch' })}</option>
+                        <option value={500}>{t('transfer.rowsPerBatch', { count: 500, defaultValue: '500 rows per batch' })}</option>
+                        <option value={1000}>{t('transfer.rowsPerBatch', { count: 1000, defaultValue: '1,000 rows per batch' })}</option>
+                        <option value={2500}>{t('transfer.rowsPerBatch', { count: 2500, defaultValue: '2,500 rows per batch' })}</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-text font-semibold mb-1">Import Mode:</label>
+                      <label className="block text-text font-semibold mb-1">{t('transfer.importModeLabel', 'Import Mode:')}</label>
                       <select
                         data-testid="wizard-import-mode-select"
                         value={importMode}
                         onChange={(e) => setImportMode(e.target.value as ImportMode)}
                         className="w-full h-[34px] bg-black/10 dark:bg-white/5 border border-line rounded px-2.5 py-1.5 text-text outline-none"
                       >
-                        <option value="atomic">Atomic (Single Transaction)</option>
-                        <option value="chunked">Chunked (Periodic Commits + Checkpoint)</option>
-                        <option value="staging">Staging (Temp Table Swap)</option>
+                        <option value="atomic">{t('transfer.importModeAtomic', 'Atomic (Single Transaction)')}</option>
+                        <option value="chunked">{t('transfer.importModeChunked', 'Chunked (Periodic Commits + Checkpoint)')}</option>
+                        <option value="staging">{t('transfer.importModeStaging', 'Staging (Temp Table Swap)')}</option>
                       </select>
                     </div>
                   </div>
@@ -776,7 +778,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                         className="rounded border-line text-blue-600 focus:ring-0"
                       />
                       <span className="text-text font-medium">
-                        Resume from previous checkpoint if available
+                        {t('transfer.resumeCheckpoint', 'Resume from previous checkpoint if available')}
                       </span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -788,7 +790,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                         className="rounded border-line text-blue-600 focus:ring-0"
                       />
                       <span className="text-text font-medium">
-                        Use PostgreSQL Fast COPY (CSV, Abort mode)
+                        {t('transfer.useNativeCopyImport', 'Use PostgreSQL Fast COPY (CSV, Abort mode)')}
                       </span>
                     </label>
                   </div>
@@ -797,7 +799,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                 {preview && preview.preview_rows.length > 0 && (
                   <div className="border border-line rounded-lg overflow-hidden text-xs">
                     <div className="bg-black/10 dark:bg-white/5 px-3 py-2 font-medium text-muted border-b border-line">
-                      Sample Data Preview (First {preview.preview_rows.length} rows):
+                      {t('transfer.sampleDataPreview', { count: preview.preview_rows.length, defaultValue: `Sample Data Preview (First ${preview.preview_rows.length} rows):` })}
                     </div>
                     <div className="overflow-x-auto max-h-36">
                       <table className="w-full text-left font-mono text-[11px]">
@@ -836,21 +838,21 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                     <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto" />
                     <div>
                       <h4 className="text-sm font-semibold text-text">
-                        {isCancelling ? 'Cancelling Import...' : `Importing Data (${progressPct}%)...`}
+                        {isCancelling ? t('transfer.cancellingImport', 'Cancelling Import...') : t('transfer.importingDataPct', { percent: progressPct, defaultValue: `Importing Data (${progressPct}%)...` })}
                       </h4>
                       <p className="text-xs text-muted mt-1">
                         {isCancelling
-                          ? 'Aborting batches and rolling back transaction...'
+                          ? t('transfer.abortingRollback', 'Aborting batches and rolling back transaction...')
                           : progress
                           ? `${progress.status} (${(progress.current_row ?? 0).toLocaleString()}${
                               progress.total_rows ? ` / ${progress.total_rows.toLocaleString()}` : ''
-                            } rows)`
-                          : 'Streaming rows into database...'}
+                            } ${t('transfer.rowsSuffix', 'rows')})`
+                          : t('transfer.streamingIntoDb', 'Streaming rows into database...')}
                       </p>
                     </div>
                     <div className="space-y-1.5 text-left">
                       <div className="flex justify-between text-[11px] font-mono text-muted">
-                        <span>{progress?.status || 'Importing...'}</span>
+                        <span>{progress?.status || t('transfer.importingRows', 'Importing...')}</span>
                         <span
                           data-testid="wizard-import-percent"
                           className="font-semibold text-emerald-400"
@@ -870,23 +872,23 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                   <>
                     <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
                     <div>
-                      <h4 className="text-sm font-semibold text-text">Import Completed Successfully</h4>
+                      <h4 className="text-sm font-semibold text-text">{t('transfer.importCompletedSuccess', 'Import Completed Successfully')}</h4>
                       <p className="text-xs text-muted mt-1">
-                        Processed {result.total_rows} rows in {result.elapsed_ms}ms
+                        {t('transfer.processedRowsInMs', { rows: result.total_rows, ms: result.elapsed_ms, defaultValue: `Processed ${result.total_rows} rows in ${result.elapsed_ms}ms` })}
                       </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 p-4 rounded-lg border border-line bg-black/5 dark:bg-white/5 text-xs text-left">
                       <div>
-                        <span className="text-muted block">Imported:</span>
+                        <span className="text-muted block">{t('transfer.importedLabel', 'Imported:')}</span>
                         <span className="font-semibold text-emerald-400 font-mono">
-                          {result.imported_rows} / {result.total_rows} rows
+                          {result.imported_rows} / {result.total_rows} {t('transfer.rowsSuffix', 'rows')}
                         </span>
                       </div>
                       <div>
-                        <span className="text-muted block">Skipped:</span>
+                        <span className="text-muted block">{t('transfer.skippedLabel', 'Skipped:')}</span>
                         <span className="font-semibold text-muted font-mono">
-                          {result.skipped_rows} rows
+                          {result.skipped_rows} {t('transfer.rowsSuffix', 'rows')}
                         </span>
                       </div>
                     </div>
@@ -906,7 +908,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                   className="px-3 py-1.5 rounded border border-line hover:bg-white/10 text-text font-medium flex items-center gap-1.5 transition-colors"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Back</span>
+                  <span>{t('common.back', 'Back')}</span>
                 </button>
               )}
             </div>
@@ -918,7 +920,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                 disabled={isCancelling}
                 className="px-3.5 py-1.5 rounded border border-line hover:bg-white/10 text-muted hover:text-text font-medium transition-colors disabled:opacity-50"
               >
-                {isCancelling ? 'Cancelling...' : isImporting ? 'Cancel Import' : currentStep === 5 ? 'Close' : 'Cancel'}
+                {isCancelling ? t('transfer.cancellingImport', 'Cancelling...') : isImporting ? t('transfer.cancelImport', 'Cancel Import') : currentStep === 5 ? t('common.close', 'Close') : t('common.cancel', 'Cancel')}
               </button>
 
               {currentStep < 4 && (
@@ -927,7 +929,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                   onClick={handleNext}
                   className="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium flex items-center gap-1.5 shadow-sm transition-colors"
                 >
-                  <span>Next</span>
+                  <span>{t('common.next', 'Next')}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -939,7 +941,7 @@ export const DataImportWizardModal: React.FC<DataImportWizardModalProps> = ({
                   className="px-4 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-1.5 shadow-sm transition-colors"
                 >
                   <Play className="w-3.5 h-3.5" />
-                  <span>Start Import</span>
+                  <span>{t('transfer.startImport', 'Start Import')}</span>
                 </button>
               )}
             </div>

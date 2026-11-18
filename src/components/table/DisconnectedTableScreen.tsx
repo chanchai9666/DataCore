@@ -1,5 +1,6 @@
 import React from 'react';
 import { Unplug, Database, Server, FileCode, Loader2, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export interface DisconnectedTableScreenProps {
   tableName: string;
@@ -36,6 +37,7 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
   onConnect,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const isLight = theme === 'light';
 
   // Environment badge colors
@@ -81,12 +83,12 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
 
         {/* Title & Description */}
         <h2 className={`text-lg font-semibold tracking-tight mb-1.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-          {isConnectionActive ? 'Table Data Not Loaded' : 'Connection is Disconnected'}
+          {isConnectionActive ? t('grid.tableNotLoaded', 'Table Data Not Loaded') : t('grid.connDisconnected', 'Connection is Disconnected')}
         </h2>
         <p className={`text-xs mb-5 max-w-sm leading-relaxed ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
           {isConnectionActive
-            ? 'This table tab was restored from a previous session. To protect database performance and avoid unexpected locks, data is loaded on demand.'
-            : 'This table tab was restored from a previous session. To protect system resources and avoid unintended locks, data is not fetched automatically until connected.'}
+            ? t('grid.tableNotLoadedDesc', 'This table tab was restored from a previous session. To protect database performance and avoid unexpected locks, data is loaded on demand.')
+            : t('grid.connDisconnectedDesc', 'This table tab was restored from a previous session. To protect system resources and avoid unintended locks, data is not fetched automatically until connected.')}
         </p>
 
         {/* Target Context Summary Card */}
@@ -97,7 +99,7 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
         >
           {/* Table */}
           <div className="flex items-center justify-between">
-            <span className={`text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Table:</span>
+            <span className={`text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{t('grid.tableLabel', 'Table:')}</span>
             <span className={`font-mono font-semibold flex items-center gap-1.5 ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
               <FileCode className="w-3.5 h-3.5 text-blue-500" />
               {tableName}
@@ -106,7 +108,7 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
 
           {/* Server / Connection */}
           <div className="flex items-center justify-between">
-            <span className={`text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Connection:</span>
+            <span className={`text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{t('grid.connectionLabel', 'Connection:')}</span>
             <div className="flex items-center gap-1.5">
               <Server className="w-3.5 h-3.5 text-purple-400" />
               <span className={`font-semibold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
@@ -129,7 +131,7 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
 
           {/* Database / Schema */}
           <div className="flex items-center justify-between">
-            <span className={`text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Database / Schema:</span>
+            <span className={`text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{t('grid.dbSchemaLabel', 'Database / Schema:')}</span>
             <span className={`font-mono text-[11px] ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
               {targetDb} {schemaName && schemaName !== targetDb ? `(${schemaName})` : ''}
             </span>
@@ -137,7 +139,7 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
 
           {/* Host / Endpoint */}
           <div className="flex items-center justify-between border-t pt-1.5 mt-1.5 border-dashed border-gray-200 dark:border-gray-800">
-            <span className={`text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Target:</span>
+            <span className={`text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{t('grid.targetLabel', 'Target:')}</span>
             <span className={`font-mono text-[11px] truncate max-w-[200px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`} title={targetHostOrPath}>
               {targetHostOrPath}
             </span>
@@ -157,7 +159,7 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
             }`}
           >
             <X className="w-3.5 h-3.5" />
-            Close Tab
+            {t('grid.closeTab', 'Close Tab')}
           </button>
 
           <button
@@ -170,12 +172,12 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
             {isConnecting ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Connecting...
+                {t('grid.connecting', 'Connecting...')}
               </>
             ) : (
               <>
                 <Database className="w-3.5 h-3.5" />
-                {isConnectionActive ? 'Load Table Data' : 'Connect & Load'}
+                {isConnectionActive ? t('grid.loadTableData', 'Load Table Data') : t('grid.connectAndLoad', 'Connect & Load')}
               </>
             )}
           </button>

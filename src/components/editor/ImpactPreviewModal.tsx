@@ -10,6 +10,7 @@ import {
   X,
   Play,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { ImpactSimulationResult } from '../../types/db';
 import {
   calculateRiskLevel,
@@ -41,6 +42,7 @@ export const ImpactPreviewModal: React.FC<ImpactPreviewModalProps> = ({
   isLoading: propLoading = false,
   error: propError = null,
 }) => {
+  const { t } = useTranslation();
   const [internalResult, setInternalResult] = useState<ImpactSimulationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +144,7 @@ export const ImpactPreviewModal: React.FC<ImpactPreviewModalProps> = ({
               <ShieldCheck className="h-5 w-5 text-emerald-500" />
             )}
             <h2 id={titleId} className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-              Query Impact Preview
+              {t('dialogs.impactPreviewTitle', 'Query Impact Preview')}
             </h2>
           </div>
           <button
@@ -161,7 +163,7 @@ export const ImpactPreviewModal: React.FC<ImpactPreviewModalProps> = ({
           {sql && (
             <div className="space-y-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Query Target
+                {t('dialogs.queryTarget', 'Query Target')}
               </span>
               <div className="flex items-center gap-2 flex-wrap">
                 {tableName && (
@@ -302,7 +304,7 @@ export const ImpactPreviewModal: React.FC<ImpactPreviewModalProps> = ({
                     >
                       <AlertTriangle size={16} className="text-red-600 shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-bold">CRITICAL WARNING: No WHERE Clause!</span>
+                        <span className="font-bold">{t('dialogs.criticalNoWhere', 'CRITICAL WARNING: No WHERE Clause!')}</span>
                         <p className="mt-0.5 opacity-90">
                           This operation will wipe or modify every row across the entire table{' '}
                           {tableName ? <code>{tableName}</code> : ''}.
@@ -318,7 +320,7 @@ export const ImpactPreviewModal: React.FC<ImpactPreviewModalProps> = ({
                     >
                       <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-bold">HIGH RISK: Large Data Mutation</span>
+                        <span className="font-bold">{t('dialogs.highRiskMutation', 'HIGH RISK: Large Data Mutation')}</span>
                         <p className="mt-0.5 opacity-90">
                           More than 100 rows ({formatAffectedRows(affectedRows)} rows) will be
                           affected by this query. Please double check the condition.
@@ -333,7 +335,7 @@ export const ImpactPreviewModal: React.FC<ImpactPreviewModalProps> = ({
                       className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30 p-2.5 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2"
                     >
                       <ShieldCheck size={14} className="text-emerald-600" />
-                      <span>Controlled impact: Query contains a WHERE clause ({affectedRows} rows).</span>
+                      <span>{t('dialogs.controlledImpact', { count: affectedRows, defaultValue: `Controlled impact: Query contains a WHERE clause (${affectedRows} rows).` })}</span>
                     </div>
                   )}
                 </div>
@@ -343,7 +345,7 @@ export const ImpactPreviewModal: React.FC<ImpactPreviewModalProps> = ({
               <div className="flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-500 pt-1">
                 <ShieldCheck size={13} className="text-emerald-500 shrink-0" />
                 <span>
-                  Simulation ran safely inside a rolled-back transaction. No changes were committed.
+                  {t('dialogs.simulationNotice', 'Simulation ran safely inside a rolled-back transaction. No changes were committed.')}
                 </span>
               </div>
             </>
@@ -358,7 +360,7 @@ export const ImpactPreviewModal: React.FC<ImpactPreviewModalProps> = ({
             aria-label="Cancel"
             className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
           >
-            Cancel
+            {t('common.cancel', 'Cancel')}
           </button>
 
           {onConfirm && (
@@ -379,7 +381,7 @@ export const ImpactPreviewModal: React.FC<ImpactPreviewModalProps> = ({
               }`}
             >
               <Play size={13} fill="currentColor" />
-              <span>{riskLevel === 'critical' ? 'Execute Anyway' : 'Proceed with Run'}</span>
+              <span>{riskLevel === 'critical' ? t('dialogs.executeAnyway', 'Execute Anyway') : t('dialogs.proceedWithRun', 'Proceed with Run')}</span>
             </button>
           )}
         </div>

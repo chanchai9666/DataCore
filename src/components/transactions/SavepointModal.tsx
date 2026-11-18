@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Bookmark, X, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { dbApi } from '../../api/db';
 import {
   buildSavepointSql,
@@ -25,6 +26,7 @@ export const SavepointModal: React.FC<SavepointModalProps> = ({
   connectionName,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [savepoints, setSavepoints] = useState<string[]>([]);
   const [newSavepointName, setNewSavepointName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -139,10 +141,10 @@ export const SavepointModal: React.FC<SavepointModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                Transaction Savepoints
+                {t('transactions.savepointsTitle', 'Transaction Savepoints')}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Manage intermediate transaction checkpoints in this session
+                {t('transactions.savepointsDesc', 'Manage intermediate transaction checkpoints in this session')}
               </p>
             </div>
           </div>
@@ -162,7 +164,7 @@ export const SavepointModal: React.FC<SavepointModalProps> = ({
           <form onSubmit={handleCreate} className="flex gap-2">
             <input
               type="text"
-              placeholder="Savepoint name (e.g. sp_before_update)"
+              placeholder={t('transactions.savepointPlaceholder', 'Savepoint name (e.g. sp_before_update)')}
               value={newSavepointName}
               onChange={(e) => setNewSavepointName(e.target.value)}
               disabled={isSubmitting}
@@ -174,19 +176,19 @@ export const SavepointModal: React.FC<SavepointModalProps> = ({
               className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-blue-700 disabled:opacity-50"
             >
               <Plus className="h-3.5 w-3.5" />
-              Savepoint
+              {t('transactions.savepointBtn', 'Savepoint')}
             </button>
           </form>
 
           {/* List of active savepoints */}
           <div className="space-y-2">
             <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              Active Savepoints ({savepoints.length})
+              {t('transactions.activeSavepointsCount', { count: savepoints.length, defaultValue: `Active Savepoints (${savepoints.length})` })}
             </div>
 
             {savepoints.length === 0 ? (
               <div className="rounded-lg border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400 dark:border-slate-800">
-                No active savepoints created in this transaction session.
+                {t('transactions.noActiveSavepoints', 'No active savepoints created in this transaction session.')}
               </div>
             ) : (
               <div className="max-h-48 overflow-y-auto space-y-1.5">

@@ -27,6 +27,7 @@ import {
   type RlsPolicy,
 } from '../../api/securityHelpers';
 import { dbApi } from '../../api/db';
+import { useTranslation } from 'react-i18next';
 import {
   getFetchColumnsSql,
   parseColumnsFromQueryResult,
@@ -91,6 +92,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
   onModeChange,
   onCloseTab,
 }) => {
+  const { t } = useTranslation();
   const isDark = propTheme
     ? propTheme === 'dark'
     : typeof document !== 'undefined'
@@ -348,7 +350,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               }`}
             >
               <TableIcon className="w-3.5 h-3.5 text-blue-500" />
-              <span>Data</span>
+              <span>{t('structure.dataMode', 'Data')}</span>
             </button>
             <button
               type="button"
@@ -361,7 +363,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
               }`}
             >
               <Wrench className="w-3.5 h-3.5 text-amber-500" />
-              <span>Structure</span>
+              <span>{t('structure.structureMode', 'Structure')}</span>
             </button>
           </div>
 
@@ -427,7 +429,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             className="inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-line bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors shadow-xs"
           >
             <Code className="w-3.5 h-3.5 text-blue-500" />
-            <span>DDL</span>
+            <span>{t('structure.ddlBtn', 'DDL')}</span>
           </button>
 
           <button
@@ -438,7 +440,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             className="inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-line bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors shadow-xs"
           >
             <Split className="w-3.5 h-3.5 text-teal-500" />
-            <span>Partitions</span>
+            <span>{t('structure.partitionsBtn', 'Partitions')}</span>
           </button>
 
           <button
@@ -449,7 +451,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             className="inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-line bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors shadow-xs"
           >
             <Wrench className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Maintain</span>
+            <span>{t('structure.maintenanceBtn', 'Maintain')}</span>
           </button>
 
           <button
@@ -460,7 +462,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             className="inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-line bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors shadow-xs"
           >
             <Pencil className="w-3.5 h-3.5 text-blue-500" />
-            <span>Rename</span>
+            <span>{t('tableList.renameTable', 'Rename')}</span>
           </button>
 
           <div className="h-4 w-px bg-line mx-0.5" />
@@ -473,7 +475,7 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
             className="inline-flex items-center space-x-1 px-2 py-1 text-xs font-medium rounded-md transition-colors border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-500"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>Drop</span>
+            <span>{t('tableList.dropTable', 'Drop')}</span>
           </button>
         </div>
       </div>
@@ -484,11 +486,11 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         <div className="flex items-center p-0.5 rounded-lg border border-line bg-panel">
           {(
             [
-              { id: 'columns', label: 'Columns', count: columns.length, icon: <TableIcon className="w-3 h-3 text-blue-500" /> },
-              { id: 'indexes', label: 'Indexes', count: indexes.length, icon: <Layers className="w-3 h-3 text-emerald-500" /> },
-              { id: 'foreign-keys', label: 'Foreign Keys', count: foreignKeys.length, icon: <Link2 className="w-3 h-3 text-indigo-500" /> },
-              { id: 'constraints', label: 'Constraints', count: constraints.length, icon: <ShieldAlert className="w-3 h-3 text-purple-500" /> },
-              { id: 'security', label: 'Security / RLS', count: rlsPolicies.length, icon: <Shield className="w-3 h-3 text-rose-500" /> },
+              { id: 'columns', label: t('structure.columnsTab', 'Columns'), count: columns.length, icon: <TableIcon className="w-3 h-3 text-blue-500" /> },
+              { id: 'indexes', label: t('structure.indexesTab', 'Indexes'), count: indexes.length, icon: <Layers className="w-3 h-3 text-emerald-500" /> },
+              { id: 'foreign-keys', label: t('structure.foreignKeysTab', 'Foreign Keys'), count: foreignKeys.length, icon: <Link2 className="w-3 h-3 text-indigo-500" /> },
+              { id: 'constraints', label: t('structure.constraintsTab', 'Constraints'), count: constraints.length, icon: <ShieldAlert className="w-3 h-3 text-purple-500" /> },
+              { id: 'security', label: t('structure.rlsTab', 'Security / RLS'), count: rlsPolicies.length, icon: <Shield className="w-3 h-3 text-rose-500" /> },
             ] as const
           ).map((tab) => (
             <button

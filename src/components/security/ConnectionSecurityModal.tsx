@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { dbApi } from '../../api/db';
 import {
   buildGetTlsStatusSql,
@@ -38,6 +39,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
   sslMode,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [tlsInfo, setTlsInfo] = useState<TlsStatusInfo | null>(null);
   const [atRestInfo, setAtRestInfo] = useState<AtRestEncryptionInfo | null>(null);
   const [isKeychainOptIn, setIsKeychainOptIn] = useState(false);
@@ -178,7 +180,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
             </div>
             <div>
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                Connection Encryption & Security
+                {t('security.title', 'Connection Encryption & Security')}
                 {connectionName && (
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-800 dark:text-slate-400 font-mono">
                     {connectionName}
@@ -186,7 +188,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                 )}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                In-transit (TLS/SSL) and at-rest cryptographic status
+                {t('security.subtitle', 'In-transit (TLS/SSL) and at-rest cryptographic status')}
               </p>
             </div>
           </div>
@@ -199,7 +201,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
               className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 shadow-2xs hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin text-blue-500' : ''}`} />
-              Refresh
+              {t('tools.refresh', 'Refresh')}
             </button>
             <button
               type="button"
@@ -219,7 +221,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-200">
                 <Lock className="h-4 w-4 text-emerald-500" />
-                <span>In-Transit Encryption (TLS / SSL)</span>
+                <span>{t('security.inTransitTitle', 'In-Transit Encryption (TLS / SSL)')}</span>
               </div>
               <span
                 className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
@@ -228,20 +230,20 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                     : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
                 }`}
               >
-                {isTlsActive ? 'TLS Encrypted' : 'Unencrypted / Plaintext'}
+                {isTlsActive ? t('security.tlsEncrypted', 'TLS Encrypted') : t('security.unencryptedPlaintext', 'Unencrypted / Plaintext')}
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-3 pt-1">
               <div className="rounded-lg bg-white p-2.5 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60">
-                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Protocol Version</div>
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">{t('security.protocolVersion', 'Protocol Version')}</div>
                 <div className="font-mono font-bold text-slate-800 dark:text-slate-100 text-xs mt-0.5">
                   {tlsInfo?.protocol || 'TLSv1.3'}
                 </div>
               </div>
 
               <div className="rounded-lg bg-white p-2.5 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60">
-                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Key Strength</div>
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">{t('security.keyStrength', 'Key Strength')}</div>
                 <div className="font-mono font-bold text-slate-800 dark:text-slate-100 text-xs mt-0.5">
                   {tlsInfo?.keyBits ? `${tlsInfo.keyBits}-bit Encryption` : '256-bit AES-GCM'}
                 </div>
@@ -249,7 +251,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
             </div>
 
             <div className="rounded-lg bg-white p-2.5 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60">
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Cipher Suite</div>
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">{t('security.cipherSuite', 'Cipher Suite')}</div>
               <div className="font-mono text-slate-700 dark:text-slate-300 text-[11px] mt-0.5 break-all">
                 {tlsInfo?.cipherSuite || 'TLS_AES_256_GCM_SHA384'}
               </div>
@@ -261,7 +263,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-200">
                 <HardDrive className="h-4 w-4 text-indigo-500" />
-                <span>At-Rest Encryption (การจัดเก็บข้อมูล)</span>
+                <span>{t('security.atRestTitle', 'At-Rest Encryption (Data Storage)')}</span>
               </div>
               <span
                 className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
@@ -273,10 +275,10 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                 }`}
               >
                 {atRestInfo?.isEncrypted
-                  ? 'Encrypted (TDE Active)'
+                  ? t('security.encryptedTde', 'Encrypted (TDE Active)')
                   : atRestInfo?.status === 'unknown'
-                  ? 'Unknown / Unsupported'
-                  : 'Unencrypted at Rest'}
+                  ? t('security.unknownUnsupported', 'Unknown / Unsupported')
+                  : t('security.unencryptedAtRest', 'Unencrypted at Rest')}
               </span>
             </div>
 
@@ -286,7 +288,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                   <KeyRound className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                   <div className="space-y-0.5">
                     <div className="font-medium text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                      Local Credential Vault (AES-256-GCM)
+                      {t('security.localVaultTitle', 'Local Credential Vault (AES-256-GCM)')}
                       <span className="rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 px-1.5 py-0.2">
                         POSIX 0600
                       </span>
@@ -296,7 +298,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                     </p>
                     <div className="pt-1.5 flex items-center gap-2 text-[11px]">
                       <span className="text-slate-600 dark:text-slate-300 font-medium">
-                        macOS Keychain & Touch ID Sync (Opt-In):
+                        {t('security.keychainSyncLabel', 'macOS Keychain & Touch ID Sync (Opt-In):')}
                       </span>
                       <button
                         type="button"
@@ -316,7 +318,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                         />
                       </button>
                       <span className="text-[10px] text-slate-400">
-                        {isKeychainOptIn ? 'Enabled (Touch ID Ready)' : 'Disabled (Isolated Vault)'}
+                        {isKeychainOptIn ? t('security.enabledTouchId', 'Enabled (Touch ID Ready)') : t('security.disabledIsolated', 'Disabled (Isolated Vault)')}
                       </span>
                     </div>
                   </div>
@@ -351,7 +353,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
             onClick={onClose}
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
           >
-            Close
+            {t('common.close', 'Close')}
           </button>
         </div>
       </div>

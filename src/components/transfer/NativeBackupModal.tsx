@@ -209,7 +209,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
           {checkingCli ? (
             <div className="flex items-center space-x-2 text-xs text-muted animate-pulse">
               <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-              <span>Checking database CLI client tools...</span>
+              <span>{t('transfer.checkingCliTools', 'Checking database CLI client tools...')}</span>
             </div>
           ) : cliStatus?.available ? (
             <div className="flex items-start space-x-2 p-2.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 text-xs text-emerald-800 dark:text-emerald-300">
@@ -240,7 +240,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-text mb-1">
-                Output File Destination
+                {t('transfer.outputFileDestination', 'Output File Destination')}
               </label>
               <div className="flex space-x-2">
                 <input
@@ -258,7 +258,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
                   className="px-2.5 py-1.5 text-xs font-medium bg-sidebar hover:bg-black/5 dark:hover:bg-white/10 text-text border border-line rounded flex items-center space-x-1"
                 >
                   <FolderOpen className="w-3.5 h-3.5" />
-                  <span>Browse</span>
+                  <span>{t('transfer.browseShort', 'Browse')}</span>
                 </button>
               </div>
             </div>
@@ -266,7 +266,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
             {activeConn?.driver === 'postgres' && (
               <div>
                 <label className="block text-xs font-medium text-text mb-1">
-                  Format
+                  {t('transfer.formatLabel', 'Format')}
                 </label>
                 <select
                   value={format}
@@ -384,7 +384,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
             <div>
               <div className="flex items-center space-x-1.5 text-xs font-semibold text-text mb-1">
                 <Terminal className="w-3.5 h-3.5 text-blue-500" />
-                <span>Process Output & Progress</span>
+                <span>{t('transfer.processOutputProgress', 'Process Output & Progress')}</span>
               </div>
               <div
                 ref={logContainerRef}
@@ -416,7 +416,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
                 onClick={handleCancel}
                 className="px-3 py-1.5 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
               >
-                Cancel Process
+                {t('transfer.cancelProcess', 'Cancel Process')}
               </button>
             )}
           </div>
@@ -427,7 +427,7 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
               disabled={isRunning}
               className="px-3.5 py-1.5 text-xs font-medium text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors disabled:opacity-40"
             >
-              {isSuccess ? 'Done' : 'Close'}
+              {isSuccess ? t('common.done', 'Done') : t('common.close', 'Close')}
             </button>
             {!isSuccess && (
               <button
@@ -439,12 +439,12 @@ export const NativeBackupModal: React.FC<NativeBackupModalProps> = ({
                 {isRunning ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Backing up ({progressPct}%)...</span>
+                    <span>{t('transfer.backingUpPct', { percent: progressPct, defaultValue: `Backing up (${progressPct}%)...` })}</span>
                   </>
                 ) : (
                   <>
                     <Download className="w-3.5 h-3.5" />
-                    <span>Start Backup</span>
+                    <span>{t('transfer.startBackup', 'Start Backup')}</span>
                   </>
                 )}
               </button>

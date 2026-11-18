@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Download, X, Loader2, FileSpreadsheet, FileCode, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import {
   exportData,
   pickExportFile,
@@ -37,6 +38,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   initialQuery,
   totalRows,
 }) => {
+  const { t } = useTranslation();
   const [format, setFormat] = useState<TransferFormat>('csv');
   const [delimiter, setDelimiter] = useState<string>(',');
   const [includeHeaders, setIncludeHeaders] = useState<boolean>(true);
@@ -52,7 +54,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     if (isExporting && activeJobIdRef.current) {
       try {
         await cancelTransfer(activeJobIdRef.current);
-        toast.info('Export cancelled');
+        toast.info(t('transfer.exportCancelled', 'Export cancelled'));
       } catch (err) {
         console.error('Failed to cancel export:', err);
       }
@@ -147,9 +149,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         }
       }
       if (msg.toLowerCase().includes('cancelled')) {
-        toast.info('Export cancelled by user');
+        toast.info(t('transfer.exportCancelled', 'Export cancelled'));
       } else {
-        toast.error(`Export failed: ${msg}`);
+        toast.error(t('transfer.exportFailedMsg', { error: msg, defaultValue: `Export failed: ${msg}` }));
       }
     } finally {
       if (unlisten) unlisten();
@@ -180,7 +182,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <Download className="w-5 h-5" />
               <Dialog.Title asChild>
                 <h2 id="export-modal-title" className="text-base font-semibold text-text">
-                  Export Data - <span className="font-mono">{tableName}</span>
+                  {t('transfer.exportTable', 'Export Data -')} <span className="font-mono">{tableName}</span>
                 </h2>
               </Dialog.Title>
             </div>
@@ -203,7 +205,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           <div className="p-5 space-y-5 text-xs">
             {/* Format Selector */}
             <div>
-              <label className="block text-text font-medium mb-2">Export Format</label>
+              <label className="block text-text font-medium mb-2">{t('transfer.exportFormatLabel', 'Export Format')}</label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -216,7 +218,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }`}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  <span>CSV (Delimited)</span>
+                  <span>{t('transfer.csvDelimited', 'CSV (Delimited)')}</span>
                 </button>
                 <button
                   type="button"
@@ -229,7 +231,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   }`}
                 >
                   <FileCode className="w-4 h-4" />
-                  <span>JSON Document</span>
+                  <span>{t('transfer.jsonDocument', 'JSON Document')}</span>
                 </button>
               </div>
             </div>
@@ -237,32 +239,32 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             {/* Scope selection if initial query exists */}
             {initialQuery && (
               <div>
-                <label className="block text-gray-300 font-medium mb-2">Data Scope</label>
+                <label className="block text-text font-medium mb-2">{t('transfer.dataScope', 'Data Scope')}</label>
                 <div className="space-y-2">
-                  <label className="flex items-center space-x-2 text-gray-300 cursor-pointer">
+                  <label className="flex items-center space-x-2 text-text cursor-pointer">
                     <input
                       type="radio"
                       name="export-scope"
                       value="filtered"
                       checked={scope === 'filtered'}
                       onChange={() => setScope('filtered')}
-                      className="rounded border-gray-700 text-blue-600 focus:ring-0 focus:outline-none"
+                      className="rounded border-line text-blue-600 focus:ring-0 focus:outline-none"
                     />
-                    <span>Current Filtered / Sorted View</span>
+                    <span>{t('transfer.filteredScope', 'Current Filtered / Sorted View')}</span>
                   </label>
-                  <label className="flex items-center space-x-2 text-gray-300 cursor-pointer">
+                  <label className="flex items-center space-x-2 text-text cursor-pointer">
                     <input
                       type="radio"
                       name="export-scope"
                       value="entire"
                       checked={scope === 'entire'}
                       onChange={() => setScope('entire')}
-                      className="rounded border-gray-700 text-blue-600 focus:ring-0 focus:outline-none"
+                      className="rounded border-line text-blue-600 focus:ring-0 focus:outline-none"
                     />
                     <span>
-                      Entire Table{' '}
+                      {t('transfer.entireTableTitle', 'Entire Table')}{' '}
                       {totalRows !== undefined && (
-                        <span className="text-gray-500">({totalRows.toLocaleString()} rows)</span>
+                        <span className="text-muted">({totalRows.toLocaleString()} {t('transfer.rowsSuffix', 'rows')})</span>
                       )}
                     </span>
                   </label>
@@ -274,20 +276,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             {format === 'csv' && (
               <div className="p-3.5 bg-sidebar rounded border border-line space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-text">Delimiter</label>
+                  <label className="text-text">{t('transfer.delimiter', 'Delimiter')}</label>
                   <select
                     value={delimiter}
                     onChange={(e) => setDelimiter(e.target.value)}
                     data-testid="export-delimiter-select"
                     className="bg-grid border border-line rounded px-2.5 py-1 text-xs text-text focus:border-blue-500 focus:outline-none"
                   >
-                    <option value=",">Comma ( , )</option>
-                    <option value=";">Semicolon ( ; )</option>
-                    <option value="&#9;">Tab ( \t )</option>
+                    <option value=",">{t('transfer.commaOption', 'Comma ( , )')}</option>
+                    <option value=";">{t('transfer.semicolonOption', 'Semicolon ( ; )')}</option>
+                    <option value="&#9;">{t('transfer.tabOption', 'Tab ( \\t )')}</option>
                   </select>
                 </div>
                 <div className="flex items-center justify-between">
-                  <label className="text-text">Include Header Row</label>
+                  <label className="text-text">{t('transfer.includeColumnHeaders', 'Include Header Row')}</label>
                   <input
                     type="checkbox"
                     checked={includeHeaders}
@@ -303,7 +305,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             {format === 'json' && (
               <div className="p-3.5 bg-sidebar rounded border border-line space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-text">Structure</label>
+                  <label className="text-text">{t('transfer.jsonStructure', 'Structure')}</label>
                   <select
                     value={jsonStructure}
                     onChange={(e) => setJsonStructure(e.target.value as JsonStructure)}
@@ -320,20 +322,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             {/* Compression & Fast COPY Options */}
             <div className="p-3.5 bg-sidebar rounded border border-line space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-text">Compression</label>
+                <label className="text-text">{t('transfer.compressionLabel', 'Compression')}</label>
                 <select
                   value={compression}
                   onChange={(e) => setCompression(e.target.value as ExportCompression)}
                   data-testid="export-compression-select"
                   className="bg-grid border border-line rounded px-2.5 py-1 text-xs text-text focus:border-blue-500 focus:outline-none"
                 >
-                  <option value="none">None (Plaintext)</option>
-                  <option value="gzip">Gzip (.gz)</option>
-                  <option value="zstd">Zstandard (.zst)</option>
+                  <option value="none">{t('transfer.compressionNone', 'None (Plaintext)')}</option>
+                  <option value="gzip">{t('transfer.compressionGzip', 'Gzip (.gz)')}</option>
+                  <option value="zstd">{t('transfer.compressionZstd', 'Zstandard (.zst)')}</option>
                 </select>
               </div>
               <div className="flex items-center justify-between">
-                <label className="text-text">Use PostgreSQL Fast COPY (CSV)</label>
+                <label className="text-text">{t('transfer.useNativeCopyExport', 'Use PostgreSQL Fast COPY (CSV)')}</label>
                 <input
                   type="checkbox"
                   checked={useNativeCopy}
@@ -352,14 +354,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 <div className="flex items-center justify-between text-xs font-medium">
                   <span className="text-blue-400 flex items-center space-x-1.5">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Exporting rows...</span>
+                    <span>{t('transfer.exportingRows', 'Exporting rows...')}</span>
                   </span>
                   <div className="flex items-center gap-2 font-mono text-[11px]">
                     <span className="text-muted">
                       {(progress?.current_row ?? 0).toLocaleString()}
                       {(progress?.total_rows ?? totalRows)
-                        ? ` / ${(progress?.total_rows ?? totalRows)!.toLocaleString()} rows`
-                        : ' rows'}
+                        ? ` / ${(progress?.total_rows ?? totalRows)!.toLocaleString()} ${t('transfer.rowsSuffix', 'rows')}`
+                        : ` ${t('transfer.rowsSuffix', 'rows')}`}
                     </span>
                     <span
                       data-testid="export-modal-percent"
@@ -386,7 +388,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               onClick={handleCancelOrClose}
               className="px-3 py-1.5 rounded text-xs text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             >
-              Cancel
+              {t('common.cancel', 'Cancel')}
             </button>
             <button
               type="button"
@@ -398,12 +400,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               {isExporting ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Exporting ({progressPct}%)...</span>
+                  <span>{t('transfer.exportingWithPercent', { percent: progressPct, defaultValue: `Exporting (${progressPct}%)...` })}</span>
                 </>
               ) : (
                 <>
                   <Check className="w-3.5 h-3.5" />
-                  <span>Save & Export...</span>
+                  <span>{t('transfer.saveAndExport', 'Save & Export...')}</span>
                 </>
               )}
             </button>

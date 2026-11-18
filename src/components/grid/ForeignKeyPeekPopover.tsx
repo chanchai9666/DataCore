@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Network, ExternalLink, X, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export interface ForeignKeyPeekPopoverProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export const ForeignKeyPeekPopover: React.FC<ForeignKeyPeekPopoverProps> = ({
   onNavigate,
   onPeek,
 }) => {
+  const { t } = useTranslation();
   const [peekData, setPeekData] = useState<Record<string, unknown> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -97,7 +99,7 @@ export const ForeignKeyPeekPopover: React.FC<ForeignKeyPeekPopoverProps> = ({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8', fontWeight: 600 }}>
           <Network size={14} />
-          <span>Foreign Key Reference</span>
+          <span>{t('grid.fkReference', 'Foreign Key Reference')}</span>
         </div>
         <button
           type="button"
@@ -121,14 +123,14 @@ export const ForeignKeyPeekPopover: React.FC<ForeignKeyPeekPopoverProps> = ({
       {/* Target Info */}
       <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <span style={{ color: '#94a3b8', fontSize: '11px' }}>Target:</span>
+          <span style={{ color: '#94a3b8', fontSize: '11px' }}>{t('grid.targetLabel', 'Target:')}</span>
           <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#93c5fd' }}>
             <span>{targetTable}</span>.<span>{targetColumn}</span>
           </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <span style={{ color: '#94a3b8', fontSize: '11px' }}>Current Value:</span>
+          <span style={{ color: '#94a3b8', fontSize: '11px' }}>{t('grid.currentValue', 'Current Value:')}</span>
           <span
             style={{
               fontFamily: 'monospace',
@@ -147,7 +149,7 @@ export const ForeignKeyPeekPopover: React.FC<ForeignKeyPeekPopoverProps> = ({
         {isLoading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8', padding: '8px 0' }}>
             <Loader2 size={13} className="animate-spin" />
-            <span>Loading preview...</span>
+            <span>{t('grid.loadingPreview', 'Loading preview...')}</span>
           </div>
         )}
 
@@ -199,7 +201,7 @@ export const ForeignKeyPeekPopover: React.FC<ForeignKeyPeekPopoverProps> = ({
             }}
           >
             <ExternalLink size={13} />
-            <span>Jump to Record</span>
+            <span>{t('grid.jumpToRecord', 'Jump to Record')}</span>
           </button>
         )}
       </div>

@@ -112,10 +112,10 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
           <span
             data-testid="grid-readonly-badge"
             className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-500/15 text-amber-500 border border-amber-500/30 mr-1"
-            title="Read-Only Mode: Data modifications are disabled"
+            title={t('grid.readOnlyTitle', 'Read-Only Mode: Data modifications are disabled')}
           >
             <Lock size={11} />
-            <span>Read-Only</span>
+            <span>{t('grid.readOnly', 'Read-Only')}</span>
           </span>
         )}
         {onAddRow && (
@@ -124,11 +124,11 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
             onClick={onAddRow}
             disabled={isLoading}
             aria-label="Add Row"
-            title="Add new row"
+            title={t('grid.addRowTitle', 'Add new row')}
             className="flex items-center gap-1 px-1.5 py-0.5 rounded text-text hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10 disabled:opacity-40 transition-colors"
           >
             <Plus size={13} className="text-emerald-500" />
-            <span className="text-[11px] font-medium hidden sm:inline">Add Row</span>
+            <span className="text-[11px] font-medium hidden sm:inline">{t('grid.addRow', 'Add Row')}</span>
           </button>
         )}
 
@@ -138,11 +138,11 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
             onClick={onDeleteRow}
             disabled={!canDelete || isLoading}
             aria-label="Delete selected row"
-            title="Delete selected row(s)"
+            title={t('grid.deleteTitle', 'Delete selected row(s)')}
             className="flex items-center gap-1 px-1.5 py-0.5 rounded text-danger hover:bg-danger/10 disabled:opacity-40 transition-colors"
           >
             <Minus size={13} />
-            <span className="text-[11px] font-medium hidden sm:inline">Delete</span>
+            <span className="text-[11px] font-medium hidden sm:inline">{t('grid.delete', 'Delete')}</span>
           </button>
         )}
 
@@ -168,14 +168,14 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
             {isAutoCommit ? (
               <>
                 <Zap size={11} className="text-amber-500" />
-                <span className="hidden sm:inline">Auto-Commit: On</span>
-                <span className="sm:hidden">Auto</span>
+                <span className="hidden sm:inline">{t('grid.autoCommitOn', 'Auto-Commit: On')}</span>
+                <span className="sm:hidden">{t('grid.auto', 'Auto')}</span>
               </>
             ) : (
               <>
                 <Edit3 size={11} className="text-amber-500" />
-                <span className="hidden sm:inline">Staging Mode</span>
-                <span className="sm:hidden">Stage</span>
+                <span className="hidden sm:inline">{t('grid.stagingMode', 'Staging Mode')}</span>
+                <span className="sm:hidden">{t('grid.stage', 'Stage')}</span>
               </>
             )}
           </button>
@@ -190,7 +190,7 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
           className="flex items-center gap-1 px-2 py-0.5 rounded font-medium text-[11px] bg-accent/15 text-accent border border-accent/30 hover:bg-accent hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all"
         >
           <Check size={12} strokeWidth={2.5} />
-          <span>Commit {pendingCount > 0 && `(${pendingCount})`}</span>
+          <span>{t('grid.commit', 'Commit')} {pendingCount > 0 && `(${pendingCount})`}</span>
         </button>
 
         <button
@@ -198,11 +198,11 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
           onClick={onDiscard}
           disabled={!hasPendingChanges || isCommitting || isLoading}
           aria-label="Discard Changes"
-          title="Discard all pending changes"
+          title={t('grid.discardTitle', 'Discard all pending changes')}
           className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] text-muted hover:text-danger hover:bg-danger/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
         >
           <X size={12} />
-          <span className="hidden sm:inline">Discard</span>
+          <span className="hidden sm:inline">{t('grid.discard', 'Discard')}</span>
         </button>
 
         <div className="h-3.5 w-px bg-line mx-1" />
@@ -258,7 +258,9 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
         </button>
 
         <span className="px-1 text-text select-text">
-          {paginationMode === 'keyset' ? `Page ${page} (Keyset)` : `Page ${page} of ${totalPages}`}
+          {paginationMode === 'keyset'
+            ? t('grid.pageKeyset', { page, defaultValue: `Page ${page} (Keyset)` })
+            : t('grid.pageOfTotal', { page, total: totalPages, defaultValue: `Page ${page} of ${totalPages}` })}
         </span>
 
         <button
@@ -328,7 +330,7 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
                 count: totalRows.toLocaleString(),
                 defaultValue: `~${totalRows.toLocaleString()} rows (approx.)`,
               })
-            : `${totalRows.toLocaleString()} rows`}
+            : t('grid.rowsCount', { count: totalRows.toLocaleString(), defaultValue: `${totalRows.toLocaleString()} rows` })}
         </span>
         {isApproximateCount && onExactCount && (
           <button
@@ -337,9 +339,9 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
             onClick={onExactCount}
             disabled={isCountingExact || isLoading}
             className="px-1.5 py-0.5 rounded text-[10px] border border-line text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
-            title="Count exact number of rows (SELECT COUNT(*))"
+            title={t('grid.exactTitle', 'Count exact number of rows (SELECT COUNT(*))')}
           >
-            {isCountingExact ? 'Counting...' : 'Exact'}
+            {isCountingExact ? t('grid.counting', 'Counting...') : t('grid.exact', 'Exact')}
           </button>
         )}
 

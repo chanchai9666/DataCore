@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Plus, X, Filter, Play } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { ColumnMeta, FilterCondition, FilterOperator, TableFilterState } from '../../types/db';
 import { buildSqlWhereClause } from './filterUtils';
 
@@ -37,6 +38,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   theme: _theme = 'dark',
   driver,
 }) => {
+  const { t } = useTranslation();
   const sqlPreview = useMemo(() => {
     const clause = buildSqlWhereClause(filterState.conditions, filterState.conjunction, driver);
     return clause ? `WHERE ${clause}` : '';
@@ -135,7 +137,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             />
             <span className="flex items-center space-x-1 text-text">
               <Filter className="w-3.5 h-3.5 text-accent" />
-              <span>Filter:</span>
+              <span>{t('grid.filterLabel', 'Filter:')}</span>
             </span>
           </label>
 
@@ -184,7 +186,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium text-xs flex items-center space-x-1 shadow-sm transition-colors"
           >
             <Play className="w-3 h-3 fill-current" />
-            <span>Apply</span>
+            <span>{t('grid.apply', 'Apply')}</span>
           </button>
 
           <button
@@ -193,7 +195,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             onClick={onClear}
             className={`px-2 py-1 border rounded text-xs transition-colors ${secondaryBtnCls}`}
           >
-            Clear
+            {t('grid.clear', 'Clear')}
           </button>
 
           {onClose && (
@@ -284,7 +286,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           className="text-blue-400 hover:text-blue-300 text-[11px] font-medium flex items-center space-x-1 hover:underline"
         >
           <Plus className="w-3 h-3" />
-          <span>Add Condition</span>
+          <span>{t('grid.addCondition', 'Add Condition')}</span>
         </button>
       </div>
     </div>
