@@ -43,6 +43,13 @@ export interface DataGridProps {
   totalRows?: number;
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
+  isApproximateCount?: boolean;
+  onExactCount?: () => void;
+  isCountingExact?: boolean;
+  paginationMode?: 'offset' | 'keyset';
+  canUseKeyset?: boolean;
+  onTogglePaginationMode?: () => void;
+  hasMoreKeyset?: boolean;
   onRefresh?: () => void;
   onCellEdited?: (cell: readonly [number, number], newValue: EditableGridCell) => void;
   onRowDelete?: (rowIndex: number) => void;
@@ -86,6 +93,13 @@ export const DataGrid: React.FC<DataGridProps> = ({
   totalRows,
   onPageChange,
   onPageSizeChange,
+  isApproximateCount,
+  onExactCount,
+  isCountingExact,
+  paginationMode,
+  canUseKeyset,
+  onTogglePaginationMode,
+  hasMoreKeyset,
   onRefresh,
   onCellEdited,
   onRowDelete,
@@ -1134,6 +1148,13 @@ export const DataGrid: React.FC<DataGridProps> = ({
         totalRows={computedTotalRows}
         onPageChange={onPageChange || (() => {})}
         onPageSizeChange={onPageSizeChange}
+        isApproximateCount={isApproximateCount ?? Boolean(data?.is_approximate_count)}
+        onExactCount={onExactCount}
+        isCountingExact={isCountingExact}
+        paginationMode={paginationMode}
+        canUseKeyset={canUseKeyset}
+        onTogglePaginationMode={onTogglePaginationMode}
+        hasMoreKeyset={hasMoreKeyset}
         onRefresh={onRefresh}
         isLoading={isLoading}
         isReadOnly={effectiveReadOnly}

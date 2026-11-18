@@ -34,12 +34,7 @@ fn test_query_result_serialization() {
         ],
     ];
 
-    let result = QueryResult {
-        columns,
-        rows,
-        execution_time_ms: 42,
-        rows_affected: Some(2),
-    };
+    let result = QueryResult::new(columns, rows, 42, Some(2));
 
     // Test serialization to JSON string
     let json_str = serde_json::to_string(&result).expect("Failed to serialize QueryResult");

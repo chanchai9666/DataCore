@@ -1268,4 +1268,46 @@ describe('DataGrid', () => {
       expect(onNavigateToRecord).toHaveBeenCalledWith('users', 'id', expect.anything());
     });
   });
+
+  describe('Approximate Row Count & Keyset Pagination (Issue #173)', () => {
+    it('displays approximate row count label and triggers onExactCount when Exact button is clicked', () => {
+      const onExactCount = vi.fn();
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          totalRows={12500000}
+          isApproximateCount={true}
+          onExactCount={onExactCount}
+        />
+      );
+
+      expect(screen.getByTestId('grid-row-count').textContent).toContain('~12,500,000 แถว (ค่าประมาณ)');
+      const exactBtn = screen.getByTestId('exact-count-btn');
+      fireEvent.click(exactBtn);
+      expect(onExactCount).toHaveBeenCalledTimes(1);
+    });
+
+    it('supports keyset pagination mode toggle and disables Last page button in keyset mode', () => {
+      const onTogglePaginationMode = vi.fn();
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          page={1}
+          pageSize={100}
+          totalRows={500}
+          paginationMode="keyset"
+          canUseKeyset={true}
+          hasMoreKeyset={true}
+          onTogglePaginationMode={onTogglePaginationMode}
+        />
+      );
+
+      expect(screen.getByText('Page 1 (Keyset)')).toBeInTheDocument();
+      expect(screen.getByLabelText('Last page')).toBeDisabled();
+      expect(screen.getByLabelText('Next page')).not.toBeDisabled();
+
+      fireEvent.click(screen.getByTestId('keyset-mode-toggle'));
+      expect(onTogglePaginationMode).toHaveBeenCalledTimes(1);
+    });
+  });
 });

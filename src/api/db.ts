@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ConnectionConfig, ImpactSimulationResult, QueryResult, SchemaNode } from '../types/db';
+import type { CellValue, ConnectionConfig, DatabaseDriver, ImpactSimulationResult, QueryResult, SchemaNode } from '../types/db';
 import type {
   TableMetadata,
   DuplicateTableOptions,
@@ -166,6 +166,48 @@ export const fetchTableData = async (
     filter: filter ?? null,
     sortCol: sortCol ?? null,
     sortDir: sortDir ?? null,
+  });
+};
+
+export const countTableRows = async (
+  tabId: string,
+  table: string,
+  schema?: string,
+  filter?: string,
+  driver?: DatabaseDriver
+): Promise<number> => {
+  return invoke<number>('count_table_rows', {
+    tabId,
+    schema: schema ?? null,
+    table,
+    filter: filter ?? null,
+    driver: driver ?? null,
+  });
+};
+
+export const fetchTableDataKeyset = async (
+  tabId: string,
+  table: string,
+  schema?: string,
+  limit: number = 100,
+  filter?: string,
+  keyColumns: string[] = [],
+  cursorValues?: CellValue[] | null,
+  direction: 'next' | 'prev' = 'next',
+  sortDir: 'ASC' | 'DESC' = 'ASC',
+  driver?: DatabaseDriver
+): Promise<QueryResult> => {
+  return invoke<QueryResult>('fetch_table_data_keyset', {
+    tabId,
+    schema: schema ?? null,
+    table,
+    limit,
+    filter: filter ?? null,
+    keyColumns,
+    cursorValues: cursorValues ?? null,
+    direction,
+    sortDir,
+    driver: driver ?? null,
   });
 };
 
@@ -390,6 +432,8 @@ export const dbApi = {
   executeQuery,
   executeDirectQuery,
   fetchTableData,
+  countTableRows,
+  fetchTableDataKeyset,
   cancelQuery,
   setAutocommit,
   commitTransaction,

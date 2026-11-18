@@ -48,6 +48,13 @@ export interface GridBottomBarProps {
   totalRows?: number;
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
+  isApproximateCount?: boolean;
+  onExactCount?: () => void;
+  isCountingExact?: boolean;
+  paginationMode?: 'offset' | 'keyset';
+  canUseKeyset?: boolean;
+  onTogglePaginationMode?: () => void;
+  hasMoreKeyset?: boolean;
 
   // View Mode
   viewMode?: 'grid' | 'form';
@@ -78,6 +85,13 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
   totalRows = 0,
   onPageChange,
   onPageSizeChange,
+  isApproximateCount = false,
+  onExactCount,
+  isCountingExact = false,
+  paginationMode = 'offset',
+  canUseKeyset = false,
+  onTogglePaginationMode,
+  hasMoreKeyset = false,
   viewMode = 'grid',
   onViewModeChange,
   isMasked = false,
@@ -242,13 +256,13 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
         </button>
 
         <span className="px-1 text-text select-text">
-          Page {page} of {totalPages}
+          {paginationMode === 'keyset' ? `Page ${page} (Keyset)` : `Page ${page} of ${totalPages}`}
         </span>
 
         <button
           type="button"
           onClick={() => onPageChange?.(page + 1)}
-          disabled={page >= totalPages || isLoading}
+          disabled={(paginationMode === 'keyset' ? !hasMoreKeyset : page >= totalPages) || isLoading}
           aria-label="Next page"
           title="Next page"
           className="p-1 rounded hover:text-text hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30"
@@ -259,13 +273,34 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
         <button
           type="button"
           onClick={() => onPageChange?.(totalPages)}
-          disabled={page >= totalPages || isLoading}
+          disabled={paginationMode === 'keyset' || page >= totalPages || isLoading}
           aria-label="Last page"
           title="Last page"
           className="p-1 rounded hover:text-text hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30"
         >
           <ChevronsRight size={13} />
         </button>
+
+        {canUseKeyset && onTogglePaginationMode && (
+          <button
+            type="button"
+            data-testid="keyset-mode-toggle"
+            onClick={onTogglePaginationMode}
+            disabled={isLoading}
+            title={
+              paginationMode === 'keyset'
+                ? 'Using fast Keyset (cursor) pagination. Click to switch to Offset pagination.'
+                : 'Using Offset pagination. Click to switch to fast Keyset pagination.'
+            }
+            className={`ml-1 px-1.5 py-0.5 rounded text-[10px] border transition-colors ${
+              paginationMode === 'keyset'
+                ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30 font-medium'
+                : 'border-line text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10'
+            }`}
+          >
+            {paginationMode === 'keyset' ? 'Keyset' : 'Offset'}
+          </button>
+        )}
 
         {onPageSizeChange && (
           <select
@@ -285,9 +320,23 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
 
       {/* Right: Record count & View Mode toggles */}
       <div className="flex items-center gap-2">
-        <span className="text-[11px] text-muted hidden md:inline">
-          {totalRows.toLocaleString()} rows
+        <span data-testid="grid-row-count" className="text-[11px] text-muted hidden md:inline">
+          {isApproximateCount
+            ? `~${totalRows.toLocaleString()} แถว (ค่าประมาณ)`
+            : `${totalRows.toLocaleString()} rows`}
         </span>
+        {isApproximateCount && onExactCount && (
+          <button
+            type="button"
+            data-testid="exact-count-btn"
+            onClick={onExactCount}
+            disabled={isCountingExact || isLoading}
+            className="px-1.5 py-0.5 rounded text-[10px] border border-line text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
+            title="Count exact number of rows (SELECT COUNT(*))"
+          >
+            {isCountingExact ? 'Counting...' : 'Exact'}
+          </button>
+        )}
 
         {onToggleMask && (
           <button

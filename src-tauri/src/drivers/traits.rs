@@ -1,8 +1,21 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use crate::error::AppError;
-use crate::models::query::{QueryResult, TableFilterState};
+use crate::models::query::{CellValue, ColumnMeta, QueryResult, TableFilterState};
+
+#[derive(Debug, Clone)]
+pub struct Chunk {
+    pub columns: Arc<Vec<ColumnMeta>>,
+    pub rows: Vec<Vec<CellValue>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StreamOutcome {
+    pub rows_sent: u64,
+    pub stopped_early: bool,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -85,6 +98,37 @@ pub trait DatabaseConnection: Send + Sync {
     }
     async fn get_object_ddl(&self, _schema: Option<&str>, _name: &str, _object_type: &str) -> Result<String, AppError> {
         Err(AppError::NotSupported("Object DDL retrieval not supported for this driver".into()))
+    }
+    async fn stream_query(
+        &self,
+        sql: &str,
+        chunk_rows: usize,
+        tx: tokio::sync::mpsc::Sender<Chunk>,
+    ) -> Result<StreamOutcome, AppError> {
+        let res = self.execute_query(sql).await?;
+        let cols = Arc::new(res.columns);
+        let total_rows = res.rows.len();
+        let chunk_size = chunk_rows.max(1);
+        let mut rows_sent: u64 = 0;
+        let mut iter = res.rows.into_iter().peekable();
+        while iter.peek().is_some() {
+            let batch: Vec<Vec<CellValue>> = iter.by_ref().take(chunk_size).collect();
+            let count = batch.len() as u64;
+            if tx.send(Chunk { columns: cols.clone(), rows: batch }).await.is_err() {
+                return Ok(StreamOutcome {
+                    rows_sent,
+                    stopped_early: true,
+                });
+            }
+            rows_sent += count;
+        }
+        if total_rows == 0 && !cols.is_empty() {
+            let _ = tx.send(Chunk { columns: cols, rows: Vec::new() }).await;
+        }
+        Ok(StreamOutcome {
+            rows_sent,
+            stopped_early: false,
+        })
     }
 }
 

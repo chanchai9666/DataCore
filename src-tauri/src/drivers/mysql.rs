@@ -334,25 +334,59 @@ impl DatabaseConnection for MySqlConnection {
             _ => String::new(),
         };
 
-        let count_sql = format!("SELECT COUNT(*) FROM {}{};", from_clause, where_clause);
-        let total_count = match self.execute_query(&count_sql).await {
-            Ok(count_res) => {
-                if let Some(first_row) = count_res.rows.first() {
-                    match first_row.first() {
-                        Some(CellValue::Integer(n)) => Some(*n as u64),
-                        _ => None,
-                    }
-                } else {
-                    None
-                }
+        let mut is_approx = false;
+        let approx_count = if where_clause.is_empty() {
+            let tbl = table.replace('\'', "''");
+            let approx_sql = if let Some(sch) = schema {
+                format!(
+                    "SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}';",
+                    sch.replace('\'', "''"),
+                    tbl
+                )
+            } else {
+                format!(
+                    "SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{}';",
+                    tbl
+                )
+            };
+            match self.execute_query(&approx_sql).await {
+                Ok(r) => r.rows.first().and_then(|row| row.first()).and_then(|v| match v {
+                    CellValue::Integer(n) if *n >= 0 => Some(*n as u64),
+                    _ => None,
+                }),
+                Err(_) => None,
             }
-            Err(_) => None,
+        } else {
+            None
+        };
+
+        let total_count = if let Some(n) = approx_count {
+            is_approx = true;
+            Some(n)
+        } else {
+            let count_sql = format!("SELECT COUNT(*) FROM {}{};", from_clause, where_clause);
+            match self.execute_query(&count_sql).await {
+                Ok(count_res) => {
+                    if let Some(first_row) = count_res.rows.first() {
+                        match first_row.first() {
+                            Some(CellValue::Integer(n)) => Some(*n as u64),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    }
+                }
+                Err(_) => None,
+            }
         };
 
         let sql = format!("SELECT * FROM {}{}{} LIMIT {} OFFSET {};", from_clause, where_clause, order_clause, limit, offset);
         let mut res = self.execute_query(&sql).await?;
         if total_count.is_some() {
             res.rows_affected = total_count;
+            if is_approx {
+                res.is_approximate_count = Some(true);
+            }
         }
         if res.columns.is_empty() {
             let col_sql = if let Some(sch) = schema {

@@ -104,6 +104,12 @@ export interface QueryResult {
   rows: CellValue[][];
   execution_time_ms: number;
   rows_affected?: number | null;
+  truncated?: boolean | null;
+  truncation_reason?: 'RowCapReached' | 'ByteCapReached' | string | null;
+  truncated_bytes?: number | null;
+  is_approximate_count?: boolean | null;
+  next_cursor?: CellValue[] | null;
+  has_more?: boolean | null;
 }
 
 export interface ImpactSimulationResult {

@@ -200,6 +200,18 @@ pub struct QueryResult {
     pub rows: Vec<Vec<CellValue>>,
     pub execution_time_ms: u64,
     pub rows_affected: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub truncation_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub truncated_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_approximate_count: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<Vec<CellValue>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_more: Option<bool>,
 }
 
 impl QueryResult {
@@ -214,6 +226,12 @@ impl QueryResult {
             rows,
             execution_time_ms,
             rows_affected,
+            truncated: None,
+            truncation_reason: None,
+            truncated_bytes: None,
+            is_approximate_count: None,
+            next_cursor: None,
+            has_more: None,
         }
     }
 
@@ -223,7 +241,31 @@ impl QueryResult {
             rows: Vec::new(),
             execution_time_ms: 0,
             rows_affected: None,
+            truncated: None,
+            truncation_reason: None,
+            truncated_bytes: None,
+            is_approximate_count: None,
+            next_cursor: None,
+            has_more: None,
         }
+    }
+
+    pub fn with_truncation(mut self, reason: impl Into<String>, bytes: u64) -> Self {
+        self.truncated = Some(true);
+        self.truncation_reason = Some(reason.into());
+        self.truncated_bytes = Some(bytes);
+        self
+    }
+
+    pub fn with_approximate_count(mut self, is_approx: bool) -> Self {
+        self.is_approximate_count = Some(is_approx);
+        self
+    }
+
+    pub fn with_keyset_cursor(mut self, next_cursor: Option<Vec<CellValue>>, has_more: bool) -> Self {
+        self.next_cursor = next_cursor;
+        self.has_more = Some(has_more);
+        self
     }
 }
 

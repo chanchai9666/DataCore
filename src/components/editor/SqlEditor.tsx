@@ -581,7 +581,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         return;
       }
 
-      const { modifiedSql, isLimited } = applySafeLimit(sqlToExecute, safeLimit);
+      const { modifiedSql, isLimited } = applySafeLimit(sqlToExecute, safeLimit, connection?.driver);
       setIsLimitedActive(isLimited);
 
       const executeSql = async (sqlToRun: string, isLim: boolean) => {

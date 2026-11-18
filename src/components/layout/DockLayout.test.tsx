@@ -30,6 +30,13 @@ vi.mock('../../api/db', () => ({
       execution_time_ms: 5,
       rows_affected: 1,
     } as QueryResult),
+    countTableRows: vi.fn().mockResolvedValue(42),
+    fetchTableDataKeyset: vi.fn().mockResolvedValue({
+      columns: [{ name: 'id', data_type: 'INTEGER', nullable: false, is_primary_key: true }],
+      rows: [[{ Integer: 1 }]],
+      execution_time_ms: 3,
+      has_more: false,
+    } as QueryResult),
   },
 }));
 
@@ -1102,6 +1109,98 @@ describe('DockLayout', () => {
     // Tab should be closed
     await waitFor(() => {
       expect(useTabStore.getState().tabs.some((t) => t.id === 'tab-dropped')).toBe(false);
+    });
+  });
+
+  it('displays truncation warning banner when query result hits RowCapReached (Issue #168)', async () => {
+    vi.mocked(dbApi.executeQuery).mockResolvedValueOnce({
+      columns: [{ name: 'id', data_type: 'INTEGER', nullable: false }],
+      rows: Array.from({ length: 10 }, (_, i) => [{ Integer: i + 1 }]),
+      execution_time_ms: 25,
+      truncated: true,
+      truncation_reason: 'RowCapReached',
+      truncated_bytes: 512,
+    } as QueryResult);
+
+    useConnectionStore.setState({
+      connections: [mockConn],
+      activeConnectionId: 'conn-1',
+      connectedConnectionIds: ['conn-1'],
+    });
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-cap',
+          connectionId: 'conn-1',
+          type: 'query',
+          title: 'Cap Query',
+          autoCommit: true,
+          queryContent: 'SELECT * FROM huge_table;',
+        },
+      ],
+      activeTabId: 'tab-cap',
+    });
+
+    render(<DockLayout />);
+    const runBtn = screen.getByRole('button', { name: /run/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    await waitFor(() => {
+      const banner = screen.getByTestId('query-truncation-banner');
+      expect(banner).toBeInTheDocument();
+      expect(banner.textContent).toContain('ผลลัพธ์ถูกตัดที่ 10 แถว');
+      expect(banner.textContent).toContain('Export');
+    });
+  });
+
+  it('shows approximate row count in table tab and fetches exact count on click (Issue #173)', async () => {
+    vi.mocked(dbApi.fetchTableData).mockResolvedValueOnce({
+      columns: [{ name: 'id', data_type: 'INTEGER', nullable: false, is_primary_key: true }],
+      rows: [[{ Integer: 1 }]],
+      execution_time_ms: 4,
+      rows_affected: 12500000,
+      is_approximate_count: true,
+    } as QueryResult);
+    vi.mocked(dbApi.countTableRows).mockResolvedValueOnce(12500123);
+
+    useConnectionStore.setState({
+      connections: [mockConn],
+      activeConnectionId: 'conn-1',
+      connectedConnectionIds: ['conn-1'],
+    });
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-approx',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'huge_table',
+          tableName: 'huge_table',
+          schemaName: 'public',
+          autoCommit: true,
+          queryContent: '',
+          isLoaded: true,
+        },
+      ],
+      activeTabId: 'tab-approx',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('grid-row-count').textContent).toContain('~12,500,000 แถว (ค่าประมาณ)');
+    });
+
+    const exactBtn = screen.getByTestId('exact-count-btn');
+    await act(async () => {
+      fireEvent.click(exactBtn);
+    });
+
+    await waitFor(() => {
+      expect(dbApi.countTableRows).toHaveBeenCalledWith('tab-approx', 'huge_table', 'public', undefined, 'sqlite');
+      expect(screen.getByTestId('grid-row-count').textContent).toContain('12,500,123 rows');
     });
   });
 });

@@ -46,6 +46,8 @@ pub fn run() {
             disconnect_connection,
             execute_query,
             fetch_table_data,
+            count_table_rows,
+            fetch_table_data_keyset,
             cancel_query,
             set_autocommit,
             commit_transaction,

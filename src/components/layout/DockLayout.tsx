@@ -38,8 +38,14 @@ import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
 import { detectErrorType } from '../../utils/sqlErrorParser';
 import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
-import type { ConnectionConfig, QueryResult, Tab, TableFilterState, TableSortState } from '../../types/db';
+import type { CellValue, ConnectionConfig, QueryResult, Tab, TableFilterState, TableSortState } from '../../types/db';
 import { saveWorkspaceDebounced } from '../../utils/workspacePersistence';
+
+function formatCapBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
 
 export interface DockLayoutProps {
   theme?: 'dark' | 'light';
@@ -55,6 +61,11 @@ interface TableTabState {
   pageSize: number;
   totalRows: number;
   error: string | null;
+  isApproximateCount?: boolean;
+  isCountingExact?: boolean;
+  paginationMode?: 'offset' | 'keyset';
+  keyColumns?: string[];
+  hasMoreKeyset?: boolean;
 }
 
 export const DockLayout: React.FC<DockLayoutProps> = ({
@@ -349,6 +360,10 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           statusMessage: null,
         });
 
+        const detectedKeys = (result.columns ?? [])
+          .filter((c) => c.is_primary_key)
+          .map((c) => c.name);
+
         setTableStates((prev) => ({
           ...prev,
           [tabId]: {
@@ -358,6 +373,11 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
             pageSize,
             totalRows: total,
             error: null,
+            isApproximateCount: Boolean(result.is_approximate_count),
+            isCountingExact: false,
+            paginationMode: prev[tabId]?.paginationMode ?? 'offset',
+            keyColumns: detectedKeys.length > 0 ? detectedKeys : prev[tabId]?.keyColumns,
+            hasMoreKeyset: Boolean(result.has_more),
           },
         }));
       } catch (err: unknown) {
@@ -382,6 +402,114 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       }
     },
     []
+  );
+
+  const handleExactCount = useCallback(async (tab: Tab) => {
+    const tabId = tab.id;
+    const tableName = tab.tableName;
+    if (!tableName) return;
+
+    const conn = useConnectionStore.getState().connections.find((c) => c.id === tab.connectionId);
+    const driver = conn?.driver ?? 'postgres';
+    let sqlFilter: string | undefined = undefined;
+    if (tab.filterState && tab.filterState.enabled && tab.filterState.conditions.length > 0) {
+      const clause = buildSqlWhereClause(tab.filterState.conditions, tab.filterState.conjunction, driver);
+      if (clause) sqlFilter = clause;
+    }
+
+    setTableStates((prev) => ({
+      ...prev,
+      [tabId]: { ...prev[tabId], isCountingExact: true },
+    }));
+
+    try {
+      await dbApi.openSession(tab.connectionId, tabId);
+      const exactCount = await dbApi.countTableRows(tabId, tableName, tab.schemaName, sqlFilter, driver);
+      setTableStates((prev) => ({
+        ...prev,
+        [tabId]: {
+          ...prev[tabId],
+          totalRows: exactCount,
+          isApproximateCount: false,
+          isCountingExact: false,
+        },
+      }));
+    } catch {
+      setTableStates((prev) => ({
+        ...prev,
+        [tabId]: { ...prev[tabId], isCountingExact: false },
+      }));
+    }
+  }, []);
+
+  const loadKeysetPage = useCallback(
+    async (tab: Tab, nextPage: number, pageSize: number, direction: 'next' | 'prev') => {
+      const state = tableStates[tab.id];
+      const tableName = tab.tableName;
+      if (!tableName || !state?.keyColumns?.length) {
+        return loadTableData(tab, nextPage, pageSize);
+      }
+
+      const conn = useConnectionStore.getState().connections.find((c) => c.id === tab.connectionId);
+      const driver = conn?.driver ?? 'postgres';
+      let sqlFilter: string | undefined = undefined;
+      if (tab.filterState && tab.filterState.enabled && tab.filterState.conditions.length > 0) {
+        const clause = buildSqlWhereClause(tab.filterState.conditions, tab.filterState.conjunction, driver);
+        if (clause) sqlFilter = clause;
+      }
+
+      let cursorValues: CellValue[] | null = null;
+      if (nextPage > 1 && state.data && state.data.rows.length > 0) {
+        const refRow =
+          direction === 'prev'
+            ? state.data.rows[0]
+            : state.data.rows[state.data.rows.length - 1];
+        cursorValues = state.keyColumns.map((col) => {
+          const idx = state.data!.columns.findIndex((c) => c.name === col);
+          return idx >= 0 ? refRow[idx] : null;
+        });
+      }
+
+      setTableStates((prev) => ({
+        ...prev,
+        [tab.id]: { ...prev[tab.id], loading: true, error: null },
+      }));
+
+      try {
+        await dbApi.openSession(tab.connectionId, tab.id);
+        const result = await dbApi.fetchTableDataKeyset(
+          tab.id,
+          tableName,
+          tab.schemaName,
+          pageSize,
+          sqlFilter,
+          state.keyColumns,
+          cursorValues,
+          direction,
+          tab.sortState?.direction ?? 'ASC',
+          driver
+        );
+        setTableStates((prev) => ({
+          ...prev,
+          [tab.id]: {
+            ...prev[tab.id],
+            data: result,
+            loading: false,
+            page: nextPage,
+            pageSize,
+            hasMoreKeyset: Boolean(result.has_more),
+            error: null,
+          },
+        }));
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setTableStates((prev) => ({
+          ...prev,
+          [tab.id]: { ...prev[tab.id], loading: false, error: msg },
+        }));
+      }
+    },
+    [tableStates, loadTableData]
   );
 
   // Load table data when active tab is a table, connection is active, user explicitly requested load, and has not been loaded yet
@@ -1460,7 +1588,23 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                           </div>
                         </div>
                       ) : (
-                        <DataGrid
+                        <>
+                          {activeResult?.truncated && (
+                            <div
+                              data-testid="query-truncation-banner"
+                              className="px-3 py-1.5 bg-amber-500/15 border-b border-amber-500/30 text-amber-600 dark:text-amber-300 text-xs flex items-center gap-2 flex-shrink-0"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span>
+                                ผลลัพธ์ถูกตัดที่ {activeResult.rows.length.toLocaleString()} แถว
+                                {activeResult.truncation_reason === 'ByteCapReached' && activeResult.truncated_bytes
+                                  ? ` (${formatCapBytes(activeResult.truncated_bytes)})`
+                                  : ''}{' '}
+                                เพื่อความปลอดภัย หากต้องการข้อมูลทั้งหมด กรุณาใช้ฟังก์ชัน Export
+                              </span>
+                            </div>
+                          )}
+                          <DataGrid
                           data={(() => {
                             const raw = activeResult;
                             if (!raw) return null;
@@ -1518,6 +1662,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                           }}
                           driver={connections.find((c) => c.id === activeTab.connectionId)?.driver}
                         />
+                        </>
                       )}
                     </>
                   );
@@ -1690,12 +1835,35 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                         page={tableStates[activeTab.id]?.page ?? 1}
                         pageSize={tableStates[activeTab.id]?.pageSize ?? 100}
                         totalRows={tableStates[activeTab.id]?.totalRows ?? 0}
+                        isApproximateCount={tableStates[activeTab.id]?.isApproximateCount}
+                        isCountingExact={tableStates[activeTab.id]?.isCountingExact}
+                        onExactCount={() => handleExactCount(activeTab)}
+                        paginationMode={tableStates[activeTab.id]?.paginationMode ?? 'offset'}
+                        canUseKeyset={(tableStates[activeTab.id]?.keyColumns?.length ?? 0) > 0}
+                        hasMoreKeyset={tableStates[activeTab.id]?.hasMoreKeyset}
+                        onTogglePaginationMode={() => {
+                          const currentMode = tableStates[activeTab.id]?.paginationMode ?? 'offset';
+                          const nextMode = currentMode === 'keyset' ? 'offset' : 'keyset';
+                          setTableStates((prev) => ({
+                            ...prev,
+                            [activeTab.id]: { ...prev[activeTab.id], paginationMode: nextMode },
+                          }));
+                          const size = tableStates[activeTab.id]?.pageSize ?? 100;
+                          if (nextMode === 'keyset') {
+                            loadKeysetPage(activeTab, 1, size, 'next');
+                          } else {
+                            loadTableData(activeTab, 1, size);
+                          }
+                        }}
                         onPageChange={(newPage) => {
-                          loadTableData(
-                            activeTab,
-                            newPage,
-                            tableStates[activeTab.id]?.pageSize ?? 100
-                          );
+                          const st = tableStates[activeTab.id];
+                          const size = st?.pageSize ?? 100;
+                          if (st?.paginationMode === 'keyset') {
+                            const dir = newPage < (st?.page ?? 1) ? 'prev' : 'next';
+                            loadKeysetPage(activeTab, newPage, size, dir);
+                          } else {
+                            loadTableData(activeTab, newPage, size);
+                          }
                         }}
                         onPageSizeChange={(newSize) => {
                           loadTableData(activeTab, 1, newSize);
