@@ -21,6 +21,14 @@ pub enum ImportErrorPolicy {
     Skip,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ImportMode {
+    Atomic,
+    Chunked,
+    Staging,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ImportPreview {
     pub detected_delimiter: char,
@@ -44,6 +52,8 @@ pub struct ExportOptions {
     pub json_structure: Option<JsonStructure>,
     #[serde(default, alias = "job_id", alias = "jobId")]
     pub job_id: Option<String>,
+    #[serde(default, alias = "useNativeCopy")]
+    pub use_native_copy: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -82,6 +92,14 @@ pub struct ImportOptions {
     pub treat_empty_as_null: Option<bool>,
     #[serde(default)]
     pub job_id: Option<String>,
+    #[serde(default, alias = "importMode")]
+    pub import_mode: Option<ImportMode>,
+    #[serde(default, alias = "chunkCommitRows")]
+    pub chunk_commit_rows: Option<usize>,
+    #[serde(default, alias = "resumeFromCheckpoint")]
+    pub resume_from_checkpoint: Option<bool>,
+    #[serde(default, alias = "useNativeCopy")]
+    pub use_native_copy: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -90,13 +108,23 @@ pub struct ImportResult {
     pub imported_rows: usize,
     pub skipped_rows: usize,
     pub elapsed_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rejects_file_path: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct TransferProgress {
     pub current_row: usize,
     pub total_rows: Option<usize>,
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rows_processed: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes_written: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub elapsed_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

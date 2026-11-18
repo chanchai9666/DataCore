@@ -235,6 +235,7 @@ where
             } else {
                 "Preparing data transfer...".to_string()
             },
+            ..Default::default()
         });
     }
 
@@ -256,6 +257,7 @@ where
                 current_row: 0,
                 total_rows: total_rows_opt,
                 status: "Dropping target table if exists...".to_string(),
+                ..Default::default()
             });
         }
         let drop_sql = match tgt_driver {
@@ -272,6 +274,7 @@ where
                 current_row: 0,
                 total_rows: total_rows_opt,
                 status: "Creating target table structure...".to_string(),
+                ..Default::default()
             });
         }
         let create_ddl = generate_create_table_ddl(
@@ -356,6 +359,7 @@ where
                         current_row: rows_transferred,
                         total_rows: total_rows_opt,
                         status,
+                        ..Default::default()
                     });
                 }
             }
@@ -372,6 +376,7 @@ where
             current_row: rows_transferred,
             total_rows: total_rows_opt.or(Some(rows_transferred)),
             status: "Transfer completed successfully".to_string(),
+            ..Default::default()
         });
     }
 

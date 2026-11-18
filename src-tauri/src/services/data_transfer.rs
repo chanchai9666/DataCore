@@ -1,53 +1,58 @@
 use std::collections::{BTreeSet, HashMap};
-use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::fmt;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use crate::drivers::{Chunk, DatabaseConnection};
 use crate::error::AppError;
 use crate::models::{
-    CellValue, ExportOptions, ExportResult, ImportErrorPolicy, ImportOptions, ImportPreview,
-    ImportResult, JsonStructure, QueryResult, TransferFormat, TransferProgress,
+    CellValue, ExportOptions, ExportResult, ImportErrorPolicy, ImportMode, ImportOptions,
+    ImportPreview, ImportResult, JsonStructure, QueryResult, TransferFormat, TransferProgress,
+};
+use crate::services::transfer_checkpoint::{
+    load_checkpoint, remove_checkpoint, save_checkpoint, ImportCheckpoint, RejectsWriter,
+};
+use crate::services::transfer_compression::{
+    detect_compression, open_decompressed_reader, strip_compression_ext, AsyncCompressedFileWriter,
+};
+pub use crate::services::transfer_registry::{
+    cancel_transfer_job, is_transfer_cancelled, register_cancellation_token, register_transfer_job,
+    remove_cancellation_token, trigger_cancellation, TransferJob,
 };
 
-static CANCELLATION_REGISTRY: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new();
-
-fn get_cancellation_registry() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
-    CANCELLATION_REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValueError {
+    pub column: Option<String>,
+    pub value: String,
+    pub expected_type: String,
+    pub reason: String,
 }
 
-pub fn register_cancellation_token(job_id: &str) -> Arc<AtomicBool> {
-    let mut map = get_cancellation_registry().lock().unwrap();
-    let token = Arc::new(AtomicBool::new(false));
-    map.insert(job_id.to_string(), token.clone());
-    token
-}
-
-pub fn trigger_cancellation(job_id: &str) -> bool {
-    let map = get_cancellation_registry().lock().unwrap();
-    if let Some(token) = map.get(job_id) {
-        token.store(true, Ordering::SeqCst);
-        true
-    } else {
-        false
+impl fmt::Display for ValueError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(ref col) = self.column {
+            write!(
+                f,
+                "Column '{}' expected {}: {} (value: '{}')",
+                col, self.expected_type, self.reason, self.value
+            )
+        } else {
+            write!(
+                f,
+                "Expected {}: {} (value: '{}')",
+                self.expected_type, self.reason, self.value
+            )
+        }
     }
 }
 
-pub fn is_transfer_cancelled(job_id: &str) -> bool {
-    let map = get_cancellation_registry().lock().unwrap();
-    if let Some(token) = map.get(job_id) {
-        token.load(Ordering::SeqCst)
-    } else {
-        false
-    }
-}
+impl std::error::Error for ValueError {}
 
-pub fn remove_cancellation_token(job_id: &str) {
-    let mut map = get_cancellation_registry().lock().unwrap();
-    map.remove(job_id);
+impl From<ValueError> for AppError {
+    fn from(err: ValueError) -> Self {
+        AppError::InvalidInput(err.to_string())
+    }
 }
 
 /// Detects the most likely CSV delimiter (',', ';', '\t') from a sample text.
@@ -228,20 +233,25 @@ pub fn parse_json_preview<R: Read>(reader: R) -> Result<ImportPreview, AppError>
     })
 }
 
-/// Previews an import file (CSV or JSON) from disk.
+/// Previews an import file (CSV or JSON, optionally gzip/zstd compressed) from disk.
 pub fn preview_import_file_impl(file_path: &str, delimiter: Option<char>) -> Result<ImportPreview, AppError> {
     let path = Path::new(file_path);
     if !path.exists() {
         return Err(AppError::NotFound(format!("File '{}' not found", file_path)));
     }
 
-    let file = File::open(path).map_err(|e| AppError::Other(format!("Failed to open file: {}", e)))?;
-    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+    let reader = open_decompressed_reader(file_path)?;
+    let inner_path = Path::new(strip_compression_ext(file_path));
+    let ext = inner_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
 
     if ext == "json" || ext == "ndjson" || ext == "jsonl" {
-        parse_json_preview(file)
+        parse_json_preview(reader)
     } else {
-        parse_csv_preview(file, delimiter)
+        parse_csv_preview(reader, delimiter)
     }
 }
 
@@ -442,12 +452,14 @@ pub fn quote_table_name(table_name: &str, dialect: &str) -> String {
 }
 
 /// Formats a raw string cell value into valid SQL literal respecting target type and empty string policy.
+/// Returns `Err(ValueError)` if `target_type` is numeric or boolean and the value cannot be parsed,
+/// preventing silent NULL conversions.
 pub fn format_sql_literal_with_options(
     val: &str,
     target_type: Option<&str>,
     empty_as_null: bool,
     dialect: &str,
-) -> String {
+) -> Result<String, ValueError> {
     let trimmed = val.trim();
     let is_sqlite = dialect.to_lowercase().contains("sqlite");
 
@@ -455,59 +467,74 @@ pub fn format_sql_literal_with_options(
         let dt = data_type.to_lowercase();
         if dt.contains("char") || dt.contains("text") || dt.contains("clob") || dt.contains("string") {
             if val.is_empty() {
-                return if empty_as_null { "NULL".to_string() } else { "''".to_string() };
+                return Ok(if empty_as_null { "NULL".to_string() } else { "''".to_string() });
             }
             if trimmed.eq_ignore_ascii_case("null") {
-                return "NULL".to_string();
+                return Ok("NULL".to_string());
             }
-            return format!("'{}'", escape_sql_string(val, dialect));
+            return Ok(format!("'{}'", escape_sql_string(val, dialect)));
         }
         if dt.contains("int") || dt.contains("serial") {
             if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("null") {
-                return "NULL".to_string();
+                return Ok("NULL".to_string());
             }
             if let Ok(i) = trimmed.parse::<i64>() {
-                return i.to_string();
+                return Ok(i.to_string());
             }
-            return "NULL".to_string();
+            return Err(ValueError {
+                column: None,
+                value: val.to_string(),
+                expected_type: data_type.to_string(),
+                reason: "invalid integer value".to_string(),
+            });
         }
         if dt.contains("float") || dt.contains("double") || dt.contains("real") || dt.contains("numeric") || dt.contains("decimal") {
             if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("null") {
-                return "NULL".to_string();
+                return Ok("NULL".to_string());
             }
             if let Ok(f) = trimmed.parse::<f64>() {
                 if f.is_finite() {
-                    return f.to_string();
+                    return Ok(f.to_string());
                 }
             }
-            return "NULL".to_string();
+            return Err(ValueError {
+                column: None,
+                value: val.to_string(),
+                expected_type: data_type.to_string(),
+                reason: "invalid floating-point/numeric value".to_string(),
+            });
         }
         if dt.contains("bool") {
             if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("null") {
-                return "NULL".to_string();
+                return Ok("NULL".to_string());
             }
             if trimmed.eq_ignore_ascii_case("true") || trimmed == "1" {
-                return if is_sqlite { "1".to_string() } else { "TRUE".to_string() };
+                return Ok(if is_sqlite { "1".to_string() } else { "TRUE".to_string() });
             }
             if trimmed.eq_ignore_ascii_case("false") || trimmed == "0" {
-                return if is_sqlite { "0".to_string() } else { "FALSE".to_string() };
+                return Ok(if is_sqlite { "0".to_string() } else { "FALSE".to_string() });
             }
-            return "NULL".to_string();
+            return Err(ValueError {
+                column: None,
+                value: val.to_string(),
+                expected_type: data_type.to_string(),
+                reason: "invalid boolean value".to_string(),
+            });
         }
     }
 
     if val.is_empty() {
-        return if empty_as_null { "NULL".to_string() } else { "''".to_string() };
+        return Ok(if empty_as_null { "NULL".to_string() } else { "''".to_string() });
     }
     if trimmed.eq_ignore_ascii_case("null") || trimmed == "\\N" {
-        return "NULL".to_string();
+        return Ok("NULL".to_string());
     }
 
     if trimmed.eq_ignore_ascii_case("true") {
-        return if is_sqlite { "1".to_string() } else { "TRUE".to_string() };
+        return Ok(if is_sqlite { "1".to_string() } else { "TRUE".to_string() });
     }
     if trimmed.eq_ignore_ascii_case("false") {
-        return if is_sqlite { "0".to_string() } else { "FALSE".to_string() };
+        return Ok(if is_sqlite { "0".to_string() } else { "FALSE".to_string() });
     }
 
     // Do NOT coerce numbers with leading zeroes (e.g. "0123", "007") or leading "-0" into integers!
@@ -517,21 +544,21 @@ pub fn format_sql_literal_with_options(
     if !has_leading_zero {
         // Try parsing as integer
         if let Ok(i) = trimmed.parse::<i64>() {
-            return i.to_string();
+            return Ok(i.to_string());
         }
 
         // Try parsing as float if it contains decimal point or exponent
         if trimmed.contains('.') || trimmed.contains('e') || trimmed.contains('E') {
             if let Ok(f) = trimmed.parse::<f64>() {
                 if f.is_finite() {
-                    return f.to_string();
+                    return Ok(f.to_string());
                 }
             }
         }
     }
 
     // Escape single quotes (and backslashes for MySQL) for string literal
-    format!("'{}'", escape_sql_string(val, dialect))
+    Ok(format!("'{}'", escape_sql_string(val, dialect)))
 }
 
 /// Formats a CellValue into a valid SQL literal without type coercion.
@@ -611,7 +638,7 @@ pub fn generate_batch_insert_sql_with_options(
     rows: &[Vec<String>],
     treat_empty_as_null: bool,
     dialect: &str,
-) -> String {
+) -> Result<String, ValueError> {
     let quoted_table = quote_table_name(table, dialect);
     let quoted_cols: Vec<String> = target_columns
         .iter()
@@ -621,23 +648,26 @@ pub fn generate_batch_insert_sql_with_options(
     let mut value_tuples = Vec::with_capacity(rows.len());
 
     for row in rows {
-        let formatted_vals: Vec<String> = row
-            .iter()
-            .enumerate()
-            .map(|(i, val)| {
-                let target_type = target_types.get(i).and_then(|opt| opt.as_deref());
-                format_sql_literal_with_options(val, target_type, treat_empty_as_null, dialect)
-            })
-            .collect();
+        let mut formatted_vals = Vec::with_capacity(row.len());
+        for (i, val) in row.iter().enumerate() {
+            let target_type = target_types.get(i).and_then(|opt| opt.as_deref());
+            match format_sql_literal_with_options(val, target_type, treat_empty_as_null, dialect) {
+                Ok(lit) => formatted_vals.push(lit),
+                Err(mut err) => {
+                    err.column = target_columns.get(i).cloned();
+                    return Err(err);
+                }
+            }
+        }
         value_tuples.push(format!("({})", formatted_vals.join(", ")));
     }
 
-    format!(
+    Ok(format!(
         "INSERT INTO {} ({}) VALUES\n{};",
         quoted_table,
         quoted_cols.join(", "),
         value_tuples.join(",\n")
-    )
+    ))
 }
 
 /// Generates a batch INSERT SQL statement for given rows.
@@ -648,6 +678,7 @@ pub fn generate_batch_insert_sql(
     dialect: &str,
 ) -> String {
     generate_batch_insert_sql_with_options(table, target_columns, &[], rows, true, dialect)
+        .expect("untyped batch insert SQL generation is infallible")
 }
 
 /// Streams and executes export to a local file via single-statement streaming without LIMIT/OFFSET pagination.
@@ -657,6 +688,22 @@ pub async fn export_data_impl(
     file_path: &str,
     options: &ExportOptions,
 ) -> Result<ExportResult, AppError> {
+    export_data_with_progress_impl(conn, sql, file_path, options, None::<fn(TransferProgress)>).await
+}
+
+/// Streams and executes export to a local file with optional progress reporting,
+/// async on-the-fly gzip/zstd compression, optional PostgreSQL native COPY,
+/// and partial file cleanup on cancellation or error.
+pub async fn export_data_with_progress_impl<F>(
+    conn: &dyn DatabaseConnection,
+    sql: &str,
+    file_path: &str,
+    options: &ExportOptions,
+    on_progress: Option<F>,
+) -> Result<ExportResult, AppError>
+where
+    F: Fn(TransferProgress) + Send + Sync,
+{
     let check_cancel = || -> Result<(), AppError> {
         if let Some(ref jid) = options.job_id {
             if is_transfer_cancelled(jid) {
@@ -668,14 +715,116 @@ pub async fn export_data_impl(
 
     check_cancel()?;
     let start_time = Instant::now();
+    let compression = detect_compression(file_path);
+    let mut writer = AsyncCompressedFileWriter::create(file_path, compression)?;
 
-    let file = File::create(file_path)
-        .map_err(|e| AppError::Other(format!("Failed to create export file '{}': {}", file_path, e)))?;
-    let buf_writer = BufWriter::new(file);
-    let mut counting_writer = CountingWriter::new(buf_writer);
+    let res = export_data_inner(conn, sql, options, &mut writer, &start_time, &on_progress, &check_cancel).await;
 
+    match res {
+        Ok(total_rows) => {
+            let file_size_bytes = match writer.finish().await {
+                Ok(b) => b,
+                Err(e) => {
+                    let _ = std::fs::remove_file(file_path);
+                    if let Some(ref jid) = options.job_id {
+                        remove_cancellation_token(jid);
+                    }
+                    return Err(e);
+                }
+            };
+            let elapsed_ms = start_time.elapsed().as_millis() as u64;
+            if let Some(ref cb) = on_progress {
+                cb(TransferProgress {
+                    current_row: total_rows,
+                    total_rows: Some(total_rows),
+                    status: "done".to_string(),
+                    job_id: options.job_id.clone(),
+                    rows_processed: Some(total_rows),
+                    bytes_written: Some(file_size_bytes),
+                    elapsed_ms: Some(elapsed_ms),
+                });
+            }
+            if let Some(ref jid) = options.job_id {
+                remove_cancellation_token(jid);
+            }
+            Ok(ExportResult {
+                total_rows,
+                file_size_bytes,
+                elapsed_ms,
+            })
+        }
+        Err(e) => {
+            writer.abort().await;
+            let _ = std::fs::remove_file(file_path);
+            if let Some(ref jid) = options.job_id {
+                remove_cancellation_token(jid);
+            }
+            Err(e)
+        }
+    }
+}
+
+async fn export_data_inner<F, C>(
+    conn: &dyn DatabaseConnection,
+    sql: &str,
+    options: &ExportOptions,
+    writer: &mut AsyncCompressedFileWriter,
+    start_time: &Instant,
+    on_progress: &Option<F>,
+    check_cancel: &C,
+) -> Result<usize, AppError>
+where
+    F: Fn(TransferProgress) + Send + Sync,
+    C: Fn() -> Result<(), AppError>,
+{
     let clean_sql = sql.trim().trim_end_matches(';').trim();
     let query_sql = format!("{};", clean_sql);
+    let delim = options.delimiter.unwrap_or(',');
+
+    // Fast path: PostgreSQL native COPY TO STDOUT when requested and format is CSV.
+    if options.use_native_copy == Some(true) && options.format == TransferFormat::Csv {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<u8>>(16);
+        let copy_fut = conn.copy_out_csv(clean_sql, options.include_headers, delim, tx);
+        let write_fut = async {
+            let mut newline_count: usize = 0;
+            while let Some(chunk) = rx.recv().await {
+                check_cancel()?;
+                newline_count += chunk.iter().filter(|&&b| b == b'\n').count();
+                writer.write_all(&chunk).await?;
+                let rows_so_far = if options.include_headers {
+                    newline_count.saturating_sub(1)
+                } else {
+                    newline_count
+                };
+                if let Some(ref cb) = on_progress {
+                    cb(TransferProgress {
+                        current_row: rows_so_far,
+                        total_rows: None,
+                        status: "exporting".to_string(),
+                        job_id: options.job_id.clone(),
+                        rows_processed: Some(rows_so_far),
+                        bytes_written: Some(writer.bytes_written_so_far()),
+                        elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                    });
+                }
+            }
+            Ok::<usize, AppError>(if options.include_headers {
+                newline_count.saturating_sub(1)
+            } else {
+                newline_count
+            })
+        };
+
+        let (copy_res, write_res) = tokio::join!(copy_fut, write_fut);
+        match copy_res {
+            Ok(()) => return write_res,
+            Err(AppError::NotSupported(_)) => {
+                // Fall back to standard query export below
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
     let chunk_size: usize = 1000;
     let mut total_rows: usize = 0;
 
@@ -684,10 +833,6 @@ pub async fn export_data_impl(
             let (tx, mut rx) = tokio::sync::mpsc::channel::<Chunk>(4);
             let stream_fut = conn.stream_query(&query_sql, chunk_size, tx);
             let consume_fut = async {
-                let delim = options.delimiter.unwrap_or(',');
-                let mut csv_writer = csv::WriterBuilder::new()
-                    .delimiter(delim as u8)
-                    .from_writer(&mut counting_writer);
                 let mut headers_written = false;
 
                 while let Some(chunk) = rx.recv().await {
@@ -696,46 +841,69 @@ pub async fn export_data_impl(
                         return Err(e);
                     }
 
-                    if !headers_written && options.include_headers && !chunk.columns.is_empty() {
-                        let headers: Vec<&str> = chunk.columns.iter().map(|c| c.name.as_str()).collect();
-                        if let Err(e) = csv_writer.write_record(&headers) {
-                            drop(rx);
-                            return Err(AppError::Other(format!("CSV write header error: {}", e)));
-                        }
-                        headers_written = true;
-                    }
+                    let mut buf = Vec::with_capacity(64 * 1024);
+                    {
+                        let mut csv_writer = csv::WriterBuilder::new()
+                            .delimiter(delim as u8)
+                            .from_writer(&mut buf);
 
-                    for (idx, row) in chunk.rows.iter().enumerate() {
-                        if idx % 100 == 0 {
-                            if let Err(e) = check_cancel() {
+                        if !headers_written && options.include_headers && !chunk.columns.is_empty() {
+                            let headers: Vec<&str> = chunk.columns.iter().map(|c| c.name.as_str()).collect();
+                            if let Err(e) = csv_writer.write_record(&headers) {
                                 drop(rx);
-                                return Err(e);
+                                return Err(AppError::Other(format!("CSV write header error: {}", e)));
+                            }
+                            headers_written = true;
+                        }
+
+                        for (idx, row) in chunk.rows.iter().enumerate() {
+                            if idx % 100 == 0 {
+                                if let Err(e) = check_cancel() {
+                                    drop(rx);
+                                    return Err(e);
+                                }
+                            }
+                            let record: Vec<String> = row
+                                .iter()
+                                .map(|cell| match cell {
+                                    CellValue::Null => String::new(),
+                                    CellValue::Text(s) => s.clone(),
+                                    CellValue::Integer(i) => i.to_string(),
+                                    CellValue::Float(f) => f.to_string(),
+                                    CellValue::Boolean(b) => b.to_string(),
+                                    CellValue::Json(v) => v.to_string(),
+                                    CellValue::Bytes(b) => b.clone(),
+                                })
+                                .collect();
+                            if let Err(e) = csv_writer.write_record(&record) {
+                                drop(rx);
+                                return Err(AppError::Other(format!("CSV write row error: {}", e)));
                             }
                         }
-                        let record: Vec<String> = row
-                            .iter()
-                            .map(|cell| match cell {
-                                CellValue::Null => String::new(),
-                                CellValue::Text(s) => s.clone(),
-                                CellValue::Integer(i) => i.to_string(),
-                                CellValue::Float(f) => f.to_string(),
-                                CellValue::Boolean(b) => b.to_string(),
-                                CellValue::Json(v) => v.to_string(),
-                                CellValue::Bytes(b) => b.clone(),
-                            })
-                            .collect();
-                        if let Err(e) = csv_writer.write_record(&record) {
-                            drop(rx);
-                            return Err(AppError::Other(format!("CSV write row error: {}", e)));
-                        }
+
+                        csv_writer
+                            .flush()
+                            .map_err(|e| AppError::Other(format!("CSV flush error: {}", e)))?;
+                    }
+                    if let Err(e) = writer.write_all(&buf).await {
+                        drop(rx);
+                        return Err(e);
                     }
 
                     total_rows += chunk.rows.len();
+                    if let Some(ref cb) = on_progress {
+                        cb(TransferProgress {
+                            current_row: total_rows,
+                            total_rows: None,
+                            status: "exporting".to_string(),
+                            job_id: options.job_id.clone(),
+                            rows_processed: Some(total_rows),
+                            bytes_written: Some(writer.bytes_written_so_far()),
+                            elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                        });
+                    }
                 }
 
-                csv_writer
-                    .flush()
-                    .map_err(|e| AppError::Other(format!("CSV flush error: {}", e)))?;
                 Ok::<(), AppError>(())
             };
 
@@ -746,8 +914,7 @@ pub async fn export_data_impl(
         TransferFormat::Json => {
             let is_ndjson = matches!(options.json_structure, Some(JsonStructure::Ndjson));
             if !is_ndjson {
-                writeln!(counting_writer, "[")
-                    .map_err(|e| AppError::Other(format!("JSON write error: {}", e)))?;
+                writer.write_all(b"[\n").await?;
             }
 
             let mut first_item = true;
@@ -767,6 +934,7 @@ pub async fn export_data_impl(
                     }
                     let col_refs: Vec<&str> = cached_col_names.iter().map(|s| s.as_str()).collect();
 
+                    let mut buf = Vec::with_capacity(64 * 1024);
                     for (idx, row) in chunk.rows.iter().enumerate() {
                         if idx % 100 == 0 {
                             if let Err(e) = check_cancel() {
@@ -783,13 +951,13 @@ pub async fn export_data_impl(
                                     return Err(AppError::Other(format!("JSON serialization error: {}", e)));
                                 }
                             };
-                            if let Err(e) = writeln!(counting_writer, "{}", line) {
+                            if let Err(e) = writeln!(buf, "{}", line) {
                                 drop(rx);
                                 return Err(AppError::Other(format!("JSON write error: {}", e)));
                             }
                         } else {
                             if !first_item {
-                                if let Err(e) = writeln!(counting_writer, ",") {
+                                if let Err(e) = writeln!(buf, ",") {
                                     drop(rx);
                                     return Err(AppError::Other(format!("JSON write error: {}", e)));
                                 }
@@ -807,14 +975,30 @@ pub async fn export_data_impl(
                                 .map(|l| format!("  {}", l))
                                 .collect::<Vec<_>>()
                                 .join("\n");
-                            if let Err(e) = write!(counting_writer, "{}", indented) {
+                            if let Err(e) = write!(buf, "{}", indented) {
                                 drop(rx);
                                 return Err(AppError::Other(format!("JSON write error: {}", e)));
                             }
                         }
                     }
 
+                    if let Err(e) = writer.write_all(&buf).await {
+                        drop(rx);
+                        return Err(e);
+                    }
+
                     total_rows += chunk.rows.len();
+                    if let Some(ref cb) = on_progress {
+                        cb(TransferProgress {
+                            current_row: total_rows,
+                            total_rows: None,
+                            status: "exporting".to_string(),
+                            job_id: options.job_id.clone(),
+                            rows_processed: Some(total_rows),
+                            bytes_written: Some(writer.bytes_written_so_far()),
+                            elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                        });
+                    }
                 }
 
                 Ok::<(), AppError>(())
@@ -826,29 +1010,127 @@ pub async fn export_data_impl(
 
             if !is_ndjson {
                 if !first_item {
-                    writeln!(counting_writer)
-                        .map_err(|e| AppError::Other(format!("JSON write error: {}", e)))?;
+                    writer.write_all(b"\n").await?;
                 }
-                writeln!(counting_writer, "]")
-                    .map_err(|e| AppError::Other(format!("JSON write error: {}", e)))?;
+                writer.write_all(b"]\n").await?;
             }
-            counting_writer
-                .flush()
-                .map_err(|e| AppError::Other(format!("Flush error: {}", e)))?;
         }
     }
 
-    if let Some(ref jid) = options.job_id {
-        remove_cancellation_token(jid);
+    Ok(total_rows)
+}
+
+/// Validates a batch of `(row_number, row)` client-side before SQL generation.
+/// - In `Abort` mode, returns `Err` on the first invalid cell with row number and column name.
+/// - In `Skip` mode, logs invalid rows to `rejects` and returns only valid rows.
+fn validate_and_filter_chunk(
+    target_columns: &[String],
+    target_types: &[Option<String>],
+    chunk: &[(usize, Vec<String>)],
+    treat_empty_as_null: bool,
+    dialect: &str,
+    error_policy: ImportErrorPolicy,
+    rejects: &mut RejectsWriter,
+) -> Result<(Vec<(usize, Vec<String>)>, usize), AppError> {
+    let mut valid = Vec::with_capacity(chunk.len());
+    let mut skipped = 0usize;
+
+    for (row_num, row) in chunk {
+        let mut row_err: Option<ValueError> = None;
+        for (i, val) in row.iter().enumerate() {
+            let target_type = target_types.get(i).and_then(|opt| opt.as_deref());
+            if let Err(mut err) =
+                format_sql_literal_with_options(val, target_type, treat_empty_as_null, dialect)
+            {
+                err.column = target_columns.get(i).cloned();
+                row_err = Some(err);
+                break;
+            }
+        }
+
+        if let Some(err) = row_err {
+            if error_policy == ImportErrorPolicy::Abort {
+                return Err(AppError::InvalidInput(format!(
+                    "Row {}: {}",
+                    row_num, err
+                )));
+            } else {
+                rejects.write_reject(*row_num, &err.to_string(), row)?;
+                skipped += 1;
+            }
+        } else {
+            valid.push((*row_num, row.clone()));
+        }
     }
 
-    let file_size_bytes = counting_writer.bytes_written;
-    let elapsed_ms = start_time.elapsed().as_millis() as u64;
+    Ok((valid, skipped))
+}
 
-    Ok(ExportResult {
-        total_rows,
-        file_size_bytes,
-        elapsed_ms,
+/// Binary-bisect batch inserter for `Skip` mode: when a batch fails on the DB server,
+/// splits the batch in half recursively to isolate only the failing rows instead of
+/// falling back to row-by-row inserts for the entire batch.
+#[allow(clippy::too_many_arguments)]
+fn bisect_insert_rows<'a>(
+    conn: &'a dyn DatabaseConnection,
+    table: &'a str,
+    target_columns: &'a [String],
+    target_types: &'a [Option<String>],
+    rows: &'a [(usize, Vec<String>)],
+    treat_empty_as_null: bool,
+    dialect: &'a str,
+    rejects: &'a mut RejectsWriter,
+) -> futures::future::BoxFuture<'a, Result<(usize, usize), AppError>> {
+    Box::pin(async move {
+        if rows.is_empty() {
+            return Ok((0, 0));
+        }
+
+        let raw_rows: Vec<Vec<String>> = rows.iter().map(|(_, r)| r.clone()).collect();
+        let batch_sql = generate_batch_insert_sql_with_options(
+            table,
+            target_columns,
+            target_types,
+            &raw_rows,
+            treat_empty_as_null,
+            dialect,
+        )
+        .map_err(AppError::from)?;
+
+        match conn.execute_query(&batch_sql).await {
+            Ok(_) => Ok((rows.len(), 0)),
+            Err(db_err) => {
+                if rows.len() == 1 {
+                    let (row_num, row) = &rows[0];
+                    rejects.write_reject(*row_num, &db_err.to_string(), row)?;
+                    Ok((0, 1))
+                } else {
+                    let mid = rows.len() / 2;
+                    let (left_imp, left_skp) = bisect_insert_rows(
+                        conn,
+                        table,
+                        target_columns,
+                        target_types,
+                        &rows[..mid],
+                        treat_empty_as_null,
+                        dialect,
+                        rejects,
+                    )
+                    .await?;
+                    let (right_imp, right_skp) = bisect_insert_rows(
+                        conn,
+                        table,
+                        target_columns,
+                        target_types,
+                        &rows[mid..],
+                        treat_empty_as_null,
+                        dialect,
+                        rejects,
+                    )
+                    .await?;
+                    Ok((left_imp + right_imp, left_skp + right_skp))
+                }
+            }
+        }
     })
 }
 
@@ -858,59 +1140,142 @@ async fn execute_import_chunk(
     table: &str,
     target_columns: &[String],
     target_types: &[Option<String>],
-    chunk: &[Vec<String>],
+    chunk: &[(usize, Vec<String>)],
     treat_empty_as_null: bool,
     dialect: &str,
     error_policy: ImportErrorPolicy,
+    in_tx: bool,
+    rejects: &mut RejectsWriter,
 ) -> Result<(usize, usize), AppError> {
-    let batch_sql = generate_batch_insert_sql_with_options(
-        table,
+    let (valid_rows, client_skipped) = match validate_and_filter_chunk(
         target_columns,
         target_types,
         chunk,
         treat_empty_as_null,
         dialect,
-    );
+        error_policy,
+        rejects,
+    ) {
+        Ok(res) => res,
+        Err(e) => {
+            if in_tx {
+                let _ = conn.execute_query("ROLLBACK").await;
+            }
+            return Err(e);
+        }
+    };
+
+    if valid_rows.is_empty() {
+        return Ok((0, client_skipped));
+    }
+
+    let raw_rows: Vec<Vec<String>> = valid_rows.iter().map(|(_, r)| r.clone()).collect();
+    let batch_sql = generate_batch_insert_sql_with_options(
+        table,
+        target_columns,
+        target_types,
+        &raw_rows,
+        treat_empty_as_null,
+        dialect,
+    )
+    .map_err(AppError::from)?;
+
     let exec_result = conn.execute_query(&batch_sql).await;
 
     match exec_result {
-        Ok(_) => Ok((chunk.len(), 0)),
+        Ok(_) => Ok((valid_rows.len(), client_skipped)),
         Err(e) => {
             if error_policy == ImportErrorPolicy::Abort {
-                let rollback_res = conn.execute_query("ROLLBACK").await;
-                let rollback_msg = match rollback_res {
-                    Ok(_) => "Transaction rolled back successfully.".to_string(),
-                    Err(rb_err) => format!("Rollback also failed: {}.", rb_err),
-                };
-                Err(AppError::Other(format!(
-                    "Import failed during batch: {}. {}",
-                    e, rollback_msg
-                )))
-            } else {
-                let mut imported = 0;
-                let mut skipped = 0;
-                for row in chunk {
-                    let single_sql = generate_batch_insert_sql_with_options(
-                        table,
-                        target_columns,
-                        target_types,
-                        std::slice::from_ref(row),
-                        treat_empty_as_null,
-                        dialect,
-                    );
-                    if conn.execute_query(&single_sql).await.is_ok() {
-                        imported += 1;
-                    } else {
-                        skipped += 1;
-                    }
+                if in_tx {
+                    let rollback_res = conn.execute_query("ROLLBACK").await;
+                    let rollback_msg = match rollback_res {
+                        Ok(_) => "Transaction rolled back successfully.".to_string(),
+                        Err(rb_err) => format!("Rollback also failed: {}.", rb_err),
+                    };
+                    Err(AppError::Other(format!(
+                        "Import failed during batch: {}. {}",
+                        e, rollback_msg
+                    )))
+                } else {
+                    Err(AppError::Other(format!("Import failed during batch: {}", e)))
                 }
-                Ok((imported, skipped))
+            } else {
+                let (imp, db_skipped) = bisect_insert_rows(
+                    conn,
+                    table,
+                    target_columns,
+                    target_types,
+                    &valid_rows,
+                    treat_empty_as_null,
+                    dialect,
+                    rejects,
+                )
+                .await?;
+                Ok((imp, client_skipped + db_skipped))
             }
         }
     }
 }
 
-/// Streams and imports data from a CSV or JSON file into the database.
+/// Computes the driver-specific maximum batch size for multi-row INSERT statements.
+pub fn clamp_import_batch_size(requested: Option<usize>, dialect: &str) -> usize {
+    let max_batch = if dialect.to_lowercase().contains("mssql") {
+        1000
+    } else {
+        2000
+    };
+    requested.unwrap_or(500).clamp(1, max_batch)
+}
+
+fn staging_table_name(dialect: &str) -> String {
+    let id = uuid::Uuid::new_v4().simple().to_string();
+    let short = &id[..12];
+    if dialect.to_lowercase().contains("mssql") {
+        format!("#datacore_staging_{}", short)
+    } else {
+        format!("__datacore_staging_{}", short)
+    }
+}
+
+fn build_create_staging_sql(
+    staging_table: &str,
+    target_table: &str,
+    target_columns: &[String],
+    dialect: &str,
+) -> String {
+    let lower = dialect.to_lowercase();
+    let quoted_target = quote_table_name(target_table, dialect);
+    let quoted_cols = target_columns
+        .iter()
+        .map(|c| quote_identifier(c, dialect))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    if lower.contains("mssql") {
+        format!(
+            "SELECT TOP 0 {} INTO {} FROM {};",
+            quoted_cols,
+            quote_identifier(staging_table, dialect),
+            quoted_target
+        )
+    } else if lower.contains("mysql") {
+        let quoted_staging = quote_identifier(staging_table, dialect);
+        format!(
+            "CREATE TEMPORARY TABLE {} AS SELECT {} FROM {} WHERE 1=0;",
+            quoted_staging, quoted_cols, quoted_target
+        )
+    } else {
+        let quoted_staging = quote_identifier(staging_table, dialect);
+        format!(
+            "CREATE TEMP TABLE {} AS SELECT {} FROM {} WHERE 1=0;",
+            quoted_staging, quoted_cols, quoted_target
+        )
+    }
+}
+
+/// Streams and imports data from a CSV or JSON file (optionally gzip/zstd compressed)
+/// into the database with support for Atomic, Chunked, and Staging modes,
+/// checkpoint/resume, client-side type validation, rejects logging, and bisect skip.
 pub async fn import_data_impl<F>(
     conn: &dyn DatabaseConnection,
     table: &str,
@@ -943,30 +1308,328 @@ where
         return Err(AppError::Other("No column mappings provided".to_string()));
     }
 
-    let file = File::open(path)
-        .map_err(|e| AppError::Other(format!("Failed to open file: {}", e)))?;
-
-    let batch_size = options.batch_size.unwrap_or(500).clamp(1, 2000);
+    let batch_size = clamp_import_batch_size(options.batch_size, dialect);
     let job_id = options.job_id.as_deref();
 
     let check_cancelled = |jid: Option<&str>| -> Result<(), AppError> {
         if let Some(id) = jid {
             if is_transfer_cancelled(id) {
-                return Err(AppError::Other("Import cancelled by user".to_string()));
+                return Err(AppError::Cancelled("Import cancelled by user".to_string()));
             }
         }
         Ok(())
     };
 
-    // Handle atomic transaction if policy is Abort
-    if options.error_policy == ImportErrorPolicy::Abort {
+    // Fast path: PostgreSQL native COPY IN when requested for CSV + Abort + non-Staging.
+    if options.use_native_copy == Some(true)
+        && options.format == TransferFormat::Csv
+        && options.error_policy == ImportErrorPolicy::Abort
+        && !matches!(options.import_mode, Some(ImportMode::Staging))
+    {
+        let delim = options.delimiter.unwrap_or(',');
+        let (tx, rx) = tokio::sync::mpsc::channel::<Vec<u8>>(16);
+        let file_path_owned = options.file_path.clone();
+        let read_handle = tokio::task::spawn_blocking(move || -> Result<(), AppError> {
+            let mut reader = open_decompressed_reader(&file_path_owned)?;
+            let mut buf = vec![0u8; 64 * 1024];
+            loop {
+                let n = reader
+                    .read(&mut buf)
+                    .map_err(|e| AppError::Other(format!("Read error: {}", e)))?;
+                if n == 0 {
+                    break;
+                }
+                if tx.blocking_send(buf[..n].to_vec()).is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        });
+
+        let copy_res = conn
+            .copy_in_csv(table, &target_columns, options.has_headers, delim, rx)
+            .await;
+        match copy_res {
+            Ok(rows_affected) => {
+                let _ = read_handle.await;
+                let imported = rows_affected as usize;
+                let elapsed_ms = start_time.elapsed().as_millis() as u64;
+                if let Some(ref progress_cb) = on_progress {
+                    progress_cb(TransferProgress {
+                        current_row: imported,
+                        total_rows: Some(imported),
+                        status: "done".to_string(),
+                        job_id: options.job_id.clone(),
+                        rows_processed: Some(imported),
+                        bytes_written: None,
+                        elapsed_ms: Some(elapsed_ms),
+                    });
+                }
+                if let Some(ref jid) = options.job_id {
+                    remove_cancellation_token(jid);
+                }
+                return Ok(ImportResult {
+                    total_rows: imported,
+                    imported_rows: imported,
+                    skipped_rows: 0,
+                    elapsed_ms,
+                    rejects_file_path: None,
+                });
+            }
+            Err(AppError::NotSupported(_)) => {
+                read_handle.abort();
+                // Fall back to standard import path
+            }
+            Err(e) => {
+                read_handle.abort();
+                if let Some(ref jid) = options.job_id {
+                    remove_cancellation_token(jid);
+                }
+                return Err(e);
+            }
+        }
+    }
+
+    // Determine import mode: explicit or auto-select Chunked for >64 MB files.
+    let mode = options.import_mode.unwrap_or_else(|| {
+        let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        if size > 64 * 1024 * 1024 {
+            ImportMode::Chunked
+        } else {
+            ImportMode::Atomic
+        }
+    });
+    let chunk_commit_rows = options.chunk_commit_rows.unwrap_or(50_000).max(1);
+
+    // Checkpoint / Resume handling
+    let mut resume_skip_rows = 0usize;
+    let mut imported_rows = 0usize;
+    let mut skipped_rows = 0usize;
+    if options.resume_from_checkpoint == Some(true) {
+        if let Some(cp) = load_checkpoint(&options.file_path, table) {
+            resume_skip_rows = cp.committed_rows;
+            imported_rows = cp.imported_rows;
+            skipped_rows = cp.skipped_rows;
+        }
+    }
+
+    // Setup target table (or temporary staging table for Staging mode)
+    let active_table = if mode == ImportMode::Staging {
+        let st = staging_table_name(dialect);
+        let create_sql = build_create_staging_sql(&st, table, &target_columns, dialect);
+        conn.execute_query(&create_sql).await?;
+        st
+    } else {
+        table.to_string()
+    };
+
+    let mut in_tx = false;
+    if mode == ImportMode::Atomic && options.error_policy == ImportErrorPolicy::Abort {
         conn.execute_query("BEGIN")
             .await
             .map_err(|e| AppError::Other(format!("Failed to begin transaction: {}", e)))?;
+        in_tx = true;
+    } else if mode == ImportMode::Chunked {
+        conn.execute_query("BEGIN")
+            .await
+            .map_err(|e| AppError::Other(format!("Failed to begin chunk transaction: {}", e)))?;
+        in_tx = true;
     }
 
-    let mut imported_rows = 0;
-    let mut skipped_rows = 0;
+    let mut rejects = RejectsWriter::new(&options.file_path, target_columns.clone());
+
+    // Offload file reading, decompression, and CSV/JSON parsing to blocking thread pool.
+    let (batch_tx, mut batch_rx) =
+        tokio::sync::mpsc::channel::<Result<Vec<(usize, Vec<String>)>, AppError>>(4);
+    let options_clone = options.clone();
+    let parse_handle = tokio::task::spawn_blocking(move || {
+        let res = stream_parsed_batches(&options_clone, batch_size, resume_skip_rows, &batch_tx);
+        if let Err(e) = res {
+            let _ = batch_tx.blocking_send(Err(e));
+        }
+    });
+
+    let mut rows_since_commit = 0usize;
+    let mut total_seen_rows = resume_skip_rows;
+
+    let mut loop_err: Option<AppError> = None;
+    while let Some(batch_res) = batch_rx.recv().await {
+        if let Err(err) = check_cancelled(job_id) {
+            if in_tx {
+                let _ = conn.execute_query("ROLLBACK").await;
+            }
+            loop_err = Some(err);
+            break;
+        }
+
+        let batch = match batch_res {
+            Ok(b) => b,
+            Err(e) => {
+                if in_tx {
+                    let _ = conn.execute_query("ROLLBACK").await;
+                }
+                loop_err = Some(e);
+                break;
+            }
+        };
+
+        let batch_len = batch.len();
+        match execute_import_chunk(
+            conn,
+            &active_table,
+            &target_columns,
+            &target_types,
+            &batch,
+            treat_empty_as_null,
+            dialect,
+            options.error_policy,
+            in_tx,
+            &mut rejects,
+        )
+        .await
+        {
+            Ok((imp, skp)) => {
+                imported_rows += imp;
+                skipped_rows += skp;
+                total_seen_rows += batch_len;
+                rows_since_commit += batch_len;
+            }
+            Err(e) => {
+                loop_err = Some(e);
+                break;
+            }
+        }
+
+        if mode == ImportMode::Chunked && rows_since_commit >= chunk_commit_rows {
+            if in_tx {
+                conn.execute_query("COMMIT")
+                    .await
+                    .map_err(|e| AppError::Other(format!("Failed to commit chunk: {}", e)))?;
+                let cp = ImportCheckpoint {
+                    file_path: options.file_path.clone(),
+                    table: table.to_string(),
+                    committed_rows: total_seen_rows,
+                    imported_rows,
+                    skipped_rows,
+                };
+                save_checkpoint(&options.file_path, &cp)?;
+                conn.execute_query("BEGIN")
+                    .await
+                    .map_err(|e| AppError::Other(format!("Failed to begin next chunk: {}", e)))?;
+            }
+            rows_since_commit = 0;
+        }
+
+        if let Some(ref progress_cb) = on_progress {
+            let processed = imported_rows + skipped_rows;
+            progress_cb(TransferProgress {
+                current_row: processed,
+                total_rows: None,
+                status: "importing".to_string(),
+                job_id: options.job_id.clone(),
+                rows_processed: Some(processed),
+                bytes_written: None,
+                elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+            });
+        }
+    }
+
+    if let Some(err) = loop_err {
+        parse_handle.abort();
+        let _ = rejects.finish();
+        if mode == ImportMode::Staging {
+            let drop_sql = format!("DROP TABLE IF EXISTS {};", quote_identifier(&active_table, dialect));
+            let _ = conn.execute_query(&drop_sql).await;
+        }
+        if let Some(ref jid) = options.job_id {
+            remove_cancellation_token(jid);
+        }
+        return Err(err);
+    }
+
+    let _ = parse_handle.await;
+
+    if in_tx {
+        conn.execute_query("COMMIT")
+            .await
+            .map_err(|e| AppError::Other(format!("Failed to commit transaction: {}", e)))?;
+    }
+
+    // Move data from staging table into target table atomically, then drop staging table.
+    if mode == ImportMode::Staging {
+        let quoted_target = quote_table_name(table, dialect);
+        let quoted_staging = quote_identifier(&active_table, dialect);
+        let quoted_cols = target_columns
+            .iter()
+            .map(|c| quote_identifier(c, dialect))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        conn.execute_query("BEGIN")
+            .await
+            .map_err(|e| AppError::Other(format!("Failed to begin staging swap tx: {}", e)))?;
+        let move_sql = format!(
+            "INSERT INTO {} ({}) SELECT {} FROM {};",
+            quoted_target, quoted_cols, quoted_cols, quoted_staging
+        );
+        if let Err(e) = conn.execute_query(&move_sql).await {
+            let _ = conn.execute_query("ROLLBACK").await;
+            let _ = conn
+                .execute_query(&format!("DROP TABLE IF EXISTS {};", quoted_staging))
+                .await;
+            if let Some(ref jid) = options.job_id {
+                remove_cancellation_token(jid);
+            }
+            return Err(e);
+        }
+        conn.execute_query("COMMIT")
+            .await
+            .map_err(|e| AppError::Other(format!("Failed to commit staging swap tx: {}", e)))?;
+        let _ = conn
+            .execute_query(&format!("DROP TABLE IF EXISTS {};", quoted_staging))
+            .await;
+    }
+
+    // Clean up checkpoint on successful completion
+    remove_checkpoint(&options.file_path);
+
+    let rejects_file_path = rejects.finish()?;
+    let total_rows = imported_rows + skipped_rows;
+    let elapsed_ms = start_time.elapsed().as_millis() as u64;
+
+    if let Some(ref progress_cb) = on_progress {
+        progress_cb(TransferProgress {
+            current_row: total_rows,
+            total_rows: Some(total_rows),
+            status: "done".to_string(),
+            job_id: options.job_id.clone(),
+            rows_processed: Some(total_rows),
+            bytes_written: None,
+            elapsed_ms: Some(elapsed_ms),
+        });
+    }
+
+    if let Some(ref jid) = options.job_id {
+        remove_cancellation_token(jid);
+    }
+
+    Ok(ImportResult {
+        total_rows,
+        imported_rows,
+        skipped_rows,
+        elapsed_ms,
+        rejects_file_path,
+    })
+}
+
+fn stream_parsed_batches(
+    options: &ImportOptions,
+    batch_size: usize,
+    skip_rows: usize,
+    tx: &tokio::sync::mpsc::Sender<Result<Vec<(usize, Vec<String>)>, AppError>>,
+) -> Result<(), AppError> {
+    let reader = open_decompressed_reader(&options.file_path)?;
+    let mut data_row_index = 0usize;
 
     if options.format == TransferFormat::Csv {
         let delim = options.delimiter.unwrap_or(',');
@@ -974,7 +1637,7 @@ where
             .delimiter(delim as u8)
             .has_headers(options.has_headers)
             .flexible(true)
-            .from_reader(file);
+            .from_reader(reader);
 
         let mut col_index_map: HashMap<String, usize> = HashMap::new();
         if options.has_headers {
@@ -986,17 +1649,13 @@ where
             }
         }
 
-        let mut current_chunk: Vec<Vec<String>> = Vec::with_capacity(batch_size);
-
+        let mut current_chunk: Vec<(usize, Vec<String>)> = Vec::with_capacity(batch_size);
         for result in csv_reader.records() {
-            if let Err(err) = check_cancelled(job_id) {
-                if options.error_policy == ImportErrorPolicy::Abort {
-                    let _ = conn.execute_query("ROLLBACK").await;
-                }
-                return Err(err);
-            }
-
             let record = result.map_err(|e| AppError::Other(format!("CSV read error: {}", e)))?;
+            data_row_index += 1;
+            if data_row_index <= skip_rows {
+                continue;
+            }
             let mut row = Vec::with_capacity(options.column_mappings.len());
             for mapping in &options.column_mappings {
                 let val = if options.has_headers {
@@ -1014,50 +1673,20 @@ where
                 };
                 row.push(val.trim().to_string());
             }
-            current_chunk.push(row);
+            current_chunk.push((data_row_index, row));
 
             if current_chunk.len() >= batch_size {
-                let (imp, skp) = execute_import_chunk(
-                    conn,
-                    table,
-                    &target_columns,
-                    &target_types,
-                    &current_chunk,
-                    treat_empty_as_null,
-                    dialect,
-                    options.error_policy,
-                ).await?;
-                imported_rows += imp;
-                skipped_rows += skp;
-                current_chunk.clear();
-
-                if let Some(ref progress_cb) = on_progress {
-                    progress_cb(TransferProgress {
-                        current_row: imported_rows + skipped_rows,
-                        total_rows: None,
-                        status: "importing".to_string(),
-                    });
+                let send_batch = std::mem::replace(&mut current_chunk, Vec::with_capacity(batch_size));
+                if tx.blocking_send(Ok(send_batch)).is_err() {
+                    return Ok(());
                 }
             }
         }
-
         if !current_chunk.is_empty() {
-            let (imp, skp) = execute_import_chunk(
-                conn,
-                table,
-                &target_columns,
-                &target_types,
-                &current_chunk,
-                treat_empty_as_null,
-                dialect,
-                options.error_policy,
-            ).await?;
-            imported_rows += imp;
-            skipped_rows += skp;
-            current_chunk.clear();
+            let _ = tx.blocking_send(Ok(current_chunk));
         }
     } else {
-        let mut buf_reader = BufReader::new(file);
+        let mut buf_reader = BufReader::new(reader);
         let mut prefix_bytes = Vec::new();
         let mut first_non_ws = None;
         let mut byte_buf = [0u8; 1];
@@ -1073,7 +1702,7 @@ where
         if let Some(first_char) = first_non_ws {
             let is_array = first_char == b'[';
             let full_reader = std::io::Cursor::new(prefix_bytes).chain(buf_reader);
-            let mut current_chunk: Vec<Vec<String>> = Vec::with_capacity(batch_size);
+            let mut current_chunk: Vec<(usize, Vec<String>)> = Vec::with_capacity(batch_size);
 
             if is_array {
                 let mut stream_bytes = full_reader.bytes();
@@ -1087,7 +1716,6 @@ where
                     None
                 }
 
-                // First non-ws is '[', consume it
                 let mut next_char = get_next_non_ws(&mut stream_bytes);
                 if next_char == Some(b'[') {
                     next_char = get_next_non_ws(&mut stream_bytes);
@@ -1137,45 +1765,27 @@ where
                         }
 
                         if let Ok(serde_json::Value::Object(map)) = serde_json::from_slice(&obj_bytes) {
-                            if let Err(err) = check_cancelled(job_id) {
-                                if options.error_policy == ImportErrorPolicy::Abort {
-                                    let _ = conn.execute_query("ROLLBACK").await;
+                            data_row_index += 1;
+                            if data_row_index > skip_rows {
+                                let mut row = Vec::with_capacity(options.column_mappings.len());
+                                for mapping in &options.column_mappings {
+                                    let val_str = match map.get(&mapping.source_column) {
+                                        Some(serde_json::Value::Null) | None => String::new(),
+                                        Some(serde_json::Value::String(s)) => s.clone(),
+                                        Some(other) => other.to_string(),
+                                    };
+                                    row.push(val_str);
                                 }
-                                return Err(err);
-                            }
+                                current_chunk.push((data_row_index, row));
 
-                            let mut row = Vec::with_capacity(options.column_mappings.len());
-                            for mapping in &options.column_mappings {
-                                let val_str = match map.get(&mapping.source_column) {
-                                    Some(serde_json::Value::Null) | None => String::new(),
-                                    Some(serde_json::Value::String(s)) => s.clone(),
-                                    Some(other) => other.to_string(),
-                                };
-                                row.push(val_str);
-                            }
-                            current_chunk.push(row);
-
-                            if current_chunk.len() >= batch_size {
-                                let (imp, skp) = execute_import_chunk(
-                                    conn,
-                                    table,
-                                    &target_columns,
-                                    &target_types,
-                                    &current_chunk,
-                                    treat_empty_as_null,
-                                    dialect,
-                                    options.error_policy,
-                                ).await?;
-                                imported_rows += imp;
-                                skipped_rows += skp;
-                                current_chunk.clear();
-
-                                if let Some(ref progress_cb) = on_progress {
-                                    progress_cb(TransferProgress {
-                                        current_row: imported_rows + skipped_rows,
-                                        total_rows: None,
-                                        status: "importing".to_string(),
-                                    });
+                                if current_chunk.len() >= batch_size {
+                                    let send_batch = std::mem::replace(
+                                        &mut current_chunk,
+                                        Vec::with_capacity(batch_size),
+                                    );
+                                    if tx.blocking_send(Ok(send_batch)).is_err() {
+                                        return Ok(());
+                                    }
                                 }
                             }
                         }
@@ -1188,18 +1798,16 @@ where
             } else {
                 let lines_reader = BufReader::new(full_reader);
                 for line_res in lines_reader.lines() {
-                    if let Err(err) = check_cancelled(job_id) {
-                        if options.error_policy == ImportErrorPolicy::Abort {
-                            let _ = conn.execute_query("ROLLBACK").await;
-                        }
-                        return Err(err);
-                    }
                     let line = line_res.map_err(|e| AppError::Other(e.to_string()))?;
                     let trimmed = line.trim();
                     if trimmed.is_empty() {
                         continue;
                     }
                     if let Ok(serde_json::Value::Object(map)) = serde_json::from_str(trimmed) {
+                        data_row_index += 1;
+                        if data_row_index <= skip_rows {
+                            continue;
+                        }
                         let mut row = Vec::with_capacity(options.column_mappings.len());
                         for mapping in &options.column_mappings {
                             let val_str = match map.get(&mapping.source_column) {
@@ -1209,29 +1817,15 @@ where
                             };
                             row.push(val_str);
                         }
-                        current_chunk.push(row);
+                        current_chunk.push((data_row_index, row));
 
                         if current_chunk.len() >= batch_size {
-                            let (imp, skp) = execute_import_chunk(
-                                conn,
-                                table,
-                                &target_columns,
-                                &target_types,
-                                &current_chunk,
-                                treat_empty_as_null,
-                                dialect,
-                                options.error_policy,
-                            ).await?;
-                            imported_rows += imp;
-                            skipped_rows += skp;
-                            current_chunk.clear();
-
-                            if let Some(ref progress_cb) = on_progress {
-                                progress_cb(TransferProgress {
-                                    current_row: imported_rows + skipped_rows,
-                                    total_rows: None,
-                                    status: "importing".to_string(),
-                                });
+                            let send_batch = std::mem::replace(
+                                &mut current_chunk,
+                                Vec::with_capacity(batch_size),
+                            );
+                            if tx.blocking_send(Ok(send_batch)).is_err() {
+                                return Ok(());
                             }
                         }
                     }
@@ -1239,46 +1833,10 @@ where
             }
 
             if !current_chunk.is_empty() {
-                let (imp, skp) = execute_import_chunk(
-                    conn,
-                    table,
-                    &target_columns,
-                    &target_types,
-                    &current_chunk,
-                    treat_empty_as_null,
-                    dialect,
-                    options.error_policy,
-                ).await?;
-                imported_rows += imp;
-                skipped_rows += skp;
-                current_chunk.clear();
+                let _ = tx.blocking_send(Ok(current_chunk));
             }
         }
     }
 
-    let total_rows = imported_rows + skipped_rows;
-    if options.error_policy == ImportErrorPolicy::Abort {
-        conn.execute_query("COMMIT")
-            .await
-            .map_err(|e| AppError::Other(format!("Failed to commit transaction: {}", e)))?;
-    }
-
-    if let Some(ref progress_cb) = on_progress {
-        progress_cb(TransferProgress {
-            current_row: total_rows,
-            total_rows: Some(total_rows),
-            status: "done".to_string(),
-        });
-    }
-
-    if let Some(ref jid) = options.job_id {
-        remove_cancellation_token(jid);
-    }
-
-    Ok(ImportResult {
-        total_rows,
-        imported_rows,
-        skipped_rows,
-        elapsed_ms: start_time.elapsed().as_millis() as u64,
-    })
+    Ok(())
 }

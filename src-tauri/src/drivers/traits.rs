@@ -178,6 +178,27 @@ pub trait DatabaseConnection: Send + Sync {
             stopped_early: false,
         })
     }
+    /// Streams raw CSV bytes from PostgreSQL `COPY (...) TO STDOUT` into `tx`.
+    async fn copy_out_csv(
+        &self,
+        _sql_or_table: &str,
+        _include_headers: bool,
+        _delimiter: char,
+        _tx: tokio::sync::mpsc::Sender<Vec<u8>>,
+    ) -> Result<(), AppError> {
+        Err(AppError::NotSupported("Native COPY OUT is not supported for this driver".into()))
+    }
+    /// Streams raw CSV bytes from `rx` into PostgreSQL `COPY <table> FROM STDIN`.
+    async fn copy_in_csv(
+        &self,
+        _table: &str,
+        _columns: &[String],
+        _has_headers: bool,
+        _delimiter: char,
+        _rx: tokio::sync::mpsc::Receiver<Vec<u8>>,
+    ) -> Result<u64, AppError> {
+        Err(AppError::NotSupported("Native COPY IN is not supported for this driver".into()))
+    }
 }
 
 /// Validates a user-supplied table filter clause to prevent SQL injection,

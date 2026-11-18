@@ -1,5 +1,8 @@
 pub mod connection_store;
 pub mod data_transfer;
+pub mod transfer_checkpoint;
+pub mod transfer_compression;
+pub mod transfer_registry;
 pub mod keychain;
 pub mod table_list;
 pub mod duplicate_table;
@@ -14,6 +17,9 @@ pub mod native_backup;
 
 pub use connection_store::*;
 pub use data_transfer::*;
+pub use transfer_checkpoint::*;
+pub use transfer_compression::*;
+pub use transfer_registry::*;
 pub use keychain::*;
 pub use table_list::*;
 pub use duplicate_table::*;

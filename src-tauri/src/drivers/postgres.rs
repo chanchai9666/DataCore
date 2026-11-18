@@ -797,6 +797,74 @@ impl DatabaseConnection for PostgresConnection {
 
         Ok(format!("CREATE TABLE \"{}\".\"{}\" (\n{}\n);", sch, name, lines.join(",\n")))
     }
+
+    async fn copy_out_csv(
+        &self,
+        sql_or_table: &str,
+        include_headers: bool,
+        delimiter: char,
+        tx: tokio::sync::mpsc::Sender<Vec<u8>>,
+    ) -> Result<(), AppError> {
+        let trimmed = sql_or_table.trim().trim_end_matches(';').trim();
+        let delim_escaped = delimiter.to_string().replace('\'', "''");
+        let header_clause = if include_headers { ", HEADER" } else { "" };
+        let target = if trimmed.contains(' ') || trimmed.contains('(') {
+            format!("({})", trimmed)
+        } else {
+            trimmed
+                .split('.')
+                .map(|p| format!("\"{}\"", p.replace('"', "\"\"")))
+                .collect::<Vec<_>>()
+                .join(".")
+        };
+        let copy_sql = format!(
+            "COPY {} TO STDOUT WITH (FORMAT csv{}, DELIMITER '{}')",
+            target, header_clause, delim_escaped
+        );
+
+        let mut guard = self.conn.lock().await;
+        let mut stream = guard.copy_out_raw(&copy_sql).await?;
+        while let Some(chunk) = stream.try_next().await? {
+            if tx.send(chunk.to_vec()).await.is_err() {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    async fn copy_in_csv(
+        &self,
+        table: &str,
+        columns: &[String],
+        has_headers: bool,
+        delimiter: char,
+        mut rx: tokio::sync::mpsc::Receiver<Vec<u8>>,
+    ) -> Result<u64, AppError> {
+        let quoted_table = table
+            .split('.')
+            .map(|p| format!("\"{}\"", p.replace('"', "\"\"")))
+            .collect::<Vec<_>>()
+            .join(".");
+        let quoted_cols = columns
+            .iter()
+            .map(|c| format!("\"{}\"", c.replace('"', "\"\"")))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let delim_escaped = delimiter.to_string().replace('\'', "''");
+        let header_clause = if has_headers { ", HEADER" } else { "" };
+        let copy_sql = format!(
+            "COPY {} ({}) FROM STDIN WITH (FORMAT csv{}, DELIMITER '{}')",
+            quoted_table, quoted_cols, header_clause, delim_escaped
+        );
+
+        let mut guard = self.conn.lock().await;
+        let mut copy_in = guard.copy_in_raw(&copy_sql).await?;
+        while let Some(chunk) = rx.recv().await {
+            copy_in.send(chunk).await?;
+        }
+        let rows_affected = copy_in.finish().await?;
+        Ok(rows_affected)
+    }
 }
 
 impl Drop for PostgresConnection {
