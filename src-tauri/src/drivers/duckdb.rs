@@ -4,7 +4,7 @@ use tokio::sync::Mutex;
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
-use crate::drivers::traits::{build_safe_where_clause, DatabaseConnection, SchemaNode, SchemaNodeType};
+use crate::drivers::traits::{build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome};
 use crate::drivers::sqlite::split_sql_statements;
 
 #[derive(Clone)]
@@ -165,6 +165,127 @@ impl DuckdbConnection {
         res.execution_time_ms = start.elapsed().as_millis() as u64;
         Ok(res)
     }
+
+    fn stream_on_conn(
+        conn: &duckdb::Connection,
+        sql: &str,
+        chunk_rows: usize,
+        tx: &tokio::sync::mpsc::Sender<Chunk>,
+    ) -> Result<StreamOutcome, duckdb::Error> {
+        let chunk_rows = chunk_rows.max(1);
+        let statements = split_sql_statements(sql);
+        if statements.is_empty() {
+            return Ok(StreamOutcome {
+                rows_sent: 0,
+                stopped_early: false,
+            });
+        }
+
+        let last_idx = statements.len() - 1;
+        for stmt_sql in &statements[..last_idx] {
+            Self::execute_single_stmt(conn, stmt_sql)?;
+        }
+
+        let trimmed = statements[last_idx].trim();
+        if trimmed.is_empty() {
+            return Ok(StreamOutcome {
+                rows_sent: 0,
+                stopped_early: false,
+            });
+        }
+
+        let mut stmt = conn.prepare(trimmed)?;
+        let upper = trimmed.to_uppercase();
+        let is_select = upper.starts_with("SELECT")
+            || upper.starts_with("WITH")
+            || upper.starts_with("SHOW")
+            || upper.starts_with("DESCRIBE")
+            || upper.starts_with("EXPLAIN")
+            || upper.starts_with("PRAGMA");
+
+        if !is_select {
+            stmt.execute([])?;
+            return Ok(StreamOutcome {
+                rows_sent: 0,
+                stopped_early: false,
+            });
+        }
+
+        let mut rows = stmt.query([])?;
+        let (col_count, columns) = if let Some(stmt_ref) = rows.as_ref() {
+            let count = stmt_ref.column_count();
+            let cols: Vec<ColumnMeta> = (0..count)
+                .map(|i| {
+                    let name = stmt_ref
+                        .column_name(i)
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|_| format!("col_{}", i));
+                    ColumnMeta::new(name, "VARCHAR", true)
+                })
+                .collect();
+            (count, Arc::new(cols))
+        } else {
+            (0, Arc::new(Vec::new()))
+        };
+
+        let mut batch: Vec<Vec<CellValue>> = Vec::with_capacity(chunk_rows);
+        let mut rows_sent: u64 = 0;
+
+        while let Some(row) = rows.next()? {
+            let mut row_values = Vec::with_capacity(col_count);
+            for i in 0..col_count {
+                let val_ref = row.get_ref(i)?;
+                row_values.push(Self::value_ref_to_cell(val_ref));
+            }
+            batch.push(row_values);
+
+            if batch.len() >= chunk_rows {
+                let count = batch.len() as u64;
+                let chunk = Chunk {
+                    columns: Arc::clone(&columns),
+                    rows: std::mem::replace(&mut batch, Vec::with_capacity(chunk_rows)),
+                };
+                if tx.blocking_send(chunk).is_err() {
+                    return Ok(StreamOutcome {
+                        rows_sent,
+                        stopped_early: true,
+                    });
+                }
+                rows_sent += count;
+            }
+        }
+
+        if !batch.is_empty() {
+            let count = batch.len() as u64;
+            let chunk = Chunk {
+                columns: Arc::clone(&columns),
+                rows: batch,
+            };
+            if tx.blocking_send(chunk).is_err() {
+                return Ok(StreamOutcome {
+                    rows_sent,
+                    stopped_early: true,
+                });
+            }
+            rows_sent += count;
+        } else if rows_sent == 0 && !columns.is_empty() {
+            let chunk = Chunk {
+                columns,
+                rows: Vec::new(),
+            };
+            if tx.blocking_send(chunk).is_err() {
+                return Ok(StreamOutcome {
+                    rows_sent: 0,
+                    stopped_early: true,
+                });
+            }
+        }
+
+        Ok(StreamOutcome {
+            rows_sent,
+            stopped_early: false,
+        })
+    }
 }
 
 #[async_trait]
@@ -182,6 +303,23 @@ impl DatabaseConnection for DuckdbConnection {
         let conn = self.conn.lock().await;
         Self::execute_on_conn(&conn, sql, start)
             .map_err(|e| AppError::Database(format!("DuckDB query error: {}", e)))
+    }
+
+    async fn stream_query(
+        &self,
+        sql: &str,
+        chunk_rows: usize,
+        tx: tokio::sync::mpsc::Sender<Chunk>,
+    ) -> Result<StreamOutcome, AppError> {
+        let conn_guard = Arc::clone(&self.conn).lock_owned().await;
+        let sql_owned = sql.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            Self::stream_on_conn(&conn_guard, &sql_owned, chunk_rows, &tx)
+                .map_err(|e| AppError::Database(format!("DuckDB query error: {}", e)))
+        })
+        .await
+        .map_err(|e| AppError::Other(format!("DuckDB streaming task failed: {}", e)))?
     }
 
     async fn fetch_table_data(

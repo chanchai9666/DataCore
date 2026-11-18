@@ -8,7 +8,7 @@ use tiberius::{AuthMethod, Client, Config, Query};
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
-use crate::drivers::traits::{build_safe_where_clause, DatabaseConnection, SchemaNode, SchemaNodeType};
+use crate::drivers::traits::{build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome};
 
 type TiberiusClient = Client<Compat<TcpStream>>;
 
@@ -151,6 +151,130 @@ impl DatabaseConnection for MssqlConnection {
             elapsed,
             Some(rows_affected),
         ))
+    }
+
+    async fn stream_query(
+        &self,
+        sql: &str,
+        chunk_rows: usize,
+        tx: tokio::sync::mpsc::Sender<Chunk>,
+    ) -> Result<StreamOutcome, AppError> {
+        use futures::TryStreamExt;
+
+        let chunk_rows = chunk_rows.max(1);
+        let trimmed = sql.trim();
+        if trimmed.is_empty() {
+            return Ok(StreamOutcome {
+                rows_sent: 0,
+                stopped_early: false,
+            });
+        }
+
+        let mut client = self.client.lock().await;
+        let query = Query::new(trimmed);
+        let mut stream = query
+            .query(&mut *client)
+            .await
+            .map_err(|e| AppError::Database(format!("MSSQL query error: {}", e)))?;
+
+        let mut columns: Option<Arc<Vec<ColumnMeta>>> = None;
+        let mut batch: Vec<Vec<CellValue>> = Vec::with_capacity(chunk_rows);
+        let mut rows_sent: u64 = 0;
+
+        while let Some(item) = stream
+            .try_next()
+            .await
+            .map_err(|e| AppError::Database(format!("MSSQL stream error: {}", e)))?
+        {
+            match item {
+                tiberius::QueryItem::Metadata(meta) => {
+                    if columns.is_none() && !meta.columns().is_empty() {
+                        let cols: Vec<ColumnMeta> = meta
+                            .columns()
+                            .iter()
+                            .map(|col| {
+                                ColumnMeta::new(
+                                    col.name().to_string(),
+                                    format!("{:?}", col.column_type()),
+                                    true,
+                                )
+                            })
+                            .collect();
+                        columns = Some(Arc::new(cols));
+                    }
+                }
+                tiberius::QueryItem::Row(row) => {
+                    if columns.is_none() {
+                        let cols: Vec<ColumnMeta> = row
+                            .columns()
+                            .iter()
+                            .map(|col| {
+                                ColumnMeta::new(
+                                    col.name().to_string(),
+                                    format!("{:?}", col.column_type()),
+                                    true,
+                                )
+                            })
+                            .collect();
+                        columns = Some(Arc::new(cols));
+                    }
+                    batch.push(Self::row_to_cells(&row));
+
+                    if batch.len() >= chunk_rows {
+                        let count = batch.len() as u64;
+                        let chunk = Chunk {
+                            columns: Arc::clone(columns.as_ref().unwrap()),
+                            rows: std::mem::replace(&mut batch, Vec::with_capacity(chunk_rows)),
+                        };
+                        if tx.send(chunk).await.is_err() {
+                            drop(stream);
+                            return Ok(StreamOutcome {
+                                rows_sent,
+                                stopped_early: true,
+                            });
+                        }
+                        rows_sent += count;
+                    }
+                }
+            }
+        }
+
+        drop(stream);
+
+        if !batch.is_empty() {
+            let count = batch.len() as u64;
+            let chunk = Chunk {
+                columns: Arc::clone(columns.as_ref().unwrap()),
+                rows: batch,
+            };
+            if tx.send(chunk).await.is_err() {
+                return Ok(StreamOutcome {
+                    rows_sent,
+                    stopped_early: true,
+                });
+            }
+            rows_sent += count;
+        } else if rows_sent == 0 {
+            if let Some(cols) = columns {
+                if !cols.is_empty() {
+                    let chunk = Chunk {
+                        columns: cols,
+                        rows: Vec::new(),
+                    };
+                    if tx.send(chunk).await.is_err() {
+                        return Ok(StreamOutcome {
+                            rows_sent: 0,
+                            stopped_early: true,
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(StreamOutcome {
+            rows_sent,
+            stopped_early: false,
+        })
     }
 
     async fn fetch_table_data(

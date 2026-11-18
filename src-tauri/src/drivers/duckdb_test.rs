@@ -105,3 +105,51 @@ async fn test_duckdb_read_csv_analytical_query() {
     assert_eq!(res.rows[0][0], CellValue::Text("Bangkok".to_string()));
     assert_eq!(res.rows[0][1], CellValue::Integer(10500000));
 }
+
+#[tokio::test]
+async fn test_duckdb_stream_query_chunks_and_early_stop() {
+    use crate::drivers::Chunk;
+
+    let config = create_test_config();
+    let conn = DuckdbConnection::from_config(&config).expect("Failed to create DuckDB in-memory");
+    conn.execute_query("CREATE TABLE duck_stream (id INTEGER, label VARCHAR);")
+        .await
+        .expect("create table");
+
+    for i in 1..=15 {
+        conn.execute_query(&format!("INSERT INTO duck_stream VALUES ({}, 'row_{}');", i, i))
+            .await
+            .expect("insert");
+    }
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Chunk>(2);
+    let (outcome_res, chunk_sizes) = tokio::join!(
+        conn.stream_query("SELECT id, label FROM duck_stream ORDER BY id;", 4, tx),
+        async move {
+            let mut sizes = Vec::new();
+            while let Some(chunk) = rx.recv().await {
+                assert_eq!(chunk.columns.len(), 2);
+                sizes.push(chunk.rows.len());
+            }
+            sizes
+        }
+    );
+    let outcome = outcome_res.expect("duckdb stream_query");
+    assert_eq!(outcome.rows_sent, 15);
+    assert!(!outcome.stopped_early);
+    assert_eq!(chunk_sizes, vec![4, 4, 4, 3]);
+
+    // Early stop
+    let (tx2, mut rx2) = tokio::sync::mpsc::channel::<Chunk>(1);
+    let (outcome_res2, ()) = tokio::join!(
+        conn.stream_query("SELECT id FROM duck_stream ORDER BY id;", 4, tx2),
+        async move {
+            let first = rx2.recv().await.expect("first chunk");
+            assert_eq!(first.rows.len(), 4);
+            drop(rx2);
+        }
+    );
+    let outcome2 = outcome_res2.expect("duckdb early stop");
+    assert!(outcome2.stopped_early);
+    assert!(outcome2.rows_sent < 15);
+}

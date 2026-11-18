@@ -1,5 +1,5 @@
 use std::time::Instant;
-use crate::drivers::DatabaseConnection;
+use crate::drivers::{Chunk, DatabaseConnection};
 use crate::error::AppError;
 use crate::models::query::ColumnMeta;
 use crate::models::transfer::{CrossDbCopyResult, CrossDbCopyTableOptions, TransferProgress};
@@ -284,80 +284,87 @@ where
         tgt_conn.execute_query(&create_ddl).await?;
     }
 
-    // 4. Stream data in batches via LIMIT / OFFSET
+    // 4. Stream data in batches via single-statement stream_query
     let mut rows_transferred = 0;
     if options.copy_data {
         let batch_size = options.batch_size.unwrap_or(500).max(1);
-        let mut offset = 0;
 
         let target_table_unquoted = match options.target_schema.as_deref() {
             Some(s) if !s.is_empty() => format!("{}.{}", s, options.target_table),
             _ => options.target_table.clone(),
         };
 
-        loop {
-            check_cancel()?;
-            let page_sql = format!(
-                "SELECT * FROM {} LIMIT {} OFFSET {};",
-                src_qualified_table, batch_size, offset
-            );
-            let page_res = src_conn.execute_query(&page_sql).await?;
-            check_cancel()?;
+        let select_sql = format!("SELECT * FROM {};", src_qualified_table);
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<Chunk>(4);
+        let stream_fut = src_conn.stream_query(&select_sql, batch_size, tx);
+        let consume_fut = async {
+            while let Some(chunk) = rx.recv().await {
+                if let Err(e) = check_cancel() {
+                    drop(rx);
+                    return Err(e);
+                }
 
-            if columns.is_empty() && !page_res.columns.is_empty() {
-                columns = page_res.columns;
-                if options.copy_structure {
-                    let create_ddl = generate_create_table_ddl(
-                        tgt_dialect,
-                        options.target_schema.as_deref(),
-                        &options.target_table,
-                        &columns,
-                        src_dialect,
-                    );
-                    tgt_conn.execute_query(&create_ddl).await?;
+                if columns.is_empty() && !chunk.columns.is_empty() {
+                    columns = (*chunk.columns).clone();
+                    if options.copy_structure {
+                        let create_ddl = generate_create_table_ddl(
+                            tgt_dialect,
+                            options.target_schema.as_deref(),
+                            &options.target_table,
+                            &columns,
+                            src_dialect,
+                        );
+                        if let Err(e) = tgt_conn.execute_query(&create_ddl).await {
+                            drop(rx);
+                            return Err(e);
+                        }
+                    }
+                }
+
+                if chunk.rows.is_empty() {
+                    continue;
+                }
+
+                let col_names: Vec<String> = columns.iter().map(|c| c.name.clone()).collect();
+                let fetched_count = chunk.rows.len();
+
+                let insert_sql = generate_batch_insert_cells_sql(
+                    &target_table_unquoted,
+                    &col_names,
+                    &chunk.rows,
+                    tgt_dialect,
+                );
+
+                if let Err(e) = tgt_conn.execute_query(&insert_sql).await {
+                    drop(rx);
+                    return Err(e);
+                }
+                rows_transferred += fetched_count;
+
+                if let Some(ref cb) = on_progress {
+                    let status = match total_rows_opt {
+                        Some(tot) if tot > 0 => format!(
+                            "Transferring rows: {} / {} ({}%)",
+                            rows_transferred,
+                            tot,
+                            ((rows_transferred as f64 / tot as f64) * 100.0).round().min(100.0) as u64
+                        ),
+                        Some(tot) => format!("Transferring rows: {} / {}", rows_transferred, tot),
+                        None => format!("Transferring rows: {}", rows_transferred),
+                    };
+                    cb(TransferProgress {
+                        current_row: rows_transferred,
+                        total_rows: total_rows_opt,
+                        status,
+                    });
                 }
             }
+            Ok::<(), AppError>(())
+        };
 
-            if page_res.rows.is_empty() {
-                break;
-            }
-
-            let col_names: Vec<String> = columns.iter().map(|c| c.name.clone()).collect();
-            let fetched_count = page_res.rows.len();
-
-            let insert_sql = generate_batch_insert_cells_sql(
-                &target_table_unquoted,
-                &col_names,
-                &page_res.rows,
-                tgt_dialect,
-            );
-
-            tgt_conn.execute_query(&insert_sql).await?;
-            rows_transferred += fetched_count;
-
-            if let Some(ref cb) = on_progress {
-                let status = match total_rows_opt {
-                    Some(tot) if tot > 0 => format!(
-                        "Transferring rows: {} / {} ({}%)",
-                        rows_transferred,
-                        tot,
-                        ((rows_transferred as f64 / tot as f64) * 100.0).round().min(100.0) as u64
-                    ),
-                    Some(tot) => format!("Transferring rows: {} / {}", rows_transferred, tot),
-                    None => format!("Transferring rows: {}", rows_transferred),
-                };
-                cb(TransferProgress {
-                    current_row: rows_transferred,
-                    total_rows: total_rows_opt,
-                    status,
-                });
-            }
-
-            if fetched_count < batch_size {
-                break;
-            }
-            offset += fetched_count;
-        }
+        let (stream_res, consume_res) = tokio::join!(stream_fut, consume_fut);
+        consume_res?;
+        stream_res?;
     }
 
     if let Some(ref cb) = on_progress {
