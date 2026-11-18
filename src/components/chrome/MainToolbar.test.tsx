@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MainToolbar } from './MainToolbar';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
+import i18n from '../../i18n';
 import type { ConnectionConfig } from '../../types/db';
 
 describe('MainToolbar Component', () => {
@@ -288,5 +289,81 @@ describe('MainToolbar Component', () => {
     expect(shortcutsBtn).toHaveAttribute('aria-label', 'Keyboard Shortcuts (⌘?)');
     fireEvent.click(shortcutsBtn);
     expect(onOpenShortcuts).toHaveBeenCalledTimes(1);
+  });
+
+  it('orders toolbar buttons by workflow groups with visual dividers and renders 2-column Bento tools menu', () => {
+    useConnectionStore.setState({ activeConnectionId: 'c1', connectedConnectionIds: ['c1'] });
+    render(
+      <MainToolbar
+        onOpenMetrics={vi.fn()}
+        onOpenERDiagram={vi.fn()}
+        onOpenAuditLog={vi.fn()}
+        onOpenHistory={vi.fn()}
+        onCheckUpdates={vi.fn()}
+        onExportDiagnosticBundle={vi.fn()}
+      />
+    );
+
+    const expectedOrder = [
+      'toolbar-connect-btn',
+      'toolbar-query-btn',
+      'toolbar-table-btn',
+      'toolbar-import-btn',
+      'toolbar-export-btn',
+      'toolbar-backup-btn',
+      'toolbar-tools-btn',
+    ];
+    const buttons = expectedOrder.map((id) => screen.getByTestId(id));
+    for (let i = 0; i < buttons.length - 1; i++) {
+      expect(
+        buttons[i].compareDocumentPosition(buttons[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    }
+
+    // Group dividers between connection|workspace (idx 1), workspace|transfer (idx 3), transfer|tools (idx 6)
+    expect(screen.getByTestId('toolbar-divider-1')).toBeInTheDocument();
+    expect(screen.getByTestId('toolbar-divider-3')).toBeInTheDocument();
+    expect(screen.getByTestId('toolbar-divider-6')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('toolbar-tools-btn'));
+    const bentoGrid = screen.getByTestId('toolbar-tools-bento-grid');
+    expect(bentoGrid).toBeInTheDocument();
+    expect(bentoGrid.className).toContain('sm:grid-cols-2');
+  });
+
+  it('renders localized Thai strings for System & Diagnostics and Import/Export descriptions', async () => {
+    useConnectionStore.setState({ activeConnectionId: 'c1', connectedConnectionIds: ['c1'] });
+    await act(async () => {
+      await i18n.changeLanguage('th');
+    });
+
+    try {
+      render(
+        <MainToolbar
+          onImportData={vi.fn()}
+          onImportSql={vi.fn()}
+          onExportData={vi.fn()}
+          onExportSql={vi.fn()}
+          onOpenMetrics={vi.fn()}
+          onCheckUpdates={vi.fn()}
+          onExportDiagnosticBundle={vi.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByTestId('toolbar-tools-btn'));
+      expect(screen.getByText('ระบบและการวินิจฉัย')).toBeInTheDocument();
+      expect(screen.getByText('ตรวจสอบอัปเดต...')).toBeInTheDocument();
+      expect(screen.getByText('ส่งออกข้อมูลวินิจฉัยระบบ...')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('toolbar-import-btn'));
+      expect(screen.getByText('นำเข้าข้อมูลจากไฟล์ CSV, TSV หรือ JSON เข้าสู่ตาราง')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('toolbar-export-btn'));
+      expect(screen.getByText('ส่งออกข้อมูลตารางหรือผลลัพธ์เป็น CSV, JSON, Gzip/Zstd')).toBeInTheDocument();
+    } finally {
+      await act(async () => {
+        await i18n.changeLanguage('en');
+      });
+    }
   });
 });

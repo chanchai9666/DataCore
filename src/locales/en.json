@@ -59,9 +59,13 @@
     "exportTitle": "Export table or query results",
     "selectConnectionFirst": "Select a connection first",
     "importData": "Import Table Data (CSV, JSON)...",
+    "importDataDesc": "Import rows from CSV, TSV, or JSON files into a table",
     "importSql": "Import SQL Dump / Script (.sql)...",
+    "importSqlDesc": "Execute SQL dump or script files (.sql)",
     "exportData": "Export Table Data (CSV, JSON)...",
+    "exportDataDesc": "Export table or query rows to CSV, JSON, Gzip/Zstd",
     "exportSql": "Export as SQL Dump / Backup (.sql)...",
+    "exportSqlDesc": "Dump table DDL structure and data to a .sql script",
     "metrics": "Database Metrics & Health",
     "metricsDesc": "CPU, Memory, Cache Hit & Slow Queries",
     "activityMonitor": "Activity & Process Monitor",
@@ -96,7 +100,12 @@
     "categoryPerformance": "Performance & Monitoring",
     "categoryModeling": "Design & Modeling",
     "categorySecurity": "Security & Administration",
-    "categoryProductivity": "Productivity"
+    "categoryProductivity": "Productivity",
+    "categorySystem": "System & Diagnostics",
+    "checkUpdates": "Check for Updates...",
+    "checkUpdatesDesc": "Check for new releases & auto-update",
+    "diagnosticBundle": "Export Diagnostic Bundle...",
+    "diagnosticBundleDesc": "Sanitized system info for bug reporting"
   },
   "status": {
     "ready": "Ready",

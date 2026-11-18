@@ -27,6 +27,7 @@ import {
   Wand2,
   RefreshCw,
   FileJson,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +36,8 @@ import { useTabStore } from '../../stores/tabStore';
 import { DbBadge } from '../sidebar/DbBadge';
 import { changeLanguage } from '../../i18n';
 import type { ConnectionConfig } from '../../types/db';
+
+export type ToolbarGroup = 'connection' | 'workspace' | 'transfer' | 'tools';
 
 export interface ToolbarActionItem {
   id: string;
@@ -45,6 +48,19 @@ export interface ToolbarActionItem {
   disabled?: boolean;
   title?: string;
   testId?: string;
+  group?: ToolbarGroup;
+  hasDropdown?: boolean;
+}
+
+interface DropdownMenuItemConfig {
+  show: boolean;
+  testId: string;
+  icon: LucideIcon;
+  iconColor: string;
+  label: string;
+  description: string;
+  disabled?: boolean;
+  onClick?: () => void;
 }
 
 export interface MainToolbarProps {
@@ -187,6 +203,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       onClick: handleConnectClick,
       title: t('toolbar.connectTitle', 'Manage or add database connections (⌘N)'),
       testId: 'toolbar-connect-btn',
+      group: 'connection',
     },
     {
       id: 'query',
@@ -198,6 +215,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
         ? t('toolbar.newQueryTitle', 'Open new SQL query editor (⌘T)')
         : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
       testId: 'toolbar-query-btn',
+      group: 'workspace',
     },
     {
       id: 'table',
@@ -209,26 +227,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
         ? t('toolbar.tableTitle', 'Open table list view or designer')
         : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
       testId: 'toolbar-table-btn',
-    },
-    {
-      id: 'tools',
-      label: t('toolbar.tools', 'Tools'),
-      icon: Wrench,
-      onClick: handleToolsClick,
-      disabled: false,
-      title: t('toolbar.toolsTitle', 'Database tools, performance metrics & audit logs'),
-      testId: 'toolbar-tools-btn',
-    },
-    {
-      id: 'backup',
-      label: t('toolbar.backup', 'Backup'),
-      icon: Archive,
-      onClick: () => onBackup?.(),
-      disabled: !isConnected,
-      title: isConnected
-        ? t('toolbar.backupTitle', 'Backup / Dump database')
-        : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
-      testId: 'toolbar-backup-btn',
+      group: 'workspace',
     },
     {
       id: 'import',
@@ -240,6 +239,8 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
         ? t('toolbar.importTitle', 'Import data or SQL script')
         : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
       testId: 'toolbar-import-btn',
+      group: 'transfer',
+      hasDropdown: Boolean(onImportData || onImportSql),
     },
     {
       id: 'export',
@@ -251,10 +252,208 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
         ? t('toolbar.exportTitle', 'Export table or query results')
         : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
       testId: 'toolbar-export-btn',
+      group: 'transfer',
+      hasDropdown: Boolean(onExportData || onExportSql),
+    },
+    {
+      id: 'backup',
+      label: t('toolbar.backup', 'Backup'),
+      icon: Archive,
+      onClick: () => onBackup?.(),
+      disabled: !isConnected,
+      title: isConnected
+        ? t('toolbar.backupTitle', 'Backup / Dump database')
+        : t('toolbar.selectConnectionFirst', 'Connect to a database first'),
+      testId: 'toolbar-backup-btn',
+      group: 'transfer',
+    },
+    {
+      id: 'tools',
+      label: t('toolbar.tools', 'Tools'),
+      icon: Wrench,
+      onClick: handleToolsClick,
+      disabled: false,
+      title: t('toolbar.toolsTitle', 'Database tools, performance metrics & audit logs'),
+      testId: 'toolbar-tools-btn',
+      group: 'tools',
+      hasDropdown: true,
     },
   ];
 
   const items = customItems ?? defaultItems;
+
+  const renderMenuCardItem = ({
+    show,
+    testId,
+    icon: ItemIcon,
+    iconColor,
+    label,
+    description,
+    disabled,
+    onClick,
+  }: DropdownMenuItemConfig) => {
+    if (!show || !onClick) return null;
+    return (
+      <button
+        key={testId}
+        type="button"
+        data-testid={testId}
+        disabled={disabled}
+        onClick={() => {
+          setActiveDropdown(null);
+          onClick();
+        }}
+        className="w-full text-left px-2 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors group"
+      >
+        <span className="w-7 h-7 rounded-md bg-black/5 dark:bg-white/5 border border-line/40 flex items-center justify-center shrink-0 mt-0.5 group-hover:border-line transition-colors">
+          <ItemIcon className={`w-4 h-4 ${iconColor}`} />
+        </span>
+        <div className="flex flex-col min-w-0">
+          <span className="font-medium text-xs leading-snug">{label}</span>
+          <span className="text-[10.5px] text-muted leading-tight">{description}</span>
+        </div>
+      </button>
+    );
+  };
+
+  const performanceItems: DropdownMenuItemConfig[] = [
+    {
+      show: Boolean(onOpenMetrics),
+      testId: 'toolbar-tools-metrics-btn',
+      icon: Cpu,
+      iconColor: 'text-indigo-400',
+      label: t('toolbar.metrics', 'Database Metrics & Health'),
+      description: t('toolbar.metricsDesc', 'CPU, Memory, Cache Hit & Slow Queries'),
+      disabled: !isConnected,
+      onClick: onOpenMetrics,
+    },
+    {
+      show: Boolean(onOpenActivityMonitor),
+      testId: 'toolbar-tools-activity-monitor-btn',
+      icon: Activity,
+      iconColor: 'text-teal-400',
+      label: t('toolbar.activityMonitor', 'Activity & Process Monitor'),
+      description: t('toolbar.activityMonitorDesc', 'Live sessions, running queries & kill process'),
+      disabled: !isConnected,
+      onClick: onOpenActivityMonitor,
+    },
+    {
+      show: Boolean(onOpenTransferMonitor),
+      testId: 'toolbar-tools-transfer-monitor-btn',
+      icon: RefreshCw,
+      iconColor: 'text-blue-400',
+      label: t('toolbar.transferMonitor', 'Transfer Monitor Dashboard'),
+      description: t('toolbar.transferMonitorDesc', 'Live throughput, ETA & cancel active transfers'),
+      onClick: onOpenTransferMonitor,
+    },
+    {
+      show: Boolean(onOpenLocks),
+      testId: 'toolbar-tools-locks-btn',
+      icon: Lock,
+      iconColor: 'text-amber-400',
+      label: t('toolbar.locks', 'Lock Inspector & Deadlocks'),
+      description: t('toolbar.locksDesc', 'Detect blocking transactions & lock chains'),
+      disabled: !isConnected,
+      onClick: onOpenLocks,
+    },
+  ];
+
+  const modelingItems: DropdownMenuItemConfig[] = [
+    {
+      show: Boolean(onOpenERDiagram),
+      testId: 'toolbar-tools-er-diagram-btn',
+      icon: Network,
+      iconColor: 'text-emerald-400',
+      label: t('toolbar.erDiagram', 'Visual ER Diagram'),
+      description: t('toolbar.erDiagramDesc', 'Entity relationship graphs & schema relations'),
+      disabled: !isConnected,
+      onClick: onOpenERDiagram,
+    },
+    {
+      show: Boolean(onOpenQueryBuilder),
+      testId: 'toolbar-tools-query-builder-btn',
+      icon: Wand2,
+      iconColor: 'text-amber-400',
+      label: t('toolbar.queryBuilder', 'Visual Query Builder'),
+      description: t('toolbar.queryBuilderDesc', 'Build SELECT queries visually without code'),
+      disabled: !isConnected,
+      onClick: onOpenQueryBuilder,
+    },
+    {
+      show: Boolean(onOpenSchemaDiff),
+      testId: 'toolbar-tools-schema-diff-btn',
+      icon: GitCompare,
+      iconColor: 'text-purple-400',
+      label: t('toolbar.schemaDiff', 'Schema Compare & Diff'),
+      description: t('toolbar.schemaDiffDesc', 'Compare structures & generate migration SQL'),
+      disabled: !isConnected,
+      onClick: onOpenSchemaDiff,
+    },
+  ];
+
+  const securityItems: DropdownMenuItemConfig[] = [
+    {
+      show: Boolean(onOpenAuditLog),
+      testId: 'toolbar-tools-audit-btn',
+      icon: ShieldCheck,
+      iconColor: 'text-emerald-400',
+      label: t('toolbar.auditLog', 'Security Audit Log'),
+      description: t('toolbar.auditLogDesc', 'Tamper-evident logs of mutations & queries'),
+      onClick: onOpenAuditLog,
+    },
+    {
+      show: Boolean(onOpenSecurity),
+      testId: 'toolbar-tools-security-btn',
+      icon: Key,
+      iconColor: 'text-rose-400',
+      label: t('toolbar.connectionSecurity', 'Connection SSL & Security'),
+      description: t('toolbar.connectionSecurityDesc', 'TLS certificates, encrypted vault & key lock'),
+      onClick: onOpenSecurity,
+    },
+    {
+      show: Boolean(onOpenUserManager),
+      testId: 'toolbar-tools-user-manager-btn',
+      icon: Users,
+      iconColor: 'text-indigo-400',
+      label: t('toolbar.userManagement', 'User & Privilege Manager'),
+      description: t('toolbar.userManagementDesc', 'Database users, roles and table permissions'),
+      disabled: !isConnected,
+      onClick: onOpenUserManager,
+    },
+  ];
+
+  const productivityItems: DropdownMenuItemConfig[] = [
+    {
+      show: Boolean(onOpenHistory || onOpenSnippets),
+      testId: 'toolbar-tools-history-btn',
+      icon: History,
+      iconColor: 'text-blue-400',
+      label: t('toolbar.queryHistory', 'Query History & Snippets'),
+      description: t('toolbar.queryHistoryDesc', 'Executed statements history & reusable code snippets'),
+      onClick: onOpenHistory || onOpenSnippets,
+    },
+  ];
+
+  const systemItems: DropdownMenuItemConfig[] = [
+    {
+      show: Boolean(onCheckUpdates),
+      testId: 'toolbar-tools-check-updates-btn',
+      icon: RefreshCw,
+      iconColor: 'text-sky-400',
+      label: t('toolbar.checkUpdates', 'Check for Updates...'),
+      description: t('toolbar.checkUpdatesDesc', 'Check for new releases & auto-update'),
+      onClick: onCheckUpdates,
+    },
+    {
+      show: Boolean(onExportDiagnosticBundle),
+      testId: 'toolbar-tools-diagnostic-bundle-btn',
+      icon: FileJson,
+      iconColor: 'text-indigo-400',
+      label: t('toolbar.diagnosticBundle', 'Export Diagnostic Bundle...'),
+      description: t('toolbar.diagnosticBundleDesc', 'Sanitized system info for bug reporting'),
+      onClick: onExportDiagnosticBundle,
+    },
+  ];
 
   const handleTitleBarDoubleClick = useCallback(async (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -283,369 +482,174 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
 
         <div className="h-5 w-px bg-line mx-1" />
 
-        {items.map(({ id, label, ariaLabel, icon: Icon, onClick, disabled, title, testId }) => (
-          <div key={id} className="relative h-full flex items-center">
-            <button
-              type="button"
-              onClick={onClick}
-              disabled={disabled}
-              title={title ?? label}
-              aria-label={ariaLabel ?? label}
-              data-testid={testId}
-              className={`flex flex-col items-center justify-center gap-0.5 px-2.5 h-full rounded hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10 dark:active:bg-white/15 disabled:opacity-40 disabled:pointer-events-none transition-colors text-text ${
-                activeDropdown === id ? 'bg-black/10 dark:bg-white/15' : ''
-              }`}
-            >
-              <Icon size={19} strokeWidth={1.5} className="shrink-0" />
-              <span className="text-[10px] text-muted leading-tight whitespace-nowrap">{label}</span>
-            </button>
+        {items.map(({ id, label, ariaLabel, icon: Icon, onClick, disabled, title, testId, group, hasDropdown }, idx) => {
+          const showDivider = Boolean(
+            idx > 0 && group && items[idx - 1]?.group && group !== items[idx - 1]?.group
+          );
+          return (
+            <React.Fragment key={id}>
+              {showDivider && (
+                <div
+                  data-testid={`toolbar-divider-${idx}`}
+                  className="h-5 w-px bg-line mx-0.5 shrink-0"
+                />
+              )}
+              <div className="relative h-full flex items-center">
+                <button
+                  type="button"
+                  onClick={onClick}
+                  disabled={disabled}
+                  title={title ?? label}
+                  aria-label={ariaLabel ?? label}
+                  data-testid={testId}
+                  className={`flex flex-col items-center justify-center gap-0.5 px-2.5 h-full rounded hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10 dark:active:bg-white/15 disabled:opacity-40 disabled:pointer-events-none transition-colors text-text ${
+                    activeDropdown === id ? 'bg-black/10 dark:bg-white/15' : ''
+                  }`}
+                >
+                  <Icon size={19} strokeWidth={1.5} className="shrink-0" />
+                  <span className="text-[10px] text-muted leading-tight whitespace-nowrap flex items-center gap-0.5">
+                    <span>{label}</span>
+                    {hasDropdown && <ChevronDown size={10} className="opacity-70 shrink-0" />}
+                  </span>
+                </button>
 
-            {/* Dropdown Menu for Import */}
-            {id === 'import' && activeDropdown === 'import' && (
-              <div
-                data-testid="toolbar-import-dropdown"
-                className="absolute top-full left-0 mt-1 min-w-[210px] bg-panel border border-line rounded shadow-lg z-50 py-1 text-xs animate-in fade-in zoom-in-95 duration-100"
-              >
-                {onImportData && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-import-data-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onImportData();
-                    }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+                {/* Dropdown Menu for Import */}
+                {id === 'import' && activeDropdown === 'import' && (
+                  <div
+                    data-testid="toolbar-import-dropdown"
+                    className="absolute top-full left-0 mt-1.5 min-w-[290px] max-w-[320px] bg-panel border border-line rounded-lg shadow-xl z-50 p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100"
                   >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>{t('toolbar.importData', 'Import Table Data (CSV, JSON)...')}</span>
-                  </button>
+                    {renderMenuCardItem({
+                      show: Boolean(onImportData),
+                      testId: 'toolbar-import-data-btn',
+                      icon: FileSpreadsheet,
+                      iconColor: 'text-emerald-400',
+                      label: t('toolbar.importData', 'Import Table Data (CSV, JSON)...'),
+                      description: t(
+                        'toolbar.importDataDesc',
+                        'Import rows from CSV, TSV, or JSON files into a table'
+                      ),
+                      onClick: onImportData,
+                    })}
+                    {renderMenuCardItem({
+                      show: Boolean(onImportSql),
+                      testId: 'toolbar-import-sql-btn',
+                      icon: FileCode,
+                      iconColor: 'text-blue-400',
+                      label: t('toolbar.importSql', 'Import SQL Dump / Script (.sql)...'),
+                      description: t('toolbar.importSqlDesc', 'Execute SQL dump or script files (.sql)'),
+                      onClick: onImportSql,
+                    })}
+                  </div>
                 )}
-                {onImportSql && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-import-sql-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onImportSql();
-                    }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
+
+                {/* Dropdown Menu for Export */}
+                {id === 'export' && activeDropdown === 'export' && (
+                  <div
+                    data-testid="toolbar-export-dropdown"
+                    className="absolute top-full left-0 mt-1.5 min-w-[290px] max-w-[320px] bg-panel border border-line rounded-lg shadow-xl z-50 p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100"
                   >
-                    <FileCode className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span>{t('toolbar.importSql', 'Import SQL Dump / Script (.sql)...')}</span>
-                  </button>
+                    {renderMenuCardItem({
+                      show: Boolean(onExportData),
+                      testId: 'toolbar-export-data-btn',
+                      icon: FileSpreadsheet,
+                      iconColor: 'text-emerald-400',
+                      label: t('toolbar.exportData', 'Export Table Data (CSV, JSON)...'),
+                      description: t(
+                        'toolbar.exportDataDesc',
+                        'Export table or query rows to CSV, JSON, Gzip/Zstd'
+                      ),
+                      onClick: onExportData,
+                    })}
+                    {renderMenuCardItem({
+                      show: Boolean(onExportSql),
+                      testId: 'toolbar-export-sql-btn',
+                      icon: FileCode,
+                      iconColor: 'text-blue-400',
+                      label: t('toolbar.exportSql', 'Export as SQL Dump / Backup (.sql)...'),
+                      description: t(
+                        'toolbar.exportSqlDesc',
+                        'Dump table DDL structure and data to a .sql script'
+                      ),
+                      onClick: onExportSql,
+                    })}
+                  </div>
+                )}
+
+                {/* 2-Column Categorized Bento Dropdown Menu for Tools */}
+                {id === 'tools' && activeDropdown === 'tools' && (
+                  <div
+                    data-testid="toolbar-tools-dropdown"
+                    className="absolute top-full left-0 mt-1.5 w-[580px] max-w-[92vw] bg-panel border border-line rounded-xl shadow-2xl z-50 overflow-hidden text-xs animate-in fade-in zoom-in-95 duration-100"
+                  >
+                    <div
+                      data-testid="toolbar-tools-bento-grid"
+                      className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line/70 max-h-[75vh] overflow-y-auto"
+                    >
+                      {/* Left Column: Performance & Schema Modeling */}
+                      <div className="p-2 space-y-2">
+                        <div>
+                          <div className="px-2 pt-1 pb-1 text-[11px] font-semibold text-muted">
+                            {t('toolbar.categoryPerformance', 'Performance & Monitoring')}
+                          </div>
+                          <div className="space-y-0.5">
+                            {performanceItems.map(renderMenuCardItem)}
+                          </div>
+                        </div>
+
+                        <div className="h-px bg-line/60 mx-2 my-1" />
+
+                        <div>
+                          <div className="px-2 pt-1 pb-1 text-[11px] font-semibold text-muted">
+                            {t('toolbar.categoryModeling', 'Design & Modeling')}
+                          </div>
+                          <div className="space-y-0.5">
+                            {modelingItems.map(renderMenuCardItem)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Column: Security & Productivity */}
+                      <div className="p-2 space-y-2">
+                        <div>
+                          <div className="px-2 pt-1 pb-1 text-[11px] font-semibold text-muted">
+                            {t('toolbar.categorySecurity', 'Security & Administration')}
+                          </div>
+                          <div className="space-y-0.5">
+                            {securityItems.map(renderMenuCardItem)}
+                          </div>
+                        </div>
+
+                        <div className="h-px bg-line/60 mx-2 my-1" />
+
+                        <div>
+                          <div className="px-2 pt-1 pb-1 text-[11px] font-semibold text-muted">
+                            {t('toolbar.categoryProductivity', 'Productivity')}
+                          </div>
+                          <div className="space-y-0.5">
+                            {productivityItems.map(renderMenuCardItem)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer Bar: System & Diagnostics */}
+                    {(onCheckUpdates || onExportDiagnosticBundle) && (
+                      <div className="border-t border-line bg-black/[0.02] dark:bg-white/[0.02] p-2">
+                        <div className="px-2 pb-1 text-[11px] font-semibold text-muted">
+                          {t('toolbar.categorySystem', 'System & Diagnostics')}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                          {systemItems.map(renderMenuCardItem)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-
-            {/* Dropdown Menu for Export */}
-            {id === 'export' && activeDropdown === 'export' && (
-              <div
-                data-testid="toolbar-export-dropdown"
-                className="absolute top-full left-0 mt-1 min-w-[210px] bg-panel border border-line rounded shadow-lg z-50 py-1 text-xs animate-in fade-in zoom-in-95 duration-100"
-              >
-                {onExportData && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-export-data-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onExportData();
-                    }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>{t('toolbar.exportData', 'Export Table Data (CSV, JSON)...')}</span>
-                  </button>
-                )}
-                {onExportSql && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-export-sql-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onExportSql();
-                    }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/10 text-text"
-                  >
-                    <FileCode className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span>{t('toolbar.exportSql', 'Export as SQL Dump / Backup (.sql)...')}</span>
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Dropdown Menu for Tools */}
-            {id === 'tools' && activeDropdown === 'tools' && (
-              <div
-                data-testid="toolbar-tools-dropdown"
-                className="absolute top-full left-0 mt-1 min-w-[340px] max-w-[380px] bg-panel border border-line rounded-lg shadow-xl z-50 p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100 max-h-[85vh] overflow-y-auto"
-              >
-                {/* Category 1: Performance & Monitoring */}
-                <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted uppercase tracking-wider">
-                  {t('toolbar.categoryPerformance', 'Performance & Monitoring')}
-                </div>
-                {onOpenMetrics && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-metrics-btn"
-                    disabled={!isConnected}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenMetrics();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
-                  >
-                    <Cpu className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.metrics', 'Database Metrics & Health')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.metricsDesc', 'CPU, Memory, Cache Hit & Slow Queries')}</span>
-                    </div>
-                  </button>
-                )}
-                {onOpenActivityMonitor && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-activity-monitor-btn"
-                    disabled={!isConnected}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenActivityMonitor();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
-                  >
-                    <Activity className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.activityMonitor', 'Activity & Process Monitor')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.activityMonitorDesc', 'Live sessions, running queries & kill process')}</span>
-                    </div>
-                  </button>
-                )}
-                {onOpenTransferMonitor && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-transfer-monitor-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenTransferMonitor();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
-                  >
-                    <RefreshCw className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.transferMonitor', 'Transfer Monitor Dashboard')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.transferMonitorDesc', 'Live throughput, ETA & cancel active transfers')}</span>
-                    </div>
-                  </button>
-                )}
-                {onOpenLocks && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-locks-btn"
-                    disabled={!isConnected}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenLocks();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
-                  >
-                    <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.locks', 'Lock Inspector & Deadlocks')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.locksDesc', 'Detect blocking transactions & lock chains')}</span>
-                    </div>
-                  </button>
-                )}
-
-                <div className="h-px bg-line my-1 mx-2" />
-
-                {/* Category 2: Design & Schema Modeling */}
-                <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted uppercase tracking-wider">
-                  {t('toolbar.categoryModeling', 'Design & Modeling')}
-                </div>
-                {onOpenERDiagram && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-er-diagram-btn"
-                    disabled={!isConnected}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenERDiagram();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
-                  >
-                    <Network className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.erDiagram', 'Visual ER Diagram')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.erDiagramDesc', 'Entity relationship graphs & schema relations')}</span>
-                    </div>
-                  </button>
-                )}
-                {onOpenQueryBuilder && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-query-builder-btn"
-                    disabled={!isConnected}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenQueryBuilder();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
-                  >
-                    <Wand2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.queryBuilder', 'Visual Query Builder')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.queryBuilderDesc', 'Build SELECT queries visually without code')}</span>
-                    </div>
-                  </button>
-                )}
-                {onOpenSchemaDiff && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-schema-diff-btn"
-                    disabled={!isConnected}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenSchemaDiff();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
-                  >
-                    <GitCompare className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.schemaDiff', 'Schema Compare & Diff')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.schemaDiffDesc', 'Compare structures & generate migration SQL')}</span>
-                    </div>
-                  </button>
-                )}
-
-                <div className="h-px bg-line my-1 mx-2" />
-
-                {/* Category 3: Security & Governance */}
-                <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted uppercase tracking-wider">
-                  {t('toolbar.categorySecurity', 'Security & Administration')}
-                </div>
-                {onOpenAuditLog && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-audit-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenAuditLog();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.auditLog', 'Security Audit Log')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.auditLogDesc', 'Tamper-evident logs of mutations & queries')}</span>
-                    </div>
-                  </button>
-                )}
-                {onOpenSecurity && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-security-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenSecurity();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
-                  >
-                    <Key className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.connectionSecurity', 'Connection SSL & Security')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.connectionSecurityDesc', 'TLS certificates, encrypted vault & key lock')}</span>
-                    </div>
-                  </button>
-                )}
-                {onOpenUserManager && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-user-manager-btn"
-                    disabled={!isConnected}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onOpenUserManager();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none text-text transition-colors"
-                  >
-                    <Users className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.userManagement', 'User & Privilege Manager')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.userManagementDesc', 'Database users, roles and table permissions')}</span>
-                    </div>
-                  </button>
-                )}
-
-                <div className="h-px bg-line my-1 mx-2" />
-
-                {/* Category 4: Productivity */}
-                <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted uppercase tracking-wider">
-                  {t('toolbar.categoryProductivity', 'Productivity')}
-                </div>
-                {(onOpenHistory || onOpenSnippets) && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-history-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      (onOpenHistory || onOpenSnippets)?.();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
-                  >
-                    <History className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.queryHistory', 'Query History & Snippets')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.queryHistoryDesc', 'Executed statements history & reusable code snippets')}</span>
-                    </div>
-                  </button>
-                )}
-
-                {(onCheckUpdates || onExportDiagnosticBundle) && (
-                  <>
-                    <div className="h-px bg-line my-1 mx-2" />
-                    <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted uppercase tracking-wider">
-                      {t('toolbar.categorySystem', 'System & Diagnostics')}
-                    </div>
-                  </>
-                )}
-                {onCheckUpdates && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-check-updates-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onCheckUpdates();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
-                  >
-                    <RefreshCw className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.checkUpdates', 'Check for Updates...')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.checkUpdatesDesc', 'Check for new releases & auto-update')}</span>
-                    </div>
-                  </button>
-                )}
-                {onExportDiagnosticBundle && (
-                  <button
-                    type="button"
-                    data-testid="toolbar-tools-diagnostic-bundle-btn"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      onExportDiagnosticBundle();
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
-                  >
-                    <FileJson className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-xs">{t('toolbar.diagnosticBundle', 'Export Diagnostic Bundle...')}</span>
-                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.diagnosticBundleDesc', 'Sanitized system info for bug reporting')}</span>
-                    </div>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+            </React.Fragment>
+          );
+        })}
       </div>
 
       {/* Middle/Right: Active Connection Info & Theme Controls */}

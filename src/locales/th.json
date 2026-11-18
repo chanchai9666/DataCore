@@ -59,9 +59,13 @@
     "exportTitle": "ส่งออกตารางหรือผลลัพธ์ Query",
     "selectConnectionFirst": "กรุณาเลือก Connection ก่อน",
     "importData": "นำเข้าข้อมูลตาราง (CSV, JSON)...",
+    "importDataDesc": "นำเข้าข้อมูลจากไฟล์ CSV, TSV หรือ JSON เข้าสู่ตาราง",
     "importSql": "นำเข้า SQL Dump / Script (.sql)...",
+    "importSqlDesc": "รันไฟล์สคริปต์หรือฐานข้อมูลที่สำรองไว้ (.sql)",
     "exportData": "ส่งออกข้อมูลตาราง (CSV, JSON)...",
+    "exportDataDesc": "ส่งออกข้อมูลตารางหรือผลลัพธ์เป็น CSV, JSON, Gzip/Zstd",
     "exportSql": "ส่งออกเป็น SQL Dump / Backup (.sql)...",
+    "exportSqlDesc": "สร้างไฟล์โครงสร้างและข้อมูลตารางเป็นสคริปต์ (.sql)",
     "metrics": "เมทริกซ์และสุขภาพฐานข้อมูล",
     "metricsDesc": "CPU, Memory, Cache Hit และ Slow Queries",
     "activityMonitor": "มอนิเตอร์ Process & Activity",
@@ -96,7 +100,12 @@
     "categoryPerformance": "ประสิทธิภาพและการตรวจวัด",
     "categoryModeling": "การออกแบบและ Schema",
     "categorySecurity": "ความปลอดภัยและการจัดการ",
-    "categoryProductivity": "เครื่องมือเพิ่มความเร็วในการทำงาน"
+    "categoryProductivity": "เครื่องมือเพิ่มความเร็วในการทำงาน",
+    "categorySystem": "ระบบและการวินิจฉัย",
+    "checkUpdates": "ตรวจสอบอัปเดต...",
+    "checkUpdatesDesc": "ตรวจสอบเวอร์ชันใหม่และอัปเดตอัตโนมัติ",
+    "diagnosticBundle": "ส่งออกข้อมูลวินิจฉัยระบบ...",
+    "diagnosticBundleDesc": "ข้อมูลระบบที่ตัดข้อมูลลับแล้วสำหรับแจ้งปัญหา"
   },
   "status": {
     "ready": "พร้อมทำงาน",

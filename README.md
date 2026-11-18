@@ -277,6 +277,7 @@ make test
 - [x] **Phase 45: การตรวจสอบความปลอดภัย ความถูกต้องของระบบ และการทำความสะอาดโค้ด (Security, Correctness & Dead Code Audit — Issue #175)**
 - [x] **Phase 46: การจัดการไฟล์ขยะและปรับปรุงระบบ Build (Makefile & Build Optimization — Issue #176)**
 - [x] **Phase 47: การตรวจสอบและแก้ไขคุณภาพโค้ดหลังการรีวิว (Post-Review Standards & Spec Refinements — Issue #177)**
+- [x] **Phase 48: การออกแบบและจัดวางระบบเมนู MainToolbar และ 2-Column Bento Tools Menu ใหม่ (Issue #178)**
 
 ---
 
