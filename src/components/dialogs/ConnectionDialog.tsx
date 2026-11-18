@@ -363,18 +363,34 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
 
     try {
       const password = resolvePassword();
+      const sshPassphrase = config.ssh_tunnel?.passphrase || config.sshTunnel?.passphrase;
       if (formData.rememberPassword === false) {
         // User chose not to remember password on disk (Local Encrypted Vault).
-        // Remove from persistent vault storage, but keep in RAM session memory.
+        // Remove from persistent vault storage, and strip SSH passphrase so it is never written to vault.enc.
         await dbApi.deleteStoredPassword(config.id).catch(() => {});
-        await addConnection(config, undefined);
+        const sanitizedConfig: ConnectionConfig = {
+          ...config,
+          ssh_tunnel: config.ssh_tunnel
+            ? { ...config.ssh_tunnel, passphrase: undefined }
+            : undefined,
+          sshTunnel: config.sshTunnel
+            ? { ...config.sshTunnel, passphrase: undefined }
+            : undefined,
+        };
+        await addConnection(sanitizedConfig, undefined);
         if (password) {
           await dbApi.setSessionPassword(config.id, password).catch(() => {});
+        }
+        if (sshPassphrase) {
+          await dbApi.setSessionSshPassphrase?.(config.id, sshPassphrase).catch(() => {});
         }
       } else {
         await addConnection(config, password);
         if (password) {
           await dbApi.setSessionPassword(config.id, password).catch(() => {});
+        }
+        if (sshPassphrase) {
+          await dbApi.setSessionSshPassphrase?.(config.id, sshPassphrase).catch(() => {});
         }
       }
       toast.success(`Connection "${config.name}" saved successfully`);

@@ -45,8 +45,6 @@ export interface ConnectionConfig {
   readOnly?: boolean;
 }
 
-export type ConnectionEnvironment = 'development' | 'staging' | 'production';
-
 export type SchemaNodeType =
   | 'database'
   | 'schema'
@@ -197,5 +195,3 @@ export interface TableFilterState {
   conjunction: 'AND' | 'OR';
   conditions: FilterCondition[];
 }
-
-export { formatCellValue } from '../utils/cellFormatter';

@@ -105,3 +105,20 @@ async fn test_duckdb_read_csv_analytical_query() {
     assert_eq!(res.rows[0][0], CellValue::Text("Bangkok".to_string()));
     assert_eq!(res.rows[0][1], CellValue::Integer(10500000));
 }
+
+#[tokio::test]
+async fn test_duckdb_read_only_blocks_writes() {
+    let mut config = create_test_config();
+    config.read_only = Some(true);
+    let conn = DuckdbConnection::from_config(&config).expect("Failed to create DuckDB in-memory");
+
+    let select_res = conn.execute_query("SELECT 1 AS ok;").await;
+    assert!(select_res.is_ok());
+
+    let create_res = conn.execute_query("CREATE TABLE t (id INT);").await;
+    assert!(create_res.is_err());
+    assert!(create_res.unwrap_err().to_string().contains("read-only"));
+
+    let comment_insert = conn.execute_query("-- comment\nINSERT INTO t VALUES (1);").await;
+    assert!(comment_insert.is_err());
+}

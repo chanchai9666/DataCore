@@ -156,7 +156,7 @@ async fn test_session_lifecycle() {
     assert_eq!(after_commit.rows.len(), 1, "Committed row must exist");
 
     // 7. Test schema tree retrieval
-    let schema_tree = get_schema_tree_impl(&store, "conn-sqlite-mem")
+    let schema_tree = get_schema_tree_impl(&store, &session_mgr, "conn-sqlite-mem")
         .await
         .expect("get schema tree");
     assert!(!schema_tree.is_empty());
@@ -206,7 +206,7 @@ async fn test_command_error_handling_and_cancellation() {
     assert!(cancel_err.is_err());
 
     // Schema tree on non-existent connection should error
-    let schema_err = get_schema_tree_impl(&store, "non-existent-id").await;
+    let schema_err = get_schema_tree_impl(&store, &session_mgr, "non-existent-id").await;
     assert!(schema_err.is_err());
 
     // Test test_connection_impl wrapper with store
@@ -376,13 +376,13 @@ async fn test_schema_tree_uses_dedicated_connection_independent_of_tab_transacti
     .unwrap();
 
     // Fetching schema tree must succeed on a dedicated metadata connection and not borrow or interfere with tab-tx
-    let tree = get_schema_tree_impl(&store, "file-db-schema").await.unwrap();
+    let tree = get_schema_tree_impl(&store, &session_mgr, "file-db-schema").await.unwrap();
     assert!(!tree.is_empty());
     let db_node = &tree[0];
     assert!(db_node.children.iter().any(|c| c.name == "customers"));
 
     // Test get_object_ddl_impl
-    let ddl = get_object_ddl_impl(&store, "file-db-schema", None, "customers", "table").await.unwrap();
+    let ddl = get_object_ddl_impl(&store, &session_mgr, "file-db-schema", None, "customers", "table").await.unwrap();
     assert!(ddl.contains("CREATE TABLE customers"));
 
     // tab-tx can still rollback cleanly
@@ -504,7 +504,7 @@ async fn test_disconnect_connection_teardown_all_sessions() {
     assert!(session_mgr.has_session("tab-2a").await);
 
     // Disconnect conn-1
-    let closed_count = disconnect_connection_impl(&session_mgr, "conn-1")
+    let closed_count = disconnect_connection_impl(&store, &session_mgr, "conn-1")
         .await
         .expect("disconnect conn-1");
     assert_eq!(closed_count, 2);
@@ -565,7 +565,7 @@ async fn test_session_password_in_memory_lifecycle_without_vault() {
     assert!(session_mgr.has_session("tab-ram-1").await);
 
     // 4. Disconnecting clears the in-memory RAM password
-    disconnect_connection_impl(&session_mgr, "conn-no-vault")
+    disconnect_connection_impl(&store, &session_mgr, "conn-no-vault")
         .await
         .expect("disconnect");
 
@@ -629,7 +629,7 @@ async fn test_session_ssh_passphrase_lifecycle_in_memory_and_vault() {
         .expect("open session");
 
     // 3. Disconnect clears RAM SSH passphrase
-    disconnect_connection_impl(&session_mgr, "conn-ssh-test-ram")
+    disconnect_connection_impl(&store, &session_mgr, "conn-ssh-test-ram")
         .await
         .expect("disconnect");
 

@@ -172,5 +172,25 @@ describe('userManagerApi', () => {
       const revokeSql = buildRevokePrivilegeSql('DELETE', 'customers', 'app_user', undefined, 'postgres');
       expect(revokeSql).toBe('REVOKE DELETE ON TABLE "customers" FROM "app_user";');
     });
+
+    it('escapes host, backslash in MySQL password, and rejects unsupported privileges', () => {
+      const sql = buildCreateUserSql(
+        {
+          name: "bad'user",
+          host: "10.0.0.1' OR '1'='1",
+          password: "p@ss\\'word",
+        },
+        'mysql'
+      );
+      expect(sql).toContain("CREATE USER 'bad''user'@'10.0.0.1'' OR ''1''=''1'");
+      expect(sql).toContain("IDENTIFIED BY 'p@ss\\\\''word'");
+
+      expect(() =>
+        buildGrantPrivilegeSql('SELECT ON *.* TO evil; --', 'customers', 'app_user', undefined, 'mysql')
+      ).toThrow('Unsupported privilege');
+
+      const mysqlGrant = buildGrantPrivilegeSql('SELECT', 'mydb.customers', 'app_user', "10.0.0.1'", 'mysql');
+      expect(mysqlGrant).toBe("GRANT SELECT ON `mydb`.`customers` TO 'app_user'@'10.0.0.1''';");
+    });
   });
 });

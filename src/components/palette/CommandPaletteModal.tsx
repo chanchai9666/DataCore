@@ -29,6 +29,7 @@ import {
   FileJson,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { changeLanguage } from '../../i18n';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
 import { useSnippetStore } from '../../stores/snippetStore';
@@ -320,7 +321,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       keywords: ['language', 'locale', 'translate', 'thai', 'english', 'ภาษา', 'ไทย'],
       onSelect: () => {
         const nextLang = i18n.language?.startsWith('th') ? 'en' : 'th';
-        i18n.changeLanguage(nextLang);
+        changeLanguage(nextLang);
         onClose();
       },
     });

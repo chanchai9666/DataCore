@@ -624,6 +624,6 @@ impl AuditLogger {
 
 impl Default for AuditLogger {
     fn default() -> Self {
-        Self::new(Self::default_dir())
+        Self::global().clone()
     }
 }

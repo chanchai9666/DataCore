@@ -245,6 +245,16 @@ export const setSessionPassword = async (
   });
 };
 
+export const setSessionSshPassphrase = async (
+  connectionId: string,
+  passphrase: string
+): Promise<void> => {
+  return invoke<void>('set_session_ssh_passphrase', {
+    connectionId,
+    passphrase,
+  });
+};
+
 export const clearSessionPassword = async (
   connectionId: string
 ): Promise<void> => {
@@ -292,14 +302,6 @@ export const copyTableCrossDb = async (
 ): Promise<CrossDbCopyResult> => {
   return invoke<CrossDbCopyResult>('copy_table_cross_db', {
     options,
-  });
-};
-
-export const cancelTransfer = async (
-  jobId: string
-): Promise<boolean> => {
-  return invoke<boolean>('cancel_transfer', {
-    jobId,
   });
 };
 
@@ -367,13 +369,6 @@ export const lockVault = async (): Promise<void> => {
   return invoke<void>('vault_lock');
 };
 
-export {
-  getAuditLogs,
-  verifyAuditLogIntegrity,
-  clearAuditLogs,
-  recordAuditLog,
-} from './auditApi';
-
 export const dbApi = {
   testConnection,
   getConnections,
@@ -382,6 +377,7 @@ export const dbApi = {
   getStoredPassword,
   deleteStoredPassword,
   setSessionPassword,
+  setSessionSshPassphrase,
   clearSessionPassword,
   clearSessionCache,
   openSession,
@@ -401,7 +397,6 @@ export const dbApi = {
   exportSql,
   importSql,
   copyTableCrossDb,
-  cancelTransfer,
   simulateQueryImpact,
   checkNativeCliAvailability,
   startNativeBackup,

@@ -332,6 +332,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                 name: p.name,
                 data_type: p.dataType,
                 nullable: p.isNullable,
+                is_primary_key: p.isPrimaryKey,
               }));
             }
           } catch (colErr) {
@@ -760,6 +761,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         const originalRow = tableState.data.rows[rowIndex];
         if (!originalRow) continue;
 
+        const workingRow = [...originalRow];
         for (const [colIndexStr, newVal] of Object.entries(colMap)) {
           const colIndex = Number(colIndexStr);
           const column = columns[colIndex];
@@ -768,12 +770,23 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
             tableName,
             schemaName,
             columns,
-            row: originalRow,
+            row: workingRow,
             colIndex,
             newValue: newVal,
             driver,
           });
           statements.push(updateSql);
+          if (newVal === null || newVal === undefined) {
+            workingRow[colIndex] = { type: 'Null' };
+          } else if (typeof newVal === 'boolean') {
+            workingRow[colIndex] = { type: 'Boolean', value: newVal };
+          } else if (typeof newVal === 'number') {
+            workingRow[colIndex] = Number.isInteger(newVal)
+              ? { type: 'Integer', value: newVal }
+              : { type: 'Float', value: newVal };
+          } else {
+            workingRow[colIndex] = { type: 'Text', value: String(newVal) };
+          }
         }
       }
 

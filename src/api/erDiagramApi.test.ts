@@ -227,6 +227,28 @@ describe('erDiagramApi', () => {
       expect(svg).toContain('user_id');
       expect(svg).toContain('<path'); // relationship connector
     });
+
+    it('escapes XML special characters in SVG export to prevent XSS', () => {
+      const data: ERDiagramData = {
+        tables: [
+          {
+            id: 't1',
+            name: 'users<script>alert(1)</script>',
+            x: 0,
+            y: 0,
+            columns: [
+              { name: 'col&"1', dataType: "TEXT<'a'>", isPrimaryKey: true, isNullable: false },
+            ],
+          },
+        ],
+        relationships: [],
+      };
+      const svg = exportERDiagramAsSvg(data, 'dark');
+      expect(svg).not.toContain('<script>');
+      expect(svg).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+      expect(svg).toContain('col&amp;&quot;1');
+      expect(svg).toContain('TEXT&lt;&#39;a&#39;&gt;');
+    });
   });
 
   describe('generateERDiagramSql', () => {

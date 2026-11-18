@@ -12,12 +12,6 @@ pub use models::*;
 pub use services::*;
 pub use session::*;
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -29,7 +23,6 @@ pub fn run() {
         .manage(AuditLogger::default())
         .manage(WorkspaceStore::default())
         .invoke_handler(tauri::generate_handler![
-            greet,
             test_connection,
             get_connections,
             save_connection,
@@ -54,6 +47,7 @@ pub fn run() {
             get_object_ddl,
             set_session_password,
             clear_session_password,
+            set_session_ssh_passphrase,
             preview_import_file,
             export_data,
             import_data,

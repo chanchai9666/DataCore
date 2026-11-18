@@ -178,6 +178,11 @@ impl DatabaseConnection for DuckdbConnection {
     }
 
     async fn execute_query(&self, sql: &str) -> Result<QueryResult, AppError> {
+        if self.read_only && crate::drivers::is_write_sql(sql) {
+            return Err(AppError::Database(
+                "Connection is in read-only mode. Write operations are disabled.".to_string(),
+            ));
+        }
         let start = std::time::Instant::now();
         let conn = self.conn.lock().await;
         Self::execute_on_conn(&conn, sql, start)

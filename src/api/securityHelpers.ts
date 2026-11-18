@@ -30,12 +30,6 @@ export interface TlsStatusInfo {
   keyBits?: number;
 }
 
-export interface AtRestStatusInfo {
-  isEncrypted: boolean;
-  technology: string;
-  details: string;
-}
-
 /**
  * Builds SQL to enable or disable Row-Level Security on a table.
  */

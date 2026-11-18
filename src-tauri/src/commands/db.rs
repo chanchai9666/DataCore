@@ -97,6 +97,42 @@ pub async fn set_session_password_impl(
     Ok(())
 }
 
+pub async fn resolve_connection_credentials(
+    store: &ConnectionStore,
+    session_mgr: &SessionManager,
+    connection_id: &str,
+) -> Result<(ConnectionConfig, Option<String>), AppError> {
+    let mut config = store
+        .get(connection_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Connection '{}' not found", connection_id)))?;
+
+    let mut password = session_mgr.get_session_password(connection_id).await;
+    if password.is_none() {
+        password = store.get_password(connection_id)?;
+    }
+
+    if let Some(ref mut ssh) = config.ssh_tunnel {
+        if ssh.enabled {
+            let mut phrase = session_mgr.get_session_ssh_passphrase(connection_id).await;
+            if phrase.is_none() {
+                phrase = store.get_ssh_passphrase(connection_id).ok().flatten();
+            }
+            ssh.passphrase = phrase;
+        }
+    }
+
+    Ok((config, password))
+}
+
+pub async fn set_session_ssh_passphrase_impl(
+    session_mgr: &SessionManager,
+    connection_id: &str,
+    passphrase: &str,
+) -> Result<(), AppError> {
+    session_mgr.set_session_ssh_passphrase(connection_id, passphrase).await;
+    Ok(())
+}
+
 pub async fn clear_session_password_impl(
     session_mgr: &SessionManager,
     connection_id: &str,
@@ -120,11 +156,12 @@ pub async fn close_session_impl(
 }
 
 pub async fn disconnect_connection_impl(
+    store: &ConnectionStore,
     session_mgr: &SessionManager,
     connection_id: &str,
 ) -> Result<usize, AppError> {
     let closed = session_mgr.close_sessions_for_connection(connection_id).await?;
-    crate::services::keychain::clear_mock_store();
+    store.vault().clear_cache();
     let _ = AuditLogger::global().log(AuditLogEntryInput {
         action: "DISCONNECT".to_string(),
         connection_id: Some(connection_id.to_string()),
@@ -234,37 +271,23 @@ pub async fn rollback_transaction_impl(
 
 pub async fn get_schema_tree_impl(
     store: &ConnectionStore,
+    session_mgr: &SessionManager,
     connection_id: &str,
 ) -> Result<Vec<SchemaNode>, AppError> {
-    let mut config = store
-        .get(connection_id)?
-        .ok_or_else(|| AppError::NotFound(format!("Connection '{}' not found", connection_id)))?;
-    if let Some(ref mut ssh) = config.ssh_tunnel {
-        if ssh.enabled {
-            ssh.passphrase = store.get_ssh_passphrase(connection_id).ok().flatten();
-        }
-    }
-    let password = store.get_password(connection_id)?;
+    let (config, password) = resolve_connection_credentials(store, session_mgr, connection_id).await?;
     let conn = SessionManager::create_connection(&config, password.as_deref()).await?;
     conn.fetch_schema_tree().await
 }
 
 pub async fn get_object_ddl_impl(
     store: &ConnectionStore,
+    session_mgr: &SessionManager,
     connection_id: &str,
     schema: Option<&str>,
     object_name: &str,
     object_type: &str,
 ) -> Result<String, AppError> {
-    let mut config = store
-        .get(connection_id)?
-        .ok_or_else(|| AppError::NotFound(format!("Connection '{}' not found", connection_id)))?;
-    if let Some(ref mut ssh) = config.ssh_tunnel {
-        if ssh.enabled {
-            ssh.passphrase = store.get_ssh_passphrase(connection_id).ok().flatten();
-        }
-    }
-    let password = store.get_password(connection_id)?;
+    let (config, password) = resolve_connection_credentials(store, session_mgr, connection_id).await?;
     let conn = SessionManager::create_connection(&config, password.as_deref()).await?;
     conn.get_object_ddl(schema, object_name, object_type).await
 }
@@ -634,10 +657,11 @@ pub async fn close_session(
 
 #[tauri::command]
 pub async fn disconnect_connection(
+    store: State<'_, ConnectionStore>,
     session_mgr: State<'_, SessionManager>,
     connection_id: String,
 ) -> Result<usize, String> {
-    disconnect_connection_impl(&session_mgr, &connection_id)
+    disconnect_connection_impl(&store, &session_mgr, &connection_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -725,9 +749,10 @@ pub async fn rollback_transaction(
 #[tauri::command]
 pub async fn get_schema_tree(
     store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
     connection_id: String,
 ) -> Result<Vec<SchemaNode>, String> {
-    get_schema_tree_impl(&store, &connection_id)
+    get_schema_tree_impl(&store, &session_mgr, &connection_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -735,6 +760,7 @@ pub async fn get_schema_tree(
 #[tauri::command]
 pub async fn get_object_ddl(
     store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
     connection_id: String,
     schema: Option<String>,
     object_name: String,
@@ -742,6 +768,7 @@ pub async fn get_object_ddl(
 ) -> Result<String, String> {
     get_object_ddl_impl(
         &store,
+        &session_mgr,
         &connection_id,
         schema.as_deref(),
         &object_name,
@@ -758,6 +785,17 @@ pub async fn set_session_password(
     password: String,
 ) -> Result<(), String> {
     set_session_password_impl(&session_mgr, &connection_id, &password)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_session_ssh_passphrase(
+    session_mgr: State<'_, SessionManager>,
+    connection_id: String,
+    passphrase: String,
+) -> Result<(), String> {
+    set_session_ssh_passphrase_impl(&session_mgr, &connection_id, &passphrase)
         .await
         .map_err(|e| e.to_string())
 }

@@ -31,6 +31,3 @@ export const createTableSchema = z
       path: ['columns'],
     }
   );
-
-export type TableColumnFormValues = z.infer<typeof tableColumnSchema>;
-export type CreateTableFormValues = z.infer<typeof createTableSchema>;

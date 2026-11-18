@@ -10,7 +10,6 @@ use rand::RngExt;
 use zeroize::{Zeroize, Zeroizing};
 use crate::error::AppError;
 
-pub const SERVICE_NAME: &str = "datacore";
 pub const NONCE_LEN: usize = 12;
 pub const KEY_LEN: usize = 32;
 pub const SALT_LEN: usize = 16;
@@ -206,10 +205,6 @@ impl Vault {
             master_password: Arc::new(RwLock::new(Some(Zeroizing::new(master_password.to_string())))),
             cache: Arc::new(RwLock::new(None)),
         }
-    }
-
-    pub fn vault_dir(&self) -> &Path {
-        &self.vault_dir
     }
 
     pub fn clear_cache(&self) {
@@ -756,11 +751,6 @@ fn default_vault() -> &'static Vault {
 /// Compatibility flag (always in local encrypted vault, no OS keychain access)
 pub fn set_mock_mode(_enabled: bool) {}
 
-/// Compatibility check (always in local encrypted vault, no OS keychain access)
-pub fn is_mock_mode() -> bool {
-    true
-}
-
 /// Clear cache in memory of the default vault
 pub fn clear_mock_store() {
     default_vault().clear_cache();
@@ -800,29 +790,4 @@ pub fn change_master_password(old_password: &str, new_password: &str) -> Result<
 /// Check if the default vault is protected by a Master Password
 pub fn has_master_password() -> Result<bool, AppError> {
     default_vault().has_master_password()
-}
-
-/// Unlock the default vault using the Master Password
-pub fn unlock_vault(password: &str) -> Result<(), AppError> {
-    default_vault().unlock(password)
-}
-
-/// Lock the default vault and clear sensitive data from in-memory cache
-pub fn lock_vault() {
-    default_vault().lock();
-}
-
-/// Check if macOS keychain opt-in is enabled for the default vault
-pub fn is_keychain_opt_in() -> bool {
-    default_vault().is_keychain_opt_in()
-}
-
-/// Enable or disable macOS keychain opt-in for the default vault
-pub fn set_keychain_opt_in(enabled: bool) -> Result<(), AppError> {
-    default_vault().set_keychain_opt_in(enabled)
-}
-
-/// Attempt to unlock the default vault using credentials from macOS Keychain
-pub fn unlock_vault_from_keychain() -> Result<bool, AppError> {
-    default_vault().unlock_from_macos_keychain()
 }

@@ -377,6 +377,45 @@ impl DatabaseConnection for PostgresConnection {
                     .collect();
             }
         }
+
+        if !res.columns.is_empty() {
+            let sch = schema.unwrap_or("public");
+            let meta_sql = format!(
+                "SELECT c.column_name, \
+                        EXISTS ( \
+                          SELECT 1 FROM information_schema.table_constraints tc \
+                          JOIN information_schema.key_column_usage kcu \
+                            ON tc.constraint_name = kcu.constraint_name \
+                           AND tc.table_schema = kcu.table_schema \
+                           AND tc.table_name = kcu.table_name \
+                          WHERE tc.constraint_type = 'PRIMARY KEY' \
+                            AND tc.table_schema = c.table_schema \
+                            AND tc.table_name = c.table_name \
+                            AND kcu.column_name = c.column_name \
+                        ) AS is_pk, \
+                        (c.is_identity = 'YES' OR COALESCE(c.column_default, '') LIKE 'nextval(%') AS is_auto \
+                 FROM information_schema.columns c \
+                 WHERE c.table_name = '{}' AND c.table_schema = '{}';",
+                table.replace('\'', "''"),
+                sch.replace('\'', "''")
+            );
+            if let Ok(meta_res) = self.execute_query(&meta_sql).await {
+                let mut flags: std::collections::HashMap<String, (bool, bool)> = std::collections::HashMap::new();
+                for r in &meta_res.rows {
+                    if let Some(CellValue::Text(name)) = r.first() {
+                        let is_pk = matches!(r.get(1), Some(CellValue::Boolean(true)));
+                        let is_auto = matches!(r.get(2), Some(CellValue::Boolean(true)));
+                        flags.insert(name.clone(), (is_pk, is_auto));
+                    }
+                }
+                for col in &mut res.columns {
+                    if let Some(&(is_pk, is_auto)) = flags.get(&col.name) {
+                        col.is_primary_key = Some(is_pk);
+                        col.is_auto_increment = Some(is_auto);
+                    }
+                }
+            }
+        }
         Ok(res)
     }
 

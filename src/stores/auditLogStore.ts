@@ -61,7 +61,10 @@ interface AuditLogState {
   integrity: AuditIntegrityResult | null;
   loadLogs: (limit?: number, offset?: number) => Promise<AuditLogEntry[]>;
   verifyIntegrity: () => Promise<AuditIntegrityResult>;
-  addLog: (entry: Omit<AuditLogEntry, 'id' | 'timestamp'>) => void;
+  addLog: (
+    entry: Omit<AuditLogEntry, 'id' | 'timestamp'>,
+    options?: { skipBackendSync?: boolean }
+  ) => void;
   clearLogs: () => void;
   filterLogs: (options: AuditFilterOptions) => AuditLogEntry[];
   exportToCsv: (entries?: AuditLogEntry[]) => string;
@@ -126,7 +129,7 @@ export const useAuditLogStore = create<AuditLogState>()(
         }
       },
 
-      addLog: (entry) => {
+      addLog: (entry, options) => {
         const id = `audit-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         const timestamp = new Date().toISOString();
         const query = entry.query ? redactSensitiveSql(entry.query) : entry.query;
@@ -146,8 +149,8 @@ export const useAuditLogStore = create<AuditLogState>()(
           return { logs: updated };
         });
 
-        // Asynchronously persist to backend Rust audit logger if in Tauri
-        if (isTauri()) {
+        // Asynchronously persist to backend Rust audit logger if in Tauri (unless backend already recorded it)
+        if (isTauri() && !options?.skipBackendSync) {
           recordAuditLog(newEntry)
             .then((backendEntry) => {
               if (backendEntry && (backendEntry.entryHash || backendEntry.prevHash)) {

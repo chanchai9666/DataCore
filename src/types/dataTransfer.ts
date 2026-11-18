@@ -149,6 +149,7 @@ export interface NativeBackupOptions {
   tables?: string[];
   schemas?: string[];
   compression_level?: number;
+  parallel_jobs?: number;
 }
 
 export interface NativeRestoreOptions {
@@ -158,6 +159,7 @@ export interface NativeRestoreOptions {
   single_transaction?: boolean;
   schema_only?: boolean;
   data_only?: boolean;
+  parallel_jobs?: number;
 }
 
 export interface NativeProgressEvent {

@@ -8,7 +8,9 @@ use tiberius::{AuthMethod, Client, Config, Query};
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
+use crate::drivers::is_write_sql;
 use crate::drivers::traits::{build_safe_where_clause, DatabaseConnection, SchemaNode, SchemaNodeType};
+use crate::services::ssh_tunnel::SshTunnelHandle;
 
 type TiberiusClient = Client<Compat<TcpStream>>;
 
@@ -16,10 +18,16 @@ type TiberiusClient = Client<Compat<TcpStream>>;
 pub struct MssqlConnection {
     client: Arc<Mutex<TiberiusClient>>,
     config: ConnectionConfig,
-    #[allow(dead_code)]
     read_only: bool,
     #[allow(dead_code)]
-    password: Option<String>,
+    ssh_tunnel: Arc<Mutex<Option<SshTunnelHandle>>>,
+}
+
+pub(crate) fn should_trust_mssql_cert(ssl_mode: Option<&str>) -> bool {
+    !matches!(
+        ssl_mode.map(|s| s.to_lowercase()).as_deref(),
+        Some("verify-ca") | Some("verify-full")
+    )
 }
 
 impl MssqlConnection {
@@ -27,22 +35,39 @@ impl MssqlConnection {
         config: &ConnectionConfig,
         password: Option<&str>,
     ) -> Result<Self, AppError> {
-        let host = config.host.as_deref().unwrap_or("127.0.0.1");
-        let port = config.port.unwrap_or(1433);
+        let timeout_secs = config.timeout_seconds.unwrap_or(15).max(1) as u64;
+        let remote_host = config.host.as_deref().unwrap_or("127.0.0.1");
+        let remote_port = config.port.unwrap_or(1433);
         let database = &config.database;
         let user = config.user.as_deref().unwrap_or("sa");
         let pwd = password.unwrap_or("");
 
+        let mut tunnel_handle: Option<SshTunnelHandle> = None;
+        let (target_host, target_port) = if let Some(ref ssh) = config.ssh_tunnel {
+            if ssh.enabled {
+                let handle = SshTunnelHandle::establish(ssh, remote_host, remote_port, timeout_secs).await?;
+                let port = handle.local_port();
+                tunnel_handle = Some(handle);
+                ("127.0.0.1".to_string(), port)
+            } else {
+                (remote_host.to_string(), remote_port)
+            }
+        } else {
+            (remote_host.to_string(), remote_port)
+        };
+
         let mut t_config = Config::new();
-        t_config.host(host);
-        t_config.port(port);
+        t_config.host(&target_host);
+        t_config.port(target_port);
         t_config.database(database);
         t_config.authentication(AuthMethod::sql_server(user, pwd));
-        t_config.trust_cert();
+        if should_trust_mssql_cert(config.ssl_mode.as_deref()) {
+            t_config.trust_cert();
+        }
 
         let tcp = TcpStream::connect(t_config.get_addr())
             .await
-            .map_err(|e| AppError::Database(format!("MSSQL connection to {}:{} failed: {}", host, port, e)))?;
+            .map_err(|e| AppError::Database(format!("MSSQL connection to {}:{} failed: {}", target_host, target_port, e)))?;
         tcp.set_nodelay(true)
             .map_err(|e| AppError::Database(format!("Failed to set TCP nodelay: {}", e)))?;
 
@@ -54,7 +79,7 @@ impl MssqlConnection {
             client: Arc::new(Mutex::new(client)),
             config: config.clone(),
             read_only: config.read_only.unwrap_or(false),
-            password: password.map(String::from),
+            ssh_tunnel: Arc::new(Mutex::new(tunnel_handle)),
         })
     }
 
@@ -116,6 +141,26 @@ impl DatabaseConnection for MssqlConnection {
         let trimmed = sql.trim();
         if trimmed.is_empty() {
             return Ok(QueryResult::new(Vec::new(), Vec::new(), 0, Some(0)));
+        }
+
+        if self.read_only && is_write_sql(trimmed) {
+            return Err(AppError::Database(
+                "Connection is in read-only mode. Write operations are disabled.".to_string(),
+            ));
+        }
+
+        if is_write_sql(trimmed) {
+            let exec_res = client
+                .execute(trimmed, &[])
+                .await
+                .map_err(|e| AppError::Database(format!("MSSQL execute error: {}", e)))?;
+            let elapsed = start.elapsed().as_millis() as u64;
+            return Ok(QueryResult::new(
+                Vec::new(),
+                Vec::new(),
+                elapsed,
+                Some(exec_res.total()),
+            ));
         }
 
         let query = Query::new(trimmed);
@@ -288,5 +333,29 @@ impl DatabaseConnection for MssqlConnection {
             }
         }
         Err(AppError::NotFound(format!("DDL for object '{}.{}' not found", s_name, name)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_should_trust_mssql_cert_respects_ssl_mode() {
+        assert!(should_trust_mssql_cert(None));
+        assert!(should_trust_mssql_cert(Some("disable")));
+        assert!(should_trust_mssql_cert(Some("require")));
+        assert!(!should_trust_mssql_cert(Some("verify-ca")));
+        assert!(!should_trust_mssql_cert(Some("verify-full")));
+        assert!(!should_trust_mssql_cert(Some("VERIFY-FULL")));
+    }
+
+    #[test]
+    fn test_is_write_sql_detection() {
+        assert!(is_write_sql("INSERT INTO users VALUES (1)"));
+        assert!(is_write_sql("/* c */ UPDATE users SET a = 1"));
+        assert!(is_write_sql("-- line\nDELETE FROM users"));
+        assert!(!is_write_sql("SELECT * FROM users"));
+        assert!(!is_write_sql("-- INSERT\nSELECT 1"));
     }
 }

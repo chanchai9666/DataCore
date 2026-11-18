@@ -63,11 +63,6 @@ impl SchemaNode {
         map.insert(key.into(), value.into());
         self
     }
-
-    pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {
-        self.metadata = Some(metadata);
-        self
-    }
 }
 
 #[async_trait]
