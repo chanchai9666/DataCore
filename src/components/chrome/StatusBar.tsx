@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useStatusStore } from '../../stores/statusStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
+import { useTransferMonitorStore, formatEta } from '../../stores/transferMonitorStore';
 import { changeLanguage } from '../../i18n';
 
 export interface StatusBarProps {
@@ -15,7 +16,12 @@ export const StatusBar: React.FC<StatusBarProps> = ({ className = '' }) => {
   const { lastQuery, executionTimeMs, rowCount, selectedCellInfo, statusMessage } = useStatusStore();
   const { connections, activeConnectionId, connectedConnectionIds } = useConnectionStore();
   const { tabs, activeTabId } = useTabStore();
+  const { jobs, jobOrder, openDashboard } = useTransferMonitorStore();
   const [copied, setCopied] = useState(false);
+
+  const runningTransfer = jobOrder
+    .map((id) => jobs[id])
+    .find((j) => j && j.status === 'running');
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
@@ -73,6 +79,23 @@ export const StatusBar: React.FC<StatusBarProps> = ({ className = '' }) => {
 
       {/* Right: Metrics (Rows, Time, Connection status, Cell Selection) & Language Switcher */}
       <div className="flex items-center gap-3 font-mono text-[10px] text-muted/90 shrink-0">
+        {runningTransfer && (
+          <button
+            type="button"
+            data-testid="status-transfer-indicator"
+            onClick={openDashboard}
+            title={t('monitor.openTransferDashboard', 'Open Transfer Monitor Dashboard')}
+            className="inline-flex items-center gap-1.5 rounded bg-blue-500/15 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 transition-colors"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+            <span>
+              {runningTransfer.rowsProcessed.toLocaleString()} rows ·{' '}
+              {runningTransfer.mbPerSec.toFixed(1)} MB/s · ETA{' '}
+              {formatEta(runningTransfer.etaSeconds)}
+            </span>
+          </button>
+        )}
+
         {selectedCellInfo && (
           <span title={t('status.selectedCell', 'Selected cell')}>{selectedCellInfo}</span>
         )}

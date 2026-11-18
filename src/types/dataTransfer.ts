@@ -53,8 +53,12 @@ export interface ImportResult {
 }
 
 export interface TransferProgress {
+  job_id?: string;
   current_row: number;
+  rows_processed?: number;
   total_rows?: number;
+  bytes_written?: number;
+  elapsed_ms?: number;
   status: string;
 }
 

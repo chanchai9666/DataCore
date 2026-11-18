@@ -70,6 +70,7 @@ export interface MainToolbarProps {
   onOpenQueryBuilder?: () => void;
   onOpenSchemaDiff?: () => void;
   onOpenActivityMonitor?: () => void;
+  onOpenTransferMonitor?: () => void;
   onOpenUserManager?: () => void;
   onOpenShortcuts?: () => void;
   onCheckUpdates?: () => void;
@@ -102,6 +103,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenQueryBuilder,
   onOpenSchemaDiff,
   onOpenActivityMonitor,
+  onOpenTransferMonitor,
   onOpenUserManager,
   onOpenShortcuts,
   onCheckUpdates,
@@ -415,6 +417,23 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                     <div className="flex flex-col min-w-0">
                       <span className="font-medium text-xs">{t('toolbar.activityMonitor', 'Activity & Process Monitor')}</span>
                       <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.activityMonitorDesc', 'Live sessions, running queries & kill process')}</span>
+                    </div>
+                  </button>
+                )}
+                {onOpenTransferMonitor && (
+                  <button
+                    type="button"
+                    data-testid="toolbar-tools-transfer-monitor-btn"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      onOpenTransferMonitor();
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 flex items-start gap-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium text-xs">{t('toolbar.transferMonitor', 'Transfer Monitor Dashboard')}</span>
+                      <span className="text-[10.5px] text-muted leading-tight">{t('toolbar.transferMonitorDesc', 'Live throughput, ETA & cancel active transfers')}</span>
                     </div>
                   </button>
                 )}

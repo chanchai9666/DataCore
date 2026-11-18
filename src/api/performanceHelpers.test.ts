@@ -5,6 +5,11 @@ import {
   buildGetViewDdlSql,
   buildGetTablePartitionsSql,
   buildBufferCacheStatsSql,
+  buildCreateRangePartitionSql,
+  buildDetachPartitionSql,
+  buildDropPartitionSql,
+  buildBackgroundMaintenanceSql,
+  buildMaintenanceProgressSql,
 } from './performanceHelpers';
 
 describe('performanceHelpers', () => {
@@ -106,6 +111,100 @@ describe('performanceHelpers', () => {
     it('builds table partitions query for MySQL', () => {
       const q = buildGetTablePartitionsSql('orders', 'sales_db', 'mysql');
       expect(q).toContain('information_schema.PARTITIONS');
+    });
+
+    it('builds monthly range partition SQL for Postgres including Dec->Jan rollover', () => {
+      const q = buildCreateRangePartitionSql({
+        tableName: 'orders',
+        schemaName: 'public',
+        partitionName: 'orders_2026_12',
+        rangeType: 'monthly',
+        year: 2026,
+        month: 12,
+        driver: 'postgres',
+      });
+      expect(q).toBe(
+        `CREATE TABLE "public"."orders_2026_12" PARTITION OF "public"."orders" FOR VALUES FROM ('2026-12-01') TO ('2027-01-01');`
+      );
+    });
+
+    it('builds yearly range partition SQL for Postgres and MySQL', () => {
+      const pg = buildCreateRangePartitionSql({
+        tableName: 'orders',
+        schemaName: 'public',
+        partitionName: 'orders_2026',
+        rangeType: 'yearly',
+        year: 2026,
+        driver: 'postgres',
+      });
+      expect(pg).toBe(
+        `CREATE TABLE "public"."orders_2026" PARTITION OF "public"."orders" FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');`
+      );
+
+      const my = buildCreateRangePartitionSql({
+        tableName: 'orders',
+        schemaName: 'sales_db',
+        partitionName: 'p2026',
+        rangeType: 'yearly',
+        year: 2026,
+        driver: 'mysql',
+      });
+      expect(my).toBe(
+        "ALTER TABLE `sales_db`.`orders` ADD PARTITION (PARTITION `p2026` VALUES LESS THAN ('2027-01-01'));"
+      );
+    });
+
+    it('builds detach and drop partition SQL for Postgres and MySQL', () => {
+      expect(
+        buildDetachPartitionSql({
+          tableName: 'orders',
+          schemaName: 'public',
+          partitionName: 'orders_2025_01',
+          concurrently: true,
+          driver: 'postgres',
+        })
+      ).toBe('ALTER TABLE "public"."orders" DETACH PARTITION "public"."orders_2025_01" CONCURRENTLY;');
+
+      expect(
+        buildDropPartitionSql({
+          tableName: 'orders',
+          schemaName: 'public',
+          partitionName: 'orders_2025_01',
+          driver: 'postgres',
+        })
+      ).toBe('DROP TABLE IF EXISTS "public"."orders_2025_01";');
+
+      expect(
+        buildDropPartitionSql({
+          tableName: 'orders',
+          schemaName: 'sales_db',
+          partitionName: 'p2025',
+          driver: 'mysql',
+        })
+      ).toBe('ALTER TABLE `sales_db`.`orders` DROP PARTITION `p2025`;');
+    });
+
+    it('builds background maintenance and progress SQL for Postgres and MySQL', () => {
+      expect(
+        buildBackgroundMaintenanceSql({
+          tableName: 'orders',
+          schemaName: 'public',
+          operation: 'vacuum_analyze',
+          driver: 'postgres',
+        })
+      ).toBe('VACUUM (ANALYZE) "public"."orders";');
+
+      expect(
+        buildBackgroundMaintenanceSql({
+          tableName: 'orders',
+          schemaName: 'sales_db',
+          operation: 'optimize',
+          driver: 'mysql',
+        })
+      ).toBe('OPTIMIZE TABLE `sales_db`.`orders`;');
+
+      expect(buildMaintenanceProgressSql('postgres')).toContain('pg_stat_progress_vacuum');
+      expect(buildMaintenanceProgressSql('mysql')).toContain('PROCESSLIST');
     });
   });
 

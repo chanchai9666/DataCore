@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { Download, X, Loader2, FileSpreadsheet, FileCode, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportData, pickExportFile, cancelTransfer } from '../../api/dataTransferApi';
+import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
 import type { ExportOptions, TransferFormat, JsonStructure } from '../../types/dataTransfer';
 
 export interface ExportModalProps {
@@ -52,6 +53,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       const jobId = `export_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       activeJobIdRef.current = jobId;
       setIsExporting(true);
+      const monitorStore = useTransferMonitorStore.getState();
+      monitorStore.startJob({
+        jobId,
+        label: `Export ${tableName}.${format}`,
+        direction: 'export',
+        totalRows,
+      });
 
       const sqlToRun =
         scope === 'filtered' && initialQuery
@@ -67,6 +75,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       };
 
       const result = await exportData(connectionId, sqlToRun, filePath, options);
+      monitorStore.completeJob(jobId, {
+        rowsProcessed: result.total_rows,
+        bytesWritten: result.file_size_bytes,
+        elapsedMs: result.elapsed_ms,
+      });
 
       toast.success(
         `Successfully exported ${result.total_rows.toLocaleString()} rows (${(
@@ -76,6 +89,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       onClose();
     } catch (err: any) {
       const msg = err?.message || String(err);
+      if (activeJobIdRef.current) {
+        if (msg.toLowerCase().includes('cancelled')) {
+          useTransferMonitorStore.getState().cancelJob(activeJobIdRef.current).catch(() => {});
+        } else {
+          useTransferMonitorStore.getState().failJob(activeJobIdRef.current, msg);
+        }
+      }
       if (msg.toLowerCase().includes('cancelled')) {
         toast.info('Export cancelled by user');
       } else {

@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { exportData, pickExportFile, cancelTransfer } from '../../api/dataTransferApi';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
 import type {
   ExportOptions,
   TransferFormat,
@@ -100,6 +101,12 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
       setIsExporting(true);
       setIsCancelling(false);
       setResult(null);
+      useTransferMonitorStore.getState().startJob({
+        jobId,
+        label: `Export ${tableName}.${format}`,
+        direction: 'export',
+        totalRows,
+      });
 
       const sqlToRun =
         scope === 'filtered' && initialQuery
@@ -115,6 +122,11 @@ export const DataExportWizardModal: React.FC<DataExportWizardModalProps> = ({
       };
 
       const res = await exportData(connectionId, sqlToRun, selectedPath, options);
+      useTransferMonitorStore.getState().completeJob(jobId, {
+        rowsProcessed: res.total_rows,
+        bytesWritten: res.file_size_bytes,
+        elapsedMs: res.elapsed_ms,
+      });
       setResult(res);
       toast.success(`Export completed: ${res.total_rows} rows saved.`);
     } catch (err: any) {

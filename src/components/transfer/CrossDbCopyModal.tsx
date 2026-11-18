@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
 import { onTransferProgress, cancelTransfer } from '../../api/dataTransferApi';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { useTransferMonitorStore } from '../../stores/transferMonitorStore';
 import type { TransferProgress } from '../../types/dataTransfer';
 
 export interface CrossDbCopyModalProps {
@@ -146,6 +147,11 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
     activeJobIdRef.current = jobId;
     setLoading(true);
     setError(null);
+    useTransferMonitorStore.getState().startJob({
+      jobId,
+      label: `Copy ${sourceTableName} → ${trimmedTargetTable}`,
+      direction: 'copy',
+    });
 
     try {
       const result = await dbApi.copyTableCrossDb({
@@ -159,6 +165,10 @@ export const CrossDbCopyModal: React.FC<CrossDbCopyModalProps> = ({
         dropTargetIfExists,
         copyData,
         jobId,
+      });
+      useTransferMonitorStore.getState().completeJob(jobId, {
+        rowsProcessed: result.rowsTransferred,
+        elapsedMs: result.elapsedMs,
       });
 
       toast.success(
