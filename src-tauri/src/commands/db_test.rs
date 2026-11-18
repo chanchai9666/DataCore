@@ -903,3 +903,255 @@ async fn test_open_session_idempotent() {
         .expect("open session tab-idem second time (idempotent)");
     assert_eq!(session_mgr.active_session_count().await, 1);
 }
+
+#[tokio::test]
+async fn test_execute_query_with_row_and_byte_cap_triggers_cancel() {
+    use async_trait::async_trait;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use crate::drivers::{Chunk, DatabaseConnection, SchemaNode, StreamOutcome};
+    use crate::models::{ColumnMeta, QueryResult};
+
+    struct MockStreamConn {
+        cancel_called: Arc<AtomicBool>,
+        payload_size: usize,
+        total_rows: usize,
+    }
+
+    #[async_trait]
+    impl DatabaseConnection for MockStreamConn {
+        async fn test_connection(&self) -> Result<u64, crate::error::AppError> {
+            Ok(1)
+        }
+        async fn execute_query(&self, _sql: &str) -> Result<QueryResult, crate::error::AppError> {
+            Ok(QueryResult::empty())
+        }
+        async fn fetch_table_data(
+            &self,
+            _schema: Option<&str>,
+            _table: &str,
+            _limit: u32,
+            _offset: u32,
+            _filter: Option<&str>,
+            _sort_col: Option<&str>,
+            _sort_dir: Option<&str>,
+        ) -> Result<QueryResult, crate::error::AppError> {
+            Ok(QueryResult::empty())
+        }
+        async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, crate::error::AppError> {
+            Ok(vec![])
+        }
+        async fn commit(&self) -> Result<(), crate::error::AppError> {
+            Ok(())
+        }
+        async fn rollback(&self) -> Result<(), crate::error::AppError> {
+            Ok(())
+        }
+        async fn cancel(&self) -> Result<(), crate::error::AppError> {
+            self.cancel_called.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+        async fn stream_query(
+            &self,
+            _sql: &str,
+            _chunk_rows: usize,
+            tx: tokio::sync::mpsc::Sender<Chunk>,
+        ) -> Result<StreamOutcome, crate::error::AppError> {
+            let cols = Arc::new(vec![
+                ColumnMeta::new("id", "INTEGER", false),
+                ColumnMeta::new("data", "TEXT", false),
+            ]);
+            let mut sent = 0u64;
+            for chunk_start in (0..self.total_rows).step_by(50) {
+                let chunk_end = (chunk_start + 50).min(self.total_rows);
+                let rows = (chunk_start..chunk_end)
+                    .map(|i| {
+                        vec![
+                            CellValue::Integer(i as i64),
+                            CellValue::Text("x".repeat(self.payload_size)),
+                        ]
+                    })
+                    .collect::<Vec<_>>();
+                let count = rows.len() as u64;
+                if tx.send(Chunk { columns: cols.clone(), rows }).await.is_err() {
+                    return Ok(StreamOutcome {
+                        rows_sent: sent,
+                        stopped_early: true,
+                    });
+                }
+                sent += count;
+            }
+            Ok(StreamOutcome {
+                rows_sent: sent,
+                stopped_early: false,
+            })
+        }
+    }
+
+    // 1. Row cap test
+    let cancel_row = Arc::new(AtomicBool::new(false));
+    let conn_row = MockStreamConn {
+        cancel_called: cancel_row.clone(),
+        payload_size: 10,
+        total_rows: 1000,
+    };
+    let res_row = execute_query_with_cap(&conn_row, "SELECT * FROM big_table", 120, 64 * 1024 * 1024)
+        .await
+        .expect("row cap query");
+    assert_eq!(res_row.rows.len(), 120);
+    assert_eq!(res_row.truncated, Some(true));
+    assert_eq!(res_row.truncation_reason.as_deref(), Some("RowCapReached"));
+    assert!(cancel_row.load(Ordering::SeqCst), "cancel() must be called when row cap is reached");
+
+    // 2. Byte cap test
+    let cancel_byte = Arc::new(AtomicBool::new(false));
+    let conn_byte = MockStreamConn {
+        cancel_called: cancel_byte.clone(),
+        payload_size: 1024,
+        total_rows: 100,
+    };
+    let res_byte = execute_query_with_cap(&conn_byte, "SELECT * FROM blob_table", 10_000, 3000)
+        .await
+        .expect("byte cap query");
+    assert_eq!(res_byte.truncated, Some(true));
+    assert_eq!(res_byte.truncation_reason.as_deref(), Some("ByteCapReached"));
+    assert!(res_byte.rows.len() <= 3);
+    assert!(cancel_byte.load(Ordering::SeqCst), "cancel() must be called when byte cap is reached");
+}
+
+#[tokio::test]
+async fn test_keyset_pagination_and_exact_count_sqlite() {
+    let dir = tempdir().expect("tempdir");
+    let db_path = dir.path().join("keyset_test.db");
+    let store = ConnectionStore::new(dir.path().join("connections.json"));
+    let session_mgr = SessionManager::new();
+
+    let config = ConnectionConfig {
+        id: "conn-ks".to_string(),
+        name: "Keyset SQLite".to_string(),
+        driver: DatabaseDriver::Sqlite,
+        host: None,
+        port: None,
+        database: db_path.to_string_lossy().to_string(),
+        user: None,
+        folder: None,
+        ssl_mode: None,
+        ssl_certs: None,
+        ssh_tunnel: None,
+        timeout_seconds: None,
+        auto_reconnect: None,
+        environment: None,
+        read_only: None,
+    };
+    save_connection_impl(&store, &config, None).expect("save config");
+    open_session_impl(&store, &session_mgr, "conn-ks", "tab-ks")
+        .await
+        .expect("open session");
+
+    execute_query_impl(
+        &session_mgr,
+        "tab-ks",
+        "CREATE TABLE items (grp TEXT, id INTEGER, label TEXT, PRIMARY KEY (grp, id));",
+    )
+    .await
+    .expect("create table");
+
+    for i in 1..=12 {
+        let grp = if i <= 6 { "A" } else { "B" };
+        execute_query_impl(
+            &session_mgr,
+            "tab-ks",
+            &format!("INSERT INTO items (grp, id, label) VALUES ('{}', {}, 'item-{}');", grp, i, i),
+        )
+        .await
+        .expect("insert");
+    }
+
+    // 1. Exact count
+    let exact = count_table_rows_impl(&session_mgr, "tab-ks", None, "items", None, Some("sqlite"))
+        .await
+        .expect("count_table_rows");
+    assert_eq!(exact, 12);
+
+    // 2. Keyset page 1 (limit 5)
+    let key_cols = vec!["grp".to_string(), "id".to_string()];
+    let p1 = fetch_table_data_keyset_impl(
+        &session_mgr,
+        "tab-ks",
+        None,
+        "items",
+        5,
+        None,
+        key_cols.clone(),
+        None,
+        Some("next"),
+        Some("ASC"),
+        Some("sqlite"),
+    )
+    .await
+    .expect("page 1");
+    assert_eq!(p1.rows.len(), 5);
+    assert_eq!(p1.has_more, Some(true));
+    assert_eq!(p1.rows[0][1], CellValue::Integer(1));
+    assert_eq!(p1.rows[4][1], CellValue::Integer(5));
+
+    // 3. Keyset page 2 (next)
+    let p2 = fetch_table_data_keyset_impl(
+        &session_mgr,
+        "tab-ks",
+        None,
+        "items",
+        5,
+        None,
+        key_cols.clone(),
+        p1.next_cursor.clone(),
+        Some("next"),
+        Some("ASC"),
+        Some("sqlite"),
+    )
+    .await
+    .expect("page 2");
+    assert_eq!(p2.rows.len(), 5);
+    assert_eq!(p2.has_more, Some(true));
+    assert_eq!(p2.rows[0][1], CellValue::Integer(6));
+    assert_eq!(p2.rows[4][1], CellValue::Integer(10));
+
+    // 4. Keyset prev from page 2's first row -> should return rows 1..5 in ASC order
+    let p2_first_cursor = vec![p2.rows[0][0].clone(), p2.rows[0][1].clone()];
+    let p1_back = fetch_table_data_keyset_impl(
+        &session_mgr,
+        "tab-ks",
+        None,
+        "items",
+        5,
+        None,
+        key_cols,
+        Some(p2_first_cursor),
+        Some("prev"),
+        Some("ASC"),
+        Some("sqlite"),
+    )
+    .await
+    .expect("prev to page 1");
+    assert_eq!(p1_back.rows.len(), 5);
+    assert_eq!(p1_back.rows[0][1], CellValue::Integer(1));
+    assert_eq!(p1_back.rows[4][1], CellValue::Integer(5));
+
+    // 5. Fallback when key_columns is empty
+    let fallback = fetch_table_data_keyset_impl(
+        &session_mgr,
+        "tab-ks",
+        None,
+        "items",
+        4,
+        None,
+        vec![],
+        None,
+        None,
+        None,
+        Some("sqlite"),
+    )
+    .await
+    .expect("fallback");
+    assert_eq!(fallback.rows.len(), 4);
+}

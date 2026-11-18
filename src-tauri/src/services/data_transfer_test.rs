@@ -61,18 +61,18 @@ fn test_parse_ndjson_preview() {
 
 #[test]
 fn test_export_query_result_to_csv() {
-    let query_result = QueryResult {
-        columns: vec![
+    let query_result = QueryResult::new(
+        vec![
             ColumnMeta::new("id", "INTEGER", false),
             ColumnMeta::new("name", "TEXT", true),
         ],
-        rows: vec![
+        vec![
             vec![CellValue::Integer(1), CellValue::Text("Alice".to_string())],
             vec![CellValue::Integer(2), CellValue::Null],
         ],
-        execution_time_ms: 10,
-        rows_affected: None,
-    };
+        10,
+        None,
+    );
 
     let mut buf = Vec::new();
     let options = ExportOptions {
@@ -95,17 +95,17 @@ fn test_export_query_result_to_csv() {
 
 #[test]
 fn test_export_query_result_to_json_array() {
-    let query_result = QueryResult {
-        columns: vec![
+    let query_result = QueryResult::new(
+        vec![
             ColumnMeta::new("id", "INTEGER", false),
             ColumnMeta::new("name", "TEXT", true),
         ],
-        rows: vec![
+        vec![
             vec![CellValue::Integer(1), CellValue::Text("Alice".to_string())],
         ],
-        execution_time_ms: 5,
-        rows_affected: None,
-    };
+        5,
+        None,
+    );
 
     let mut buf = Vec::new();
     let options = ExportOptions {
@@ -167,17 +167,17 @@ async fn test_streaming_export_data_impl_across_multiple_batches() {
 fn test_export_cancellation() {
     use crate::services::data_transfer::{register_cancellation_token, trigger_cancellation};
 
-    let query_result = QueryResult {
-        columns: vec![
+    let query_result = QueryResult::new(
+        vec![
             ColumnMeta::new("id", "INTEGER", false),
             ColumnMeta::new("name", "TEXT", true),
         ],
-        rows: (0..500)
+        (0..500)
             .map(|i| vec![CellValue::Integer(i), CellValue::Text(format!("User {}", i))])
             .collect(),
-        execution_time_ms: 5,
-        rows_affected: None,
-    };
+        5,
+        None,
+    );
 
     let job_id = "test-export-cancel-job";
     register_cancellation_token(job_id);

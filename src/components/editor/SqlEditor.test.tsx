@@ -1125,4 +1125,66 @@ describe('SqlEditor', () => {
       }
     });
   });
+
+  describe('Driver-aware Safe Limit (Issue #166)', () => {
+    it('does not append LIMIT when connection driver is mssql', async () => {
+      useConnectionStore.setState({
+        connections: [{ id: 'conn-mssql', name: 'MSSQL Conn', driver: 'mssql', database: 'master' }],
+        activeConnectionId: 'conn-mssql',
+        connectedConnectionIds: ['conn-mssql'],
+      });
+      useTabStore.setState({
+        tabs: [
+          {
+            id: 'tab-mssql',
+            title: 'MSSQL Tab',
+            type: 'query',
+            connectionId: 'conn-mssql',
+            queryContent: 'SELECT * FROM users;',
+            autoCommit: true,
+          },
+        ],
+        activeTabId: 'tab-mssql',
+      });
+
+      render(<SqlEditor tabId="tab-mssql" />);
+      const runBtn = screen.getByRole('button', { name: /run/i });
+      await act(async () => {
+        fireEvent.click(runBtn);
+      });
+
+      await waitFor(() => {
+        expect(dbApi.executeQuery).toHaveBeenCalledWith('tab-mssql', 'SELECT * FROM users;');
+      });
+    });
+
+    it('inserts newline before LIMIT when query ends with a single-line comment', async () => {
+      useTabStore.setState({
+        tabs: [
+          {
+            id: 'tab-comment-limit',
+            title: 'Comment Limit Tab',
+            type: 'query',
+            connectionId: 'conn-1',
+            queryContent: 'SELECT * FROM users -- all users',
+            autoCommit: true,
+          },
+        ],
+        activeTabId: 'tab-comment-limit',
+      });
+
+      render(<SqlEditor tabId="tab-comment-limit" />);
+      const runBtn = screen.getByRole('button', { name: /run/i });
+      await act(async () => {
+        fireEvent.click(runBtn);
+      });
+
+      await waitFor(() => {
+        expect(dbApi.executeQuery).toHaveBeenCalledWith(
+          'tab-comment-limit',
+          'SELECT * FROM users -- all users\nLIMIT 1000;'
+        );
+      });
+    });
+  });
 });

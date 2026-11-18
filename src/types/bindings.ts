@@ -137,6 +137,12 @@ export type QueryResult_Deserialize = {
 	rows: CellValue[][],
 	execution_time_ms: number,
 	rows_affected?: number | null,
+	truncated?: boolean | null,
+	truncation_reason?: string | null,
+	truncated_bytes?: number | null,
+	is_approximate_count?: boolean | null,
+	next_cursor?: CellValue[] | null,
+	has_more?: boolean | null,
 };
 
 /**  Unified query result payload returned from Rust backend to frontend. */
@@ -145,6 +151,12 @@ export type QueryResult_Serialize = {
 	rows: CellValue[][],
 	execution_time_ms: number,
 	rows_affected: number | null,
+	truncated?: boolean,
+	truncation_reason?: string,
+	truncated_bytes?: number,
+	is_approximate_count?: boolean,
+	next_cursor?: CellValue[],
+	has_more?: boolean,
 };
 
 export type SshTunnelConfig = SshTunnelConfig_Serialize | SshTunnelConfig_Deserialize;

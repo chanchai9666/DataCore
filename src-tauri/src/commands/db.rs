@@ -1,9 +1,101 @@
 use tauri::State;
-use crate::drivers::SchemaNode;
+use crate::drivers::{
+    build_keyset_clause, build_safe_where_clause, quote_keyset_table_ref, Chunk, DatabaseConnection,
+    KeysetDirection, SchemaNode,
+};
 use crate::error::AppError;
-use crate::models::{ConnectionConfig, DatabaseDriver, ImpactSimulationResult, QueryResult, WorkspaceState};
+use crate::models::{
+    CellValue, ColumnMeta, ConnectionConfig, DatabaseDriver, ImpactSimulationResult, QueryResult,
+    WorkspaceState,
+};
 use crate::services::{AuditLogEntryInput, AuditLogger, ConnectionStore, WorkspaceStore};
 use crate::session::SessionManager;
+
+pub const DEFAULT_QUERY_ROW_CAP: usize = 10_000;
+pub const DEFAULT_QUERY_BYTE_CAP: usize = 64 * 1024 * 1024;
+pub const STREAM_CHUNK_ROWS: usize = 500;
+
+fn estimate_cell_bytes(cell: &CellValue) -> usize {
+    match cell {
+        CellValue::Null | CellValue::Boolean(_) => 8,
+        CellValue::Integer(_) | CellValue::Float(_) => 16,
+        CellValue::Text(s) => 24 + s.len(),
+        CellValue::Bytes(b) => 24 + b.len(),
+        CellValue::Json(v) => 32 + v.to_string().len(),
+    }
+}
+
+fn is_streaming_read_query(sql: &str) -> bool {
+    let cleaned = strip_sql_comments_and_whitespace(sql);
+    let first_word = cleaned
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_ascii_uppercase();
+    matches!(
+        first_word.as_str(),
+        "SELECT" | "WITH" | "SHOW" | "PRAGMA" | "EXPLAIN" | "DESCRIBE" | "DESC" | "VALUES"
+    )
+}
+
+/// Executes a read query using `stream_query` while enforcing hard row and byte caps.
+/// When a cap is reached, drops the receiver channel and calls `conn.cancel().await`
+/// so the connection is clean for subsequent queries.
+pub async fn execute_query_with_cap(
+    conn: &dyn DatabaseConnection,
+    sql: &str,
+    row_cap: usize,
+    byte_cap: usize,
+) -> Result<QueryResult, AppError> {
+    let start = std::time::Instant::now();
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Chunk>(8);
+
+    let stream_fut = conn.stream_query(sql, STREAM_CHUNK_ROWS, tx);
+    let collect_fut = async {
+        let mut columns: Vec<ColumnMeta> = Vec::new();
+        let mut rows: Vec<Vec<CellValue>> = Vec::new();
+        let mut total_bytes: usize = 0;
+        let mut truncation_reason: Option<String> = None;
+
+        while let Some(chunk) = rx.recv().await {
+            if columns.is_empty() && !chunk.columns.is_empty() {
+                columns = (*chunk.columns).clone();
+            }
+            for row in chunk.rows {
+                if rows.len() >= row_cap {
+                    truncation_reason = Some("RowCapReached".to_string());
+                    break;
+                }
+                let row_bytes: usize = row.iter().map(estimate_cell_bytes).sum();
+                if !rows.is_empty() && total_bytes.saturating_add(row_bytes) > byte_cap {
+                    truncation_reason = Some("ByteCapReached".to_string());
+                    break;
+                }
+                total_bytes = total_bytes.saturating_add(row_bytes);
+                rows.push(row);
+            }
+            if truncation_reason.is_some() {
+                drop(rx);
+                break;
+            }
+        }
+        (columns, rows, total_bytes, truncation_reason)
+    };
+
+    let (stream_res, (columns, rows, total_bytes, truncation_reason)) =
+        tokio::join!(stream_fut, collect_fut);
+
+    let elapsed = start.elapsed().as_millis() as u64;
+
+    if let Some(reason) = truncation_reason {
+        let _ = conn.cancel().await;
+        return Ok(QueryResult::new(columns, rows, elapsed, None)
+            .with_truncation(reason, total_bytes as u64));
+    }
+
+    stream_res?;
+    Ok(QueryResult::new(columns, rows, elapsed, None))
+}
 
 // ============================================================================
 // Core Implementations (Callable by unit tests and commands alike)
@@ -185,7 +277,11 @@ pub async fn execute_query_impl(
     };
 
     let start = std::time::Instant::now();
-    let res = conn.execute_query(sql).await;
+    let res = if is_streaming_read_query(sql) {
+        execute_query_with_cap(&*conn, sql, DEFAULT_QUERY_ROW_CAP, DEFAULT_QUERY_BYTE_CAP).await
+    } else {
+        conn.execute_query(sql).await
+    };
     let elapsed = start.elapsed().as_millis() as u64;
 
     let trimmed = sql.trim().to_uppercase();
@@ -234,6 +330,119 @@ pub async fn fetch_table_data_impl(
 ) -> Result<QueryResult, AppError> {
     let conn = session_mgr.get_session(tab_id).await?;
     conn.fetch_table_data(schema, table, limit, offset, filter, sort_col, sort_dir).await
+}
+
+pub async fn count_table_rows_impl(
+    session_mgr: &SessionManager,
+    tab_id: &str,
+    schema: Option<&str>,
+    table: &str,
+    filter: Option<&str>,
+    driver: Option<&str>,
+) -> Result<u64, AppError> {
+    let conn = session_mgr.get_session(tab_id).await?;
+    let drv = driver.unwrap_or("postgres");
+    let from_clause = quote_keyset_table_ref(schema, table, drv);
+    let where_clause = build_safe_where_clause(filter, drv)?;
+    let count_sql = format!("SELECT COUNT(*) FROM {}{};", from_clause, where_clause);
+    let res = conn.execute_query(&count_sql).await?;
+    let count = res
+        .rows
+        .first()
+        .and_then(|r| r.first())
+        .and_then(|v| v.as_i64())
+        .map(|n| n.max(0) as u64)
+        .unwrap_or(0);
+    Ok(count)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn fetch_table_data_keyset_impl(
+    session_mgr: &SessionManager,
+    tab_id: &str,
+    schema: Option<&str>,
+    table: &str,
+    limit: u32,
+    filter: Option<&str>,
+    key_columns: Vec<String>,
+    cursor_values: Option<Vec<CellValue>>,
+    direction: Option<&str>,
+    sort_dir: Option<&str>,
+    driver: Option<&str>,
+) -> Result<QueryResult, AppError> {
+    let conn = session_mgr.get_session(tab_id).await?;
+    if key_columns.is_empty() {
+        return conn
+            .fetch_table_data(schema, table, limit, 0, filter, None, sort_dir)
+            .await;
+    }
+
+    let drv = driver.unwrap_or("postgres");
+    let from_clause = quote_keyset_table_ref(schema, table, drv);
+    let base_where = build_safe_where_clause(filter, drv)?;
+    let dir = KeysetDirection::from_str_opt(direction);
+    let (keyset_pred, order_clause, needs_reverse) = build_keyset_clause(
+        &key_columns,
+        cursor_values.as_deref(),
+        dir,
+        sort_dir.unwrap_or("ASC"),
+        drv,
+    )?;
+
+    let combined_where = match (base_where.is_empty(), keyset_pred) {
+        (true, None) => String::new(),
+        (true, Some(pred)) => format!(" WHERE {}", pred),
+        (false, None) => base_where,
+        (false, Some(pred)) => {
+            let inner = base_where.strip_prefix(" WHERE ").unwrap_or(&base_where);
+            format!(" WHERE ({}) AND ({})", inner, pred)
+        }
+    };
+
+    let fetch_limit = limit.saturating_add(1);
+    let sql = if drv == "mssql" {
+        format!(
+            "SELECT TOP {} * FROM {}{}{};",
+            fetch_limit, from_clause, combined_where, order_clause
+        )
+    } else {
+        format!(
+            "SELECT * FROM {}{}{} LIMIT {};",
+            from_clause, combined_where, order_clause, fetch_limit
+        )
+    };
+
+    let mut res = conn.execute_query(&sql).await?;
+    let has_more = res.rows.len() > limit as usize;
+    if has_more {
+        res.rows.truncate(limit as usize);
+    }
+    if needs_reverse {
+        res.rows.reverse();
+    }
+
+    let next_cursor = if let Some(last_row) = res.rows.last() {
+        let mut vals = Vec::with_capacity(key_columns.len());
+        let mut all_found = true;
+        for key_col in &key_columns {
+            if let Some(idx) = res.columns.iter().position(|c| c.name == *key_col) {
+                if let Some(val) = last_row.get(idx) {
+                    vals.push(val.clone());
+                } else {
+                    all_found = false;
+                    break;
+                }
+            } else {
+                all_found = false;
+                break;
+            }
+        }
+        if all_found { Some(vals) } else { None }
+    } else {
+        None
+    };
+
+    Ok(res.with_keyset_cursor(next_cursor, has_more))
 }
 
 pub async fn cancel_query_impl(
@@ -700,6 +909,59 @@ pub async fn fetch_table_data(
         filter.as_deref(),
         sort_col.as_deref(),
         sort_dir.as_deref(),
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn count_table_rows(
+    session_mgr: State<'_, SessionManager>,
+    tab_id: String,
+    schema: Option<String>,
+    table: String,
+    filter: Option<String>,
+    driver: Option<String>,
+) -> Result<u64, String> {
+    count_table_rows_impl(
+        &session_mgr,
+        &tab_id,
+        schema.as_deref(),
+        &table,
+        filter.as_deref(),
+        driver.as_deref(),
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn fetch_table_data_keyset(
+    session_mgr: State<'_, SessionManager>,
+    tab_id: String,
+    schema: Option<String>,
+    table: String,
+    limit: u32,
+    filter: Option<String>,
+    key_columns: Vec<String>,
+    cursor_values: Option<Vec<CellValue>>,
+    direction: Option<String>,
+    sort_dir: Option<String>,
+    driver: Option<String>,
+) -> Result<QueryResult, String> {
+    fetch_table_data_keyset_impl(
+        &session_mgr,
+        &tab_id,
+        schema.as_deref(),
+        &table,
+        limit,
+        filter.as_deref(),
+        key_columns,
+        cursor_values,
+        direction.as_deref(),
+        sort_dir.as_deref(),
+        driver.as_deref(),
     )
     .await
     .map_err(|e| e.to_string())
