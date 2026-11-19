@@ -951,6 +951,10 @@
     - **Overlay Editor Portal Mount:** เพิ่ม `<div id="portal" style="position: fixed; left: 0; top: 0; z-index: 9999;"></div>` ใน `index.html` เพื่อให้ `@glideapps/glide-data-grid` สามารถ mount กล่องแก้ไขในเซลล์ (`DataGridOverlayEditor`) ได้เมื่อเปิดโหมดแก้ไขเร็ว
     - **WKWebView Text Selection:** เพิ่มกฎ `#portal input, #portal textarea { user-select: text; -webkit-user-select: text; }` ใน `src/index.css` เพื่อไม่ให้ `user-select: none` บน `body` ขัดขวางการเลือกข้อความในกล่องแก้ไข
 
+47. **Issue #188: Warning Confirmation Dialogs for Fast Edit Mode & Commit (`DataGrid.tsx`, `en.json`, `th.json`)**
+    - **Confirm Before Enabling Fast Edit Mode:** แสดง Confirm Dialog ระดับ `warning` พร้อมคำเตือนทุกครั้งก่อนเปิดใช้งานโหมดแก้ไขเร็ว (ทั้ง EN/TH) หากผู้ใช้กดยกเลิกจะไม่เปิดโหมดแก้ไขเร็ว
+    - **Confirm Before Commit:** แสดง Confirm Dialog ระดับ `warning` พร้อมจำนวนรายการที่รอ Commit และคำเตือนก่อนบันทึกลงฐานข้อมูลจริง ทั้งเมื่อกดปุ่ม **Commit** และกดคีย์ลัด `Cmd+S` / `Ctrl+S`
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)

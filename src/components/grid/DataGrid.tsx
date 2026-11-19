@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import DataEditor, {
   GridCell,
   Item,
@@ -142,6 +143,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
   onNavigateToRecord,
   onPeekForeignKey,
 }) => {
+  const { t } = useTranslation();
   const connection = useConnectionStore((state) =>
     connectionId ? state.connections.find((c) => c.id === connectionId) : undefined
   );
@@ -670,13 +672,26 @@ export const DataGrid: React.FC<DataGridProps> = ({
     }
   }, [hasSelectedRows, selectedRowIndices, selectedCell, onRowsDelete, onRowDelete]);
 
-  const handleToggleFastEdit = useCallback(() => {
+  const handleToggleFastEdit = useCallback(async () => {
     if (!connectionId || effectiveReadOnly || !effectiveIsEditable) return;
+    if (!activeIsFastEdit) {
+      const confirmed = await showConfirmDialog(
+        t(
+          'grid.fastEditConfirmMessage',
+          'Warning: Fast Edit Mode allows direct inline editing and Excel-style multi-cell paste in the table. Auto-Commit will be disabled, so you must manually Commit (or press Cmd+S / Ctrl+S) to save changes to the database. Enable Fast Edit Mode?'
+        ),
+        {
+          title: t('grid.fastEditConfirmTitle', 'Enable Fast Edit Mode'),
+          kind: 'warning',
+        }
+      );
+      if (!confirmed) return;
+    }
     const nextEnabled = useFastEditStore.getState().toggleFastEdit(connectionId);
     if (nextEnabled) {
       usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
     }
-  }, [connectionId, effectiveReadOnly, effectiveIsEditable, tableKey]);
+  }, [connectionId, effectiveReadOnly, effectiveIsEditable, activeIsFastEdit, tableKey, t]);
 
   const handleToggleAutoCommit = useCallback(async () => {
     if (activeIsFastEdit) return;
@@ -699,7 +714,20 @@ export const DataGrid: React.FC<DataGridProps> = ({
     }
   }, [onToggleAutoCommitProp, activeIsAutoCommit, hasPending, tableKey]);
 
-  const handleCommitChanges = () => {
+  const handleCommitChanges = async () => {
+    if (hasPending) {
+      const confirmed = await showConfirmDialog(
+        t('grid.commitConfirmMessage', {
+          count: pendingCount,
+          defaultValue: `Warning: You are about to commit ${pendingCount} pending change(s) to the database. This action will modify real database records. Do you want to proceed?`,
+        }),
+        {
+          title: t('grid.commitConfirmTitle', 'Confirm Commit Changes'),
+          kind: 'warning',
+        }
+      );
+      if (!confirmed) return;
+    }
     if (onCommitChanges) {
       onCommitChanges(tableKey);
     } else {

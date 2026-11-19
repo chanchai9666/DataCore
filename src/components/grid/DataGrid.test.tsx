@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { DataGrid } from './DataGrid';
 import { CellDetailDrawer } from './CellDetailDrawer';
 import { createGridColumns, createCellContent } from './gridUtils';
@@ -1260,11 +1260,18 @@ describe('DataGrid', () => {
       expect(latestDataEditorProps.editOnType).toBeFalsy();
       expect(latestDataEditorProps.onPaste).toBeUndefined();
 
-      // Toggle Fast Edit ON
-      const fastEditBtn = screen.getByTestId('fast-edit-toggle-btn');
-      fireEvent.click(fastEditBtn);
+      vi.mocked(tauriDialog.confirm).mockResolvedValue(true);
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
-      expect(useFastEditStore.getState().isFastEditEnabled('conn-fast-1')).toBe(true);
+      // Toggle Fast Edit ON (requires confirmation)
+      const fastEditBtn = screen.getByTestId('fast-edit-toggle-btn');
+      await act(async () => {
+        fireEvent.click(fastEditBtn);
+      });
+
+      await waitFor(() => {
+        expect(useFastEditStore.getState().isFastEditEnabled('conn-fast-1')).toBe(true);
+      });
       expect(latestDataEditorProps.editOnType).toBe(true);
       expect(typeof latestDataEditorProps.onPaste).toBe('function');
 
@@ -1307,12 +1314,93 @@ describe('DataGrid', () => {
       expect(changes.addedRows).toHaveLength(1);
       expect(changes.addedRows[0]).toEqual({ name: 'Charlie', amount: 300 });
 
-      // Cmd+S triggers onCommitChanges
+      // Cmd+S triggers confirmation and then onCommitChanges
       const container = screen.getByTestId('data-grid-container');
-      fireEvent.keyDown(container, { key: 's', metaKey: true });
-      expect(onCommitChanges).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        fireEvent.keyDown(container, { key: 's', metaKey: true });
+      });
+      await waitFor(() => {
+        expect(onCommitChanges).toHaveBeenCalledTimes(1);
+      });
+
+      confirmSpy.mockRestore();
 
       // Cleanup
+      localStorage.clear();
+      useFastEditStore.getState().reset();
+      usePendingChangesStore.getState().clearAll();
+    });
+
+    it('requires warning confirmation before enabling Fast Edit Mode and before Commit (Issue #188)', async () => {
+      const { useFastEditStore } = await import('../../stores/fastEditStore');
+      const { usePendingChangesStore } = await import('../../stores/pendingChangesStore');
+      localStorage.clear();
+      useFastEditStore.getState().reset();
+      usePendingChangesStore.getState().clearAll();
+
+      const onCommitChanges = vi.fn().mockResolvedValue(undefined);
+      render(
+        <DataGrid
+          data={mockQueryResult}
+          connectionId="conn-confirm-1"
+          tableName="users"
+          isEditable={true}
+          onCommitChanges={onCommitChanges}
+        />
+      );
+
+      // 1. Cancel Fast Edit confirmation -> stays OFF
+      vi.mocked(tauriDialog.confirm).mockResolvedValueOnce(false);
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('fast-edit-toggle-btn'));
+      });
+      expect(useFastEditStore.getState().isFastEditEnabled('conn-confirm-1')).toBe(false);
+
+      // 2. Confirm Fast Edit -> turns ON
+      vi.mocked(tauriDialog.confirm).mockResolvedValueOnce(true);
+      confirmSpy.mockReturnValueOnce(true);
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('fast-edit-toggle-btn'));
+      });
+      await waitFor(() => {
+        expect(useFastEditStore.getState().isFastEditEnabled('conn-confirm-1')).toBe(true);
+      });
+
+      // Stage a change
+      act(() => {
+        usePendingChangesStore.getState().stageCellEdit('conn-confirm-1.users', {
+          rowIndex: 0,
+          colIndex: 1,
+          colName: 'name',
+          oldValue: 'Alice',
+          newValue: 'Alicia',
+        });
+      });
+
+      // 3. Cancel Commit confirmation -> onCommitChanges NOT called
+      vi.mocked(tauriDialog.confirm).mockResolvedValueOnce(false);
+      confirmSpy.mockReturnValueOnce(false);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /commit changes/i }));
+      });
+      expect(onCommitChanges).not.toHaveBeenCalled();
+
+      // 4. Confirm Commit -> onCommitChanges IS called
+      vi.mocked(tauriDialog.confirm).mockResolvedValueOnce(true);
+      confirmSpy.mockReturnValueOnce(true);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /commit changes/i }));
+      });
+      await waitFor(() => {
+        expect(onCommitChanges).toHaveBeenCalledTimes(1);
+      });
+
+      confirmSpy.mockRestore();
       localStorage.clear();
       useFastEditStore.getState().reset();
       usePendingChangesStore.getState().clearAll();

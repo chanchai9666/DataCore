@@ -642,7 +642,9 @@ describe('DockLayout', () => {
     expect(commitBtn).not.toBeDisabled();
     expect(commitBtn).toHaveTextContent('Commit (1)');
 
-    // Click commit
+    // Click commit (confirm warning dialog)
+    vi.mocked(tauriDialog.confirm).mockResolvedValueOnce(true);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(commitBtn);
 
     await waitFor(() => {
@@ -652,6 +654,7 @@ describe('DockLayout', () => {
       );
       expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(false);
     });
+    confirmSpy.mockRestore();
   });
 
   it('stages cell edit in pendingChangesStore without executing SQL UPDATE when in Staging mode', async () => {
