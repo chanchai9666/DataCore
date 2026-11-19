@@ -678,5 +678,47 @@ describe('tableManagementHelpers', () => {
       expect(parsed[0].definition).toBe('price > 0');
       expect(parsed[1].type).toBe('UNIQUE');
     });
+
+    it('supports PRIMARY KEY constraints in fetch, parse, add, and drop', () => {
+      expect(getFetchConstraintsSql('postgres', 'products', 'public')).toContain("'PRIMARY KEY'");
+      expect(getFetchConstraintsSql('mysql', 'products')).toContain("'PRIMARY KEY'");
+
+      const parsed = parseConstraintsFromQueryResult(
+        {
+          columns: [],
+          rows: [['products_pkey', 'PRIMARY KEY', null]],
+          execution_time_ms: 1,
+        },
+        'postgres'
+      );
+      expect(parsed).toEqual([{ name: 'products_pkey', type: 'PRIMARY KEY', definition: undefined }]);
+
+      const pgAdd = buildAddConstraintSql({
+        tableName: 'products',
+        schemaName: 'public',
+        driver: 'postgres',
+        name: 'pk_products',
+        type: 'PRIMARY KEY',
+        columns: ['id'],
+      });
+      expect(pgAdd).toBe('ALTER TABLE "public"."products" ADD CONSTRAINT "pk_products" PRIMARY KEY ("id");');
+
+      const mysqlAdd = buildAddConstraintSql({
+        tableName: 'products',
+        driver: 'mysql',
+        name: 'pk_products',
+        type: 'PRIMARY KEY',
+        columns: ['id', 'tenant_id'],
+      });
+      expect(mysqlAdd).toBe('ALTER TABLE `products` ADD PRIMARY KEY (`id`, `tenant_id`);');
+
+      const mysqlDrop = buildDropConstraintSql({
+        tableName: 'products',
+        driver: 'mysql',
+        name: 'PRIMARY',
+        type: 'PRIMARY KEY',
+      });
+      expect(mysqlDrop).toBe('ALTER TABLE `products` DROP PRIMARY KEY;');
+    });
   });
 });

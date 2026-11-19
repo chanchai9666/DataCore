@@ -834,4 +834,92 @@ describe('TableStructureEditor', () => {
     const retryBtn = screen.getByRole('button', { name: /retry/i });
     expect(retryBtn).toBeInTheDocument();
   });
+
+  it('allows setting Primary Key on an existing nullable column via Edit Column modal', async () => {
+    vi.mocked(dbApi.executeQuery).mockImplementation(async (_tabId, sql) => {
+      if (sql.includes('information_schema.columns')) {
+        return {
+          columns: [],
+          rows: [
+            ['id', 'integer', 'int4', 'YES', null, '1', 'NO'],
+            ['name', 'character varying', 'varchar', 'YES', null, '2', 'NO'],
+          ],
+          execution_time_ms: 1,
+        };
+      }
+      return { columns: [], rows: [], execution_time_ms: 1 };
+    });
+
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="test_data"
+        schemaName="public"
+        driver="postgres"
+        theme="light"
+      />
+    );
+
+    const editBtn = await screen.findByTestId('edit-column-btn-id');
+    fireEvent.click(editBtn);
+
+    const pkCheckbox = screen.getByTestId('edit-col-pk-checkbox') as HTMLInputElement;
+    expect(pkCheckbox.checked).toBe(false);
+    fireEvent.click(pkCheckbox);
+    expect(pkCheckbox.checked).toBe(true);
+
+    const saveBtn = screen.getByRole('button', { name: /Save Changes/i });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'ALTER TABLE "public"."test_data" ALTER COLUMN "id" SET NOT NULL;'
+      );
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'ALTER TABLE "public"."test_data" ADD CONSTRAINT "pk_test_data" PRIMARY KEY ("id");'
+      );
+    });
+  });
+
+  it('allows adding a PRIMARY KEY constraint from the Constraints tab', async () => {
+    vi.mocked(dbApi.executeQuery).mockImplementation(async (_tabId, sql) => {
+      if (sql.includes('information_schema.columns')) {
+        return {
+          columns: [],
+          rows: [['id', 'integer', 'int4', 'NO', null, '1', 'NO']],
+          execution_time_ms: 1,
+        };
+      }
+      return { columns: [], rows: [], execution_time_ms: 1 };
+    });
+
+    render(
+      <TableStructureEditor
+        tabId="tab-1"
+        connectionId="conn-1"
+        tableName="test_data"
+        schemaName="public"
+        driver="postgres"
+        theme="light"
+      />
+    );
+
+    await screen.findByText('id');
+    fireEvent.click(screen.getByTestId('tab-constraints-btn'));
+    fireEvent.click(screen.getByTestId('add-constraint-btn'));
+
+    fireEvent.click(screen.getByTestId('constraint-type-pk-radio'));
+    fireEvent.click(screen.getByTestId('constraint-col-checkbox-id'));
+    fireEvent.click(screen.getByTestId('confirm-add-constraint-btn'));
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-1',
+        'ALTER TABLE "public"."test_data" ADD CONSTRAINT "pk_test_data" PRIMARY KEY ("id");'
+      );
+    });
+  });
 });

@@ -274,8 +274,8 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div className="w-full max-w-md rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-sidebar shrink-0">
               <div className="flex items-center space-x-2">
                 <Plus className="w-4 h-4 text-emerald-500" />
                 <h3 className="text-sm font-semibold">Add New Index</h3>
@@ -289,7 +289,7 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleAddIndexSubmit} className="p-4 space-y-3.5 text-xs">
+            <form onSubmit={handleAddIndexSubmit} className="p-5 space-y-4 text-xs overflow-y-auto">
               <div>
                 <label className="block text-muted mb-1 font-medium">
                   Index Name <span className="text-red-500">*</span>
@@ -301,7 +301,7 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
                   value={newIndexName}
                   onChange={(e) => setNewIndexName(e.target.value)}
                   data-testid="new-index-name-input"
-                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full h-9 px-3 rounded border border-line bg-grid text-text font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
@@ -347,7 +347,7 @@ export const IndexesTab: React.FC<IndexesTabProps> = ({
                   value={newIndexType}
                   onChange={(e) => setNewIndexType(e.target.value as IndexType)}
                   data-testid="new-index-type-select"
-                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
+                  className="w-full h-9 px-3 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
                 >
                   <option value="BTREE">B-Tree (Balanced Tree - General Purpose)</option>
                   <option value="HASH">Hash (Hash Table - Equality lookups O(1))</option>

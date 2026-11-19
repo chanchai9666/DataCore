@@ -362,8 +362,8 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div className="w-full max-w-lg rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-sidebar shrink-0">
               <div className="flex items-center space-x-2">
                 <Link2 className="w-4 h-4 text-blue-500" />
                 <h3 className="text-sm font-semibold">Add Foreign Key to {tableName}</h3>
@@ -377,7 +377,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleAddFkSubmit} className="p-4 space-y-3.5 text-xs">
+            <form onSubmit={handleAddFkSubmit} className="p-5 space-y-4 text-xs overflow-y-auto">
               {driver?.toLowerCase().includes('sqlite') && (
                 <div data-testid="sqlite-fk-rebuild-notice" className="p-2.5 rounded bg-blue-500/10 border border-blue-500/30 text-[11px] text-blue-600 dark:text-blue-200">
                   ℹ️ <strong>SQLite Table Rebuild:</strong> SQLite does not support <code className="font-mono">ALTER TABLE ADD CONSTRAINT</code>. A safe table rebuild migration will be executed to recreate the table with the new foreign key.
@@ -391,7 +391,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                   placeholder={`fk_${tableName}_col`}
                   value={newFkName}
                   onChange={(e) => setNewFkName(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
+                  className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -405,7 +405,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                     data-testid="new-fk-col-select"
                     value={newFkCol}
                     onChange={(e) => setNewFkCol(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
+                    className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
                   >
                     <option value="">Select column...</option>
                     {columns.map((c) => (
@@ -427,7 +427,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                     placeholder="e.g. users, customers"
                     value={newFkForeignTable}
                     onChange={(e) => setNewFkForeignTable(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
+                    className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -443,7 +443,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                   placeholder="e.g. id"
                   value={newFkForeignCol}
                   onChange={(e) => setNewFkForeignCol(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
+                  className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -453,7 +453,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                   <select
                     value={newFkOnDelete}
                     onChange={(e) => setNewFkOnDelete(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs outline-none focus:border-blue-500"
+                    className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs outline-none focus:border-blue-500"
                   >
                     <option value="NO ACTION">NO ACTION</option>
                     <option value="CASCADE">CASCADE</option>
@@ -467,7 +467,7 @@ export const ForeignKeysTab: React.FC<ForeignKeysTabProps> = ({
                   <select
                     value={newFkOnUpdate}
                     onChange={(e) => setNewFkOnUpdate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs outline-none focus:border-blue-500"
+                    className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs outline-none focus:border-blue-500"
                   >
                     <option value="NO ACTION">NO ACTION</option>
                     <option value="CASCADE">CASCADE</option>

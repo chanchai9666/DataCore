@@ -658,7 +658,7 @@
     - `ColumnsTab.tsx` (จัดการคอลัมน์, เพิ่ม/แก้ไข/ลบคอลัมน์ และ quick presets)
     - `IndexesTab.tsx` (จัดการ Index: B-Tree, Hash, GIN, GiST, Full-text, Composite)
     - `ForeignKeysTab.tsx` (จัดการ Foreign Keys และ Reference Actions: CASCADE, SET NULL, NO ACTION)
-    - `ConstraintsTab.tsx` (จัดการ CHECK และ UNIQUE Constraints)
+    - `ConstraintsTab.tsx` (จัดการ PRIMARY KEY, CHECK และ UNIQUE Constraints)
     - `RlsSecurityTab.tsx` (จัดการ Row-Level Security, Enable/Disable RLS, Add/Drop Policies)
   - ย้ายฟังก์ชัน Runtime `formatCellValue` ออกจาก `src/types/db.ts` ไปไว้ใน `src/utils/cellFormatter.ts` พร้อม unit test ครอบคลุม
   - ทำความสะอาดพารามิเตอร์ IPC ใน `src/api/db.ts` ให้เป็น camelCase มาตรฐานเดียว ปราศจาก redundant aliases ตาม Tauri 2 convention
@@ -963,6 +963,16 @@
     - **`INSERT ... RETURNING *` / `OUTPUT INSERTED.*`:** เพิ่ม option `returning?: boolean` ใน `buildInsertSql` สำหรับ PostgreSQL/SQLite (`RETURNING *`) และ MSSQL (`OUTPUT INSERTED.*`) พร้อมปรับ `mssql.rs` ให้คืนแถวผลลัพธ์สำหรับคำสั่งที่มี `OUTPUT`
     - **MySQL `LAST_INSERT_ID()` Fallback:** สำหรับ MySQL จะดึงเฉพาะแถวล่าสุด 1 แถวผ่าน `LAST_INSERT_ID()` (เมื่อมีคอลัมน์ auto-increment)
     - **In-Place Row Hydration:** `handleCommitChanges` และ `handleSubmitInsertRow` ใน `DockLayout.tsx` นำแถวที่ฐานข้อมูลคืนกลับมาอัปเดตลงในตารางทันที ทำให้เห็น `id` และค่า `DEFAULT` โดยไม่ต้องโหลดข้อมูลใหม่ทั้งตาราง
+
+50. **Issue #191: Primary Key Management, Equalized Dropdown/Input Heights & Enlarged Structure Modals (`ColumnsTab.tsx`, `ConstraintsTab.tsx`, `ForeignKeysTab.tsx`, `IndexesTab.tsx`, `RlsSecurityTab.tsx`, `tableStructureHelpers.ts`, `tableManagementHelpers.ts`, `queryBuilder.ts`, `index.css`)**
+    - **Primary Key Management (Columns & Constraints):**
+      - เพิ่มตัวเลือก `Primary Key` ใน Modal **Add Column** และ **Edit Column** ของ `ColumnsTab.tsx` พร้อมบังคับปิด `Allow NULL` อัตโนมัติเมื่อเลือก PK และสร้าง SQL สำหรับ PostgreSQL (`SET NOT NULL` + `ADD/DROP CONSTRAINT PRIMARY KEY`), MySQL (`ADD/DROP PRIMARY KEY`), และ SQLite (Table Rebuild ผ่าน `buildSqliteRebuildScript`)
+      - เพิ่มชนิด `PRIMARY KEY` ใน `ConstraintsTab.tsx`, `getFetchConstraintsSql`, `parseConstraintsFromQueryResult`, `buildAddConstraintSql` และ `buildDropConstraintSql` เพื่อให้ดู เพิ่ม และลบ Primary Key Constraint (รวมถึง Composite PK) ได้โดยตรง
+    - **Additional Structure Edge Cases:**
+      - แก้ไข `parseColumnsFromQueryResult` สำหรับ SQLite ให้รองรับ Composite PK (`Number(pkVal) > 0` แทน `=== '1'`)
+      - แก้ไขการเปรียบเทียบ Data Type ใน `ColumnsTab` Edit Column ให้เป็น Case-Insensitive เพื่อไม่ให้เกิดคำสั่ง `ALTER COLUMN TYPE` โดยไม่จำเป็น (เช่น `VARCHAR` vs `varchar`)
+    - **Equalized Dropdown & Textbox Heights:** ปรับ `select:not([multiple])` ใน `src/index.css` ให้ใช้ `appearance: none` พร้อม custom SVG chevron และกำหนดความสูง `h-9` ให้ `<select>` และ `<input>` เท่ากันทุก Modal บน macOS WebKit
+    - **Enlarged Structure Modals:** ขยายขนาด Form Modals ของ `ColumnsTab`, `IndexesTab`, `ForeignKeysTab`, `ConstraintsTab`, และ `RlsSecurityTab` เป็น `max-w-2xl` พร้อม Layout ที่โปร่งและอ่าน SQL Preview ได้สะดวกขึ้น
 
 ---
 

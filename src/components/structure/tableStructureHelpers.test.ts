@@ -521,4 +521,105 @@ describe('tableStructureHelpers', () => {
       expect(enriched[0].name).toBe('fk_0_users');
     });
   });
+
+  describe('Primary Key management & SQLite composite PK parsing', () => {
+    it('parses SQLite composite primary keys where pk > 1', () => {
+      const result = {
+        columns: [],
+        rows: [
+          ['0', 'order_id', 'INTEGER', '1', null, '1'],
+          ['1', 'item_id', 'INTEGER', '1', null, '2'],
+          ['2', 'qty', 'INTEGER', '0', '1', '0'],
+        ],
+        affected_rows: 0,
+        execution_time_ms: 1,
+      };
+      const cols = parseColumnsFromQueryResult(result, 'sqlite');
+      expect(cols[0].isPrimaryKey).toBe(true);
+      expect(cols[1].isPrimaryKey).toBe(true);
+      expect(cols[2].isPrimaryKey).toBe(false);
+    });
+
+    it('builds ADD COLUMN with PRIMARY KEY for Postgres', () => {
+      const sql = buildAddColumnSql({
+        driver: 'postgres',
+        tableName: 'test_data',
+        schemaName: 'public',
+        columnName: 'id',
+        dataType: 'INTEGER',
+        isNullable: true,
+        isPrimaryKey: true,
+      });
+      expect(sql).toBe('ALTER TABLE "public"."test_data" ADD COLUMN "id" INTEGER NOT NULL PRIMARY KEY;');
+    });
+
+    it('builds MODIFY COLUMN statements to set Primary Key on Postgres nullable column', () => {
+      const stmts = buildModifyColumnSql({
+        driver: 'postgres',
+        tableName: 'test_data',
+        schemaName: 'public',
+        columnName: 'id',
+        oldDataType: 'int4',
+        oldIsNullable: true,
+        isNullable: false,
+        oldIsPrimaryKey: false,
+        isPrimaryKey: true,
+      });
+      expect(stmts).toEqual([
+        'ALTER TABLE "public"."test_data" ALTER COLUMN "id" SET NOT NULL;',
+        'ALTER TABLE "public"."test_data" ADD CONSTRAINT "pk_test_data" PRIMARY KEY ("id");',
+      ]);
+    });
+
+    it('builds MODIFY COLUMN statements to extend composite Primary Key on Postgres', () => {
+      const stmts = buildModifyColumnSql({
+        driver: 'postgres',
+        tableName: 'order_items',
+        schemaName: 'public',
+        columnName: 'item_id',
+        oldDataType: 'int4',
+        oldIsNullable: false,
+        oldIsPrimaryKey: false,
+        isPrimaryKey: true,
+        pkConstraintName: 'order_items_pkey',
+        existingPkColumns: ['order_id'],
+      });
+      expect(stmts).toEqual([
+        'ALTER TABLE "public"."order_items" DROP CONSTRAINT "order_items_pkey";',
+        'ALTER TABLE "public"."order_items" ADD CONSTRAINT "order_items_pkey" PRIMARY KEY ("order_id", "item_id");',
+      ]);
+    });
+
+    it('builds MODIFY COLUMN statements to drop Primary Key on Postgres and MySQL', () => {
+      const pgStmts = buildModifyColumnSql({
+        driver: 'postgres',
+        tableName: 'test_data',
+        schemaName: 'public',
+        columnName: 'id',
+        oldDataType: 'int4',
+        oldIsNullable: false,
+        oldIsPrimaryKey: true,
+        isPrimaryKey: false,
+        pkConstraintName: 'test_data_pkey',
+        existingPkColumns: ['id'],
+      });
+      expect(pgStmts).toEqual([
+        'ALTER TABLE "public"."test_data" DROP CONSTRAINT "test_data_pkey";',
+      ]);
+
+      const mysqlStmts = buildModifyColumnSql({
+        driver: 'mysql',
+        tableName: 'test_data',
+        columnName: 'id',
+        oldDataType: 'INT',
+        oldIsNullable: false,
+        oldIsPrimaryKey: true,
+        isPrimaryKey: false,
+        existingPkColumns: ['id'],
+      });
+      expect(mysqlStmts).toEqual([
+        'ALTER TABLE `test_data` DROP PRIMARY KEY;',
+      ]);
+    });
+  });
 });

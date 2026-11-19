@@ -362,8 +362,8 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div className="w-full max-w-lg rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-sidebar shrink-0">
               <div className="flex items-center space-x-2">
                 <Shield className="w-4 h-4 text-emerald-500" />
                 <h3 className="text-sm font-semibold">Add RLS Policy to {tableName}</h3>
@@ -377,7 +377,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleAddPolicySubmit} className="p-4 space-y-3.5 text-xs">
+            <form onSubmit={handleAddPolicySubmit} className="p-5 space-y-4 text-xs overflow-y-auto">
               <div>
                 <label className="block font-medium mb-1">
                   Policy Name <span className="text-red-500">*</span>
@@ -389,7 +389,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                   placeholder="e.g. policy_user_isolation, tenant_access"
                   value={newPolicyName}
                   onChange={(e) => setNewPolicyName(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-emerald-500"
+                  className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -399,7 +399,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                   <select
                     value={newPolicyCmd}
                     onChange={(e) => setNewPolicyCmd(e.target.value as PolicyCommand)}
-                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs outline-none focus:border-emerald-500"
+                    className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs outline-none focus:border-emerald-500"
                   >
                     <option value="ALL">ALL (SELECT, INSERT, UPDATE, DELETE)</option>
                     <option value="SELECT">SELECT</option>
@@ -416,7 +416,7 @@ export const RlsSecurityTab: React.FC<RlsSecurityTabProps> = ({
                     placeholder="PUBLIC or authenticated, anon"
                     value={newPolicyRoles}
                     onChange={(e) => setNewPolicyRoles(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-emerald-500"
+                    className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>

@@ -168,7 +168,7 @@ FROM information_schema.TABLE_CONSTRAINTS tc
 LEFT JOIN information_schema.CHECK_CONSTRAINTS cc
   ON tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME AND tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA
 WHERE tc.TABLE_NAME = '${escapedTable}' ${schemaName ? `AND tc.TABLE_SCHEMA = '${escapedSchema}'` : 'AND tc.TABLE_SCHEMA = DATABASE()'}
-  AND tc.CONSTRAINT_TYPE IN ('CHECK', 'UNIQUE')
+  AND tc.CONSTRAINT_TYPE IN ('PRIMARY KEY', 'CHECK', 'UNIQUE')
 ORDER BY tc.CONSTRAINT_NAME;`;
   }
 
@@ -181,7 +181,7 @@ FROM information_schema.table_constraints tc
 LEFT JOIN information_schema.check_constraints cc
   ON tc.constraint_name = cc.constraint_name AND tc.table_schema = cc.constraint_schema
 WHERE tc.table_name = '${escapedTable}' AND tc.table_schema = '${escapedSchema}'
-  AND tc.constraint_type IN ('CHECK', 'UNIQUE')
+  AND tc.constraint_type IN ('PRIMARY KEY', 'CHECK', 'UNIQUE')
 ORDER BY tc.constraint_name;`;
 }
 
@@ -219,6 +219,25 @@ export function parseConstraintsFromQueryResult(
       });
     }
 
+    // Parse PRIMARY KEY constraint from SQLite DDL if present
+    const pkTableMatch = ddl.match(/(?:CONSTRAINT\s+["`]?(\w+)["`]?\s+)?PRIMARY\s+KEY\s*\(([^)]+)\)/i);
+    if (pkTableMatch) {
+      constraints.push({
+        name: pkTableMatch[1] || 'PRIMARY',
+        type: 'PRIMARY KEY',
+        definition: pkTableMatch[2]?.trim(),
+      });
+    } else {
+      const inlinePkMatch = ddl.match(/["`]?(\w+)["`]?\s+\w+[^,]*\bPRIMARY\s+KEY\b/i);
+      if (inlinePkMatch) {
+        constraints.push({
+          name: 'PRIMARY',
+          type: 'PRIMARY KEY',
+          definition: inlinePkMatch[1],
+        });
+      }
+    }
+
     return constraints;
   }
 
@@ -228,7 +247,11 @@ export function parseConstraintsFromQueryResult(
     const rawType = (getStr(row[1]) || '').toUpperCase();
     const checkClause = getStr(row[2]) || undefined;
 
-    const type: 'CHECK' | 'UNIQUE' = rawType.includes('CHECK') ? 'CHECK' : 'UNIQUE';
+    const type: 'CHECK' | 'UNIQUE' | 'PRIMARY KEY' = rawType.includes('PRIMARY')
+      ? 'PRIMARY KEY'
+      : rawType.includes('CHECK')
+      ? 'CHECK'
+      : 'UNIQUE';
 
     return {
       name,

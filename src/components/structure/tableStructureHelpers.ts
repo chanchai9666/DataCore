@@ -1,6 +1,12 @@
 import { QueryResult, CellValue, ColumnMeta } from '../../types/db';
 import { formatCellValue } from '../../utils/cellFormatter';
-import type { TableForeignKeyStructure } from '../../api/queryBuilder';
+import {
+  buildSqliteCreateTableFromColumns,
+  buildSqliteRebuildScript,
+  type TableForeignKeyStructure,
+  type TableIndexStructure,
+  type TableTriggerDef,
+} from '../../api/queryBuilder';
 
 export interface TableColumnStructure {
   name: string;
@@ -24,6 +30,7 @@ export interface AddColumnParams {
   dataType: string;
   isNullable: boolean;
   defaultValue?: string;
+  isPrimaryKey?: boolean;
 }
 
 export interface DropColumnParams {
@@ -52,6 +59,13 @@ export interface ModifyColumnParams {
   oldIsNullable?: boolean;
   defaultValue?: string;
   oldDefaultValue?: string | null;
+  isPrimaryKey?: boolean;
+  oldIsPrimaryKey?: boolean;
+  pkConstraintName?: string;
+  existingPkColumns?: string[];
+  existingColumns?: TableColumnStructure[];
+  existingIndexes?: TableIndexStructure[];
+  existingTriggers?: TableTriggerDef[];
 }
 
 export interface DataTypeSpec {
@@ -311,7 +325,7 @@ export function parseColumnsFromQueryResult(
       const isNullable = notNullVal !== '1';
       const defaultValue = getStr(row[4]);
       const pkVal = getStr(row[5]);
-      const isPrimaryKey = pkVal === '1';
+      const isPrimaryKey = pkVal !== null && Number(pkVal) > 0;
       const cid = Number(getStr(row[0]) || 0);
 
       return {
@@ -532,6 +546,7 @@ export function buildAddColumnSql({
   dataType,
   isNullable,
   defaultValue,
+  isPrimaryKey,
 }: AddColumnParams): string {
   const tableRef = getTableRef(tableName, schemaName, driver);
   const qCol = quoteIdentifier(columnName, driver);
@@ -540,8 +555,11 @@ export function buildAddColumnSql({
   if (defaultValue !== undefined && defaultValue !== null && defaultValue.trim() !== '') {
     sql += ` DEFAULT ${defaultValue.trim()}`;
   }
-  if (!isNullable) {
+  if (!isNullable || isPrimaryKey) {
     sql += ` NOT NULL`;
+  }
+  if (isPrimaryKey) {
+    sql += ` PRIMARY KEY`;
   }
   return sql + ';';
 }
@@ -590,29 +608,101 @@ export function buildModifyColumnSql({
   oldIsNullable,
   defaultValue,
   oldDefaultValue,
+  isPrimaryKey,
+  oldIsPrimaryKey,
+  pkConstraintName,
+  existingPkColumns,
+  existingColumns,
+  existingIndexes,
+  existingTriggers,
 }: ModifyColumnParams): string[] {
   const tableRef = getTableRef(tableName, schemaName, driver);
   const qCol = quoteIdentifier(columnName, driver);
   const stmts: string[] = [];
 
   if (driver === 'sqlite') {
-    throw new Error('SQLite does not support altering existing columns in-place. Consider renaming or adding a new column.');
+    if (!existingColumns || existingColumns.length === 0) {
+      throw new Error('SQLite does not support altering existing columns in-place. Consider renaming or adding a new column.');
+    }
+    const updatedDefs = existingColumns.map((col) => {
+      const isTarget = col.name === columnName;
+      const nextPk = isTarget && isPrimaryKey !== undefined ? isPrimaryKey : col.isPrimaryKey;
+      const nextNullable = isTarget && isNullable !== undefined ? (nextPk ? false : isNullable) : col.isNullable;
+      return {
+        name: col.name,
+        type: isTarget && newDataType ? newDataType : col.dataType,
+        nullable: nextNullable,
+        defaultValue: isTarget && defaultValue !== undefined ? (defaultValue.trim() || null) : col.defaultValue,
+        isPrimaryKey: nextPk,
+        isUnique: col.isUnique,
+        isAutoIncrement: nextPk ? col.isAutoIncrement : false,
+        checkConstraint: col.checkConstraint,
+        collation: col.collation,
+      };
+    });
+    const origDefs = existingColumns.map((col) => ({
+      name: col.name,
+      type: col.dataType,
+      nullable: col.isNullable,
+      defaultValue: col.defaultValue,
+      isPrimaryKey: col.isPrimaryKey,
+      isUnique: col.isUnique,
+      isAutoIncrement: col.isAutoIncrement,
+      checkConstraint: col.checkConstraint,
+      collation: col.collation,
+    }));
+    const createTableSql = buildSqliteCreateTableFromColumns({
+      tempTableName: `${tableName}_datacore_rebuild`,
+      driver,
+      columns: updatedDefs,
+    });
+    const script = buildSqliteRebuildScript({
+      tableName,
+      driver,
+      createTableSql,
+      columns: origDefs,
+      indexes: existingIndexes,
+      triggers: existingTriggers,
+    });
+    return [script];
   }
 
+  const pkChanged = isPrimaryKey !== undefined && isPrimaryKey !== oldIsPrimaryKey;
+
   if (driver === 'mysql') {
-    // MySQL uses MODIFY COLUMN
-    const type = newDataType || oldDataType || 'VARCHAR(255)';
-    let sql = `ALTER TABLE ${tableRef} MODIFY COLUMN ${qCol} ${type}`;
-    if (defaultValue !== undefined && defaultValue !== null && defaultValue.trim() !== '') {
-      sql += ` DEFAULT ${defaultValue.trim()}`;
+    const typeChanged = Boolean(newDataType && newDataType !== oldDataType);
+    const nullableChanged = isNullable !== undefined && isNullable !== oldIsNullable;
+    const defaultChanged = defaultValue !== undefined && defaultValue !== oldDefaultValue;
+
+    if (typeChanged || nullableChanged || defaultChanged) {
+      const type = newDataType || oldDataType || 'VARCHAR(255)';
+      let sql = `ALTER TABLE ${tableRef} MODIFY COLUMN ${qCol} ${type}`;
+      if (defaultValue !== undefined && defaultValue !== null && defaultValue.trim() !== '') {
+        sql += ` DEFAULT ${defaultValue.trim()}`;
+      }
+      const nullable = isPrimaryKey ? false : isNullable !== undefined ? isNullable : oldIsNullable ?? true;
+      sql += !nullable ? ` NOT NULL` : ` NULL`;
+      stmts.push(sql + ';');
     }
-    const nullable = isNullable !== undefined ? isNullable : oldIsNullable ?? true;
-    if (!nullable) {
-      sql += ` NOT NULL`;
-    } else {
-      sql += ` NULL`;
+
+    if (pkChanged) {
+      const otherPks = (existingPkColumns || []).filter((c) => c !== columnName);
+      if (isPrimaryKey) {
+        if (otherPks.length > 0) {
+          const allPks = [...otherPks, columnName].map((c) => quoteIdentifier(c, driver)).join(', ');
+          stmts.push(`ALTER TABLE ${tableRef} DROP PRIMARY KEY, ADD PRIMARY KEY (${allPks});`);
+        } else {
+          stmts.push(`ALTER TABLE ${tableRef} ADD PRIMARY KEY (${qCol});`);
+        }
+      } else {
+        if (otherPks.length > 0) {
+          const remPks = otherPks.map((c) => quoteIdentifier(c, driver)).join(', ');
+          stmts.push(`ALTER TABLE ${tableRef} DROP PRIMARY KEY, ADD PRIMARY KEY (${remPks});`);
+        } else {
+          stmts.push(`ALTER TABLE ${tableRef} DROP PRIMARY KEY;`);
+        }
+      }
     }
-    stmts.push(sql + ';');
     return stmts;
   }
 
@@ -621,8 +711,9 @@ export function buildModifyColumnSql({
     stmts.push(`ALTER TABLE ${tableRef} ALTER COLUMN ${qCol} TYPE ${newDataType} USING ${qCol}::${newDataType};`);
   }
 
-  if (isNullable !== undefined && isNullable !== oldIsNullable) {
-    if (isNullable) {
+  const effectiveIsNullable = isPrimaryKey ? false : isNullable;
+  if (effectiveIsNullable !== undefined && effectiveIsNullable !== oldIsNullable) {
+    if (effectiveIsNullable) {
       stmts.push(`ALTER TABLE ${tableRef} ALTER COLUMN ${qCol} DROP NOT NULL;`);
     } else {
       stmts.push(`ALTER TABLE ${tableRef} ALTER COLUMN ${qCol} SET NOT NULL;`);
@@ -634,6 +725,31 @@ export function buildModifyColumnSql({
       stmts.push(`ALTER TABLE ${tableRef} ALTER COLUMN ${qCol} DROP DEFAULT;`);
     } else {
       stmts.push(`ALTER TABLE ${tableRef} ALTER COLUMN ${qCol} SET DEFAULT ${defaultValue.trim()};`);
+    }
+  }
+
+  if (pkChanged) {
+    const otherPks = (existingPkColumns || []).filter((c) => c !== columnName);
+    const resolvedConstraintName = pkConstraintName || `pk_${tableName}`;
+    const qPkName = quoteIdentifier(resolvedConstraintName, driver);
+
+    if (isPrimaryKey) {
+      if (otherPks.length > 0) {
+        if (pkConstraintName) {
+          stmts.push(`ALTER TABLE ${tableRef} DROP CONSTRAINT ${quoteIdentifier(pkConstraintName, driver)};`);
+        }
+        const allPks = [...otherPks, columnName].map((c) => quoteIdentifier(c, driver)).join(', ');
+        stmts.push(`ALTER TABLE ${tableRef} ADD CONSTRAINT ${qPkName} PRIMARY KEY (${allPks});`);
+      } else {
+        stmts.push(`ALTER TABLE ${tableRef} ADD CONSTRAINT ${qPkName} PRIMARY KEY (${qCol});`);
+      }
+    } else {
+      const dropName = pkConstraintName || `${tableName}_pkey`;
+      stmts.push(`ALTER TABLE ${tableRef} DROP CONSTRAINT ${quoteIdentifier(dropName, driver)};`);
+      if (otherPks.length > 0) {
+        const remPks = otherPks.map((c) => quoteIdentifier(c, driver)).join(', ');
+        stmts.push(`ALTER TABLE ${tableRef} ADD CONSTRAINT ${qPkName} PRIMARY KEY (${remPks});`);
+      }
     }
   }
 

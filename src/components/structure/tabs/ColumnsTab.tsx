@@ -11,6 +11,11 @@ import {
   buildDropColumnSql,
   type TableColumnStructure,
 } from '../tableStructureHelpers';
+import type {
+  TableConstraintStructure,
+  TableIndexStructure,
+  TableTriggerDef,
+} from '../tableManagementHelpers';
 
 const BASE_TYPES = [
   'VARCHAR',
@@ -56,6 +61,9 @@ export interface ColumnsTabProps {
   driver?: string;
   isDark: boolean;
   columns: TableColumnStructure[];
+  constraints?: TableConstraintStructure[];
+  indexes?: TableIndexStructure[];
+  triggers?: TableTriggerDef[];
   filterText?: string;
   loadStructure: () => Promise<void>;
   showStatus: (type: 'success' | 'error', text: string) => void;
@@ -72,6 +80,9 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
   driver = 'postgres',
   isDark,
   columns,
+  constraints = [],
+  indexes = [],
+  triggers = [],
   filterText,
   loadStructure,
   showStatus,
@@ -100,6 +111,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
   const [newColLength, setNewColLength] = useState('255');
   const [newColCustomType, setNewColCustomType] = useState('');
   const [newColNullable, setNewColNullable] = useState(true);
+  const [newColPrimaryKey, setNewColPrimaryKey] = useState(false);
   const [newColDefault, setNewColDefault] = useState('');
 
   // Edit column modal states
@@ -109,7 +121,18 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
   const [editColLength, setEditColLength] = useState('');
   const [editColCustomType, setEditColCustomType] = useState('');
   const [editColNullable, setEditColNullable] = useState(true);
+  const [editColPrimaryKey, setEditColPrimaryKey] = useState(false);
   const [editColDefault, setEditColDefault] = useState('');
+
+  const pkConstraintName = useMemo(
+    () => constraints.find((c) => c.type === 'PRIMARY KEY')?.name,
+    [constraints]
+  );
+
+  const existingPkColumns = useMemo(
+    () => columns.filter((c) => c.isPrimaryKey).map((c) => c.name),
+    [columns]
+  );
 
   // Drop column state
   const [dropColTarget, setDropColTarget] = useState<TableColumnStructure | null>(null);
@@ -180,6 +203,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
       setEditColCustomType(col.dataType);
     }
     setEditColNullable(col.isNullable);
+    setEditColPrimaryKey(col.isPrimaryKey);
     setEditColDefault(col.defaultValue || '');
   };
 
@@ -193,13 +217,14 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
         schemaName,
         columnName: newColName.trim(),
         dataType: computedNewColType,
-        isNullable: newColNullable,
+        isNullable: newColPrimaryKey ? false : newColNullable,
         defaultValue: newColDefault.trim() || undefined,
+        isPrimaryKey: newColPrimaryKey,
       });
     } catch {
       return '';
     }
-  }, [driver, tableName, schemaName, newColName, computedNewColType, newColNullable, newColDefault]);
+  }, [driver, tableName, schemaName, newColName, computedNewColType, newColNullable, newColPrimaryKey, newColDefault]);
 
   // Handle Add Column
   const handleAddColumnSubmit = async (e: React.FormEvent) => {
@@ -214,8 +239,9 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
         schemaName,
         columnName: newColName.trim(),
         dataType: computedNewColType,
-        isNullable: newColNullable,
+        isNullable: newColPrimaryKey ? false : newColNullable,
         defaultValue: newColDefault.trim() || undefined,
+        isPrimaryKey: newColPrimaryKey,
       });
 
       await dbApi.executeQuery(tabId, sql);
@@ -225,6 +251,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
       setNewColLength('255');
       setNewColCustomType('');
       setNewColNullable(true);
+      setNewColPrimaryKey(false);
       setNewColDefault('');
       showStatus('success', `Added column '${newColName.trim()}' (${computedNewColType}) successfully`);
       await loadStructure();
@@ -256,17 +283,27 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
 
     try {
       const targetCol = editColName.trim() || editColTarget.name;
+      const typeChanged =
+        computedEditColType.trim().toLowerCase() !== editColTarget.dataType.trim().toLowerCase();
+      const effectiveNullable = editColPrimaryKey ? false : editColNullable;
       const alterStmts = buildModifyColumnSql({
         driver,
         tableName,
         schemaName,
         columnName: targetCol,
         oldDataType: editColTarget.dataType,
-        newDataType: computedEditColType !== editColTarget.dataType ? computedEditColType : undefined,
+        newDataType: typeChanged ? computedEditColType : undefined,
         oldIsNullable: editColTarget.isNullable,
-        isNullable: editColNullable !== editColTarget.isNullable ? editColNullable : undefined,
+        isNullable: effectiveNullable !== editColTarget.isNullable ? effectiveNullable : undefined,
         oldDefaultValue: editColTarget.defaultValue,
         defaultValue: editColDefault.trim() !== (editColTarget.defaultValue || '') ? editColDefault.trim() : undefined,
+        oldIsPrimaryKey: editColTarget.isPrimaryKey,
+        isPrimaryKey: editColPrimaryKey !== editColTarget.isPrimaryKey ? editColPrimaryKey : undefined,
+        pkConstraintName,
+        existingPkColumns,
+        existingColumns: columns,
+        existingIndexes: indexes,
+        existingTriggers: triggers,
       });
       stmts.push(...alterStmts);
     } catch {
@@ -274,7 +311,22 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
     }
 
     return stmts;
-  }, [editColTarget, editColName, computedEditColType, editColNullable, editColDefault, driver, tableName, schemaName]);
+  }, [
+    editColTarget,
+    editColName,
+    computedEditColType,
+    editColNullable,
+    editColPrimaryKey,
+    editColDefault,
+    driver,
+    tableName,
+    schemaName,
+    pkConstraintName,
+    existingPkColumns,
+    columns,
+    indexes,
+    triggers,
+  ]);
 
   // Handle Edit Column Submit
   const handleEditColumnSubmit = async (e: React.FormEvent) => {
@@ -296,17 +348,27 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
         activeColName = editColName.trim();
       }
 
+      const typeChanged =
+        computedEditColType.trim().toLowerCase() !== editColTarget.dataType.trim().toLowerCase();
+      const effectiveNullable = editColPrimaryKey ? false : editColNullable;
       const modifyStmts = buildModifyColumnSql({
         driver,
         tableName,
         schemaName,
         columnName: activeColName,
         oldDataType: editColTarget.dataType,
-        newDataType: computedEditColType !== editColTarget.dataType ? computedEditColType : undefined,
+        newDataType: typeChanged ? computedEditColType : undefined,
         oldIsNullable: editColTarget.isNullable,
-        isNullable: editColNullable !== editColTarget.isNullable ? editColNullable : undefined,
+        isNullable: effectiveNullable !== editColTarget.isNullable ? effectiveNullable : undefined,
         oldDefaultValue: editColTarget.defaultValue,
         defaultValue: editColDefault.trim() !== (editColTarget.defaultValue || '') ? editColDefault.trim() : undefined,
+        oldIsPrimaryKey: editColTarget.isPrimaryKey,
+        isPrimaryKey: editColPrimaryKey !== editColTarget.isPrimaryKey ? editColPrimaryKey : undefined,
+        pkConstraintName,
+        existingPkColumns,
+        existingColumns: columns,
+        existingIndexes: indexes,
+        existingTriggers: triggers,
       });
 
       for (const stmt of modifyStmts) {
@@ -479,8 +541,8 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div className="w-full max-w-md rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-sidebar shrink-0">
               <div className="flex items-center space-x-2">
                 <Plus className="w-4 h-4 text-emerald-500" />
                 <h3 className="text-sm font-semibold">
@@ -496,7 +558,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleAddColumnSubmit} className="p-4 space-y-3.5 text-xs">
+            <form onSubmit={handleAddColumnSubmit} className="p-5 space-y-4 text-xs overflow-y-auto">
               <div>
                 <label className="block font-medium mb-1">
                   Column Name <span className="text-red-500">*</span>
@@ -507,14 +569,14 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                   placeholder="e.g. description, status, age"
                   value={newColName}
                   onChange={(e) => setNewColName(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
+                  className="w-full h-9 px-3 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
                   autoFocus
                 />
               </div>
 
               {/* Data Type & Length / Values */}
               <div>
-                <div className="grid grid-cols-2 gap-2 mb-1">
+                <div className="grid grid-cols-2 gap-3 mb-1">
                   <label className="font-medium">Data Type</label>
                   <label className="font-medium">
                     Length / Values{' '}
@@ -523,12 +585,12 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                     </span>
                   </label>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <select
                     data-testid="add-col-type-select"
                     value={newColBaseType}
                     onChange={(e) => handleNewColBaseTypeChange(e.target.value)}
-                    className="w-full px-2 py-1.5 rounded border border-line bg-grid text-text text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                    className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
                   >
                     {BASE_TYPES.map((t) => (
                       <option key={t} value={t}>
@@ -545,7 +607,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                     value={newColLength}
                     disabled={!newSpec.hasLength || newColBaseType === 'CUSTOM'}
                     onChange={(e) => setNewColLength(e.target.value)}
-                    className={`w-full px-3 py-1.5 rounded border border-line text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
+                    className={`w-full h-9 px-3 rounded border border-line text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
                       !newSpec.hasLength || newColBaseType === 'CUSTOM'
                         ? 'opacity-40 cursor-not-allowed bg-sidebar'
                         : 'bg-grid'
@@ -570,7 +632,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                       placeholder="e.g. VARCHAR(30), INT(5), geometry(Point, 4326)"
                       value={newColCustomType}
                       onChange={(e) => setNewColCustomType(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
+                      className="w-full h-9 px-3 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
                     />
                   </div>
                 )}
@@ -580,14 +642,14 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                   <div className="text-[10px] text-muted uppercase tracking-wider font-semibold mb-1">
                     Quick Presets:
                   </div>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1.5">
                     {PRESETS.map((p) => (
                       <button
                         key={p}
                         type="button"
                         data-testid={`preset-btn-${p}`}
                         onClick={() => applyPreset(p, false)}
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors border ${
+                        className={`px-2 py-0.5 rounded text-[11px] font-mono transition-colors border ${
                           computedNewColType === p
                             ? 'bg-blue-600 text-white border-blue-500'
                             : 'bg-sidebar border-line text-text hover:bg-black/5 dark:hover:bg-white/10'
@@ -600,16 +662,45 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="add-col-nullable"
-                  checked={newColNullable}
-                  onChange={(e) => setNewColNullable(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-blue-500"
-                />
-                <label htmlFor="add-col-nullable" className="cursor-pointer select-none">
-                  Allow NULL (Nullable)
+              <div className="flex items-center space-x-6 pt-1">
+                <label className="inline-flex items-center space-x-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    id="add-col-nullable"
+                    checked={newColPrimaryKey ? false : newColNullable}
+                    disabled={newColPrimaryKey}
+                    onChange={(e) => setNewColNullable(e.target.checked)}
+                    className="rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                  />
+                  <span className={newColPrimaryKey ? 'text-muted' : ''}>Allow NULL (Nullable)</span>
+                </label>
+
+                <label
+                  className={`inline-flex items-center space-x-2 select-none ${
+                    driver?.toLowerCase() === 'sqlite' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  }`}
+                  title={
+                    driver?.toLowerCase() === 'sqlite'
+                      ? 'SQLite does not support ADD COLUMN PRIMARY KEY directly; add column first then Edit Column to set PK'
+                      : 'Set as Primary Key'
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    id="add-col-pk"
+                    data-testid="add-col-pk-checkbox"
+                    checked={newColPrimaryKey}
+                    disabled={driver?.toLowerCase() === 'sqlite'}
+                    onChange={(e) => {
+                      setNewColPrimaryKey(e.target.checked);
+                      if (e.target.checked) setNewColNullable(false);
+                    }}
+                    className="rounded text-amber-500 focus:ring-amber-500"
+                  />
+                  <span className="inline-flex items-center space-x-1 font-medium">
+                    <Key className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Primary Key (PK)</span>
+                  </span>
                 </label>
               </div>
 
@@ -622,7 +713,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                   placeholder={newSpec.defaultPlaceholder || "e.g. 'active', 0, now(), gen_random_uuid()"}
                   value={newColDefault}
                   onChange={(e) => setNewColDefault(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
+                  className="w-full h-9 px-3 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
                 />
                 {newSpec.defaultSuggestions && newSpec.defaultSuggestions.length > 0 && (
                   <div className="flex items-center space-x-1.5 mt-1.5 flex-wrap gap-y-1">
@@ -686,8 +777,8 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div className="w-full max-w-md rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-sidebar shrink-0">
               <div className="flex items-center space-x-2">
                 <Edit2 className="w-4 h-4 text-blue-500" />
                 <h3 className="text-sm font-semibold">
@@ -703,7 +794,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleEditColumnSubmit} className="p-4 space-y-3.5 text-xs">
+            <form onSubmit={handleEditColumnSubmit} className="p-5 space-y-4 text-xs overflow-y-auto">
               <div>
                 <label className="block font-medium mb-1">
                   Column Name <span className="text-red-500">*</span>
@@ -713,26 +804,27 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                   required
                   value={editColName}
                   onChange={(e) => setEditColName(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
+                  className="w-full h-9 px-3 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
                 />
               </div>
 
               {/* Data Type & Length */}
               <div>
-                <div className="grid grid-cols-2 gap-2 mb-1">
+                <div className="grid grid-cols-2 gap-3 mb-1">
                   <label className="font-medium">Data Type</label>
                   <label className="font-medium">
                     Length / Values{' '}
-                    <span className="text-gray-400 font-normal">
+                    <span className="text-muted font-normal">
                       {editSpec.hasLength ? `(${editSpec.lengthPlaceholder || 'e.g. 30, 5, 10,2'})` : '(Not applicable)'}
                     </span>
                   </label>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <select
+                    data-testid="edit-col-type-select"
                     value={editColBaseType}
                     onChange={(e) => handleEditColBaseTypeChange(e.target.value)}
-                    className="w-full px-2 py-1.5 rounded border border-line bg-grid text-text text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                    className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
                   >
                     {BASE_TYPES.map((t) => (
                       <option key={t} value={t}>
@@ -748,7 +840,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                     value={editColLength}
                     disabled={!editSpec.hasLength || editColBaseType === 'CUSTOM'}
                     onChange={(e) => setEditColLength(e.target.value)}
-                    className={`w-full px-3 py-1.5 rounded border border-line text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
+                    className={`w-full h-9 px-3 rounded border border-line text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs ${
                       !editSpec.hasLength || editColBaseType === 'CUSTOM'
                         ? 'opacity-40 cursor-not-allowed bg-sidebar'
                         : 'bg-grid'
@@ -806,16 +898,35 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="edit-col-nullable"
-                  checked={editColNullable}
-                  onChange={(e) => setEditColNullable(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-blue-500"
-                />
-                <label htmlFor="edit-col-nullable" className="cursor-pointer select-none">
-                  Allow NULL (Nullable)
+              <div className="flex items-center space-x-6 pt-1">
+                <label className="inline-flex items-center space-x-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    id="edit-col-nullable"
+                    checked={editColPrimaryKey ? false : editColNullable}
+                    disabled={editColPrimaryKey}
+                    onChange={(e) => setEditColNullable(e.target.checked)}
+                    className="rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                  />
+                  <span className={editColPrimaryKey ? 'text-muted' : ''}>Allow NULL (Nullable)</span>
+                </label>
+
+                <label className="inline-flex items-center space-x-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    id="edit-col-pk"
+                    data-testid="edit-col-pk-checkbox"
+                    checked={editColPrimaryKey}
+                    onChange={(e) => {
+                      setEditColPrimaryKey(e.target.checked);
+                      if (e.target.checked) setEditColNullable(false);
+                    }}
+                    className="rounded text-amber-500 focus:ring-amber-500"
+                  />
+                  <span className="inline-flex items-center space-x-1 font-medium">
+                    <Key className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Primary Key (PK)</span>
+                  </span>
                 </label>
               </div>
 
@@ -828,7 +939,7 @@ export const ColumnsTab: React.FC<ColumnsTabProps> = ({
                   placeholder={editSpec.defaultPlaceholder || "e.g. 'active', 0, now()"}
                   value={editColDefault}
                   onChange={(e) => setEditColDefault(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
+                  className="w-full h-9 px-3 rounded border border-line bg-grid text-text focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
                 />
                 {editSpec.defaultSuggestions && editSpec.defaultSuggestions.length > 0 && (
                   <div className="flex items-center space-x-1.5 mt-1.5 flex-wrap gap-y-1">

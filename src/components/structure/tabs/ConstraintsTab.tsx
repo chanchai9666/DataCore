@@ -5,6 +5,8 @@ import {
   buildAddConstraintSql,
   buildDropConstraintSql,
   type TableConstraintStructure,
+  type TableIndexStructure,
+  type TableTriggerDef,
 } from '../tableManagementHelpers';
 import type { TableColumnStructure } from '../tableStructureHelpers';
 
@@ -16,6 +18,8 @@ export interface ConstraintsTabProps {
   isDark: boolean;
   constraints: TableConstraintStructure[];
   columns: TableColumnStructure[];
+  indexes?: TableIndexStructure[];
+  triggers?: TableTriggerDef[];
   filterText?: string;
   loadStructure: () => Promise<void>;
   showStatus: (type: 'success' | 'error', text: string) => void;
@@ -33,6 +37,8 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
   isDark: _isDark,
   constraints,
   columns,
+  indexes = [],
+  triggers = [],
   filterText,
   loadStructure,
   showStatus,
@@ -57,12 +63,37 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
 
   // Add constraint form states
   const [newConstraintName, setNewConstraintName] = useState('');
-  const [newConstraintType, setNewConstraintType] = useState<'CHECK' | 'UNIQUE'>('CHECK');
+  const [newConstraintType, setNewConstraintType] = useState<'CHECK' | 'UNIQUE' | 'PRIMARY KEY'>('CHECK');
   const [newConstraintExpr, setNewConstraintExpr] = useState('');
   const [newConstraintCols, setNewConstraintCols] = useState<string[]>([]);
 
   // Drop constraint state
   const [dropConstraintTarget, setDropConstraintTarget] = useState<TableConstraintStructure | null>(null);
+
+  const existingSqliteColumns = useMemo(
+    () =>
+      columns.map((c) => ({
+        name: c.name,
+        type: c.dataType,
+        nullable: c.isNullable,
+        defaultValue: c.defaultValue,
+        isPrimaryKey: c.isPrimaryKey,
+        isUnique: c.isUnique,
+        isAutoIncrement: c.isAutoIncrement,
+        checkConstraint: c.checkConstraint,
+        collation: c.collation,
+      })),
+    [columns]
+  );
+
+  const handleConstraintTypeChange = (type: 'CHECK' | 'UNIQUE' | 'PRIMARY KEY') => {
+    setNewConstraintType(type);
+    if (!newConstraintName.trim() || /^(chk|uq|pk)_/.test(newConstraintName.trim())) {
+      if (type === 'PRIMARY KEY') setNewConstraintName(`pk_${tableName}`);
+      else if (type === 'UNIQUE') setNewConstraintName(`uq_${tableName}`);
+      else setNewConstraintName(`chk_${tableName}_valid`);
+    }
+  };
 
   const openAddConstraint = () => {
     const defaultCol = columns[0]?.name || '';
@@ -77,7 +108,7 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
   const addConstraintPreviewSql = useMemo(() => {
     if (!newConstraintName.trim()) return '';
     if (newConstraintType === 'CHECK' && !newConstraintExpr.trim()) return '';
-    if (newConstraintType === 'UNIQUE' && newConstraintCols.length === 0) return '';
+    if ((newConstraintType === 'UNIQUE' || newConstraintType === 'PRIMARY KEY') && newConstraintCols.length === 0) return '';
     try {
       return buildAddConstraintSql({
         driver,
@@ -87,11 +118,14 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
         type: newConstraintType,
         expression: newConstraintExpr.trim(),
         columns: newConstraintCols,
+        existingColumns: existingSqliteColumns,
+        existingIndexes: indexes,
+        existingTriggers: triggers,
       });
     } catch {
       return '';
     }
-  }, [driver, tableName, schemaName, newConstraintName, newConstraintType, newConstraintExpr, newConstraintCols]);
+  }, [driver, tableName, schemaName, newConstraintName, newConstraintType, newConstraintExpr, newConstraintCols, existingSqliteColumns, indexes, triggers]);
 
   // Handle Add Constraint
   const handleAddConstraintSubmit = async (e: React.FormEvent) => {
@@ -108,6 +142,9 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
         type: newConstraintType,
         expression: newConstraintExpr.trim(),
         columns: newConstraintCols,
+        existingColumns: existingSqliteColumns,
+        existingIndexes: indexes,
+        existingTriggers: triggers,
       });
 
       await dbApi.executeQuery(tabId, sql);
@@ -136,7 +173,10 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
         schemaName,
         driver,
         name: dropConstraintTarget.name,
-        type: dropConstraintTarget.type === 'CHECK' ? 'CHECK' : 'UNIQUE',
+        type: dropConstraintTarget.type,
+        existingColumns: existingSqliteColumns,
+        existingIndexes: indexes,
+        existingTriggers: triggers,
       });
       await dbApi.executeQuery(tabId, sql);
       setDropConstraintTarget(null);
@@ -218,7 +258,9 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                   <td className="py-2 px-3 text-center">
                     <span
                       className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
-                        c.type === 'CHECK'
+                        c.type === 'PRIMARY KEY'
+                          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30'
+                          : c.type === 'CHECK'
                           ? 'bg-purple-500/10 text-purple-600 dark:text-purple-300 border-purple-500/30'
                           : 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/30'
                       }`}
@@ -254,8 +296,8 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
-          <div className="w-full max-w-md rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg shadow-xl border border-line bg-panel text-text overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-sidebar shrink-0">
               <div className="flex items-center space-x-2">
                 <ShieldAlert className="w-4 h-4 text-purple-500" />
                 <h3 className="text-sm font-semibold">Add Constraint to {tableName}</h3>
@@ -269,7 +311,7 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleAddConstraintSubmit} className="p-4 space-y-3.5 text-xs">
+            <form onSubmit={handleAddConstraintSubmit} className="p-5 space-y-4 text-xs overflow-y-auto">
               <div>
                 <label className="block font-medium mb-1">
                   Constraint Name <span className="text-red-500">*</span>
@@ -278,23 +320,35 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                   type="text"
                   required
                   data-testid="new-constraint-name-input"
-                  placeholder="e.g. chk_price_positive, uq_user_email"
+                  placeholder="e.g. pk_users, chk_price_positive, uq_user_email"
                   value={newConstraintName}
                   onChange={(e) => setNewConstraintName(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-purple-500"
+                  className="w-full h-9 px-3 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-purple-500"
                 />
               </div>
 
               <div>
-                <label className="block font-medium mb-1">Constraint Type</label>
-                <div className="flex items-center space-x-4">
+                <label className="block font-medium mb-1.5">Constraint Type</label>
+                <div className="flex items-center space-x-5">
+                  <label className="inline-flex items-center space-x-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="constraintType"
+                      value="PRIMARY KEY"
+                      data-testid="constraint-type-pk-radio"
+                      checked={newConstraintType === 'PRIMARY KEY'}
+                      onChange={() => handleConstraintTypeChange('PRIMARY KEY')}
+                      className="text-amber-500 focus:ring-0"
+                    />
+                    <span className="font-medium">PRIMARY KEY</span>
+                  </label>
                   <label className="inline-flex items-center space-x-1.5 cursor-pointer">
                     <input
                       type="radio"
                       name="constraintType"
                       value="CHECK"
                       checked={newConstraintType === 'CHECK'}
-                      onChange={() => setNewConstraintType('CHECK')}
+                      onChange={() => handleConstraintTypeChange('CHECK')}
                       className="text-purple-600 focus:ring-0"
                     />
                     <span>CHECK Expression</span>
@@ -305,7 +359,7 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                       name="constraintType"
                       value="UNIQUE"
                       checked={newConstraintType === 'UNIQUE'}
-                      onChange={() => setNewConstraintType('UNIQUE')}
+                      onChange={() => handleConstraintTypeChange('UNIQUE')}
                       className="text-purple-600 focus:ring-0"
                     />
                     <span>UNIQUE Columns</span>
@@ -325,22 +379,26 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                     placeholder="e.g. price > 0 AND quantity >= 0"
                     value={newConstraintExpr}
                     onChange={(e) => setNewConstraintExpr(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-purple-500"
+                    className="w-full px-3 py-2 rounded border border-line bg-grid text-text text-xs font-mono outline-none focus:border-purple-500"
                   />
                 </div>
               ) : (
                 <div>
                   <label className="block font-medium mb-1">
-                    Columns to Include in Unique Constraint <span className="text-red-500">*</span>
+                    {newConstraintType === 'PRIMARY KEY'
+                      ? 'Columns to Include in Primary Key'
+                      : 'Columns to Include in Unique Constraint'}{' '}
+                    <span className="text-red-500">*</span>
                   </label>
-                  <div className="max-h-32 overflow-y-auto p-2 rounded border border-line bg-sidebar space-y-1">
+                  <div className="max-h-40 overflow-y-auto p-2.5 rounded border border-line bg-sidebar space-y-1">
                     {columns.map((c) => (
                       <label
                         key={c.name}
-                        className="flex items-center space-x-2 py-0.5 px-1 hover:bg-black/5 dark:hover:bg-white/10 rounded cursor-pointer"
+                        className="flex items-center space-x-2 py-1 px-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded cursor-pointer"
                       >
                         <input
                           type="checkbox"
+                          data-testid={`constraint-col-checkbox-${c.name}`}
                           checked={newConstraintCols.includes(c.name)}
                           onChange={(e) => {
                             if (e.target.checked) {
@@ -419,13 +477,16 @@ export const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
                 from table <strong className="font-mono text-text">{tableName}</strong>?
               </p>
 
-              <div className="p-2 rounded bg-sidebar border border-line font-mono text-[11px] text-red-500">
+              <div className="p-2 rounded bg-sidebar border border-line font-mono text-[11px] text-red-500 whitespace-pre-wrap break-all">
                 {buildDropConstraintSql({
                   tableName,
                   schemaName,
                   driver,
                   name: dropConstraintTarget.name,
-                  type: dropConstraintTarget.type === 'CHECK' ? 'CHECK' : 'UNIQUE',
+                  type: dropConstraintTarget.type,
+                  existingColumns: existingSqliteColumns,
+                  existingIndexes: indexes,
+                  existingTriggers: triggers,
                 })}
               </div>
 

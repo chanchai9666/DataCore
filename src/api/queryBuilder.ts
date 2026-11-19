@@ -827,7 +827,7 @@ function removeForeignKeyDefinitions(ddl: string): string {
   return `${ddl.slice(0, open + 1)}\n  ${defs.join(',\n  ')}\n${ddl.slice(close)}`;
 }
 
-function buildSqliteRebuildScript(params: {
+export function buildSqliteRebuildScript(params: {
   tableName: string;
   driver?: string;
   createTableSql: string;
@@ -862,6 +862,50 @@ function buildSqliteRebuildScript(params: {
   return steps.join('\n');
 }
 
+export function buildSqliteCreateTableFromColumns(params: {
+  tempTableName: string;
+  driver?: string;
+  columns: ExistingColumnDef[];
+  extraClauses?: string[];
+}): string {
+  const { tempTableName, driver, columns, extraClauses = [] } = params;
+  const quotedTemp = quoteIdentifier(tempTableName, driver);
+  const pkCols = columns.filter((c) => c.isPrimaryKey);
+  const colDefs = columns.map((col) => {
+    let def = `${quoteIdentifier(col.name, driver)} ${col.type}`;
+    if (pkCols.length === 1 && col.isPrimaryKey) {
+      def += ' PRIMARY KEY';
+      if (col.isAutoIncrement) {
+        def += ' AUTOINCREMENT';
+      }
+    }
+    if (col.isUnique && !col.isPrimaryKey) {
+      def += ' UNIQUE';
+    }
+    if (col.nullable === false && !col.isPrimaryKey) {
+      def += ' NOT NULL';
+    }
+    if (col.defaultValue !== undefined && col.defaultValue !== null && col.defaultValue !== '') {
+      def += ` DEFAULT ${col.defaultValue}`;
+    }
+    if (col.checkConstraint) {
+      def += ` CHECK (${col.checkConstraint})`;
+    }
+    if (col.collation) {
+      def += ` COLLATE ${col.collation}`;
+    }
+    return def;
+  });
+
+  if (pkCols.length > 1) {
+    colDefs.push(
+      `PRIMARY KEY (${pkCols.map((c) => quoteIdentifier(c.name, driver)).join(', ')})`
+    );
+  }
+  const allDefs = [...colDefs, ...extraClauses];
+  return `CREATE TABLE ${quotedTemp} (\n  ${allDefs.join(',\n  ')}\n)`;
+}
+
 export interface TableConstraintStructure {
   name: string;
   type: 'CHECK' | 'UNIQUE' | 'PRIMARY KEY';
@@ -874,9 +918,12 @@ export interface AddConstraintParams {
   schemaName?: string;
   driver?: string;
   name: string;
-  type: 'CHECK' | 'UNIQUE';
+  type: 'CHECK' | 'UNIQUE' | 'PRIMARY KEY';
   expression?: string;
   columns?: string[];
+  existingColumns?: ExistingColumnDef[];
+  existingIndexes?: TableIndexStructure[];
+  existingTriggers?: TableTriggerDef[];
 }
 
 export interface DropConstraintParams {
@@ -884,7 +931,10 @@ export interface DropConstraintParams {
   schemaName?: string;
   driver?: string;
   name: string;
-  type?: 'CHECK' | 'UNIQUE';
+  type?: 'CHECK' | 'UNIQUE' | 'PRIMARY KEY';
+  existingColumns?: ExistingColumnDef[];
+  existingIndexes?: TableIndexStructure[];
+  existingTriggers?: TableTriggerDef[];
 }
 
 /**
@@ -1105,12 +1155,62 @@ export function buildDropForeignKeySql(params: DropForeignKeyParams): string {
 }
 
 /**
- * Builds an ALTER TABLE ADD CONSTRAINT (CHECK or UNIQUE) statement.
+ * Builds an ALTER TABLE ADD CONSTRAINT (PRIMARY KEY, CHECK, or UNIQUE) statement.
+ * For SQLite, performs a safe table rebuild when existingColumns are provided.
  */
 export function buildAddConstraintSql(params: AddConstraintParams): string {
-  const { tableName, schemaName, driver, name, type, expression, columns } = params;
+  const {
+    tableName,
+    schemaName,
+    driver,
+    name,
+    type,
+    expression,
+    columns,
+    existingColumns,
+    existingIndexes,
+    existingTriggers,
+  } = params;
   const fullTable = qualifyTable(tableName, schemaName, driver);
   const quotedName = quoteIdentifier(name, driver);
+  const d = (driver || '').toLowerCase();
+
+  if (d.includes('sqlite') && existingColumns && existingColumns.length > 0) {
+    const tempTableName = `${tableName}_datacore_rebuild`;
+    let updatedColumns = existingColumns;
+    const extraClauses: string[] = [];
+
+    if (type === 'PRIMARY KEY') {
+      const pkSet = new Set(columns || []);
+      updatedColumns = existingColumns.map((col) => ({
+        ...col,
+        isPrimaryKey: pkSet.has(col.name),
+        nullable: pkSet.has(col.name) ? false : col.nullable,
+      }));
+    } else if (type === 'CHECK') {
+      const expr = expression || '1=1';
+      extraClauses.push(`CONSTRAINT ${quotedName} CHECK (${expr})`);
+    } else if (type === 'UNIQUE') {
+      const cols = (columns || []).map((c) => quoteIdentifier(c, driver)).join(', ');
+      extraClauses.push(`CONSTRAINT ${quotedName} UNIQUE (${cols})`);
+    }
+
+    const createTableSql = buildSqliteCreateTableFromColumns({
+      tempTableName,
+      driver,
+      columns: updatedColumns,
+      extraClauses,
+    });
+
+    return buildSqliteRebuildScript({
+      tableName,
+      driver,
+      createTableSql,
+      columns: existingColumns,
+      indexes: existingIndexes,
+      triggers: existingTriggers,
+    });
+  }
 
   if (type === 'CHECK') {
     const expr = expression || '1=1';
@@ -1118,19 +1218,60 @@ export function buildAddConstraintSql(params: AddConstraintParams): string {
   }
 
   const cols = (columns || []).map((c) => quoteIdentifier(c, driver)).join(', ');
+  if (type === 'PRIMARY KEY') {
+    if (d.includes('mysql')) {
+      return `ALTER TABLE ${fullTable} ADD PRIMARY KEY (${cols});`;
+    }
+    return `ALTER TABLE ${fullTable} ADD CONSTRAINT ${quotedName} PRIMARY KEY (${cols});`;
+  }
+
   return `ALTER TABLE ${fullTable} ADD CONSTRAINT ${quotedName} UNIQUE (${cols});`;
 }
 
 /**
- * Builds a statement to drop a constraint.
+ * Builds a statement to drop a constraint (PRIMARY KEY, CHECK, or UNIQUE).
  */
 export function buildDropConstraintSql(params: DropConstraintParams): string {
-  const { tableName, schemaName, driver, name, type } = params;
+  const {
+    tableName,
+    schemaName,
+    driver,
+    name,
+    type,
+    existingColumns,
+    existingIndexes,
+    existingTriggers,
+  } = params;
   const fullTable = qualifyTable(tableName, schemaName, driver);
   const quotedName = quoteIdentifier(name, driver);
   const d = (driver || '').toLowerCase();
 
+  if (d.includes('sqlite') && existingColumns && existingColumns.length > 0 && type === 'PRIMARY KEY') {
+    const tempTableName = `${tableName}_datacore_rebuild`;
+    const updatedColumns = existingColumns.map((col) => ({
+      ...col,
+      isPrimaryKey: false,
+      isAutoIncrement: false,
+    }));
+    const createTableSql = buildSqliteCreateTableFromColumns({
+      tempTableName,
+      driver,
+      columns: updatedColumns,
+    });
+    return buildSqliteRebuildScript({
+      tableName,
+      driver,
+      createTableSql,
+      columns: existingColumns,
+      indexes: existingIndexes,
+      triggers: existingTriggers,
+    });
+  }
+
   if (d.includes('mysql')) {
+    if (type === 'PRIMARY KEY') {
+      return `ALTER TABLE ${fullTable} DROP PRIMARY KEY;`;
+    }
     if (type === 'CHECK') {
       return `ALTER TABLE ${fullTable} DROP CHECK ${quotedName};`;
     }
