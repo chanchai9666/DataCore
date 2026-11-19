@@ -411,6 +411,10 @@ export const lockVault = async (): Promise<void> => {
   return invoke<void>('vault_lock');
 };
 
+export const setScreenProtection = async (enabled: boolean): Promise<void> => {
+  return invoke<void>('set_screen_protection', { enabled });
+};
+
 export const dbApi = {
   testConnection,
   getConnections,
@@ -451,4 +455,5 @@ export const dbApi = {
   hasVaultMasterPassword,
   unlockVault,
   lockVault,
+  setScreenProtection,
 };

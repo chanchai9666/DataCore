@@ -2,13 +2,16 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { ConnectionSecurityModal } from './ConnectionSecurityModal';
 import { dbApi } from '../../api/db';
+import { usePrivacyStore } from '../../stores/privacyStore';
 
 vi.mock('../../api/db', () => ({
   dbApi: {
     executeDirectQuery: vi.fn(),
     isVaultKeychainEnabled: vi.fn(),
     setVaultKeychainEnabled: vi.fn(),
+    setScreenProtection: vi.fn(),
   },
+  setScreenProtection: vi.fn(),
 }));
 
 describe('ConnectionSecurityModal', () => {
@@ -136,6 +139,41 @@ describe('ConnectionSecurityModal', () => {
       expect(dbApi.setVaultKeychainEnabled).toHaveBeenCalledWith(true);
       expect(toggle).toHaveAttribute('aria-checked', 'true');
       expect(screen.getByText(/Enabled \(Touch ID Ready\)/i)).toBeInTheDocument();
+    });
+  });
+
+  it('toggles Screen Sharing Protection switch and updates privacyStore', async () => {
+    const { setScreenProtection } = await import('../../api/db');
+    vi.mocked(setScreenProtection).mockResolvedValue(undefined);
+    usePrivacyStore.setState({ screenProtectionEnabled: false, isUpdating: false, error: null });
+
+    vi.mocked(dbApi.executeDirectQuery).mockResolvedValue({
+      columns: [],
+      rows: [],
+      rows_affected: 0,
+      execution_time_ms: 1,
+    });
+    vi.mocked(dbApi.isVaultKeychainEnabled).mockResolvedValue(false);
+
+    render(
+      <ConnectionSecurityModal
+        isOpen={true}
+        connectionId="conn-1"
+        driver="sqlite"
+        onClose={onClose}
+      />
+    );
+
+    const switchBtn = screen.getByRole('switch', { name: /toggle screen sharing protection/i });
+    expect(switchBtn).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByText(/Disabled \(Visible to Screen Share\)/i)).toBeInTheDocument();
+
+    fireEvent.click(switchBtn);
+
+    await waitFor(() => {
+      expect(setScreenProtection).toHaveBeenCalledWith(true);
+      expect(switchBtn).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByText(/Protected \(Hidden from Screen Share\)/i)).toBeInTheDocument();
     });
   });
 });

@@ -994,7 +994,12 @@
     "localVaultTitle": "คลังรหัสผ่านแบบเข้ารหัสภายในเครื่อง (AES-256-GCM)",
     "keychainSyncLabel": "ซิงก์กับ macOS Keychain & Touch ID (เลือกเปิดเอง):",
     "enabledTouchId": "เปิดใช้งาน (พร้อมใช้ Touch ID)",
-    "disabledIsolated": "ปิดใช้งาน (แยกเก็บใน Vault ภายใน)"
+    "disabledIsolated": "ปิดใช้งาน (แยกเก็บใน Vault ภายใน)",
+    "screenProtectionTitle": "ป้องกันการแชร์หน้าจอ (Privacy Mode)",
+    "screenProtectionDesc": "ซ่อนหน้าต่าง DataCore จากโปรแกรมแชร์หน้าจอและบันทึกหน้าจอ (เช่น Zoom, Teams, OBS, QuickTime)",
+    "screenProtectionLabel": "ป้องกันการจับภาพหน้าจอ:",
+    "screenProtectionEnabled": "เปิดป้องกันอยู่ (ซ่อนจากการแชร์หน้าจอ)",
+    "screenProtectionDisabled": "ปิดใช้งาน (แชร์หน้าจอได้ปกติ)"
   },
   "transactions": {
     "savepointsTitle": "Transaction Savepoints",

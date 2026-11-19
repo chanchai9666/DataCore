@@ -982,6 +982,11 @@
     - **MSSQL Non-PK Single-Row Guard:** เพิ่ม branch สำหรับ `mssql` / `sqlserver` ใน `buildUpdateSql` (`UPDATE TOP (1) ... WHERE ...;`) และ `buildDeleteSql` (`DELETE TOP (1) FROM ... WHERE ...;`) สำหรับตารางที่ไม่มี Primary Key แทนการตกไปใช้ `ctid` ของ PostgreSQL
     - **Safe Non-PK `WHERE` Fallback:** ปรับ `buildWhereClause` ให้ข้ามคอลัมน์ชนิดที่ไม่รองรับ operator `=` ใน `WHERE` (เช่น `json`, `xml`, `bytea`, `blob`, `binary`, `varbinary`, `image`, `ntext`, และ `text` ใน MSSQL) เมื่อมีคอลัมน์อื่นที่เปรียบเทียบได้อยู่ในแถว
 
+53. **Issue #194: User-Toggleable Screen Sharing Protection / Privacy Mode (`commands/db.rs`, `menu.rs`, `privacyStore.ts`, `ConnectionSecurityModal.tsx`, `MainToolbar.tsx`, `CommandPaletteModal.tsx`, `App.tsx`)**
+    - **Native Content Protection (macOS `NSWindowSharingNone`):** เพิ่ม Tauri Command `set_screen_protection(enabled: bool)` ฝั่ง Rust โดยเรียก `WebviewWindow::set_content_protected(enabled)` เพื่อป้องกันไม่ให้โปรแกรมแชร์หน้าจอ/อัดหน้าจอ (เช่น Zoom, Microsoft Teams, OBS, QuickTime) จับภาพหน้าต่าง DataCore ได้เมื่อเปิดใช้งาน
+    - **Zustand State & Persistence:** สร้าง `privacyStore.ts` เก็บสถานะ `screenProtectionEnabled` ใน `localStorage` (`datacore-screen-protection`) และ sync สถานะกับหน้าต่าง Tauri อัตโนมัติเมื่อเปิดแอป (`syncScreenProtection`)
+    - **Multi-Surface Toggle UI:** เพิ่มสวิตช์เปิด-ปิดใน `ConnectionSecurityModal`, เมนูสลับด่วนพร้อมสถานะใน `MainToolbar` (Tools -> Security & Administration), คำสั่งใน `CommandPaletteModal` (`⌘K`), และรายการเมนู `Toggle Screen Sharing Protection` ใน macOS Native Menu Bar (`View`) พร้อมรองรับภาษาไทย/อังกฤษ (`en.json`, `th.json`)
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)

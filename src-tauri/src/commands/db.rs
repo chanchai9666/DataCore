@@ -1121,3 +1121,13 @@ pub async fn clear_workspace_state(
 ) -> Result<(), String> {
     workspace_store.clear().map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn set_screen_protection(
+    window: tauri::WebviewWindow,
+    enabled: bool,
+) -> Result<(), String> {
+    window
+        .set_content_protected(enabled)
+        .map_err(|e| e.to_string())
+}

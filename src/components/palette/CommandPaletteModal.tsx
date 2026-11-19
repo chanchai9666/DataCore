@@ -16,6 +16,7 @@ import {
   Activity,
   Lock,
   Shield,
+  EyeOff,
   History,
   GitCompare,
   Users,
@@ -34,6 +35,7 @@ import { changeLanguage } from '../../i18n';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
 import { useSnippetStore } from '../../stores/snippetStore';
+import { usePrivacyStore } from '../../stores/privacyStore';
 import { useShortcutStore, KEYMAP_PRESET_CONFIGS } from '../../stores/shortcutStore';
 import { openTableTab, openQueryTab } from '../sidebar/tabHelpers';
 import { dbApi } from '../../api/db';
@@ -492,6 +494,20 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       keywords: ['tls', 'ssl', 'security', 'cipher', 'certificate', 'encryption', 'vault'],
       onSelect: () => {
         onOpenSecurity?.();
+      },
+    });
+
+    items.push({
+      id: 'action-toggle-screen-protection',
+      title: 'Toggle Screen Sharing Protection',
+      subtitle: usePrivacyStore.getState().screenProtectionEnabled
+        ? 'Currently ON — Click to allow screen sharing / recording'
+        : 'Currently OFF — Click to hide DataCore from Zoom, Teams & OBS',
+      category: 'Actions',
+      icon: <EyeOff className="w-4 h-4 text-indigo-400" />,
+      keywords: ['privacy', 'screen', 'share', 'zoom', 'capture', 'hide', 'protection', 'content'],
+      onSelect: () => {
+        void usePrivacyStore.getState().toggleScreenProtection();
       },
     });
 

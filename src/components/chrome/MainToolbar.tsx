@@ -29,11 +29,14 @@ import {
   FileJson,
   Info,
   ChevronDown,
+  EyeOff,
+  Eye,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
+import { usePrivacyStore } from '../../stores/privacyStore';
 import { DbBadge } from '../sidebar/DbBadge';
 import { changeLanguage } from '../../i18n';
 import type { ConnectionConfig } from '../../types/db';
@@ -135,6 +138,11 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   const currentLang = i18n.language?.startsWith('th') ? 'th' : 'en';
   const { connections, activeConnectionId, connectedConnectionIds } = useConnectionStore();
   const { tabs, activeTabId } = useTabStore();
+  const {
+    screenProtectionEnabled,
+    isUpdating: isUpdatingScreenProtection,
+    toggleScreenProtection,
+  } = usePrivacyStore();
   const [activeDropdown, setActiveDropdown] = useState<'import' | 'export' | 'tools' | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -423,6 +431,17 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       disabled: !isConnected,
       onClick: onOpenUserManager,
     },
+    {
+      show: true,
+      testId: 'toolbar-tools-screen-protection-btn',
+      icon: screenProtectionEnabled ? EyeOff : Eye,
+      iconColor: screenProtectionEnabled ? 'text-indigo-400' : 'text-slate-400',
+      label: t('security.screenProtectionTitle', 'Screen Sharing Protection (Privacy Mode)'),
+      description: screenProtectionEnabled
+        ? t('security.screenProtectionEnabled', 'Protected (Hidden from Screen Share)')
+        : t('security.screenProtectionDisabled', 'Disabled (Visible to Screen Share)'),
+      onClick: () => void toggleScreenProtection(),
+    },
   ];
 
   const productivityItems: DropdownMenuItemConfig[] = [
@@ -709,6 +728,32 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
         >
           <Languages size={14} className="shrink-0" />
           <span>{currentLang === 'th' ? 'ไทย' : 'EN'}</span>
+        </button>
+
+        {/* Screen Sharing Protection toggle button */}
+        <button
+          type="button"
+          onClick={() => void toggleScreenProtection()}
+          disabled={isUpdatingScreenProtection}
+          data-testid="toolbar-screen-protection-btn"
+          aria-pressed={screenProtectionEnabled}
+          aria-label={
+            screenProtectionEnabled
+              ? t('security.screenProtectionEnabled', 'Protected (Hidden from Screen Share)')
+              : t('security.screenProtectionDisabled', 'Disabled (Visible to Screen Share)')
+          }
+          title={
+            screenProtectionEnabled
+              ? t('security.screenProtectionEnabled', 'Protected (Hidden from Screen Share)')
+              : t('security.screenProtectionDisabled', 'Disabled (Visible to Screen Share)')
+          }
+          className={`h-7 w-7 flex items-center justify-center rounded transition-colors disabled:opacity-50 ${
+            screenProtectionEnabled
+              ? 'text-indigo-500 bg-indigo-500/10 hover:bg-indigo-500/20'
+              : 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10'
+          }`}
+        >
+          {screenProtectionEnabled ? <EyeOff size={15} /> : <Eye size={15} />}
         </button>
 
         {onOpenShortcuts && (

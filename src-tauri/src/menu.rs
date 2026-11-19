@@ -6,6 +6,7 @@ pub const MENU_NEW_QUERY: &str = "new-query";
 pub const MENU_CLOSE_TAB: &str = "close-tab";
 pub const MENU_REFRESH_SCHEMA: &str = "refresh-schema";
 pub const MENU_TOGGLE_THEME: &str = "toggle-theme";
+pub const MENU_TOGGLE_SCREEN_PROTECTION: &str = "toggle-screen-protection";
 pub const MENU_COMMAND_PALETTE: &str = "command-palette";
 pub const MENU_KEYBOARD_SHORTCUTS: &str = "keyboard-shortcuts";
 pub const MENU_CHECK_UPDATES: &str = "check-updates";
@@ -19,6 +20,7 @@ pub const KNOWN_MENU_ACTIONS: &[&str] = &[
     MENU_CLOSE_TAB,
     MENU_REFRESH_SCHEMA,
     MENU_TOGGLE_THEME,
+    MENU_TOGGLE_SCREEN_PROTECTION,
     MENU_COMMAND_PALETTE,
     MENU_KEYBOARD_SHORTCUTS,
     MENU_CHECK_UPDATES,
@@ -90,6 +92,13 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> 
                 .accelerator("CmdOrCtrl+D")
                 .build(app)?,
         )
+        .item(
+            &MenuItemBuilder::with_id(
+                MENU_TOGGLE_SCREEN_PROTECTION,
+                "Toggle Screen Sharing Protection",
+            )
+            .build(app)?,
+        )
         .separator()
         .item(
             &MenuItemBuilder::with_id(MENU_REFRESH_SCHEMA, "Refresh Schema")
@@ -121,13 +130,14 @@ mod tests {
 
     #[test]
     fn test_known_menu_actions_contains_all_expected_ids() {
-        assert_eq!(KNOWN_MENU_ACTIONS.len(), 10);
+        assert_eq!(KNOWN_MENU_ACTIONS.len(), 11);
         assert!(is_known_menu_action("about"));
         assert!(is_known_menu_action("new-connection"));
         assert!(is_known_menu_action("new-query"));
         assert!(is_known_menu_action("close-tab"));
         assert!(is_known_menu_action("refresh-schema"));
         assert!(is_known_menu_action("toggle-theme"));
+        assert!(is_known_menu_action("toggle-screen-protection"));
         assert!(is_known_menu_action("command-palette"));
         assert!(is_known_menu_action("keyboard-shortcuts"));
         assert!(is_known_menu_action("check-updates"));

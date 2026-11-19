@@ -27,6 +27,7 @@ import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
 import { useSchemaStore } from './stores/schemaStore';
 import { useTransferMonitorStore } from './stores/transferMonitorStore';
+import { usePrivacyStore } from './stores/privacyStore';
 import { onTransferProgress } from './api/dataTransferApi';
 import {
   openQueryTab,
@@ -107,6 +108,7 @@ export function App() {
 
   // Native macOS Menu Bar action listener (menu://action)
   useEffect(() => {
+    void usePrivacyStore.getState().syncScreenProtection();
     let unlisten: (() => void) | null = null;
     let mounted = true;
     listen<string>('menu://action', ({ payload }) => {
@@ -137,6 +139,9 @@ export function App() {
         }
         case 'toggle-theme':
           handleToggleTheme();
+          break;
+        case 'toggle-screen-protection':
+          void usePrivacyStore.getState().toggleScreenProtection();
           break;
         case 'command-palette':
           setIsCommandPaletteOpen(true);

@@ -10,9 +10,11 @@ import {
   AlertCircle,
   AlertTriangle,
   RefreshCw,
+  EyeOff,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { dbApi } from '../../api/db';
+import { usePrivacyStore } from '../../stores/privacyStore';
 import {
   buildGetTlsStatusSql,
   buildGetAtRestEncryptionSql,
@@ -45,6 +47,12 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
   const [isKeychainOptIn, setIsKeychainOptIn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isTogglingKeychain, setIsTogglingKeychain] = useState(false);
+  const {
+    screenProtectionEnabled,
+    isUpdating: isUpdatingScreenProtection,
+    error: screenProtectionError,
+    toggleScreenProtection,
+  } = usePrivacyStore();
 
   const fetchSecurityStatus = async () => {
     setIsLoading(true);
@@ -322,6 +330,51 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                       </span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 rounded-lg bg-white p-3 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60">
+                <EyeOff className={`h-4 w-4 shrink-0 mt-0.5 ${screenProtectionEnabled ? 'text-indigo-500 dark:text-indigo-400' : 'text-slate-400'}`} />
+                <div className="space-y-0.5 flex-1">
+                  <div className="font-medium text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                    {t('security.screenProtectionTitle', 'Screen Sharing Protection (Privacy Mode)')}
+                    <span className="rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 px-1.5 py-0.2">
+                      macOS
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {t('security.screenProtectionDesc', 'Hides the DataCore window from screen-sharing and recording apps (such as Zoom, Teams, OBS, or QuickTime).')}
+                  </p>
+                  <div className="pt-1.5 flex items-center gap-2 text-[11px]">
+                    <span className="text-slate-600 dark:text-slate-300 font-medium">
+                      {t('security.screenProtectionLabel', 'Prevent Screen Capture:')}
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={screenProtectionEnabled}
+                      aria-label="Toggle Screen Sharing Protection"
+                      onClick={() => void toggleScreenProtection()}
+                      disabled={isUpdatingScreenProtection}
+                      className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+                        screenProtectionEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          screenProtectionEnabled ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-[10px] text-slate-400">
+                      {screenProtectionEnabled
+                        ? t('security.screenProtectionEnabled', 'Protected (Hidden from Screen Share)')
+                        : t('security.screenProtectionDisabled', 'Disabled (Visible to Screen Share)')}
+                    </span>
+                  </div>
+                  {screenProtectionError && (
+                    <p className="text-[10px] text-rose-500 pt-1">{screenProtectionError}</p>
+                  )}
                 </div>
               </div>
 

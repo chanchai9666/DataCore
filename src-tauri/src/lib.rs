@@ -85,6 +85,7 @@ pub fn run() {
             verify_audit_log_integrity,
             clear_audit_logs,
             record_audit_log,
+            set_screen_protection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

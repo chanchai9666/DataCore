@@ -994,7 +994,12 @@
     "localVaultTitle": "Local Credential Vault (AES-256-GCM)",
     "keychainSyncLabel": "macOS Keychain & Touch ID Sync (Opt-In):",
     "enabledTouchId": "Enabled (Touch ID Ready)",
-    "disabledIsolated": "Disabled (Isolated Vault)"
+    "disabledIsolated": "Disabled (Isolated Vault)",
+    "screenProtectionTitle": "Screen Sharing Protection (Privacy Mode)",
+    "screenProtectionDesc": "Hides the DataCore window from screen-sharing and recording apps (such as Zoom, Teams, OBS, or QuickTime).",
+    "screenProtectionLabel": "Prevent Screen Capture:",
+    "screenProtectionEnabled": "Protected (Hidden from Screen Share)",
+    "screenProtectionDisabled": "Disabled (Visible to Screen Share)"
   },
   "transactions": {
     "savepointsTitle": "Transaction Savepoints",
