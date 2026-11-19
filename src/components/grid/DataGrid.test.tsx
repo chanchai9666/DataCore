@@ -1222,4 +1222,144 @@ describe('DataGrid', () => {
       expect(onTogglePaginationMode).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('Fast Edit Mode (Issue #186)', () => {
+    it('enables inline editing, forces Staging Mode, prevents drawer on activation, validates types, and supports paste + Cmd+S commit', async () => {
+      const { useFastEditStore } = await import('../../stores/fastEditStore');
+      const { usePendingChangesStore } = await import('../../stores/pendingChangesStore');
+      localStorage.clear();
+      useFastEditStore.getState().reset();
+      usePendingChangesStore.getState().clearAll();
+
+      const onCommitChanges = vi.fn().mockResolvedValue(undefined);
+      const numericData: QueryResult = {
+        columns: [
+          { name: 'id', data_type: 'INTEGER', nullable: false, is_primary_key: true },
+          { name: 'name', data_type: 'TEXT', nullable: true, is_primary_key: false },
+          { name: 'amount', data_type: 'NUMERIC', nullable: true, is_primary_key: false },
+          { name: 'email', data_type: 'TEXT', nullable: true, is_primary_key: false },
+        ],
+        rows: [
+          [{ Integer: 1 }, { Text: 'Alice' }, { Float: 100 }, { Text: 'alice@example.com' }],
+        ],
+        execution_time_ms: 2,
+      };
+
+      render(
+        <DataGrid
+          data={numericData}
+          connectionId="conn-fast-1"
+          tableName="orders"
+          isEditable={true}
+          isAutoCommit={true}
+          onCommitChanges={onCommitChanges}
+        />
+      );
+
+      // Default is OFF
+      expect(latestDataEditorProps.editOnType).toBeFalsy();
+      expect(latestDataEditorProps.onPaste).toBeUndefined();
+
+      // Toggle Fast Edit ON
+      const fastEditBtn = screen.getByTestId('fast-edit-toggle-btn');
+      fireEvent.click(fastEditBtn);
+
+      expect(useFastEditStore.getState().isFastEditEnabled('conn-fast-1')).toBe(true);
+      expect(latestDataEditorProps.editOnType).toBe(true);
+      expect(typeof latestDataEditorProps.onPaste).toBe('function');
+
+      // Auto-Commit button must be disabled while Fast Edit is ON
+      const autoCommitBtn = screen.getByRole('button', { name: /toggle auto-commit mode/i });
+      expect(autoCommitBtn).toBeDisabled();
+
+      // Activating a cell in Fast Edit Mode must NOT open CellDetailDrawer
+      act(() => {
+        latestDataEditorProps.onCellActivated?.([1, 0]);
+      });
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      // Invalid type edit on numeric column must be rejected and NOT staged
+      act(() => {
+        latestDataEditorProps.onCellEdited?.([2, 0], {
+          kind: 'text' as any,
+          data: 'not_a_number',
+          displayData: 'not_a_number',
+          allowOverlay: true,
+        });
+      });
+      const tableKey = 'conn-fast-1.orders';
+      expect(usePendingChangesStore.getState().getTableChanges(tableKey).cellEdits['0:2']).toBeUndefined();
+
+      // Multi-cell / multi-row paste: truncates extra col, skips masked email, appends row 2
+      act(() => {
+        latestDataEditorProps.onPaste?.([1, 0], [
+          ['Bob', '250', 'bob@example.com', 'EXTRA_COL'],
+          ['Charlie', '300', 'charlie@example.com', 'EXTRA_COL_2'],
+        ]);
+      });
+
+      const changes = usePendingChangesStore.getState().getTableChanges(tableKey);
+      expect(changes.cellEdits['0:1']?.newValue).toBe('Bob');
+      expect(changes.cellEdits['0:2']?.newValue).toBe(250);
+      // email is masked by default so it must NOT be overwritten
+      expect(changes.cellEdits['0:3']).toBeUndefined();
+      // Row 2 appended as addedRow
+      expect(changes.addedRows).toHaveLength(1);
+      expect(changes.addedRows[0]).toEqual({ name: 'Charlie', amount: 300 });
+
+      // Cmd+S triggers onCommitChanges
+      const container = screen.getByTestId('data-grid-container');
+      fireEvent.keyDown(container, { key: 's', metaKey: true });
+      expect(onCommitChanges).toHaveBeenCalledTimes(1);
+
+      // Cleanup
+      localStorage.clear();
+      useFastEditStore.getState().reset();
+      usePendingChangesStore.getState().clearAll();
+    });
+
+    it('supports pasting into an empty 0-row table when Fast Edit Mode is ON', async () => {
+      const { useFastEditStore } = await import('../../stores/fastEditStore');
+      const { usePendingChangesStore } = await import('../../stores/pendingChangesStore');
+      localStorage.clear();
+      useFastEditStore.getState().reset();
+      useFastEditStore.getState().setFastEditEnabled('conn-empty-1', true);
+      usePendingChangesStore.getState().clearAll();
+
+      const emptyData: QueryResult = {
+        columns: [
+          { name: 'id', data_type: 'INTEGER', nullable: false, is_primary_key: true },
+          { name: 'title', data_type: 'TEXT', nullable: true, is_primary_key: false },
+          { name: 'qty', data_type: 'INTEGER', nullable: true, is_primary_key: false },
+        ],
+        rows: [],
+        execution_time_ms: 1,
+      };
+
+      render(
+        <DataGrid
+          data={emptyData}
+          connectionId="conn-empty-1"
+          tableName="items"
+          isEditable={true}
+        />
+      );
+
+      const container = screen.getByTestId('data-grid-container');
+      fireEvent.paste(container, {
+        clipboardData: {
+          getData: () => '1\tWidget\t5\r\n2\tGadget\t10\r\n',
+        },
+      });
+
+      const changes = usePendingChangesStore.getState().getTableChanges('conn-empty-1.items');
+      expect(changes.addedRows).toHaveLength(2);
+      expect(changes.addedRows[0]).toEqual({ id: 1, title: 'Widget', qty: 5 });
+      expect(changes.addedRows[1]).toEqual({ id: 2, title: 'Gadget', qty: 10 });
+
+      localStorage.clear();
+      useFastEditStore.getState().reset();
+      usePendingChangesStore.getState().clearAll();
+    });
+  });
 });

@@ -17,10 +17,17 @@ import { GridBottomBar } from './GridBottomBar';
 import { RecordFormView } from './RecordFormView';
 import { lightGridTheme, darkGridTheme } from './gridTheme';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
+import { useFastEditStore } from '../../stores/fastEditStore';
 import { useStatusStore } from '../../stores/statusStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { createGridColumns, createCellContent } from './gridUtils';
 import { sanitizeEditedCellValue } from './tableEditHelpers';
+import {
+  validateCellValueForColumn,
+  parseClipboardTsv,
+  computePasteOperations,
+} from './fastEditUtils';
+import { isSensitiveColumn } from '../../utils/piiDetector';
 import { showConfirmDialog } from '../../utils/dialog';
 import {
   formatSelectionAsText,
@@ -323,8 +330,18 @@ export const DataGrid: React.FC<DataGridProps> = ({
   );
 
   const tableKey = `${connectionId || 'default'}.${tableName || 'query'}`;
+  const fastEditStoreEnabled = useFastEditStore((s) =>
+    connectionId ? Boolean(s.fastEditByConnection[connectionId]) : false
+  );
+  const activeIsFastEdit = Boolean(
+    connectionId && effectiveIsEditable && !effectiveReadOnly && fastEditStoreEnabled
+  );
   const storeIsAutoCommit = usePendingChangesStore((s) => s.isAutoCommitMode(tableKey));
-  const activeIsAutoCommit = isAutoCommitProp !== undefined ? isAutoCommitProp : storeIsAutoCommit;
+  const activeIsAutoCommit = activeIsFastEdit
+    ? false
+    : isAutoCommitProp !== undefined
+    ? isAutoCommitProp
+    : storeIsAutoCommit;
   const tableChanges = usePendingChangesStore((s) => s.tables[tableKey]);
   const hasPending = usePendingChangesStore((s) => s.hasPendingChanges(tableKey));
   const pendingCount = usePendingChangesStore((s) => s.getPendingChangesCount(tableKey));
@@ -346,7 +363,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
         const addedIdx = row - baseRowsCount;
         const addedRow = tableChanges?.addedRows?.[addedIdx];
         const rawVal = addedRow ? (addedRow[columnMeta.name] as CellValue) : null;
-        const cell = createCellContent(rawVal, columnMeta, activeIsMasked);
+        const cell = createCellContent(rawVal, columnMeta, activeIsMasked, activeIsFastEdit);
         return {
           ...cell,
           themeOverride: {
@@ -362,7 +379,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
       const cellEdit = tableChanges?.cellEdits?.[cellEditKey];
 
       const rawVal = cellEdit ? (cellEdit.newValue as CellValue) : data.rows[row]?.[col];
-      let cell = createCellContent(rawVal, columnMeta, activeIsMasked);
+      let cell = createCellContent(rawVal, columnMeta, activeIsMasked, activeIsFastEdit);
 
       if (isDeleted) {
         cell = {
@@ -384,7 +401,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
       return cell;
     },
-    [data, baseRowsCount, tableChanges, theme, activeIsMasked]
+    [data, baseRowsCount, tableChanges, theme, activeIsMasked, activeIsFastEdit]
   );
 
   const activeCellInfo = useMemo(() => {
@@ -440,10 +457,16 @@ export const DataGrid: React.FC<DataGridProps> = ({
     };
   }, [data, selectedCell, tableChanges, baseRowsCount, foreignKeys]);
 
-  const handleCellActivated = useCallback((cell: Item) => {
-    setSelectedCell(cell);
-    setDrawerOpen(true);
-  }, []);
+  const handleCellActivated = useCallback(
+    (cell: Item) => {
+      setSelectedCell(cell);
+      if (activeIsFastEdit) {
+        return;
+      }
+      setDrawerOpen(true);
+    },
+    [activeIsFastEdit]
+  );
 
   const handleCellClicked = useCallback(
     (cell: Item, event?: { metaKey?: boolean; ctrlKey?: boolean; bounds?: { x: number; y: number } }) => {
@@ -494,6 +517,40 @@ export const DataGrid: React.FC<DataGridProps> = ({
       const colMeta = data?.columns[colIndex];
       const oldValue = data?.rows[rowIndex]?.[colIndex];
 
+      if (activeIsFastEdit && colMeta) {
+        if (activeIsMasked && isSensitiveColumn(colMeta.name)) {
+          toast.warning('Unmask PII columns before editing masked cells.');
+          return;
+        }
+
+        const rawInput =
+          'data' in newValue
+            ? (newValue as any).data === undefined || (newValue as any).data === null
+              ? 'NULL'
+              : String((newValue as any).data)
+            : '';
+
+        const validation = validateCellValueForColumn(rawInput, colMeta);
+        if (!validation.valid) {
+          toast.error(validation.reason);
+          return;
+        }
+
+        const store = usePendingChangesStore.getState();
+        if (rowIndex >= baseRowsCount) {
+          store.updateAddedRowCell(tableKey, rowIndex - baseRowsCount, colMeta.name, validation.value);
+        } else {
+          store.stageCellEdit(tableKey, {
+            rowIndex,
+            colIndex,
+            colName: colMeta.name,
+            oldValue,
+            newValue: validation.value,
+          });
+        }
+        return;
+      }
+
       if (!activeIsAutoCommit) {
         if (colMeta) {
           let val: unknown = 'data' in newValue ? (newValue as any).data : newValue;
@@ -504,19 +561,68 @@ export const DataGrid: React.FC<DataGridProps> = ({
           }
           val = sanitizeEditedCellValue(val, colMeta);
 
-          usePendingChangesStore.getState().stageCellEdit(tableKey, {
-            rowIndex,
-            colIndex,
-            colName: colMeta.name,
-            oldValue,
-            newValue: val,
-          });
+          const store = usePendingChangesStore.getState();
+          if (rowIndex >= baseRowsCount) {
+            store.updateAddedRowCell(tableKey, rowIndex - baseRowsCount, colMeta.name, val);
+          } else {
+            store.stageCellEdit(tableKey, {
+              rowIndex,
+              colIndex,
+              colName: colMeta.name,
+              oldValue,
+              newValue: val,
+            });
+          }
         }
       } else {
         onCellEdited?.(cell, newValue);
       }
     },
-    [data, tableKey, activeIsAutoCommit, onCellEdited, effectiveReadOnly]
+    [data, tableKey, activeIsAutoCommit, activeIsFastEdit, activeIsMasked, baseRowsCount, onCellEdited, effectiveReadOnly]
+  );
+
+  const handleGridPaste = useCallback(
+    (target: Item, values: readonly (readonly string[])[]): boolean => {
+      if (!activeIsFastEdit || effectiveReadOnly || !data?.columns.length) {
+        return false;
+      }
+      const [startCol, startRow] = target;
+      const store = usePendingChangesStore.getState();
+      const currentChanges = store.getTableChanges(tableKey);
+
+      const ops = computePasteOperations({
+        startCol,
+        startRow,
+        matrix: values,
+        columns: data.columns,
+        baseRowsCount,
+        existingAddedRowsCount: currentChanges.addedRows.length,
+        deletedRowIndices: currentChanges.deletedRowIndices,
+        isMasked: activeIsMasked,
+        getOriginalValue: (rIdx, cIdx) => data.rows[rIdx]?.[cIdx],
+      });
+
+      for (const edit of ops.cellEdits) {
+        store.stageCellEdit(tableKey, edit);
+      }
+      for (const update of ops.addedRowUpdates) {
+        store.updateAddedRowCell(tableKey, update.addedRowIndex, update.colName, update.value);
+      }
+      for (const newRow of ops.newRows) {
+        store.stageAddRow(tableKey, newRow);
+      }
+
+      if (ops.skippedMaskedCount > 0) {
+        toast.warning('Unmask PII columns before pasting into masked cells.');
+      }
+      if (ops.invalidCells.length > 0) {
+        toast.error(ops.invalidCells[0].reason);
+      }
+
+      // Return false so Glide Data Grid does not also run its internal paste
+      return false;
+    },
+    [activeIsFastEdit, effectiveReadOnly, data, tableKey, baseRowsCount, activeIsMasked]
   );
 
   const handleSaveDrawerValue = useCallback(
@@ -564,7 +670,16 @@ export const DataGrid: React.FC<DataGridProps> = ({
     }
   }, [hasSelectedRows, selectedRowIndices, selectedCell, onRowsDelete, onRowDelete]);
 
+  const handleToggleFastEdit = useCallback(() => {
+    if (!connectionId || effectiveReadOnly || !effectiveIsEditable) return;
+    const nextEnabled = useFastEditStore.getState().toggleFastEdit(connectionId);
+    if (nextEnabled) {
+      usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
+    }
+  }, [connectionId, effectiveReadOnly, effectiveIsEditable, tableKey]);
+
   const handleToggleAutoCommit = useCallback(async () => {
+    if (activeIsFastEdit) return;
     if (onToggleAutoCommitProp) {
       onToggleAutoCommitProp();
       return;
@@ -747,7 +862,24 @@ export const DataGrid: React.FC<DataGridProps> = ({
     } else if (e.key.toLowerCase() === 'f') {
       e.preventDefault();
       setShowSearch((prev) => !prev);
+    } else if (e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      if (!effectiveReadOnly && hasPending) {
+        handleCommitChanges();
+      }
     }
+  };
+
+  const handleContainerPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    if (!activeIsFastEdit || effectiveReadOnly || rowsCount > 0 || !data?.columns.length) {
+      return;
+    }
+    const text = e.clipboardData?.getData('text/plain');
+    if (!text) return;
+    const matrix = parseClipboardTsv(text);
+    if (matrix.length === 0) return;
+    e.preventDefault();
+    handleGridPaste([0, 0], matrix);
   };
 
   return (
@@ -755,6 +887,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
       data-testid="data-grid-container"
       tabIndex={0}
       onKeyDown={handleContainerKeyDown}
+      onPaste={handleContainerPaste}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -1053,6 +1186,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
                   onCellActivated={handleCellActivated}
                   onCellClicked={handleCellClicked}
                   onCellEdited={effectiveReadOnly ? undefined : handleCellEditedWithStaging}
+                  editOnType={activeIsFastEdit}
+                  onPaste={activeIsFastEdit ? handleGridPaste : undefined}
                   onHeaderClicked={handleHeaderClicked}
                   onColumnResize={handleColumnResize}
                   showSearch={showSearch}
@@ -1197,6 +1332,12 @@ export const DataGrid: React.FC<DataGridProps> = ({
         canDelete={effectiveIsEditable && (hasSelectedRows || selectedCell !== null)}
         isAutoCommit={activeIsAutoCommit}
         onToggleAutoCommit={effectiveReadOnly ? undefined : handleToggleAutoCommit}
+        isFastEdit={activeIsFastEdit}
+        onToggleFastEdit={
+          connectionId && effectiveIsEditable && !effectiveReadOnly
+            ? handleToggleFastEdit
+            : undefined
+        }
         hasPendingChanges={hasPending}
         pendingCount={pendingCount}
         onCommit={handleCommitChanges}
