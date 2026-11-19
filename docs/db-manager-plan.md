@@ -947,6 +947,10 @@
       - หากจำนวนแถวที่วางเกินแถวที่มีอยู่ ระบบจะสร้างแถวใหม่ต่อท้าย (`addedRows`) อัตโนมัติโดยละคอลัมน์ที่ไม่ได้วางค่าไว้ (`undefined`) เพื่อให้ `DEFAULT` ของฐานข้อมูลทำงานตอน Commit และตัดคอลัมน์ส่วนเกินทิ้งอัตโนมัติ
     - **Data Type Validation & Security Guards:** ตรวจสอบประเภทข้อมูลก่อน stage (เช่น ปฏิเสธข้อความ/วันที่ในคอลัมน์ตัวเลข, ตรวจสอบ Boolean `true`/`false`/`1`/`0`, JSON, Date/Time) พร้อมแจ้งเตือนเมื่อไม่ถูกต้อง และล็อกคอลัมน์ที่ถูก Mask PII (แจ้งให้กด Unmasked ก่อนแก้) รวมถึงคอลัมน์ `Bytes`
 
+46. **Issue #187: Add `#portal` Container for Glide Data Grid Inline Overlay Editor (`index.html`, `src/index.css`)**
+    - **Overlay Editor Portal Mount:** เพิ่ม `<div id="portal" style="position: fixed; left: 0; top: 0; z-index: 9999;"></div>` ใน `index.html` เพื่อให้ `@glideapps/glide-data-grid` สามารถ mount กล่องแก้ไขในเซลล์ (`DataGridOverlayEditor`) ได้เมื่อเปิดโหมดแก้ไขเร็ว
+    - **WKWebView Text Selection:** เพิ่มกฎ `#portal input, #portal textarea { user-select: text; -webkit-user-select: text; }` ใน `src/index.css` เพื่อไม่ให้ `user-select: none` บน `body` ขัดขวางการเลือกข้อความในกล่องแก้ไข
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)

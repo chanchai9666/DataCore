@@ -68,3 +68,10 @@
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover, rgba(156, 163, 175, 0.7));
 }
+
+/* Allow text selection inside Glide Data Grid overlay editor portal */
+#portal input,
+#portal textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}

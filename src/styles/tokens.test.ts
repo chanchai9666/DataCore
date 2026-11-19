@@ -41,5 +41,12 @@ describe('Design Tokens & CSS Variables (Phase 1)', () => {
     const indexContent = fs.readFileSync(indexPath, 'utf-8');
     expect(indexContent).toContain("@import './styles/tokens.css';");
     expect(indexContent).toContain('font-family: var(--font-ui);');
+    expect(indexContent).toContain('#portal input');
+  });
+
+  it('includes #portal container in index.html for Glide Data Grid overlay editor (Issue #187)', () => {
+    const htmlPath = path.resolve(__dirname, '../../index.html');
+    const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
+    expect(htmlContent).toContain('id="portal"');
   });
 });
