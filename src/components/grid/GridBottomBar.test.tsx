@@ -137,15 +137,15 @@ describe('GridBottomBar Component', () => {
     const binCol = { name: 'avatar', data_type: 'BYTEA', nullable: true, is_primary_key: false };
 
     const maskedCell = createCellContent({ Text: 'a@b.com' }, emailCol, true, true);
-    expect(maskedCell.readonly).toBe(true);
+    expect((maskedCell as { readonly?: boolean }).readonly).toBe(true);
     expect(maskedCell.allowOverlay).toBe(false);
 
     const boolCell = createCellContent({ Boolean: true }, boolCol, false, true);
     expect(boolCell.allowOverlay).toBe(true);
-    expect(boolCell.readonly).toBe(false);
+    expect((boolCell as { readonly?: boolean }).readonly).toBe(false);
 
     const bytesCell = createCellContent({ Bytes: 'AQID' }, binCol, false, true);
-    expect(bytesCell.readonly).toBe(true);
+    expect((bytesCell as { readonly?: boolean }).readonly).toBe(true);
     expect(bytesCell.allowOverlay).toBe(false);
   });
 });

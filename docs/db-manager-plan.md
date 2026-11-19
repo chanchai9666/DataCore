@@ -938,6 +938,15 @@
     - **Page-Level Row Count Reconciliation (`reconcile_page_row_count`):** หากจำนวนแถวที่ดึงได้ในหน้าปัจจุบันน้อยกว่า `limit` (และอยู่ที่ `offset = 0` หรือได้ข้อมูล > 0 แถว) ระบบจะปรับ `rows_affected` เป็น `offset + rows.len()` และล้าง `is_approximate_count` ทันทีทั้งฝั่ง Rust และ Frontend (`DockLayout.tsx`)
     - **Exact Count StatusBar Sync:** อัปเดต `useStatusStore` (`rowCount: exactCount`) ใน `handleExactCount` ของ `DockLayout.tsx` ให้ `StatusBar` ด้านล่างสุดแสดงจำนวนแถวจริงตรงกับ `GridBottomBar` ทันทีหลังกดปุ่ม "นับจริง"
 
+45. **Issue #186: Excel-like Fast Edit Mode (`fastEditStore.ts`, `fastEditUtils.ts`, `DataGrid.tsx`, `GridBottomBar.tsx`, `gridUtils.ts`, `tableEditHelpers.ts`)**
+    - **Per-Connection Persistence & Default OFF:** สร้าง `useFastEditStore` เก็บสถานะการเปิด-ปิดแยกตาม `connectionId` ใน `localStorage` (`datacore-fast-edit-mode`) โดยค่าเริ่มต้นเป็นปิดสำหรับทุกฐานข้อมูลที่ยังไม่เคยเปิด
+    - **Forced Staging Mode:** เมื่อเปิดใช้งานโหมดแก้ไขแบบเร็ว ระบบจะบังคับปิด `Auto-Commit` (เข้าสู่ Staging Mode) และล็อกปุ่มสลับ `Auto-Commit` พร้อม tooltip อธิบาย จนกว่าจะปิดโหมดแก้ไขแบบเร็ว ผู้ใช้ต้องกดปุ่ม **Commit** หรือใช้คีย์ลัด `Cmd+S` / `Ctrl+S` เพื่อบันทึกข้อมูลจริงเสมอ
+    - **Excel-like Inline Editing & Multi-Cell Paste:**
+      - เมื่อเปิดโหมดแก้ไขแบบเร็ว การคลิกแล้วพิมพ์ (`editOnType`), กด `Enter` หรือดับเบิลคลิก จะแก้ไขข้อมูลในเซลล์ตรงๆ โดยไม่เปิด `CellDetailDrawer`
+      - รองรับการ Paste (`Cmd+V` / `Ctrl+V`) ทั้งแบบเซลล์เดียว หลายเซลล์ และหลายแถวจาก Excel/Sheets หรือในตารางเอง (รวมถึงการวางบนตารางที่ยังว่างอยู่ 0 แถว)
+      - หากจำนวนแถวที่วางเกินแถวที่มีอยู่ ระบบจะสร้างแถวใหม่ต่อท้าย (`addedRows`) อัตโนมัติโดยละคอลัมน์ที่ไม่ได้วางค่าไว้ (`undefined`) เพื่อให้ `DEFAULT` ของฐานข้อมูลทำงานตอน Commit และตัดคอลัมน์ส่วนเกินทิ้งอัตโนมัติ
+    - **Data Type Validation & Security Guards:** ตรวจสอบประเภทข้อมูลก่อน stage (เช่น ปฏิเสธข้อความ/วันที่ในคอลัมน์ตัวเลข, ตรวจสอบ Boolean `true`/`false`/`1`/`0`, JSON, Date/Time) พร้อมแจ้งเตือนเมื่อไม่ถูกต้อง และล็อกคอลัมน์ที่ถูก Mask PII (แจ้งให้กด Unmasked ก่อนแก้) รวมถึงคอลัมน์ `Bytes`
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)
