@@ -17,7 +17,7 @@ jobs:
           version: 12.14.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
@@ -25,7 +25,7 @@ jobs:
 
   rust:
     name: Rust Check, Clippy & Test
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -48,13 +48,12 @@ jobs:
           version: 12.14.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - name: Audit Node dependencies (high/critical gate)
         run: pnpm audit --prod --audit-level=high
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
       - name: Audit Rust dependencies
-        uses: rustsec/audit-check@v2
-        with:
-          manifest-path: src-tauri/Cargo.toml
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo audit --file src-tauri/Cargo.lock

@@ -12,7 +12,7 @@ permissions:
 jobs:
   build-and-release:
     name: Build, Sign, Notarize & Release macOS App
-    runs-on: macos-14 # Native Apple Silicon (M-series)
+    runs-on: macos-latest
 
     steps:
       - name: Checkout repository
@@ -36,7 +36,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'pnpm'
 
       - name: Install frontend dependencies
