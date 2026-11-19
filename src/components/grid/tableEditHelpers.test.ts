@@ -255,5 +255,14 @@ describe('tableEditHelpers', () => {
       expect(sanitizeEditedCellValue('42', intCol)).toBe(42);
       expect(sanitizeEditedCellValue(10, intCol)).toBe(10);
     });
+
+    it('coerces boolean string values for boolean columns', () => {
+      const boolCol = { name: 'active', data_type: 'BOOLEAN', nullable: true, is_primary_key: false };
+      expect(sanitizeEditedCellValue('true', boolCol)).toBe(true);
+      expect(sanitizeEditedCellValue('FALSE', boolCol)).toBe(false);
+      expect(sanitizeEditedCellValue('1', boolCol)).toBe(true);
+      expect(sanitizeEditedCellValue('0', boolCol)).toBe(false);
+      expect(sanitizeEditedCellValue('null', boolCol)).toBeNull();
+    });
   });
 });

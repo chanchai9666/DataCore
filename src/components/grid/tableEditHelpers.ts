@@ -11,10 +11,19 @@ export {
 } from '../../api/queryBuilder';
 
 /**
+ * Returns true if the column data type represents a boolean type.
+ */
+export function isBooleanType(dataType: string): boolean {
+  const lower = dataType.toLowerCase();
+  return lower === 'bool' || lower.includes('boolean') || lower === 'tinyint(1)' || lower === 'bit';
+}
+
+/**
  * Sanitizes and coerces user input from grid editing based on column type.
  * Converts '0' or empty inputs on nullable date/time columns to null.
  * Normalizes NOW/CURRENT_TIMESTAMP keywords.
  * Converts empty strings on nullable numeric columns to null.
+ * Coerces boolean strings ('true', 'false', '1', '0', 't', 'f') on boolean columns.
  */
 export function sanitizeEditedCellValue(
   val: unknown,
@@ -27,6 +36,7 @@ export function sanitizeEditedCellValue(
   const dataType = column?.data_type || '';
   const isDateTime = isDateTimeType(dataType);
   const isNumeric = isNumericType(dataType);
+  const isBool = isBooleanType(dataType);
   const isNullable = column?.nullable !== false;
 
   if (typeof val === 'string') {
@@ -55,6 +65,13 @@ export function sanitizeEditedCellValue(
       if (!isNaN(num)) {
         return num;
       }
+      return val;
+    }
+
+    if (isBool) {
+      const lower = trimmed.toLowerCase();
+      if (lower === 'true' || lower === '1' || lower === 't') return true;
+      if (lower === 'false' || lower === '0' || lower === 'f') return false;
       return val;
     }
 
