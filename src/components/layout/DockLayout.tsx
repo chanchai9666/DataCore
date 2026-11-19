@@ -997,45 +997,32 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         operations.push({ sql: insertSql, insertIndex: idx });
       });
 
-      // 2. Cell edits (UPDATE)
-      const editsByRow: Record<number, Record<number, unknown>> = {};
+      // 2. Cell edits (UPDATE) — batch all column edits on the same row into a single UPDATE statement
+      const editsByRow: Record<number, Array<{ colIndex: number; newValue: unknown }>> = {};
       for (const edit of Object.values(changes.cellEdits)) {
-        if (!editsByRow[edit.rowIndex]) editsByRow[edit.rowIndex] = {};
-        editsByRow[edit.rowIndex][edit.colIndex] = edit.newValue;
+        if (!editsByRow[edit.rowIndex]) editsByRow[edit.rowIndex] = [];
+        editsByRow[edit.rowIndex].push({ colIndex: edit.colIndex, newValue: edit.newValue });
       }
 
-      for (const [rowIndexStr, colMap] of Object.entries(editsByRow)) {
+      for (const [rowIndexStr, rowUpdates] of Object.entries(editsByRow)) {
         const rowIndex = Number(rowIndexStr);
         const originalRow = tableState.data.rows[rowIndex];
         if (!originalRow) continue;
 
-        const workingRow = [...originalRow];
-        for (const [colIndexStr, newVal] of Object.entries(colMap)) {
-          const colIndex = Number(colIndexStr);
-          const column = columns[colIndex];
-          if (!column) continue;
-          const updateSql = buildUpdateSql({
-            tableName,
-            schemaName,
-            columns,
-            row: workingRow,
-            colIndex,
-            newValue: newVal,
-            driver,
-          });
-          operations.push({ sql: updateSql });
-          if (newVal === null || newVal === undefined) {
-            workingRow[colIndex] = { type: 'Null' };
-          } else if (typeof newVal === 'boolean') {
-            workingRow[colIndex] = { type: 'Boolean', value: newVal };
-          } else if (typeof newVal === 'number') {
-            workingRow[colIndex] = Number.isInteger(newVal)
-              ? { type: 'Integer', value: newVal }
-              : { type: 'Float', value: newVal };
-          } else {
-            workingRow[colIndex] = { type: 'Text', value: String(newVal) };
-          }
-        }
+        const validUpdates = rowUpdates
+          .filter(({ colIndex }) => Boolean(columns[colIndex]))
+          .sort((a, b) => a.colIndex - b.colIndex);
+        if (validUpdates.length === 0) continue;
+
+        const updateSql = buildUpdateSql({
+          tableName,
+          schemaName,
+          columns,
+          row: originalRow,
+          updates: validUpdates,
+          driver,
+        });
+        operations.push({ sql: updateSql });
       }
 
       // 3. Deleted rows (DELETE)

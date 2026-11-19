@@ -1325,4 +1325,80 @@ describe('DockLayout', () => {
       expect(useStatusStore.getState().tabStatusMap['tab-small-stale']?.rowCount).toBe(76);
     });
   });
+
+  it('batches multiple edited columns on the same row into a single UPDATE query on commit (Issue #192)', async () => {
+    vi.mocked(tauriDialog.confirm).mockResolvedValue(true);
+    vi.mocked(dbApi.fetchTableData).mockResolvedValueOnce({
+      columns: [
+        { name: 'id', data_type: 'INTEGER', nullable: false, is_primary_key: true },
+        { name: 'name', data_type: 'TEXT', nullable: true, is_primary_key: false },
+        { name: 'txt2', data_type: 'TEXT', nullable: true, is_primary_key: false },
+      ],
+      rows: [[{ Integer: 7 }, { Text: 'old1' }, { Text: 'old2' }]],
+      execution_time_ms: 4,
+      rows_affected: 1,
+    } as QueryResult);
+
+    const pgConn = { ...mockConn, driver: 'postgres' as const };
+    useConnectionStore.setState({
+      connections: [pgConn],
+      activeConnectionId: 'conn-1',
+      connectedConnectionIds: ['conn-1'],
+    });
+
+    const tableKey = 'conn-1.testable_data';
+    usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
+    usePendingChangesStore.getState().stageCellEdit(tableKey, {
+      rowIndex: 0,
+      colIndex: 1,
+      colName: 'name',
+      oldValue: 'old1',
+      newValue: '77',
+    });
+    usePendingChangesStore.getState().stageCellEdit(tableKey, {
+      rowIndex: 0,
+      colIndex: 2,
+      colName: 'txt2',
+      oldValue: 'old2',
+      newValue: '77',
+    });
+
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-batch-update',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'testable_data',
+          tableName: 'testable_data',
+          schemaName: 'public',
+          autoCommit: false,
+          queryContent: '',
+          isLoaded: true,
+        },
+      ],
+      activeTabId: 'tab-batch-update',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalledWith('tab-batch-update', 'testable_data', 'public', 100, 0);
+    });
+
+    const commitBtn = await screen.findByRole('button', { name: /commit changes/i });
+    await act(async () => {
+      fireEvent.click(commitBtn);
+    });
+
+    await waitFor(() => {
+      const updateCalls = vi
+        .mocked(dbApi.executeQuery)
+        .mock.calls.filter(([, sql]) => sql.includes('UPDATE'));
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0][1]).toBe(
+        'UPDATE "public"."testable_data" SET "name" = \'77\', "txt2" = \'77\' WHERE "id" = 7;'
+      );
+    });
+  });
 });

@@ -359,6 +359,31 @@ describe('queryBuilder', () => {
       ).toThrow();
     });
 
+    it('batches multiple column updates on the same row into a single UPDATE statement', () => {
+      const sql = buildUpdateSql({
+        driver: 'postgres',
+        tableName: 'testable_data',
+        schemaName: 'public',
+        columns: [
+          { name: 'id', data_type: 'int4', nullable: false, is_primary_key: true },
+          { name: 'name', data_type: 'varchar', nullable: true, is_primary_key: false },
+          { name: 'txt2', data_type: 'varchar', nullable: true, is_primary_key: false },
+        ],
+        row: [
+          { Integer: 7 },
+          { Text: 'old' },
+          { Text: 'old2' },
+        ],
+        updates: [
+          { colIndex: 1, newValue: '77' },
+          { colIndex: 2, newValue: '77' },
+        ],
+      });
+      expect(sql).toBe(
+        'UPDATE "public"."testable_data" SET "name" = \'77\', "txt2" = \'77\' WHERE "id" = 7;'
+      );
+    });
+
     it('generates INSERT sql', () => {
       const sql = buildInsertSql({
         driver: 'postgres',

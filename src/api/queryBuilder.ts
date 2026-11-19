@@ -61,8 +61,9 @@ export interface BuildUpdateOptions {
   schemaName?: string;
   columns: ColumnMeta[];
   row: CellValue[];
-  colIndex: number;
-  newValue: unknown;
+  colIndex?: number;
+  newValue?: unknown;
+  updates?: Array<{ colIndex: number; newValue: unknown }>;
 }
 
 export interface BuildDeleteOptions {
@@ -499,31 +500,51 @@ export function buildCreateTableSql(config: CreateTableConfig): string {
 }
 
 /**
- * Builds an UPDATE statement for an inline edited cell.
+ * Builds an UPDATE statement for one or more edited cells in a single row.
  */
 export function buildUpdateSql(options: BuildUpdateOptions): string {
-  const { driver, tableName, schemaName, columns, row, colIndex, newValue } = options;
-  const targetCol = columns[colIndex];
+  const { driver, tableName, schemaName, columns, row, colIndex, newValue, updates } = options;
+  const cellUpdates =
+    updates && updates.length > 0
+      ? updates
+      : colIndex !== undefined
+      ? [{ colIndex, newValue }]
+      : [];
+
+  if (cellUpdates.length === 0) {
+    throw new Error('No column updates provided for UPDATE statement');
+  }
+
   const fullTable = qualifyTable(tableName, schemaName, driver);
-  const colSql = quoteIdentifier(targetCol.name, driver);
-  const valSql = formatSqlLiteral(newValue, driver, targetCol.data_type);
+  const assignments = cellUpdates
+    .map(({ colIndex: idx, newValue: val }) => {
+      const targetCol = columns[idx];
+      if (!targetCol) {
+        throw new Error(`Column index ${idx} out of bounds`);
+      }
+      const colSql = quoteIdentifier(targetCol.name, driver);
+      const valSql = formatSqlLiteral(val, driver, targetCol.data_type);
+      return `${colSql} = ${valSql}`;
+    })
+    .join(', ');
+
   const whereSql = buildWhereClause(columns, row, driver);
 
   const pkIndexes = findPrimaryKeyIndexes(columns);
   if (pkIndexes.length > 0) {
-    return `UPDATE ${fullTable} SET ${colSql} = ${valSql} WHERE ${whereSql};`;
+    return `UPDATE ${fullTable} SET ${assignments} WHERE ${whereSql};`;
   }
 
   // Fallback when no explicit primary key exists: guard to a single row to prevent mass modification
   const normDriver = driver?.toLowerCase();
   if (normDriver === 'mysql') {
-    return `UPDATE ${fullTable} SET ${colSql} = ${valSql} WHERE ${whereSql} LIMIT 1;`;
+    return `UPDATE ${fullTable} SET ${assignments} WHERE ${whereSql} LIMIT 1;`;
   }
   if (normDriver === 'sqlite') {
-    return `UPDATE ${fullTable} SET ${colSql} = ${valSql} WHERE rowid = (SELECT rowid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;
+    return `UPDATE ${fullTable} SET ${assignments} WHERE rowid = (SELECT rowid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;
   }
   // Postgres
-  return `UPDATE ${fullTable} SET ${colSql} = ${valSql} WHERE ctid = (SELECT ctid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;
+  return `UPDATE ${fullTable} SET ${assignments} WHERE ctid = (SELECT ctid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;
 }
 
 /**

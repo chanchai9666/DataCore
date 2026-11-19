@@ -974,6 +974,10 @@
     - **Equalized Dropdown & Textbox Heights:** ปรับ `select:not([multiple])` ใน `src/index.css` ให้ใช้ `appearance: none` พร้อม custom SVG chevron และกำหนดความสูง `h-9` ให้ `<select>` และ `<input>` เท่ากันทุก Modal บน macOS WebKit
     - **Enlarged Structure Modals:** ขยายขนาด Form Modals ของ `ColumnsTab`, `IndexesTab`, `ForeignKeysTab`, `ConstraintsTab`, และ `RlsSecurityTab` เป็น `max-w-2xl` พร้อม Layout ที่โปร่งและอ่าน SQL Preview ได้สะดวกขึ้น
 
+51. **Issue #192: Batch Multi-Column Row Updates into Single UPDATE Query (`queryBuilder.ts`, `DockLayout.tsx`)**
+    - **Multi-Column `buildUpdateSql`:** เพิ่ม option `updates?: Array<{ colIndex: number; newValue: unknown }>` ใน `BuildUpdateOptions` ของ `src/api/queryBuilder.ts` เพื่อรวมการแก้ไขหลายคอลัมน์ในแถวเดียวกันเป็นคำสั่ง `UPDATE ... SET "col1" = ..., "col2" = ... WHERE ...;` เพียงคำสั่งเดียว (พร้อมคง Single-row Guard สำหรับตารางที่ไม่มี PK)
+    - **Row-Level Batching in `handleCommitChanges`:** ปรับ `DockLayout.tsx` ให้สร้างคำสั่ง `UPDATE` เพียง 1 query ต่อ 1 แถวที่ถูกแก้ไข (แทนการยิงแยกทีละคอลัมน์) โดยอ้างอิงค่าเดิมของแถวใน `WHERE` ลดจำนวน Query, Transaction overhead และ Audit Log entries เมื่อแก้ไขข้อมูลจำนวนมาก
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)
