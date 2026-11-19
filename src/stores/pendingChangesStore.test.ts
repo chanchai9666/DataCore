@@ -87,4 +87,13 @@ describe('pendingChangesStore', () => {
     usePendingChangesStore.getState().setAutoCommitMode(tableKey1, true);
     expect(usePendingChangesStore.getState().isAutoCommitMode(tableKey1)).toBe(true);
   });
+
+  it('updates a cell inside an existing staged addedRow', () => {
+    const tableKey = 'conn1::public::users';
+    usePendingChangesStore.getState().stageAddRow(tableKey, { name: 'Alice' });
+    usePendingChangesStore.getState().updateAddedRowCell(tableKey, 0, 'age', 30);
+
+    const changes = usePendingChangesStore.getState().getTableChanges(tableKey);
+    expect(changes.addedRows[0]).toEqual({ name: 'Alice', age: 30 });
+  });
 });

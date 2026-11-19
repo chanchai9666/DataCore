@@ -22,6 +22,12 @@ export interface PendingChangesStoreState {
   isAutoCommitMode: (tableKey: string) => boolean;
   stageCellEdit: (tableKey: string, change: CellChange) => void;
   stageAddRow: (tableKey: string, initialData?: Record<string, unknown>) => void;
+  updateAddedRowCell: (
+    tableKey: string,
+    addedRowIndex: number,
+    colName: string,
+    value: unknown
+  ) => void;
   stageDeleteRow: (tableKey: string, rowIndex: number) => void;
   unstageDeleteRow: (tableKey: string, rowIndex: number) => void;
   discardChanges: (tableKey: string) => void;
@@ -99,6 +105,34 @@ export const usePendingChangesStore = create<PendingChangesStoreState>((set, get
           [tableKey]: {
             ...currentTable,
             addedRows: [...currentTable.addedRows, initialData],
+          },
+        },
+      };
+    });
+  },
+
+  updateAddedRowCell: (
+    tableKey: string,
+    addedRowIndex: number,
+    colName: string,
+    value: unknown
+  ) => {
+    set((state) => {
+      const currentTable = state.tables[tableKey];
+      if (!currentTable || addedRowIndex < 0 || addedRowIndex >= currentTable.addedRows.length) {
+        return state;
+      }
+      const nextAddedRows = [...currentTable.addedRows];
+      nextAddedRows[addedRowIndex] = {
+        ...nextAddedRows[addedRowIndex],
+        [colName]: value,
+      };
+      return {
+        tables: {
+          ...state.tables,
+          [tableKey]: {
+            ...currentTable,
+            addedRows: nextAddedRows,
           },
         },
       };
