@@ -654,6 +654,8 @@ describe('DockLayout', () => {
       );
       expect(usePendingChangesStore.getState().hasPendingChanges(tableKey)).toBe(false);
     });
+    // Should update rows in-place without re-fetching table data (Issue #189)
+    expect(dbApi.fetchTableData).toHaveBeenCalledTimes(1);
     confirmSpy.mockRestore();
   });
 

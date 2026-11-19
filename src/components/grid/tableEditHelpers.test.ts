@@ -7,6 +7,8 @@ import {
   buildDeleteSql,
   buildInsertSql,
   sanitizeEditedCellValue,
+  toCellValue,
+  applyTableMutations,
 } from './tableEditHelpers';
 import type { ColumnMeta, CellValue } from '../../types/db';
 
@@ -263,6 +265,36 @@ describe('tableEditHelpers', () => {
       expect(sanitizeEditedCellValue('1', boolCol)).toBe(true);
       expect(sanitizeEditedCellValue('0', boolCol)).toBe(false);
       expect(sanitizeEditedCellValue('null', boolCol)).toBeNull();
+    });
+  });
+
+  describe('toCellValue & applyTableMutations', () => {
+    it('applies cell edits, deletes, and added rows in-place without mutating original rows', () => {
+      const columns = [
+        { name: 'id', data_type: 'INTEGER', nullable: false, is_primary_key: true },
+        { name: 'name', data_type: 'TEXT', nullable: true, is_primary_key: false },
+        { name: 'active', data_type: 'BOOLEAN', nullable: true, is_primary_key: false },
+      ];
+      const rows: any[][] = [
+        [{ Integer: 1 }, { Text: 'Alice' }, { Boolean: true }],
+        [{ Integer: 2 }, { Text: 'Bob' }, { Boolean: false }],
+      ];
+
+      const { rows: nextRows, rowDelta } = applyTableMutations({
+        rows,
+        columns,
+        cellEdits: {
+          '0:1': { rowIndex: 0, colIndex: 1, colName: 'name', oldValue: 'Alice', newValue: 'Alicia' },
+        },
+        addedRows: [{ id: 3, name: 'Charlie', active: true }],
+        deletedRowIndices: [1],
+      });
+
+      expect(rowDelta).toBe(0);
+      expect(nextRows).toHaveLength(2);
+      expect(nextRows[0][1]).toEqual({ Text: 'Alicia' });
+      expect(nextRows[1]).toEqual([{ Integer: 3 }, { Text: 'Charlie' }, { Boolean: true }]);
+      expect(toCellValue(null)).toBe('Null');
     });
   });
 });

@@ -1,4 +1,5 @@
-import type { ColumnMeta } from '../../types/db';
+import type { CellValue, ColumnMeta } from '../../types/db';
+import type { CellChange } from '../../stores/pendingChangesStore';
 import { isDateTimeType, isNumericType } from '../../api/queryBuilder';
 
 export {
@@ -87,4 +88,71 @@ export function sanitizeEditedCellValue(
   }
 
   return val;
+}
+
+/**
+ * Converts a plain JS value into the tagged CellValue representation used in table rows.
+ */
+export function toCellValue(val: unknown): CellValue {
+  if (val === null || val === undefined) {
+    return 'Null';
+  }
+  if (typeof val === 'boolean') {
+    return { Boolean: val };
+  }
+  if (typeof val === 'number') {
+    return Number.isInteger(val) ? { Integer: val } : { Float: val };
+  }
+  if (typeof val === 'object') {
+    return val as CellValue;
+  }
+  return { Text: String(val) };
+}
+
+export interface ApplyTableMutationsParams {
+  rows: CellValue[][];
+  columns: ColumnMeta[];
+  cellEdits?: Record<string, CellChange>;
+  addedRows?: Record<string, unknown>[];
+  deletedRowIndices?: number[];
+}
+
+/**
+ * Applies committed cell edits, row deletions, and row additions to the in-memory
+ * grid rows without reloading the table from the database.
+ */
+export function applyTableMutations(params: ApplyTableMutationsParams): {
+  rows: CellValue[][];
+  rowDelta: number;
+} {
+  const { rows, columns, cellEdits = {}, addedRows = [], deletedRowIndices = [] } = params;
+  const deletedSet = new Set(deletedRowIndices);
+
+  const nextRows: CellValue[][] = rows.map((row) => [...row]);
+
+  for (const edit of Object.values(cellEdits)) {
+    if (
+      edit.rowIndex >= 0 &&
+      edit.rowIndex < nextRows.length &&
+      edit.colIndex >= 0 &&
+      edit.colIndex < columns.length
+    ) {
+      nextRows[edit.rowIndex][edit.colIndex] = toCellValue(edit.newValue);
+    }
+  }
+
+  const survivingRows =
+    deletedSet.size > 0
+      ? nextRows.filter((_, idx) => !deletedSet.has(idx))
+      : nextRows;
+
+  const appendedRows: CellValue[][] = addedRows.map((record) =>
+    columns.map((col) => toCellValue(record[col.name]))
+  );
+
+  const finalRows = [...survivingRows, ...appendedRows];
+  const deletedCount = nextRows.length - survivingRows.length;
+  const rowDelta = appendedRows.length - deletedCount;
+
+  return { rows: finalRows, rowDelta };
 }

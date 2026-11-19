@@ -23,7 +23,13 @@ import { SqlEditor } from '../editor/SqlEditor';
 import { DataGrid } from '../grid/DataGrid';
 import { dbApi } from '../../api/db';
 import { openQueryTab, openTableTab } from '../sidebar/tabHelpers';
-import { buildUpdateSql, buildDeleteSql, buildInsertSql, sanitizeEditedCellValue } from '../grid/tableEditHelpers';
+import {
+  buildUpdateSql,
+  buildDeleteSql,
+  buildInsertSql,
+  sanitizeEditedCellValue,
+  applyTableMutations,
+} from '../grid/tableEditHelpers';
 import { extractCellValue } from '../grid/gridUtils';
 import { showConfirmDialog } from '../../utils/dialog';
 import { buildSqlWhereClause, filterInMemoryRows } from '../grid/filterUtils';
@@ -674,6 +680,38 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     [activeTab, tableStates, connections]
   );
 
+  const updateTableRowsInPlace = useCallback(
+    (
+      tabId: string,
+      mutations: {
+        cellEdits?: Record<string, import('../../stores/pendingChangesStore').CellChange>;
+        addedRows?: Record<string, unknown>[];
+        deletedRowIndices?: number[];
+      }
+    ) => {
+      setTableStates((prev) => {
+        const cur = prev[tabId];
+        if (!cur?.data) return prev;
+        const { rows: nextRows, rowDelta } = applyTableMutations({
+          rows: cur.data.rows,
+          columns: cur.data.columns,
+          ...mutations,
+        });
+        const nextTotal = Math.max(0, (cur.totalRows ?? 0) + rowDelta);
+        useStatusStore.getState().setTabStatus(tabId, { rowCount: nextTotal });
+        return {
+          ...prev,
+          [tabId]: {
+            ...cur,
+            totalRows: nextTotal,
+            data: { ...cur.data, rows: nextRows },
+          },
+        };
+      });
+    },
+    []
+  );
+
   // Handle row deletion
   const handleRowDelete = useCallback(
     async (rowIndex: number) => {
@@ -718,8 +756,8 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
 
       try {
         await dbApi.executeQuery(tabId, deleteSql);
+        updateTableRowsInPlace(tabId, { deletedRowIndices: [rowIndex] });
         setTableStatus(tabId, { type: 'success', text: 'Row deleted successfully' });
-        loadTableData(activeTab, tableState.page, tableState.pageSize);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setTableStatus(tabId, { type: 'error', text: `Delete failed: ${msg}` });
@@ -755,6 +793,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       const driver = conn?.driver ?? 'postgres';
 
       let successCount = 0;
+      const deletedIndices: number[] = [];
       for (const idx of rowIndices) {
         const row = tableState.data.rows[idx];
         if (!row) continue;
@@ -767,6 +806,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
             driver,
           });
           await dbApi.executeQuery(tabId, deleteSql);
+          deletedIndices.push(idx);
           successCount++;
         } catch (err) {
           console.error(`Failed to delete row index ${idx}:`, err);
@@ -774,8 +814,8 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       }
 
       if (successCount > 0) {
+        updateTableRowsInPlace(tabId, { deletedRowIndices: deletedIndices });
         setTableStatus(tabId, { type: 'success', text: `${successCount} row(s) deleted successfully` });
-        loadTableData(activeTab, tableState.page, tableState.pageSize);
       }
     },
     [activeTab, tableStates, connections, loadTableData, setTableStatus]
@@ -857,10 +897,9 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       });
 
       await dbApi.executeQuery(tabId, insertSql);
+      updateTableRowsInPlace(tabId, { addedRows: [values] });
       setTableStatus(tabId, { type: 'success', text: 'Row inserted successfully' });
       setInsertModalState(null);
-      const tableState = tableStates[tabId];
-      loadTableData(activeTab, tableState?.page ?? 1, tableState?.pageSize ?? 100);
     },
     [insertModalState, activeTab, connections, tableStates, loadTableData, setTableStatus]
   );
@@ -968,11 +1007,15 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         }
 
         usePendingChangesStore.getState().discardChanges(tableKey);
+        updateTableRowsInPlace(tabId, {
+          cellEdits: changes.cellEdits,
+          addedRows: changes.addedRows,
+          deletedRowIndices: changes.deletedRowIndices,
+        });
         setTableStatus(tabId, {
           type: 'success',
           text: `Committed ${statements.length} change(s) successfully`,
         });
-        loadTableData(activeTab, tableState.page, tableState.pageSize);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setTableStatus(tabId, {

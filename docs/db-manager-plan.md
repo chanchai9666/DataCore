@@ -955,6 +955,10 @@
     - **Confirm Before Enabling Fast Edit Mode:** แสดง Confirm Dialog ระดับ `warning` พร้อมคำเตือนทุกครั้งก่อนเปิดใช้งานโหมดแก้ไขเร็ว (ทั้ง EN/TH) หากผู้ใช้กดยกเลิกจะไม่เปิดโหมดแก้ไขเร็ว
     - **Confirm Before Commit:** แสดง Confirm Dialog ระดับ `warning` พร้อมจำนวนรายการที่รอ Commit และคำเตือนก่อนบันทึกลงฐานข้อมูลจริง ทั้งเมื่อกดปุ่ม **Commit** และกดคีย์ลัด `Cmd+S` / `Ctrl+S`
 
+48. **Issue #189: In-Place Table Row Update After Commit, Insert & Delete (`tableEditHelpers.ts`, `DockLayout.tsx`)**
+    - **No Full-Table Reload on Save:** เพิ่ม helper `toCellValue` และ `applyTableMutations` ใน `src/components/grid/tableEditHelpers.ts` สำหรับอัปเดต `cellEdits`, `addedRows` และ `deletedRowIndices` ลงใน state ของตารางบนหน้าจอโดยตรง
+    - **Instant In-Place State & Count Sync:** ปรับ `handleCommitChanges`, `handleSubmitInsertRow`, `handleDeleteRow` และ `handleRowsDelete` ใน `DockLayout.tsx` ให้อัปเดต `tableStates` และ `useStatusStore` (`rowCount`) ทันทีหลังบันทึกสำเร็จโดยไม่ต้องเรียก `loadTableData` ซ้ำ ลดความหน่วงบนตารางขนาดใหญ่
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)
