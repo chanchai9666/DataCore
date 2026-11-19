@@ -138,17 +138,20 @@ export function extractCellValue(val: CellValue): ExtractedCellValue {
 export function createCellContent(
   val: CellValue,
   column?: ColumnMeta,
-  isMasked: boolean = false
+  isMasked: boolean = false,
+  fastEditMode: boolean = false
 ): GridCell {
   const extracted = extractCellValue(val);
+  const isSensitive = Boolean(isMasked && column && isSensitiveColumn(column.name));
+  const lockInline = fastEditMode && (isSensitive || extracted.type === 'bytes');
 
   if (extracted.type === 'null') {
     return {
       kind: GridCellKind.Text,
       data: '',
       displayData: 'NULL',
-      allowOverlay: true,
-      readonly: false,
+      allowOverlay: !lockInline,
+      readonly: lockInline,
       themeOverride: {
         textDark: '#888888',
         textMedium: '#888888',
@@ -158,7 +161,6 @@ export function createCellContent(
     };
   }
 
-  const isSensitive = Boolean(isMasked && column && isSensitiveColumn(column.name));
   const finalDisplay = isSensitive
     ? maskCellValue(extracted.displayString, column?.name)
     : extracted.displayString;
@@ -170,8 +172,8 @@ export function createCellContent(
         kind: GridCellKind.Text,
         data: finalDisplay,
         displayData: finalDisplay,
-        allowOverlay: true,
-        readonly: false,
+        allowOverlay: !lockInline,
+        readonly: lockInline,
         themeOverride: {
           textDark: '#9ca3af',
           textMedium: '#9ca3af',
@@ -193,8 +195,8 @@ export function createCellContent(
       kind: GridCellKind.Text,
       data: finalDisplay,
       displayData: finalDisplay,
-      allowOverlay: false,
-      readonly: false,
+      allowOverlay: fastEditMode && !lockInline,
+      readonly: lockInline,
       themeOverride: isSensitive
         ? { textDark: '#9ca3af', textMedium: '#9ca3af' }
         : {
@@ -208,8 +210,8 @@ export function createCellContent(
     kind: GridCellKind.Text,
     data: finalDisplay,
     displayData: finalDisplay,
-    allowOverlay: true,
-    readonly: false,
+    allowOverlay: !lockInline,
+    readonly: lockInline,
     ...(isSensitive && {
       themeOverride: {
         textDark: '#9ca3af',

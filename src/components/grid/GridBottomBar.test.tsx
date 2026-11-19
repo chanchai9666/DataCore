@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { GridBottomBar } from './GridBottomBar';
+import { createCellContent } from './gridUtils';
 
 describe('GridBottomBar Component', () => {
   it('renders pagination and row count', () => {
@@ -95,5 +96,56 @@ describe('GridBottomBar Component', () => {
     // Re-render unmasked
     rerender(<GridBottomBar isMasked={false} onToggleMask={onToggleMask} />);
     expect(maskBtn).toHaveTextContent(/unmasked/i);
+  });
+
+  it('renders Fast Edit toggle and disables Auto-Commit toggle while Fast Edit is active', () => {
+    const onToggleFastEdit = vi.fn();
+    const onToggleAutoCommit = vi.fn();
+
+    const { rerender } = render(
+      <GridBottomBar
+        isFastEdit={false}
+        onToggleFastEdit={onToggleFastEdit}
+        isAutoCommit={true}
+        onToggleAutoCommit={onToggleAutoCommit}
+      />
+    );
+
+    const fastEditBtn = screen.getByTestId('fast-edit-toggle-btn');
+    expect(fastEditBtn).toBeInTheDocument();
+    const autoCommitBtn = screen.getByRole('button', { name: /toggle auto-commit mode/i });
+    expect(autoCommitBtn).not.toBeDisabled();
+
+    fireEvent.click(fastEditBtn);
+    expect(onToggleFastEdit).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <GridBottomBar
+        isFastEdit={true}
+        onToggleFastEdit={onToggleFastEdit}
+        isAutoCommit={false}
+        onToggleAutoCommit={onToggleAutoCommit}
+      />
+    );
+
+    expect(autoCommitBtn).toBeDisabled();
+  });
+
+  it('configures cell readonly and overlay capabilities in fastEditMode', () => {
+    const emailCol = { name: 'email', data_type: 'TEXT', nullable: true, is_primary_key: false };
+    const boolCol = { name: 'active', data_type: 'BOOLEAN', nullable: true, is_primary_key: false };
+    const binCol = { name: 'avatar', data_type: 'BYTEA', nullable: true, is_primary_key: false };
+
+    const maskedCell = createCellContent({ Text: 'a@b.com' }, emailCol, true, true);
+    expect(maskedCell.readonly).toBe(true);
+    expect(maskedCell.allowOverlay).toBe(false);
+
+    const boolCell = createCellContent({ Boolean: true }, boolCol, false, true);
+    expect(boolCell.allowOverlay).toBe(true);
+    expect(boolCell.readonly).toBe(false);
+
+    const bytesCell = createCellContent({ Bytes: 'AQID' }, binCol, false, true);
+    expect(bytesCell.readonly).toBe(true);
+    expect(bytesCell.allowOverlay).toBe(false);
   });
 });

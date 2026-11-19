@@ -64,6 +64,10 @@ export interface GridBottomBarProps {
   // Sensitive Data Masking (PII Protection)
   isMasked?: boolean;
   onToggleMask?: () => void;
+
+  // Fast Edit Mode (Excel-like inline editing + paste)
+  isFastEdit?: boolean;
+  onToggleFastEdit?: () => void;
 }
 
 export const GridBottomBar: React.FC<GridBottomBarProps> = ({
@@ -97,6 +101,8 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
   onViewModeChange,
   isMasked = false,
   onToggleMask,
+  isFastEdit = false,
+  onToggleFastEdit,
 }) => {
   const { t } = useTranslation();
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
@@ -149,17 +155,44 @@ export const GridBottomBar: React.FC<GridBottomBarProps> = ({
         {/* Commit / Discard Stage */}
         <div className="h-3.5 w-px bg-line mx-1" />
 
+        {onToggleFastEdit && !isReadOnly && (
+          <button
+            type="button"
+            data-testid="fast-edit-toggle-btn"
+            onClick={onToggleFastEdit}
+            aria-label={t('grid.fastEditToggle', 'Toggle Fast Edit Mode')}
+            title={
+              isFastEdit
+                ? t('grid.fastEditOnTitle', 'Fast Edit Mode is ON (Excel-like inline edit & paste, requires Commit)')
+                : t('grid.fastEditOffTitle', 'Fast Edit Mode is OFF. Click to enable Excel-like inline edit & paste.')
+            }
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
+              isFastEdit
+                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                : 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10'
+            }`}
+          >
+            <LayoutGrid size={11} />
+            <span className="hidden sm:inline">
+              {isFastEdit ? t('grid.fastEditOn', 'Fast Edit: On') : t('grid.fastEditOff', 'Fast Edit')}
+            </span>
+          </button>
+        )}
+
         {onToggleAutoCommit && (
           <button
             type="button"
             onClick={onToggleAutoCommit}
+            disabled={isFastEdit}
             aria-label="Toggle Auto-Commit Mode"
             title={
-              isAutoCommit
+              isFastEdit
+                ? t('grid.autoCommitLockedByFastEdit', 'Auto-Commit is disabled while Fast Edit Mode is active (manual Commit required).')
+                : isAutoCommit
                 ? 'Auto-commit is ON (Changes save directly). Click to switch to Staging Mode.'
                 : 'Staging Mode (Manual Commit). Click to switch to Auto-Commit.'
             }
-            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               isAutoCommit
                 ? 'text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10'
                 : 'bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25'
