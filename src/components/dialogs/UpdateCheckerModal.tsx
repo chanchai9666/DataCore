@@ -44,9 +44,17 @@ export const UpdateCheckerModal: React.FC<UpdateCheckerModalProps> = ({
         setStatus({ state: 'up-to-date' });
       }
     } catch (err: any) {
+      const rawMessage = String(err?.message || err || '');
+      const isUnpublishedRelease =
+        /404|not found|latest\.json|valid release json|no published release/i.test(rawMessage);
       setStatus({
         state: 'error',
-        message: err?.message || 'Unable to connect to update server.',
+        message: isUnpublishedRelease
+          ? t(
+              'dialogs.noPublishedReleases',
+              'No published releases are available yet. You are running a local or pre-release build.'
+            )
+          : rawMessage || 'Unable to connect to update server.',
       });
     }
   };

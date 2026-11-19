@@ -1293,7 +1293,10 @@
   - ปรับ `SSH_ASKPASS` ใน `ssh_tunnel.rs` ให้อ่าน passphrase จาก env var `DATACORE_SSH_PASSPHRASE` แทนการเขียน secret literal ลงดิสก์
 - **CSP, Entitlements, Updater, CI & Governance (`tauri.conf.json`, `capabilities/default.json`, `entitlements.plist`, `.github/workflows/ci.yml`, `release.yml`, `LICENSE`, `SECURITY.md`):**
   - เพิ่ม CSP directives (`object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none';`), ลบ `tauri-plugin-opener` ที่ไม่ได้ใช้, เพิ่ม `updater:default`, ลบ `disable-library-validation` และ `allow-unsigned-executable-memory` ออกจาก `entitlements.plist`
-  - เพิ่ม `LICENSE` (MIT), `SECURITY.md`, และ CI workflow (`.github/workflows/ci.yml`) พร้อมปรับตัวเลขเทสใน `README.md` ให้ตรงความจริง (1,286 tests)
+  - เพิ่ม `LICENSE` (MIT), `SECURITY.md`, และ CI workflow (`.github/workflows/ci.yml`) พร้อมปรับตัวเลขเทสใน `README.md` ให้ตรงความจริง
+- **Production Updater Keypair & Unpublished Release UX (Issue #198):**
+  - สร้าง production minisign keypair แทน demo key ใน `tauri.conf.json` และจัดเก็บ Private Key ใน GitHub Secret `TAURI_SIGNING_PRIVATE_KEY`
+  - ปรับ `UpdateCheckerModal.tsx` ให้แสดงข้อความแจ้งเตือนที่ชัดเจนเมื่อยังไม่มี Release เผยแพร่ (404 / missing `latest.json`)
 
 
 

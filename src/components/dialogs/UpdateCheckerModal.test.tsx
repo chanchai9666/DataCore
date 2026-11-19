@@ -64,4 +64,19 @@ describe('UpdateCheckerModal', () => {
     });
     expect(screen.getByText('Retry')).toBeInTheDocument();
   });
+
+  it('displays clear notice when no published release exists yet (404 / missing latest.json)', async () => {
+    vi.mocked(updaterPlugin.check).mockRejectedValue(
+      new Error('Could not fetch a valid release JSON from the remote: 404 Not Found')
+    );
+
+    render(<UpdateCheckerModal isOpen={true} onClose={vi.fn()} currentVersion="0.1.0" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Update Check Notice')).toBeInTheDocument();
+      expect(
+        screen.getByText(/No published releases are available yet/i)
+      ).toBeInTheDocument();
+    });
+  });
 });

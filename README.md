@@ -194,9 +194,9 @@ make dev-web
 | `make install` | ติดตั้ง Dependencies ของ Frontend ทั้งหมดผ่าน `pnpm` |
 | `make dev` | รันแอปพลิเคชัน Desktop ในโหมด Development (Tauri 2) |
 | `make dev-web` | รันเฉพาะ Vite Web Dev Server สำหรับทดสอบ UI บน Browser |
-| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 168 tests และ Vitest 1,118 tests รวม **1,286 tests ผ่าน 100%**) |
+| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 168 tests และ Vitest 1,119 tests รวม **1,287 tests ผ่าน 100%**) |
 | `make test-backend` | รันเฉพาะ Unit & Integration Tests ฝั่ง Rust Backend (168 tests) |
-| `make test-frontend`| รันเฉพาะ Unit & Component Tests ฝั่ง React Frontend (1,118 tests) |
+| `make test-frontend`| รันเฉพาะ Unit & Component Tests ฝั่ง React Frontend (1,119 tests) |
 | `make check` | ตรวจสอบ Compilation (`cargo check`) และ TypeScript Type Checking (`tsc`) ทั้งระบบ |
 | `make lint` | ตรวจสอบ Code Quality และคำเตือนด้วย Cargo Clippy |
 | `make build` | Build เป็น Production Desktop Application สำหรับ macOS (.app / .dmg) |
@@ -230,7 +230,7 @@ make test
   - Path Traversal Guard: ป้องกัน Directory Traversal (`../`), System Paths และ Sensitive User Directory Exposure
   - Tamper-Evident Cryptographic Hash Chain Audit Logger (Append-only, SHA-256 Hashing, Rotation & Verification)
   - Mutation Impact Preview Simulation Engine (Guaranteed 100% Rollback)
-* **React Frontend (1,118 tests):**
+* **React Frontend (1,119 tests):**
   - Zustand Stores (`tabStore`, `connectionStore`, `auditLogStore`, `snippetStore`, `folderStore`, `queryHistoryStore`, `schemaStore`, `pendingChangesStore`)
   - Object Browser Tree Component, Deep Tree Columns Drill-down (Lazy-loading, Types, PK/FK Badges, Drag & Drop), Node Navigation, Context Menu, Connection Color Folders
   - CodeMirror 6 SQL Editor, Dialects, Schema-Aware Autocomplete, Keymap (`⌘+Enter`, `⌘⇧F`), Toolbar Actions
