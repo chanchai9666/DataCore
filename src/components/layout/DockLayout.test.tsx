@@ -659,6 +659,82 @@ describe('DockLayout', () => {
     confirmSpy.mockRestore();
   });
 
+  it('hydrates auto-generated id from INSERT RETURNING * on commit without reloading table (Issue #190)', async () => {
+    const tableKey = 'conn-1.users';
+    usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);
+
+    vi.mocked(dbApi.fetchTableData).mockResolvedValueOnce({
+      columns: [
+        { name: 'id', data_type: 'INTEGER', nullable: false, is_primary_key: true },
+        { name: 'name', data_type: 'TEXT', nullable: false },
+      ],
+      rows: [[{ Integer: 1 }, { Text: 'Alice' }]],
+      execution_time_ms: 2,
+      rows_affected: 1,
+    });
+
+    vi.mocked(dbApi.executeQuery).mockImplementation(async (_tabId, sql) => {
+      if (sql.includes('RETURNING *')) {
+        return {
+          columns: [
+            { name: 'id', data_type: 'INTEGER', nullable: false, is_primary_key: true },
+            { name: 'name', data_type: 'TEXT', nullable: false },
+          ],
+          rows: [[{ Integer: 99 }, { Text: 'Charlie' }]],
+          execution_time_ms: 1,
+        };
+      }
+      return { columns: [], rows: [], execution_time_ms: 1 };
+    });
+
+    useConnectionStore.setState({
+      connections: [{ id: 'conn-1', name: 'TestDB', driver: 'postgres', database: 'test.db' } as any],
+      activeConnectionId: 'conn-1',
+      connectedConnectionIds: ['conn-1'],
+    });
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-insert-ret',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'users',
+          tableName: 'users',
+          schemaName: 'public',
+          autoCommit: false,
+          queryContent: '',
+          isLoaded: true,
+        },
+      ],
+      activeTabId: 'tab-insert-ret',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(dbApi.fetchTableData).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      usePendingChangesStore.getState().stageAddRow(tableKey, { name: 'Charlie' });
+    });
+
+    const commitBtn = await screen.findByRole('button', { name: /commit changes/i });
+    vi.mocked(tauriDialog.confirm).mockResolvedValueOnce(true);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fireEvent.click(commitBtn);
+
+    await waitFor(() => {
+      expect(dbApi.executeQuery).toHaveBeenCalledWith(
+        'tab-insert-ret',
+        expect.stringContaining('RETURNING *')
+      );
+      expect(screen.getByTestId('grid-row-count').textContent).toContain('2 rows');
+    });
+    expect(dbApi.fetchTableData).toHaveBeenCalledTimes(1);
+    confirmSpy.mockRestore();
+  });
+
   it('stages cell edit in pendingChangesStore without executing SQL UPDATE when in Staging mode', async () => {
     const tableKey = 'conn-1.users';
     usePendingChangesStore.getState().setAutoCommitMode(tableKey, false);

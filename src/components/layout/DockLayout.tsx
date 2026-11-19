@@ -29,6 +29,10 @@ import {
   buildInsertSql,
   sanitizeEditedCellValue,
   applyTableMutations,
+  mapReturnedRowToTableRow,
+  toCellValue,
+  escapeIdentifier,
+  formatTableName,
 } from '../grid/tableEditHelpers';
 import { extractCellValue } from '../grid/gridUtils';
 import { showConfirmDialog } from '../../utils/dialog';
@@ -686,6 +690,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       mutations: {
         cellEdits?: Record<string, import('../../stores/pendingChangesStore').CellChange>;
         addedRows?: Record<string, unknown>[];
+        resolvedAddedRows?: CellValue[][];
         deletedRowIndices?: number[];
       }
     ) => {
@@ -708,6 +713,54 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           },
         };
       });
+    },
+    []
+  );
+
+  const resolveInsertedRow = useCallback(
+    async (
+      tabId: string,
+      insertRes: { columns: import('../../types/db').ColumnMeta[]; rows: CellValue[][] },
+      driver: import('../../types/db').DatabaseDriver,
+      tableName: string,
+      schemaName: string | undefined,
+      tableColumns: import('../../types/db').ColumnMeta[],
+      fallbackValues: Record<string, unknown>
+    ): Promise<CellValue[]> => {
+      if (insertRes.rows && insertRes.rows.length > 0) {
+        return mapReturnedRowToTableRow(
+          insertRes.rows[0],
+          insertRes.columns || [],
+          tableColumns,
+          fallbackValues
+        );
+      }
+
+      if (driver?.toLowerCase() === 'mysql') {
+        const autoPkCol = tableColumns.find(
+          (c) => c.is_auto_increment || c.is_primary_key || c.name.toLowerCase() === 'id'
+        );
+        if (autoPkCol && (fallbackValues[autoPkCol.name] === undefined || fallbackValues[autoPkCol.name] === null || fallbackValues[autoPkCol.name] === '')) {
+          try {
+            const fullTable = formatTableName(tableName, schemaName, driver);
+            const pkIdent = escapeIdentifier(autoPkCol.name, driver);
+            const fetchSql = `SELECT * FROM ${fullTable} WHERE ${pkIdent} = LAST_INSERT_ID() LIMIT 1;`;
+            const selectRes = await dbApi.executeQuery(tabId, fetchSql);
+            if (selectRes.rows && selectRes.rows.length > 0) {
+              return mapReturnedRowToTableRow(
+                selectRes.rows[0],
+                selectRes.columns || [],
+                tableColumns,
+                fallbackValues
+              );
+            }
+          } catch {
+            // Fall back to user-entered values if LAST_INSERT_ID lookup fails
+          }
+        }
+      }
+
+      return tableColumns.map((col) => toCellValue(fallbackValues[col.name]));
     },
     []
   );
@@ -894,14 +947,24 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         columns: insertModalState.columns,
         values,
         driver,
+        returning: true,
       });
 
-      await dbApi.executeQuery(tabId, insertSql);
-      updateTableRowsInPlace(tabId, { addedRows: [values] });
+      const insertRes = await dbApi.executeQuery(tabId, insertSql);
+      const resolvedRow = await resolveInsertedRow(
+        tabId,
+        insertRes,
+        driver,
+        insertModalState.tableName,
+        insertModalState.schemaName,
+        tableStates[tabId]?.data?.columns || insertModalState.columns,
+        values
+      );
+      updateTableRowsInPlace(tabId, { resolvedAddedRows: [resolvedRow] });
       setTableStatus(tabId, { type: 'success', text: 'Row inserted successfully' });
       setInsertModalState(null);
     },
-    [insertModalState, activeTab, connections, tableStates, loadTableData, setTableStatus]
+    [insertModalState, activeTab, connections, tableStates, resolveInsertedRow, updateTableRowsInPlace, setTableStatus]
   );
 
   // Handle batch commit of pending changes
@@ -919,19 +982,20 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
       const schemaName = activeTab.schemaName;
       const columns = tableState.data.columns;
 
-      const statements: string[] = [];
+      const operations: Array<{ sql: string; insertIndex?: number }> = [];
 
       // 1. Added rows (INSERT)
-      for (const rowValues of changes.addedRows) {
+      changes.addedRows.forEach((rowValues, idx) => {
         const insertSql = buildInsertSql({
           tableName,
           schemaName,
           columns,
           values: rowValues,
           driver,
+          returning: true,
         });
-        statements.push(insertSql);
-      }
+        operations.push({ sql: insertSql, insertIndex: idx });
+      });
 
       // 2. Cell edits (UPDATE)
       const editsByRow: Record<number, Record<number, unknown>> = {};
@@ -959,7 +1023,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
             newValue: newVal,
             driver,
           });
-          statements.push(updateSql);
+          operations.push({ sql: updateSql });
           if (newVal === null || newVal === undefined) {
             workingRow[colIndex] = { type: 'Null' };
           } else if (typeof newVal === 'boolean') {
@@ -985,16 +1049,31 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           row,
           driver,
         });
-        statements.push(deleteSql);
+        operations.push({ sql: deleteSql });
       }
 
-      if (statements.length === 0) return;
+      if (operations.length === 0) return;
+
+      const resolvedAddedRows: CellValue[][] = changes.addedRows.map((record) =>
+        columns.map((col) => toCellValue(record[col.name]))
+      );
 
       try {
         await dbApi.executeQuery(tabId, 'BEGIN');
         try {
-          for (const stmt of statements) {
-            await dbApi.executeQuery(tabId, stmt);
+          for (const op of operations) {
+            const res = await dbApi.executeQuery(tabId, op.sql);
+            if (op.insertIndex !== undefined) {
+              resolvedAddedRows[op.insertIndex] = await resolveInsertedRow(
+                tabId,
+                res,
+                driver,
+                tableName,
+                schemaName,
+                columns,
+                changes.addedRows[op.insertIndex]
+              );
+            }
           }
           await dbApi.executeQuery(tabId, 'COMMIT');
         } catch (execErr) {
@@ -1009,12 +1088,12 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         usePendingChangesStore.getState().discardChanges(tableKey);
         updateTableRowsInPlace(tabId, {
           cellEdits: changes.cellEdits,
-          addedRows: changes.addedRows,
+          resolvedAddedRows,
           deletedRowIndices: changes.deletedRowIndices,
         });
         setTableStatus(tabId, {
           type: 'success',
-          text: `Committed ${statements.length} change(s) successfully`,
+          text: `Committed ${operations.length} change(s) successfully`,
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -1024,7 +1103,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         });
       }
     },
-    [activeTab, tableStates, connections, loadTableData, setTableStatus]
+    [activeTab, tableStates, connections, resolveInsertedRow, updateTableRowsInPlace, setTableStatus]
   );
 
   // Handler for adding a new query tab

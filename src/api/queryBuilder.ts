@@ -79,6 +79,7 @@ export interface BuildInsertOptions {
   schemaName?: string;
   columns: ColumnMeta[];
   values: Record<string, unknown>;
+  returning?: boolean;
 }
 
 /**
@@ -554,8 +555,11 @@ export function buildDeleteSql(options: BuildDeleteOptions): string {
  * Builds an INSERT statement for a new row.
  */
 export function buildInsertSql(options: BuildInsertOptions): string {
-  const { driver, tableName, schemaName, columns, values } = options;
+  const { driver, tableName, schemaName, columns, values, returning = false } = options;
   const fullTable = qualifyTable(tableName, schemaName, driver);
+  const normDriver = driver?.toLowerCase();
+  const supportsReturning = returning && (normDriver === 'postgres' || normDriver === 'sqlite');
+  const supportsOutput = returning && normDriver === 'mssql';
 
   const colNames: string[] = [];
   const colVals: string[] = [];
@@ -584,13 +588,20 @@ export function buildInsertSql(options: BuildInsertOptions): string {
   });
 
   if (colNames.length === 0) {
-    if (driver === 'postgres' || driver === 'sqlite') {
-      return `INSERT INTO ${fullTable} DEFAULT VALUES;`;
+    if (normDriver === 'postgres' || normDriver === 'sqlite') {
+      return `INSERT INTO ${fullTable} DEFAULT VALUES${supportsReturning ? ' RETURNING *' : ''};`;
+    }
+    if (normDriver === 'mssql') {
+      return `INSERT INTO ${fullTable}${supportsOutput ? ' OUTPUT INSERTED.*' : ''} DEFAULT VALUES;`;
     }
     return `INSERT INTO ${fullTable} () VALUES ();`;
   }
 
-  return `INSERT INTO ${fullTable} (${colNames.join(', ')}) VALUES (${colVals.join(', ')});`;
+  if (supportsOutput) {
+    return `INSERT INTO ${fullTable} (${colNames.join(', ')}) OUTPUT INSERTED.* VALUES (${colVals.join(', ')});`;
+  }
+
+  return `INSERT INTO ${fullTable} (${colNames.join(', ')}) VALUES (${colVals.join(', ')})${supportsReturning ? ' RETURNING *' : ''};`;
 }
 
 export interface ExplainOptions {

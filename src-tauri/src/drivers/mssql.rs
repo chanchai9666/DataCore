@@ -149,7 +149,7 @@ impl DatabaseConnection for MssqlConnection {
             ));
         }
 
-        if is_write_sql(trimmed) {
+        if is_write_sql(trimmed) && !trimmed.to_ascii_uppercase().contains("OUTPUT INSERTED.") {
             let exec_res = client
                 .execute(trimmed, &[])
                 .await

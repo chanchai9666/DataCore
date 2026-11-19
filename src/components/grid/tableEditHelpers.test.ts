@@ -296,5 +296,38 @@ describe('tableEditHelpers', () => {
       expect(nextRows[1]).toEqual([{ Integer: 3 }, { Text: 'Charlie' }, { Boolean: true }]);
       expect(toCellValue(null)).toBe('Null');
     });
+
+    it('generates RETURNING * / OUTPUT INSERTED.* when returning is true in buildInsertSql (Issue #190)', () => {
+      const columns = [
+        { name: 'id', data_type: 'SERIAL', nullable: false, is_primary_key: true },
+        { name: 'name', data_type: 'TEXT', nullable: true, is_primary_key: false },
+      ];
+      const pgSql = buildInsertSql({
+        tableName: 'users',
+        columns,
+        values: { name: 'Alice' },
+        driver: 'postgres',
+        returning: true,
+      });
+      expect(pgSql).toBe('INSERT INTO "users" ("name") VALUES (\'Alice\') RETURNING *;');
+
+      const pgDefaultSql = buildInsertSql({
+        tableName: 'users',
+        columns,
+        values: {},
+        driver: 'postgres',
+        returning: true,
+      });
+      expect(pgDefaultSql).toBe('INSERT INTO "users" DEFAULT VALUES RETURNING *;');
+
+      const mssqlSql = buildInsertSql({
+        tableName: 'users',
+        columns,
+        values: { name: 'Alice' },
+        driver: 'mssql',
+        returning: true,
+      });
+      expect(mssqlSql).toBe('INSERT INTO "users" ("name") OUTPUT INSERTED.* VALUES (\'Alice\');');
+    });
   });
 });

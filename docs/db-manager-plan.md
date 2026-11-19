@@ -959,6 +959,11 @@
     - **No Full-Table Reload on Save:** เพิ่ม helper `toCellValue` และ `applyTableMutations` ใน `src/components/grid/tableEditHelpers.ts` สำหรับอัปเดต `cellEdits`, `addedRows` และ `deletedRowIndices` ลงใน state ของตารางบนหน้าจอโดยตรง
     - **Instant In-Place State & Count Sync:** ปรับ `handleCommitChanges`, `handleSubmitInsertRow`, `handleDeleteRow` และ `handleRowsDelete` ใน `DockLayout.tsx` ให้อัปเดต `tableStates` และ `useStatusStore` (`rowCount`) ทันทีหลังบันทึกสำเร็จโดยไม่ต้องเรียก `loadTableData` ซ้ำ ลดความหน่วงบนตารางขนาดใหญ่
 
+49. **Issue #190: Auto-Generated ID & Default Value Retrieval on INSERT (`queryBuilder.ts`, `mssql.rs`, `tableEditHelpers.ts`, `DockLayout.tsx`)**
+    - **`INSERT ... RETURNING *` / `OUTPUT INSERTED.*`:** เพิ่ม option `returning?: boolean` ใน `buildInsertSql` สำหรับ PostgreSQL/SQLite (`RETURNING *`) และ MSSQL (`OUTPUT INSERTED.*`) พร้อมปรับ `mssql.rs` ให้คืนแถวผลลัพธ์สำหรับคำสั่งที่มี `OUTPUT`
+    - **MySQL `LAST_INSERT_ID()` Fallback:** สำหรับ MySQL จะดึงเฉพาะแถวล่าสุด 1 แถวผ่าน `LAST_INSERT_ID()` (เมื่อมีคอลัมน์ auto-increment)
+    - **In-Place Row Hydration:** `handleCommitChanges` และ `handleSubmitInsertRow` ใน `DockLayout.tsx` นำแถวที่ฐานข้อมูลคืนกลับมาอัปเดตลงในตารางทันที ทำให้เห็น `id` และค่า `DEFAULT` โดยไม่ต้องโหลดข้อมูลใหม่ทั้งตาราง
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)

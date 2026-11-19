@@ -114,7 +114,35 @@ export interface ApplyTableMutationsParams {
   columns: ColumnMeta[];
   cellEdits?: Record<string, CellChange>;
   addedRows?: Record<string, unknown>[];
+  /** Pre-resolved full rows returned from INSERT RETURNING * / OUTPUT INSERTED.* / LAST_INSERT_ID */
+  resolvedAddedRows?: CellValue[][];
   deletedRowIndices?: number[];
+}
+
+/**
+ * Maps a returned QueryResult row into the target table's column order.
+ */
+export function mapReturnedRowToTableRow(
+  returnedRow: CellValue[],
+  returnedColumns: ColumnMeta[],
+  tableColumns: ColumnMeta[],
+  fallbackRecord: Record<string, unknown> = {}
+): CellValue[] {
+  const indexByName = new Map<string, number>();
+  returnedColumns.forEach((col, idx) => {
+    indexByName.set(col.name.toLowerCase(), idx);
+  });
+
+  return tableColumns.map((col, colIdx) => {
+    const retIdx = indexByName.get(col.name.toLowerCase());
+    if (retIdx !== undefined && retIdx < returnedRow.length) {
+      return returnedRow[retIdx];
+    }
+    if (returnedColumns.length === 0 && colIdx < returnedRow.length) {
+      return returnedRow[colIdx];
+    }
+    return toCellValue(fallbackRecord[col.name]);
+  });
 }
 
 /**
@@ -125,7 +153,14 @@ export function applyTableMutations(params: ApplyTableMutationsParams): {
   rows: CellValue[][];
   rowDelta: number;
 } {
-  const { rows, columns, cellEdits = {}, addedRows = [], deletedRowIndices = [] } = params;
+  const {
+    rows,
+    columns,
+    cellEdits = {},
+    addedRows = [],
+    resolvedAddedRows,
+    deletedRowIndices = [],
+  } = params;
   const deletedSet = new Set(deletedRowIndices);
 
   const nextRows: CellValue[][] = rows.map((row) => [...row]);
@@ -146,9 +181,9 @@ export function applyTableMutations(params: ApplyTableMutationsParams): {
       ? nextRows.filter((_, idx) => !deletedSet.has(idx))
       : nextRows;
 
-  const appendedRows: CellValue[][] = addedRows.map((record) =>
-    columns.map((col) => toCellValue(record[col.name]))
-  );
+  const appendedRows: CellValue[][] = resolvedAddedRows
+    ? resolvedAddedRows
+    : addedRows.map((record) => columns.map((col) => toCellValue(record[col.name])));
 
   const finalRows = [...survivingRows, ...appendedRows];
   const deletedCount = nextRows.length - survivingRows.length;
