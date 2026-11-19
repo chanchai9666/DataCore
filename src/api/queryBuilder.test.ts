@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { ColumnMeta, CellValue } from '../types/db';
 import {
   quoteIdentifier,
   qualifyTable,
@@ -381,6 +382,61 @@ describe('queryBuilder', () => {
       });
       expect(sql).toBe(
         'UPDATE "public"."testable_data" SET "name" = \'77\', "txt2" = \'77\' WHERE "id" = 7;'
+      );
+    });
+
+    it('guards fallback UPDATE and DELETE without PK in MSSQL using TOP (1) and skips non-comparable types', () => {
+      const mssqlNoPkCols: ColumnMeta[] = [
+        { name: 'code', data_type: 'nvarchar', nullable: false, is_primary_key: false },
+        { name: 'notes', data_type: 'text', nullable: true, is_primary_key: false },
+        { name: 'doc', data_type: 'xml', nullable: true, is_primary_key: false },
+      ];
+      const mssqlRow: CellValue[] = [
+        { Text: 'A001' },
+        { Text: 'legacy text' },
+        { Text: '<x/>' },
+      ];
+
+      const mssqlUpdate = buildUpdateSql({
+        driver: 'mssql',
+        tableName: 'legacy_items',
+        schemaName: 'dbo',
+        columns: mssqlNoPkCols,
+        row: mssqlRow,
+        colIndex: 0,
+        newValue: 'A002',
+      });
+      expect(mssqlUpdate).toBe(
+        'UPDATE TOP (1) "dbo"."legacy_items" SET "code" = \'A002\' WHERE "code" = \'A001\';'
+      );
+
+      const mssqlDelete = buildDeleteSql({
+        driver: 'mssql',
+        tableName: 'legacy_items',
+        schemaName: 'dbo',
+        columns: mssqlNoPkCols,
+        row: mssqlRow,
+      });
+      expect(mssqlDelete).toBe(
+        'DELETE TOP (1) FROM "dbo"."legacy_items" WHERE "code" = \'A001\';'
+      );
+
+      // Postgres skips json (not jsonb) in non-PK WHERE fallback
+      const pgJsonCols: ColumnMeta[] = [
+        { name: 'title', data_type: 'text', nullable: false, is_primary_key: false },
+        { name: 'payload', data_type: 'json', nullable: true, is_primary_key: false },
+      ];
+      const pgUpdate = buildUpdateSql({
+        driver: 'postgres',
+        tableName: 'events',
+        schemaName: 'public',
+        columns: pgJsonCols,
+        row: [{ Text: 'click' }, { Text: '{"a":1}' }],
+        colIndex: 0,
+        newValue: 'view',
+      });
+      expect(pgUpdate).toBe(
+        'UPDATE "public"."events" SET "title" = \'view\' WHERE ctid = (SELECT ctid FROM "public"."events" WHERE "title" = \'click\' LIMIT 1);'
       );
     });
 

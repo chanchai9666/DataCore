@@ -98,12 +98,13 @@ export function quoteIdentifier(name: string, driver?: string): string {
  * Formats a fully-qualified table name with schema if supported.
  */
 export function qualifyTable(tableName: string, schemaName?: string, driver?: string): string {
-  const isPostgres =
-    !driver || driver.toLowerCase() === 'postgres' || driver.toLowerCase() === 'postgresql';
-  const isMysql = driver?.toLowerCase() === 'mysql';
+  const d = driver?.toLowerCase();
+  const isPostgres = !driver || d === 'postgres' || d === 'postgresql';
+  const isMysql = d === 'mysql';
+  const isMssql = d === 'mssql' || d === 'sqlserver';
   const qTable = quoteIdentifier(tableName, driver);
 
-  if (schemaName && schemaName.trim() && (isPostgres || isMysql)) {
+  if (schemaName && schemaName.trim() && (isPostgres || isMysql || isMssql)) {
     const qSchema = quoteIdentifier(schemaName.trim(), driver);
     return `${qSchema}.${qTable}`;
   }
@@ -241,8 +242,26 @@ export function findPrimaryKeyIndex(columns: ColumnMeta[]): number {
   return indexes.length > 0 ? indexes[0] : -1;
 }
 
+function isNonComparableFallbackType(dataType?: string, driver?: string): boolean {
+  const t = (dataType || '').toLowerCase().trim();
+  if (!t) return false;
+  const d = driver?.toLowerCase();
+  const isMssql = d === 'mssql' || d === 'sqlserver';
+  return (
+    t === 'json' ||
+    t === 'xml' ||
+    t === 'image' ||
+    t === 'ntext' ||
+    t === 'bytea' ||
+    t.includes('blob') ||
+    t.startsWith('varbinary') ||
+    t.startsWith('binary') ||
+    (isMssql && t === 'text')
+  );
+}
+
 /**
- * Builds a WHERE clause identifying a single row by PK (including composite PKs) or all non-null values.
+ * Builds a WHERE clause identifying a single row by PK (including composite PKs) or all comparable non-PK values.
  */
 export function buildWhereClause(
   columns: ColumnMeta[],
@@ -271,9 +290,17 @@ export function buildWhereClause(
     }
   }
 
-  // Fallback: Composite WHERE with all columns
+  // Fallback: Composite WHERE with comparable columns (or all columns if none are comparable)
+  const comparableEntries = columns
+    .map((col, idx) => ({ col, idx }))
+    .filter(({ col }) => !isNonComparableFallbackType(col.data_type, driver));
+  const targetEntries =
+    comparableEntries.length > 0
+      ? comparableEntries
+      : columns.map((col, idx) => ({ col, idx }));
+
   const conditions: string[] = [];
-  columns.forEach((col, idx) => {
+  for (const { col, idx } of targetEntries) {
     const raw = extractCellValue(row[idx]).rawValue;
     const colName = quoteIdentifier(col.name, driver);
     if (raw === null || raw === undefined) {
@@ -281,7 +308,7 @@ export function buildWhereClause(
     } else {
       conditions.push(`${colName} = ${formatSqlLiteral(raw, driver, col.data_type)}`);
     }
-  });
+  }
 
   if (conditions.length === 0) {
     throw new Error('Cannot identify target row: no columns or primary key available');
@@ -543,6 +570,9 @@ export function buildUpdateSql(options: BuildUpdateOptions): string {
   if (normDriver === 'sqlite') {
     return `UPDATE ${fullTable} SET ${assignments} WHERE rowid = (SELECT rowid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;
   }
+  if (normDriver === 'mssql' || normDriver === 'sqlserver') {
+    return `UPDATE TOP (1) ${fullTable} SET ${assignments} WHERE ${whereSql};`;
+  }
   // Postgres
   return `UPDATE ${fullTable} SET ${assignments} WHERE ctid = (SELECT ctid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;
 }
@@ -567,6 +597,9 @@ export function buildDeleteSql(options: BuildDeleteOptions): string {
   }
   if (normDriver === 'sqlite') {
     return `DELETE FROM ${fullTable} WHERE rowid = (SELECT rowid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;
+  }
+  if (normDriver === 'mssql' || normDriver === 'sqlserver') {
+    return `DELETE TOP (1) FROM ${fullTable} WHERE ${whereSql};`;
   }
   // Postgres
   return `DELETE FROM ${fullTable} WHERE ctid = (SELECT ctid FROM ${fullTable} WHERE ${whereSql} LIMIT 1);`;

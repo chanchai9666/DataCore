@@ -978,6 +978,10 @@
     - **Multi-Column `buildUpdateSql`:** เพิ่ม option `updates?: Array<{ colIndex: number; newValue: unknown }>` ใน `BuildUpdateOptions` ของ `src/api/queryBuilder.ts` เพื่อรวมการแก้ไขหลายคอลัมน์ในแถวเดียวกันเป็นคำสั่ง `UPDATE ... SET "col1" = ..., "col2" = ... WHERE ...;` เพียงคำสั่งเดียว (พร้อมคง Single-row Guard สำหรับตารางที่ไม่มี PK)
     - **Row-Level Batching in `handleCommitChanges`:** ปรับ `DockLayout.tsx` ให้สร้างคำสั่ง `UPDATE` เพียง 1 query ต่อ 1 แถวที่ถูกแก้ไข (แทนการยิงแยกทีละคอลัมน์) โดยอ้างอิงค่าเดิมของแถวใน `WHERE` ลดจำนวน Query, Transaction overhead และ Audit Log entries เมื่อแก้ไขข้อมูลจำนวนมาก
 
+52. **Issue #193: MSSQL `TOP (1)` Single-Row Guard & Non-Comparable Type Filtering for Non-PK Tables (`queryBuilder.ts`)**
+    - **MSSQL Non-PK Single-Row Guard:** เพิ่ม branch สำหรับ `mssql` / `sqlserver` ใน `buildUpdateSql` (`UPDATE TOP (1) ... WHERE ...;`) และ `buildDeleteSql` (`DELETE TOP (1) FROM ... WHERE ...;`) สำหรับตารางที่ไม่มี Primary Key แทนการตกไปใช้ `ctid` ของ PostgreSQL
+    - **Safe Non-PK `WHERE` Fallback:** ปรับ `buildWhereClause` ให้ข้ามคอลัมน์ชนิดที่ไม่รองรับ operator `=` ใน `WHERE` (เช่น `json`, `xml`, `bytea`, `blob`, `binary`, `varbinary`, `image`, `ntext`, และ `text` ใน MSSQL) เมื่อมีคอลัมน์อื่นที่เปรียบเทียบได้อยู่ในแถว
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)
