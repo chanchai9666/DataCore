@@ -428,6 +428,11 @@ impl DatabaseConnection for SqliteConnection {
     }
 
     async fn execute_query(&self, sql: &str) -> Result<QueryResult, AppError> {
+        if self.read_only && crate::drivers::is_read_only_blocked_sql(sql) {
+            return Err(AppError::Database(
+                "Connection is in read-only mode. Write operations are disabled.".to_string(),
+            ));
+        }
         let start = std::time::Instant::now();
         let mut conn = self.conn.lock().await;
 
@@ -460,6 +465,11 @@ impl DatabaseConnection for SqliteConnection {
         chunk_rows: usize,
         tx: tokio::sync::mpsc::Sender<Chunk>,
     ) -> Result<StreamOutcome, AppError> {
+        if self.read_only && crate::drivers::is_read_only_blocked_sql(sql) {
+            return Err(AppError::Database(
+                "Connection is in read-only mode. Write operations are disabled.".to_string(),
+            ));
+        }
         let conn_guard = Arc::clone(&self.conn).lock_owned().await;
         let sql_owned = sql.to_string();
 

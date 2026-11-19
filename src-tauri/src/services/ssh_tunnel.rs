@@ -142,9 +142,7 @@ impl SshTunnelHandle {
             let mut file = open_opts.open(&script_path).map_err(|e| {
                 AppError::Other(format!("Failed to create SSH askpass helper: {}", e))
             })?;
-            // Safely escape single quotes in secret
-            let escaped = sec.replace('\'', "'\\''");
-            writeln!(file, "#!/bin/sh\nprintf '%s\\n' '{}'", escaped).map_err(|e| {
+            writeln!(file, "#!/bin/sh\nprintf '%s\\n' \"$DATACORE_SSH_PASSPHRASE\"").map_err(|e| {
                 AppError::Other(format!("Failed to write SSH askpass helper: {}", e))
             })?;
             drop(file);
@@ -155,7 +153,8 @@ impl SshTunnelHandle {
                 let _ = fs::set_permissions(&script_path, fs::Permissions::from_mode(0o700));
             }
 
-            cmd.env("SSH_ASKPASS", &script_path)
+            cmd.env("DATACORE_SSH_PASSPHRASE", sec)
+                .env("SSH_ASKPASS", &script_path)
                 .env("SSH_ASKPASS_REQUIRE", "force")
                 .env("DISPLAY", "datacore:0");
             askpass_script = Some(script_path);

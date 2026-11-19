@@ -20,7 +20,7 @@ vi.mock('../../api/db', () => ({
     saveConnection: vi.fn(),
     getConnections: vi.fn(),
     deleteConnection: vi.fn(),
-    getStoredPassword: vi.fn().mockResolvedValue(null),
+    hasStoredPassword: vi.fn().mockResolvedValue(false),
     deleteStoredPassword: vi.fn().mockResolvedValue(undefined),
     setSessionPassword: vi.fn().mockResolvedValue(undefined),
     clearSessionPassword: vi.fn().mockResolvedValue(undefined),
@@ -354,7 +354,7 @@ describe('ConnectionDialog', () => {
             port: 5432,
             database: 'analytics',
             user: 'postgres',
-            ssl_mode: 'prefer',
+            ssl_mode: 'require',
           }),
           'pgpass'
         );

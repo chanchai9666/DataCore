@@ -52,7 +52,7 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
         user: 'postgres',
         password: '',
         folder: '',
-        sslMode: 'prefer',
+        sslMode: 'require',
       };
     case 'mysql':
       return {
@@ -65,7 +65,7 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
         user: 'root',
         password: '',
         folder: '',
-        sslMode: 'prefer',
+        sslMode: 'require',
       };
     case 'sqlite':
       return {
@@ -78,7 +78,7 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
         user: '',
         password: '',
         folder: '',
-        sslMode: 'prefer',
+        sslMode: 'require',
       };
     case 'duckdb':
       return {
@@ -91,7 +91,7 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
         user: '',
         password: '',
         folder: '',
-        sslMode: 'prefer',
+        sslMode: 'require',
       };
     case 'mssql':
       return {
@@ -104,7 +104,7 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
         user: 'sa',
         password: '',
         folder: '',
-        sslMode: 'prefer',
+        sslMode: 'require',
       };
     default:
       return {
@@ -117,7 +117,7 @@ function getDefaultFormData(driver: DatabaseDriver): ConnectionFormData {
         user: '',
         password: '',
         folder: '',
-        sslMode: 'prefer',
+        sslMode: 'require',
       };
   }
 }
@@ -139,7 +139,7 @@ function initializeFormData(initial?: ConnectionConfig | null): ConnectionFormDa
     user: initial.user ?? (initial.driver === 'postgres' ? 'postgres' : initial.driver === 'mysql' ? 'root' : ''),
     password: '',
     folder: initial.folder || '',
-    sslMode: initial.ssl_mode || initial.sslMode || 'prefer',
+    sslMode: initial.ssl_mode || initial.sslMode || (initial.driver === 'sqlite' || initial.driver === 'duckdb' ? 'prefer' : 'require'),
     caCertPath: sslCerts?.ca_cert_path || sslCerts?.caCertPath || '',
     clientCertPath: sslCerts?.client_cert_path || sslCerts?.clientCertPath || '',
     clientKeyPath: sslCerts?.client_key_path || sslCerts?.clientKeyPath || '',
@@ -184,19 +184,11 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       setConnectImmediately(!initialConnection);
 
       if (initialConnection?.id) {
-        dbApi.getStoredPassword(initialConnection.id).then((storedPwd) => {
-          if (storedPwd !== null && storedPwd !== undefined) {
-            setFormData((prev) => ({
-              ...prev,
-              password: storedPwd,
-              rememberPassword: true,
-            }));
-          } else {
-            setFormData((prev) => ({
-              ...prev,
-              rememberPassword: false,
-            }));
-          }
+        dbApi.hasStoredPassword(initialConnection.id).then((hasStored) => {
+          setFormData((prev) => ({
+            ...prev,
+            rememberPassword: Boolean(hasStored),
+          }));
         }).catch((e) => {
           console.debug('Failed to check stored password:', e);
         });
@@ -308,8 +300,8 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       database: formData.database.trim(),
       user: !isLocalFileDriver ? formData.user.trim() : undefined,
       folder: formData.folder?.trim() || undefined,
-      ssl_mode: !isLocalFileDriver ? (formData.sslMode || 'prefer') : undefined,
-      sslMode: !isLocalFileDriver ? (formData.sslMode || 'prefer') : undefined,
+      ssl_mode: !isLocalFileDriver ? (formData.sslMode || 'require') : undefined,
+      sslMode: !isLocalFileDriver ? (formData.sslMode || 'require') : undefined,
       ssl_certs: sslCerts,
       sslCerts,
       ssh_tunnel: sshTunnel,

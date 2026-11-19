@@ -72,7 +72,7 @@ pub struct AuditIntegrityResult {
     pub tampered_entry_id: Option<String>,
 }
 
-/// Computes SHA-256 tamper-evident hash over (prev_hash, timestamp, action/event_type, details)
+/// Computes legacy SHA-256 tamper-evident hash over (prev_hash, timestamp, action/event_type, details)
 pub fn compute_entry_hash(
     prev_hash: &str,
     timestamp: &str,
@@ -88,6 +88,64 @@ pub fn compute_entry_hash(
     hasher.update(b"|");
     hasher.update(details.as_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+/// Computes RFC 2104 HMAC-SHA256 using `key` over all critical audit fields.
+pub fn compute_hmac_sha256(key: &[u8], message: &[u8]) -> String {
+    const BLOCK_SIZE: usize = 64;
+    let mut key_block = [0u8; BLOCK_SIZE];
+    if key.len() > BLOCK_SIZE {
+        let mut hasher = Sha256::new();
+        hasher.update(key);
+        let digest = hasher.finalize();
+        key_block[..digest.len()].copy_from_slice(&digest);
+    } else {
+        key_block[..key.len()].copy_from_slice(key);
+    }
+
+    let mut o_key_pad = [0x5cu8; BLOCK_SIZE];
+    let mut i_key_pad = [0x36u8; BLOCK_SIZE];
+    for i in 0..BLOCK_SIZE {
+        o_key_pad[i] ^= key_block[i];
+        i_key_pad[i] ^= key_block[i];
+    }
+
+    let mut inner = Sha256::new();
+    inner.update(i_key_pad);
+    inner.update(message);
+    let inner_hash = inner.finalize();
+
+    let mut outer = Sha256::new();
+    outer.update(o_key_pad);
+    outer.update(inner_hash);
+    format!("{:x}", outer.finalize())
+}
+
+/// Computes keyed HMAC-SHA256 for an audit log entry covering all critical fields.
+pub fn compute_entry_hmac(
+    key: &[u8],
+    prev_hash: &str,
+    entry: &AuditLogEntry,
+) -> String {
+    let details = entry.details.as_deref().unwrap_or("");
+    let user = entry.user.as_deref().unwrap_or("");
+    let conn_id = entry.connection_id.as_deref().unwrap_or("");
+    let db = entry.database.as_deref().unwrap_or("");
+    let query = entry.query.as_deref().unwrap_or("");
+    let payload = format!(
+        "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+        prev_hash,
+        entry.id,
+        entry.timestamp,
+        entry.action,
+        user,
+        conn_id,
+        db,
+        query,
+        entry.status,
+        details
+    );
+    compute_hmac_sha256(key, payload.as_bytes())
 }
 
 #[cfg(unix)]
@@ -234,6 +292,47 @@ impl AuditLogger {
         self.log_dir.join("audit.jsonl")
     }
 
+    fn hmac_key_path(&self) -> PathBuf {
+        self.log_dir.join(".audit.hmac.key")
+    }
+
+    fn get_or_create_hmac_key(&self) -> Result<[u8; 32], AppError> {
+        ensure_dir_0700(&self.log_dir)?;
+        let key_path = self.hmac_key_path();
+        if key_path.exists() {
+            let bytes = fs::read(&key_path)?;
+            if bytes.len() == 32 {
+                let mut key = [0u8; 32];
+                key.copy_from_slice(&bytes);
+                return Ok(key);
+            }
+        }
+        use rand::RngExt;
+        let mut key = [0u8; 32];
+        rand::rng().fill(&mut key);
+        let tmp_path = self.log_dir.join(".audit.hmac.key.tmp");
+        fs::write(&tmp_path, key)?;
+        set_file_permissions_0600(&tmp_path)?;
+        fs::rename(&tmp_path, &key_path)?;
+        set_file_permissions_0600(&key_path)?;
+        Ok(key)
+    }
+
+    fn read_hmac_key_if_exists(&self) -> Option<[u8; 32]> {
+        let key_path = self.hmac_key_path();
+        if !key_path.exists() {
+            return None;
+        }
+        let bytes = fs::read(&key_path).ok()?;
+        if bytes.len() == 32 {
+            let mut key = [0u8; 32];
+            key.copy_from_slice(&bytes);
+            Some(key)
+        } else {
+            None
+        }
+    }
+
     /// Read the latest entry hash from disk if cache is uninitialized
     fn get_or_recover_last_hash(&self) -> Result<String, AppError> {
         let mut cache = self.last_hash_cache.lock().unwrap();
@@ -356,9 +455,9 @@ impl AuditLogger {
             parts.join(";")
         });
 
-        let entry_hash = compute_entry_hash(&prev_hash, &timestamp, &input.action, &details);
+        let hmac_key = self.get_or_create_hmac_key()?;
 
-        let entry = AuditLogEntry {
+        let mut entry = AuditLogEntry {
             id,
             timestamp,
             action: input.action,
@@ -372,9 +471,12 @@ impl AuditLogger {
             status: input.status,
             error_message: input.error_message,
             details: Some(details),
-            prev_hash: Some(prev_hash),
-            entry_hash: Some(entry_hash.clone()),
+            prev_hash: Some(prev_hash.clone()),
+            entry_hash: None,
         };
+
+        let entry_hash = compute_entry_hmac(&hmac_key, &prev_hash, &entry);
+        entry.entry_hash = Some(entry_hash.clone());
 
         let serialized = serde_json::to_string(&entry)?;
         let log_path = self.main_log_path();
@@ -571,18 +673,24 @@ impl AuditLogger {
                 }
             }
 
-            // Verify entry hash computation
+            // Verify entry hash computation: require HMAC-SHA256 whenever an HMAC key exists
             let details = entry.details.as_deref().unwrap_or("");
-            let computed_hash = compute_entry_hash(entry_prev, &entry.timestamp, &entry.action, details);
+            let (is_hash_valid, expected_hash) = if let Some(hmac_key) = self.read_hmac_key_if_exists() {
+                let expected = compute_entry_hmac(&hmac_key, entry_prev, &entry);
+                (entry.entry_hash.as_deref() == Some(expected.as_str()), expected)
+            } else {
+                let expected = compute_entry_hash(entry_prev, &entry.timestamp, &entry.action, details);
+                (entry.entry_hash.as_deref() == Some(expected.as_str()), expected)
+            };
 
-            if entry.entry_hash.as_deref() != Some(&computed_hash) {
+            if !is_hash_valid {
                 return Ok(AuditIntegrityResult {
                     is_valid: false,
                     total_entries: count,
                     verified_at,
                     error: Some(format!(
                         "Tamper detected at entry {}: entry_hash '{:?}' does not match computed '{:?}'",
-                        entry.id, entry.entry_hash, computed_hash
+                        entry.id, entry.entry_hash, expected_hash
                     )),
                     tampered_entry_id: Some(entry.id),
                 });

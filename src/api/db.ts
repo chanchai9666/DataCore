@@ -261,10 +261,10 @@ export const getObjectDdl = async (
   });
 };
 
-export const getStoredPassword = async (
+export const hasStoredPassword = async (
   connectionId: string
-): Promise<string | null> => {
-  return invoke<string | null>('get_stored_password', {
+): Promise<boolean> => {
+  return invoke<boolean>('has_stored_password', {
     connectionId,
   });
 };
@@ -407,6 +407,26 @@ export const unlockVault = async (password?: string): Promise<boolean> => {
   return invoke<boolean>('vault_unlock', { password: password ?? null });
 };
 
+export const setVaultMasterPassword = async (password: string): Promise<void> => {
+  return invoke<void>('vault_set_master_password', { password });
+};
+
+export const changeVaultMasterPassword = async (
+  oldPassword: string,
+  newPassword: string
+): Promise<void> => {
+  return invoke<void>('vault_change_master_password', {
+    oldPassword,
+    newPassword,
+  });
+};
+
+export const removeVaultMasterPassword = async (
+  currentPassword: string
+): Promise<void> => {
+  return invoke<void>('vault_remove_master_password', { currentPassword });
+};
+
 export const lockVault = async (): Promise<void> => {
   return invoke<void>('vault_lock');
 };
@@ -420,7 +440,7 @@ export const dbApi = {
   getConnections,
   saveConnection,
   deleteConnection,
-  getStoredPassword,
+  hasStoredPassword,
   deleteStoredPassword,
   setSessionPassword,
   setSessionSshPassphrase,
@@ -453,6 +473,9 @@ export const dbApi = {
   isVaultKeychainEnabled,
   setVaultKeychainEnabled,
   hasVaultMasterPassword,
+  setVaultMasterPassword,
+  changeVaultMasterPassword,
+  removeVaultMasterPassword,
   unlockVault,
   lockVault,
   setScreenProtection,

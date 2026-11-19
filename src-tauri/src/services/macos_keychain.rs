@@ -9,7 +9,26 @@ pub fn is_macos_keychain_supported() -> bool {
     cfg!(target_os = "macos")
 }
 
-/// Save a secret to macOS Keychain (via security CLI)
+/// Escape an argument for `security -i` interactive stdin commands.
+fn escape_security_interactive_arg(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for ch in s.chars() {
+        match ch {
+            '"' | '\\' => {
+                out.push('\\');
+                out.push(ch);
+            }
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            _ => out.push(ch),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// Save a secret to macOS Keychain via `security -i` stdin so the secret never appears in process args (`ps`).
 pub fn save_to_macos_keychain(service: &str, account: &str, secret: &str) -> Result<(), AppError> {
     if !is_macos_keychain_supported() {
         return Err(AppError::Other(
@@ -17,19 +36,32 @@ pub fn save_to_macos_keychain(service: &str, account: &str, secret: &str) -> Res
         ));
     }
 
-    let output = Command::new("security")
-        .args([
-            "add-generic-password",
-            "-a",
-            account,
-            "-s",
-            service,
-            "-w",
-            secret,
-            "-U", // Update if item already exists
-        ])
-        .output()
+    use std::io::Write;
+    use std::process::Stdio;
+
+    let mut child = Command::new("security")
+        .arg("-i")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| AppError::Other(format!("Failed to execute security CLI: {}", e)))?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        let line = format!(
+            "add-generic-password -a {} -s {} -w {} -U\n",
+            escape_security_interactive_arg(account),
+            escape_security_interactive_arg(service),
+            escape_security_interactive_arg(secret),
+        );
+        stdin
+            .write_all(line.as_bytes())
+            .map_err(|e| AppError::Other(format!("Failed to write to security stdin: {}", e)))?;
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| AppError::Other(format!("Failed to wait for security CLI: {}", e)))?;
 
     if !output.status.success() {
         let err_msg = String::from_utf8_lossy(&output.stderr);

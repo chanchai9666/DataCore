@@ -45,6 +45,12 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
   const [tlsInfo, setTlsInfo] = useState<TlsStatusInfo | null>(null);
   const [atRestInfo, setAtRestInfo] = useState<AtRestEncryptionInfo | null>(null);
   const [isKeychainOptIn, setIsKeychainOptIn] = useState(false);
+  const [hasMasterPassword, setHasMasterPassword] = useState(false);
+  const [masterPwdMode, setMasterPwdMode] = useState<'none' | 'set' | 'change' | 'remove'>('none');
+  const [pwdInput1, setPwdInput1] = useState('');
+  const [pwdInput2, setPwdInput2] = useState('');
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [isSavingPwd, setIsSavingPwd] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isTogglingKeychain, setIsTogglingKeychain] = useState(false);
   const {
@@ -58,18 +64,22 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
     setIsLoading(true);
     const d = driver?.toLowerCase() || 'postgres';
 
-    // 0. Vault Keychain status
+    // 0. Vault Keychain & Master Password status
     try {
-      const enabled = await dbApi.isVaultKeychainEnabled?.();
+      const [enabled, hasMaster] = await Promise.all([
+        dbApi.isVaultKeychainEnabled?.() ?? Promise.resolve(false),
+        dbApi.hasVaultMasterPassword?.() ?? Promise.resolve(false),
+      ]);
       setIsKeychainOptIn(Boolean(enabled));
+      setHasMasterPassword(Boolean(hasMaster));
     } catch {
-      // Keep default false
+      // Keep defaults
     }
 
     // 1. In-transit TLS
     const tlsSql = buildGetTlsStatusSql(d);
     try {
-      if (d === 'sqlite') {
+      if (d === 'sqlite' || d === 'duckdb') {
         setTlsInfo({
           isEncrypted: true,
           protocol: 'In-Process (Local IPC)',
@@ -88,42 +98,41 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
             const isEncrypted = Boolean(cipher && cipher !== 'NULL' && cipher !== '');
             setTlsInfo({
               isEncrypted,
-              protocol: isEncrypted ? version || 'TLSv1.3' : 'Plaintext',
+              protocol: isEncrypted ? version || 'TLS (Version Unreported)' : 'Plaintext',
               cipherSuite: isEncrypted ? cipher : 'None',
-              keyBits: isEncrypted ? 256 : 0,
+              keyBits: undefined,
             });
           } else {
             // Postgres: [ssl, version, cipher, bits]
             const r = res.rows[0];
             const sslVal = formatCellValue(r[0]);
             const isEncrypted = sslVal.toLowerCase() === 'true' || sslVal.toLowerCase() === 't';
-            const version = String(formatCellValue(r[1]) || 'TLSv1.3');
-            const cipher = String(formatCellValue(r[2]) || 'TLS_AES_256_GCM_SHA384');
-            const bits = Number(formatCellValue(r[3])) || 256;
+            const version = String(formatCellValue(r[1]) || '');
+            const cipher = String(formatCellValue(r[2]) || '');
+            const bits = Number(formatCellValue(r[3])) || undefined;
 
             setTlsInfo({
               isEncrypted,
-              protocol: isEncrypted ? version : 'Plaintext',
-              cipherSuite: isEncrypted ? cipher : 'None',
+              protocol: isEncrypted ? (version || 'TLS (Version Unreported)') : 'Plaintext',
+              cipherSuite: isEncrypted ? (cipher || 'Unreported') : 'None',
               keyBits: isEncrypted ? bits : 0,
             });
           }
         } else {
-          const enforced = sslMode === 'require' || sslMode === 'verify-ca' || sslMode === 'verify-full';
           setTlsInfo({
-            isEncrypted: enforced,
-            protocol: enforced ? 'TLSv1.3' : 'Plaintext',
-            cipherSuite: enforced ? 'TLS_AES_256_GCM_SHA384' : 'None',
-            keyBits: enforced ? 256 : 0,
+            isEncrypted: false,
+            unverified: true,
+            protocol: 'Unknown (Unable to Verify)',
+            cipherSuite: 'Unverified — server did not report TLS status',
           });
         }
       }
     } catch {
-      const enforced = sslMode === 'require' || sslMode === 'verify-ca' || sslMode === 'verify-full';
       setTlsInfo({
-        isEncrypted: enforced,
-        protocol: enforced ? 'TLSv1.3 (Enforced)' : 'Plaintext',
-        cipherSuite: enforced ? 'AES-256-GCM' : 'None',
+        isEncrypted: false,
+        unverified: true,
+        protocol: 'Unknown (Unable to Verify)',
+        cipherSuite: 'Unverified — TLS inspection query failed',
       });
     }
 
@@ -155,6 +164,39 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
       console.error('Failed to toggle macOS Keychain opt-in:', err);
     } finally {
       setIsTogglingKeychain(false);
+    }
+  };
+
+  const handleMasterPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError(null);
+    if (!pwdInput1) {
+      setPwdError('Password cannot be empty.');
+      return;
+    }
+    try {
+      setIsSavingPwd(true);
+      if (masterPwdMode === 'set') {
+        await dbApi.setVaultMasterPassword?.(pwdInput1);
+        setHasMasterPassword(true);
+      } else if (masterPwdMode === 'change') {
+        if (!pwdInput2) {
+          setPwdError('New password cannot be empty.');
+          return;
+        }
+        await dbApi.changeVaultMasterPassword?.(pwdInput1, pwdInput2);
+      } else if (masterPwdMode === 'remove') {
+        await dbApi.removeVaultMasterPassword?.(pwdInput1);
+        setHasMasterPassword(false);
+        setIsKeychainOptIn(false);
+      }
+      setMasterPwdMode('none');
+      setPwdInput1('');
+      setPwdInput2('');
+    } catch (err) {
+      setPwdError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSavingPwd(false);
     }
   };
 
@@ -235,10 +277,16 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                 className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                   isTlsActive
                     ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                    : tlsInfo?.unverified
+                    ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                     : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
                 }`}
               >
-                {isTlsActive ? t('security.tlsEncrypted', 'TLS Encrypted') : t('security.unencryptedPlaintext', 'Unencrypted / Plaintext')}
+                {isTlsActive
+                  ? t('security.tlsEncrypted', 'TLS Encrypted')
+                  : tlsInfo?.unverified
+                  ? t('security.tlsUnverified', 'Unknown / Unverified')
+                  : t('security.unencryptedPlaintext', 'Unencrypted / Plaintext')}
               </span>
             </div>
 
@@ -246,14 +294,14 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
               <div className="rounded-lg bg-white p-2.5 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60">
                 <div className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">{t('security.protocolVersion', 'Protocol Version')}</div>
                 <div className="font-mono font-bold text-slate-800 dark:text-slate-100 text-xs mt-0.5">
-                  {tlsInfo?.protocol || 'TLSv1.3'}
+                  {tlsInfo?.protocol || 'Unknown'}
                 </div>
               </div>
 
               <div className="rounded-lg bg-white p-2.5 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60">
                 <div className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">{t('security.keyStrength', 'Key Strength')}</div>
                 <div className="font-mono font-bold text-slate-800 dark:text-slate-100 text-xs mt-0.5">
-                  {tlsInfo?.keyBits ? `${tlsInfo.keyBits}-bit Encryption` : '256-bit AES-GCM'}
+                  {tlsInfo?.keyBits ? `${tlsInfo.keyBits}-bit Encryption` : 'Unknown'}
                 </div>
               </div>
             </div>
@@ -261,7 +309,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
             <div className="rounded-lg bg-white p-2.5 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60">
               <div className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">{t('security.cipherSuite', 'Cipher Suite')}</div>
               <div className="font-mono text-slate-700 dark:text-slate-300 text-[11px] mt-0.5 break-all">
-                {tlsInfo?.cipherSuite || 'TLS_AES_256_GCM_SHA384'}
+                {tlsInfo?.cipherSuite || 'Unknown'}
               </div>
             </div>
           </div>
@@ -294,19 +342,109 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
               <div className="flex items-start justify-between gap-2.5 rounded-lg bg-white p-3 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/60">
                 <div className="flex items-start gap-2.5">
                   <KeyRound className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                  <div className="space-y-0.5">
-                    <div className="font-medium text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <div className="space-y-1 flex-1">
+                    <div className="font-medium text-slate-800 dark:text-slate-200 flex items-center gap-2 flex-wrap">
                       {t('security.localVaultTitle', 'Local Credential Vault (AES-256-GCM)')}
+                      <span className="rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 px-1.5 py-0.2">
+                        {hasMasterPassword ? 'Master Password (DCV2 Argon2id)' : 'Machine-Bound (DCV1)'}
+                      </span>
                       <span className="rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 px-1.5 py-0.2">
                         POSIX 0600
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Passphrases are sealed in <code className="text-slate-700 dark:text-slate-300">~/.datacore/vault.enc</code>. Zero OS popup prompts by default.
+                      {hasMasterPassword
+                        ? 'Credentials in ~/.datacore/vault.enc are protected with your Master Password (Argon2id + AES-256-GCM).'
+                        : 'Credentials in ~/.datacore/vault.enc use machine-bound obfuscation (DCV1). Set a Master Password for full Argon2id encryption.'}
                     </p>
+                    <div className="pt-1 flex items-center gap-2 flex-wrap">
+                      {!hasMasterPassword ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMasterPwdMode(masterPwdMode === 'set' ? 'none' : 'set');
+                            setPwdError(null);
+                          }}
+                          className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        >
+                          Set Master Password
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMasterPwdMode(masterPwdMode === 'change' ? 'none' : 'change');
+                              setPwdError(null);
+                            }}
+                            className="rounded border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                          >
+                            Change Master Password
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMasterPwdMode(masterPwdMode === 'remove' ? 'none' : 'remove');
+                              setPwdError(null);
+                            }}
+                            className="rounded border border-rose-300 bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                          >
+                            Remove Master Password
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {masterPwdMode !== 'none' && (
+                      <form onSubmit={handleMasterPasswordSubmit} className="pt-2 space-y-2 border-t border-slate-100 dark:border-slate-800 mt-1">
+                        <input
+                          type="password"
+                          value={pwdInput1}
+                          onChange={(e) => setPwdInput1(e.target.value)}
+                          placeholder={
+                            masterPwdMode === 'set'
+                              ? 'Enter new Master Password'
+                              : masterPwdMode === 'change'
+                              ? 'Current Master Password'
+                              : 'Confirm current Master Password'
+                          }
+                          className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
+                        />
+                        {masterPwdMode === 'change' && (
+                          <input
+                            type="password"
+                            value={pwdInput2}
+                            onChange={(e) => setPwdInput2(e.target.value)}
+                            placeholder="New Master Password"
+                            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
+                          />
+                        )}
+                        {pwdError && <p className="text-[10px] text-rose-500">{pwdError}</p>}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="submit"
+                            disabled={isSavingPwd}
+                            className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {isSavingPwd ? 'Saving...' : 'Confirm'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMasterPwdMode('none');
+                              setPwdInput1('');
+                              setPwdInput2('');
+                              setPwdError(null);
+                            }}
+                            className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    )}
                     <div className="pt-1.5 flex items-center gap-2 text-[11px]">
                       <span className="text-slate-600 dark:text-slate-300 font-medium">
-                        {t('security.keychainSyncLabel', 'macOS Keychain & Touch ID Sync (Opt-In):')}
+                        {t('security.keychainSyncLabel', 'macOS Keychain Sync (Opt-In):')}
                       </span>
                       <button
                         type="button"
@@ -314,7 +452,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                         aria-checked={isKeychainOptIn}
                         aria-label="Toggle macOS Keychain Sync"
                         onClick={handleToggleKeychain}
-                        disabled={isTogglingKeychain}
+                        disabled={isTogglingKeychain || !hasMasterPassword}
                         className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
                           isKeychainOptIn ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
                         }`}
@@ -326,7 +464,11 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                         />
                       </button>
                       <span className="text-[10px] text-slate-400">
-                        {isKeychainOptIn ? t('security.enabledTouchId', 'Enabled (Touch ID Ready)') : t('security.disabledIsolated', 'Disabled (Isolated Vault)')}
+                        {!hasMasterPassword
+                          ? 'Requires Master Password'
+                          : isKeychainOptIn
+                          ? t('security.enabledKeychain', 'Enabled (Keychain Synced)')
+                          : t('security.disabledIsolated', 'Disabled (Isolated Vault)')}
                       </span>
                     </div>
                   </div>

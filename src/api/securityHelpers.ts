@@ -25,6 +25,7 @@ export interface CreatePolicyParams {
 
 export interface TlsStatusInfo {
   isEncrypted: boolean;
+  unverified?: boolean;
   protocol?: string; // e.g. TLSv1.3
   cipherSuite?: string;
   keyBits?: number;

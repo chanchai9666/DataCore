@@ -143,7 +143,7 @@ impl DatabaseConnection for MssqlConnection {
             return Ok(QueryResult::new(Vec::new(), Vec::new(), 0, Some(0)));
         }
 
-        if self.read_only && is_write_sql(trimmed) {
+        if self.read_only && crate::drivers::is_read_only_blocked_sql(trimmed) {
             return Err(AppError::Database(
                 "Connection is in read-only mode. Write operations are disabled.".to_string(),
             ));

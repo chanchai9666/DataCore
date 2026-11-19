@@ -799,11 +799,14 @@ pub async fn delete_connection(
 }
 
 #[tauri::command]
-pub async fn get_stored_password(
+pub async fn has_stored_password(
     store: State<'_, ConnectionStore>,
     connection_id: String,
-) -> Result<Option<String>, String> {
-    store.get_password(&connection_id).map_err(|e| e.to_string())
+) -> Result<bool, String> {
+    store
+        .get_password(&connection_id)
+        .map(|opt| opt.is_some())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -835,6 +838,40 @@ pub async fn vault_has_master_password(
     store: State<'_, ConnectionStore>,
 ) -> Result<bool, String> {
     store.vault().has_master_password().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn vault_set_master_password(
+    store: State<'_, ConnectionStore>,
+    password: String,
+) -> Result<(), String> {
+    store
+        .vault()
+        .set_master_password(&password)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn vault_change_master_password(
+    store: State<'_, ConnectionStore>,
+    old_password: String,
+    new_password: String,
+) -> Result<(), String> {
+    store
+        .vault()
+        .change_master_password(&old_password, &new_password)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn vault_remove_master_password(
+    store: State<'_, ConnectionStore>,
+    current_password: String,
+) -> Result<(), String> {
+    store
+        .vault()
+        .remove_master_password(&current_password)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

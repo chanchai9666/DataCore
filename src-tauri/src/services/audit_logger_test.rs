@@ -298,3 +298,39 @@ fn test_audit_logger_redacts_passwords_automatically() {
     assert!(!disk_content.contains("SuperSecretPassword!"));
     assert!(disk_content.contains("[REDACTED]"));
 }
+
+#[test]
+fn test_hmac_prevents_unkeyed_rehash_forgery() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    let e1 = logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("DROP TABLE secrets;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Attacker modifies query and recomputes unkeyed SHA-256 hash without HMAC key
+    let mut forged = e1.clone();
+    forged.query = Some("SELECT 1;".to_string());
+    let forged_hash = compute_entry_hash(
+        forged.prev_hash.as_deref().unwrap_or(GENESIS_HASH),
+        &forged.timestamp,
+        &forged.action,
+        forged.details.as_deref().unwrap_or(""),
+    );
+    forged.entry_hash = Some(forged_hash);
+
+    fs::write(
+        logger.main_log_path(),
+        format!("{}\n", serde_json::to_string(&forged).unwrap()),
+    )
+    .unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+    assert_eq!(check.tampered_entry_id.as_deref(), Some(e1.id.as_str()));
+}

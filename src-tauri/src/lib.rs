@@ -17,7 +17,6 @@ use tauri::Emitter;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
@@ -40,11 +39,14 @@ pub fn run() {
             get_connections,
             save_connection,
             delete_connection,
-            get_stored_password,
+            has_stored_password,
             delete_stored_password,
             vault_is_keychain_enabled,
             vault_set_keychain_enabled,
             vault_has_master_password,
+            vault_set_master_password,
+            vault_change_master_password,
+            vault_remove_master_password,
             vault_unlock,
             vault_lock,
             open_session,

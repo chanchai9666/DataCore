@@ -56,34 +56,107 @@ mod sqlite_test;
 #[cfg(test)]
 mod duckdb_test;
 
-/// Returns true if the SQL statement starts with a write/DDL/DCL keyword
-/// after stripping leading whitespace and SQL comments.
-pub(crate) fn is_write_sql(sql: &str) -> bool {
-    let mut s = sql.trim_start();
-    loop {
-        if s.starts_with("--") {
-            match s.find('\n') {
-                Some(idx) => s = s[idx + 1..].trim_start(),
-                None => return false,
-            }
-        } else if s.starts_with("/*") {
-            match s.find("*/") {
-                Some(idx) => s = s[idx + 2..].trim_start(),
-                None => return false,
-            }
-        } else {
-            break;
+/// Extracts uppercase SQL identifier/keyword tokens per statement, skipping comments and string literals.
+fn tokenize_sql_statements(sql: &str) -> Vec<Vec<(String, usize)>> {
+    let bytes = sql.as_bytes();
+    let len = bytes.len();
+    let mut i = 0;
+    let mut paren_depth: usize = 0;
+    let mut statements: Vec<Vec<(String, usize)>> = vec![Vec::new()];
+
+    while i < len {
+        let b = bytes[i];
+
+        // Skip whitespace
+        if b.is_ascii_whitespace() {
+            i += 1;
+            continue;
         }
+
+        // Single-line comment --
+        if b == b'-' && i + 1 < len && bytes[i + 1] == b'-' {
+            i += 2;
+            while i < len && bytes[i] != b'\n' {
+                i += 1;
+            }
+            continue;
+        }
+
+        // Block comment /* ... */
+        if b == b'/' && i + 1 < len && bytes[i + 1] == b'*' {
+            i += 2;
+            while i + 1 < len && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                i += 1;
+            }
+            i = (i + 2).min(len);
+            continue;
+        }
+
+        // String literals ('...', "...", `...`)
+        if b == b'\'' || b == b'"' || b == b'`' {
+            let quote = b;
+            i += 1;
+            while i < len {
+                if bytes[i] == quote {
+                    if i + 1 < len && bytes[i + 1] == quote {
+                        i += 2; // escaped quote
+                        continue;
+                    }
+                    i += 1;
+                    break;
+                }
+                if quote != b'"' && bytes[i] == b'\\' && i + 1 < len {
+                    i += 2;
+                    continue;
+                }
+                i += 1;
+            }
+            continue;
+        }
+
+        // Track parentheses depth
+        if b == b'(' {
+            paren_depth += 1;
+            i += 1;
+            continue;
+        }
+        if b == b')' {
+            paren_depth = paren_depth.saturating_sub(1);
+            i += 1;
+            continue;
+        }
+
+        // Statement separator
+        if b == b';' {
+            if !statements.last().map(|s| s.is_empty()).unwrap_or(true) {
+                statements.push(Vec::new());
+            }
+            i += 1;
+            continue;
+        }
+
+        // Word/identifier token
+        if b.is_ascii_alphanumeric() || b == b'_' {
+            let start = i;
+            while i < len && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+                i += 1;
+            }
+            let word = sql[start..i].to_ascii_uppercase();
+            if let Some(cur) = statements.last_mut() {
+                cur.push((word, paren_depth));
+            }
+            continue;
+        }
+
+        i += 1;
     }
 
-    let first_word = s
-        .split(|c: char| c.is_whitespace() || c == '(' || c == ';')
-        .next()
-        .unwrap_or("")
-        .to_ascii_uppercase();
+    statements.into_iter().filter(|s| !s.is_empty()).collect()
+}
 
+fn is_write_keyword(word: &str) -> bool {
     matches!(
-        first_word.as_str(),
+        word,
         "INSERT"
             | "UPDATE"
             | "DELETE"
@@ -97,6 +170,69 @@ pub(crate) fn is_write_sql(sql: &str) -> bool {
             | "GRANT"
             | "REVOKE"
     )
+}
+
+/// Returns true if any SQL statement in the batch performs a write/DDL/DCL operation,
+/// including CTE writes (`WITH ... DELETE/UPDATE/INSERT`) and `SELECT ... INTO`.
+pub(crate) fn is_write_sql(sql: &str) -> bool {
+    for stmt in tokenize_sql_statements(sql) {
+        let Some((first_word, _)) = stmt.first() else {
+            continue;
+        };
+        if is_write_keyword(first_word) {
+            return true;
+        }
+        if first_word == "WITH" && stmt.iter().any(|(w, _)| is_write_keyword(w)) {
+            return true;
+        }
+        if first_word == "SELECT" && stmt.iter().any(|(w, depth)| *depth == 0 && w == "INTO") {
+            return true;
+        }
+    }
+    false
+}
+
+/// Returns true if any SQL statement in the batch must be blocked in Read-Only mode.
+/// Extends `is_write_sql` with administrative/procedural/mode-changing statements
+/// (`PRAGMA`, `EXEC`, `EXECUTE`, `CALL`, `COPY`, `ATTACH`, `DETACH`, `VACUUM`, `REINDEX`).
+pub(crate) fn is_read_only_blocked_sql(sql: &str) -> bool {
+    if is_write_sql(sql) {
+        return true;
+    }
+    for stmt in tokenize_sql_statements(sql) {
+        let Some((first_word, _)) = stmt.first() else {
+            continue;
+        };
+        if matches!(
+            first_word.as_str(),
+            "PRAGMA"
+                | "EXEC"
+                | "EXECUTE"
+                | "CALL"
+                | "COPY"
+                | "ATTACH"
+                | "DETACH"
+                | "VACUUM"
+                | "REINDEX"
+                | "LOAD"
+                | "EXPORT"
+                | "IMPORT"
+                | "COMMENT"
+                | "LOCK"
+                | "RENAME"
+        ) {
+            return true;
+        }
+        if first_word == "EXPLAIN"
+            && stmt
+                .iter()
+                .skip(1)
+                .any(|(w, _)| is_write_keyword(w) || w == "PRAGMA" || w == "EXEC" || w == "CALL")
+        {
+            return true;
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -148,5 +284,23 @@ mod tests {
         reconcile_page_row_count(&mut res, Some(500), false, 100, 0);
         assert_eq!(res.rows_affected, Some(500));
         assert_eq!(res.is_approximate_count, None);
+    }
+
+    #[test]
+    fn read_only_sql_blocks_bypass_vectors() {
+        assert!(is_read_only_blocked_sql("SELECT 1; DELETE FROM users;"));
+        assert!(is_read_only_blocked_sql("WITH d AS (DELETE FROM users RETURNING *) SELECT * FROM d"));
+        assert!(is_read_only_blocked_sql("WITH u AS (UPDATE users SET a = 1) SELECT 1"));
+        assert!(is_read_only_blocked_sql("SELECT * INTO backup_users FROM users"));
+        assert!(is_read_only_blocked_sql("PRAGMA query_only = OFF;"));
+        assert!(is_read_only_blocked_sql("EXEC sp_executesql N'DROP TABLE users'"));
+        assert!(is_read_only_blocked_sql("CALL dangerous_proc()"));
+        assert!(is_read_only_blocked_sql("COPY users TO '/tmp/out.csv'"));
+        assert!(is_read_only_blocked_sql("EXPLAIN ANALYZE DELETE FROM users"));
+
+        // Safe queries including keywords inside string literals or comments
+        assert!(!is_read_only_blocked_sql("SELECT 'DELETE FROM users; PRAGMA query_only = OFF' AS msg"));
+        assert!(!is_read_only_blocked_sql("-- INSERT INTO users\n/* DROP TABLE x */ SELECT id, name FROM users WHERE note = 'INTO'"));
+        assert!(!is_read_only_blocked_sql("WITH cte AS (SELECT id FROM users) SELECT * FROM cte"));
     }
 }

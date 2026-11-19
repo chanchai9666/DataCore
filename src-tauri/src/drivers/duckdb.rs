@@ -299,7 +299,7 @@ impl DatabaseConnection for DuckdbConnection {
     }
 
     async fn execute_query(&self, sql: &str) -> Result<QueryResult, AppError> {
-        if self.read_only && crate::drivers::is_write_sql(sql) {
+        if self.read_only && crate::drivers::is_read_only_blocked_sql(sql) {
             return Err(AppError::Database(
                 "Connection is in read-only mode. Write operations are disabled.".to_string(),
             ));

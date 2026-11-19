@@ -9,6 +9,10 @@ vi.mock('../../api/db', () => ({
     executeDirectQuery: vi.fn(),
     isVaultKeychainEnabled: vi.fn(),
     setVaultKeychainEnabled: vi.fn(),
+    hasVaultMasterPassword: vi.fn(),
+    setVaultMasterPassword: vi.fn(),
+    changeVaultMasterPassword: vi.fn(),
+    removeVaultMasterPassword: vi.fn(),
     setScreenProtection: vi.fn(),
   },
   setScreenProtection: vi.fn(),
@@ -113,6 +117,7 @@ describe('ConnectionSecurityModal', () => {
       execution_time_ms: 1,
     });
     vi.mocked(dbApi.isVaultKeychainEnabled).mockResolvedValue(false);
+    vi.mocked(dbApi.hasVaultMasterPassword).mockResolvedValue(true);
     vi.mocked(dbApi.setVaultKeychainEnabled).mockResolvedValue(undefined);
 
     render(
@@ -138,7 +143,63 @@ describe('ConnectionSecurityModal', () => {
     await waitFor(() => {
       expect(dbApi.setVaultKeychainEnabled).toHaveBeenCalledWith(true);
       expect(toggle).toHaveAttribute('aria-checked', 'true');
-      expect(screen.getByText(/Enabled \(Touch ID Ready\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/Enabled \(Keychain Synced\)/i)).toBeInTheDocument();
+    });
+  });
+
+  it('shows Unknown / Unverified instead of guessing TLSv1.3 when TLS query fails', async () => {
+    vi.mocked(dbApi.executeDirectQuery).mockRejectedValue(new Error('permission denied'));
+    vi.mocked(dbApi.isVaultKeychainEnabled).mockResolvedValue(false);
+    vi.mocked(dbApi.hasVaultMasterPassword).mockResolvedValue(false);
+
+    render(
+      <ConnectionSecurityModal
+        isOpen={true}
+        connectionId="conn-pg"
+        driver="postgres"
+        sslMode="require"
+        onClose={onClose}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Unknown / Unverified')).toBeInTheDocument();
+      expect(screen.getByText('Unknown (Unable to Verify)')).toBeInTheDocument();
+      expect(screen.queryByText('TLSv1.3')).toBeNull();
+    });
+  });
+
+  it('allows setting Master Password from UI when not yet configured', async () => {
+    vi.mocked(dbApi.executeDirectQuery).mockResolvedValue({
+      columns: [],
+      rows: [],
+      execution_time_ms: 1,
+    });
+    vi.mocked(dbApi.isVaultKeychainEnabled).mockResolvedValue(false);
+    vi.mocked(dbApi.hasVaultMasterPassword).mockResolvedValue(false);
+    vi.mocked(dbApi.setVaultMasterPassword).mockResolvedValue(undefined);
+
+    render(
+      <ConnectionSecurityModal
+        isOpen={true}
+        connectionId="conn-1"
+        driver="sqlite"
+        onClose={onClose}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /set master password/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /set master password/i }));
+    const input = screen.getByPlaceholderText(/enter new master password/i);
+    fireEvent.change(input, { target: { value: 'StrongMaster123!' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+
+    await waitFor(() => {
+      expect(dbApi.setVaultMasterPassword).toHaveBeenCalledWith('StrongMaster123!');
+      expect(screen.getByText(/Master Password \(DCV2 Argon2id\)/i)).toBeInTheDocument();
     });
   });
 

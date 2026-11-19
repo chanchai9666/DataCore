@@ -1275,6 +1275,27 @@
 - **จุดเข้าถึง:** Native macOS Menu (`DataCore -> About DataCore`, event `menu://action` = `about`), MainToolbar เมนู Tools หมวด `System & Diagnostics`, และ Command Palette (`About DataCore...`)
 - **Tests:** `AboutModal.test.tsx` และอัปเดต `menu::tests` (10 actions)
 
+### Phase 54: การยกระดับความปลอดภัยและความพร้อมใช้งานระดับ Production (Security Hardening & Readiness — Issue #197) [Completed]
+
+- **Vault Master Password UI & Keychain Security (`commands/db.rs`, `lib.rs`, `macos_keychain.rs`, `ConnectionSecurityModal.tsx`):**
+  - เปิดใช้งาน Tauri commands `vault_set_master_password`, `vault_change_master_password`, `vault_remove_master_password` พร้อม UI ตั้ง/เปลี่ยน/ลบ Master Password เพื่ออัปเกรดจากโหมด Machine-bound (`DCV1`) เป็น Argon2id + AES-256-GCM (`DCV2`)
+  - ตัดคำกล่าวอ้างเรื่อง Touch ID ที่ยังไม่ได้ implement ออกจาก UI และบังคับให้เปิด macOS Keychain Sync ได้เฉพาะเมื่อตั้ง Master Password แล้ว
+  - เปลี่ยน `save_to_macos_keychain` ให้ส่ง secret ผ่าน `security -i` stdin แทน command-line argument `-w` เพื่อป้องกันการรั่วไหลผ่าน `ps`
+- **TLS Security Inspector & Default SSL Mode (`ConnectionSecurityModal.tsx`, `ConnectionDialog.tsx`):**
+  - ยกเลิกการเดา `TLSv1.3` / `AES-256-GCM` เมื่อ query ตรวจสอบจากเซิร์ฟเวอร์ล้มเหลว โดยแสดงสถานะ `Unknown / Unverified` อย่างตรงไปตรงมา
+  - ปรับค่าเริ่มต้น `sslMode` ของการเชื่อมต่อเครือข่าย (PostgreSQL, MySQL, MSSQL) จาก `prefer` เป็น `require`
+- **Credential Exposure Mitigation (`commands/db.rs`, `src/api/db.ts`, `ConnectionDialog.tsx`):**
+  - แทนที่ `get_stored_password` ที่ส่งรหัสผ่าน plaintext กลับไปยัง Webview ด้วย `has_stored_password` (คืนค่า `bool`)
+- **Read-Only Enforcement & Defense-in-Depth (`drivers/mod.rs`, `sqlite.rs`, `duckdb.rs`, `mssql.rs`):**
+  - เพิ่ม `is_read_only_blocked_sql` ที่ tokenize แยก statement ข้าม comments และ string literals ครอบคลุม multi-statement, CTE write (`WITH ... INSERT/UPDATE/DELETE`), `SELECT ... INTO`, `PRAGMA`, `EXEC`/`CALL`, `COPY`, `ATTACH`/`DETACH`, `VACUUM` และบังคับใช้ใน SQLite, DuckDB, และ MSSQL
+- **Audit Log HMAC-SHA256 & SSH Tunnel Hardening (`audit_logger.rs`, `ssh_tunnel.rs`):**
+  - อัปเกรด Audit Hash Chain เป็น keyed **HMAC-SHA256** (`.audit.hmac.key` สิทธิ์ `0600`) ครอบคลุมทุกฟิลด์สำคัญ (พร้อม backward compatibility กับ legacy log ที่ยังไม่มี key)
+  - ปรับ `SSH_ASKPASS` ใน `ssh_tunnel.rs` ให้อ่าน passphrase จาก env var `DATACORE_SSH_PASSPHRASE` แทนการเขียน secret literal ลงดิสก์
+- **CSP, Entitlements, Updater, CI & Governance (`tauri.conf.json`, `capabilities/default.json`, `entitlements.plist`, `.github/workflows/ci.yml`, `release.yml`, `LICENSE`, `SECURITY.md`):**
+  - เพิ่ม CSP directives (`object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none';`), ลบ `tauri-plugin-opener` ที่ไม่ได้ใช้, เพิ่ม `updater:default`, ลบ `disable-library-validation` และ `allow-unsigned-executable-memory` ออกจาก `entitlements.plist`
+  - เพิ่ม `LICENSE` (MIT), `SECURITY.md`, และ CI workflow (`.github/workflows/ci.yml`) พร้อมปรับตัวเลขเทสใน `README.md` ให้ตรงความจริง (1,286 tests)
+
+
 
 
 
