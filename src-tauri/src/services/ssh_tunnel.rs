@@ -73,7 +73,10 @@ impl SshTunnelHandle {
         let mut cmd = Command::new("/usr/bin/ssh");
         cmd.arg("-N")
             .arg("-L")
-            .arg(format!("127.0.0.1:{}:{}:{}", local_port, remote_host, remote_port))
+            .arg(format!(
+                "127.0.0.1:{}:{}:{}",
+                local_port, remote_host, remote_port
+            ))
             .arg("-p")
             .arg(ssh_port.to_string())
             .arg("-o")
@@ -120,18 +123,13 @@ impl SshTunnelHandle {
             }
         }
 
-        let secret = ssh_config
-            .passphrase
-            .as_deref()
-            .filter(|s| !s.is_empty());
+        let secret = ssh_config.passphrase.as_deref().filter(|s| !s.is_empty());
 
         let mut askpass_script: Option<PathBuf> = None;
 
         if let Some(sec) = secret {
-            let script_path = std::env::temp_dir().join(format!(
-                "datacore_ssh_askpass_{}.sh",
-                uuid::Uuid::new_v4()
-            ));
+            let script_path = std::env::temp_dir()
+                .join(format!("datacore_ssh_askpass_{}.sh", uuid::Uuid::new_v4()));
             let mut open_opts = fs::OpenOptions::new();
             open_opts.create_new(true).write(true);
             #[cfg(unix)]
@@ -142,9 +140,11 @@ impl SshTunnelHandle {
             let mut file = open_opts.open(&script_path).map_err(|e| {
                 AppError::Other(format!("Failed to create SSH askpass helper: {}", e))
             })?;
-            writeln!(file, "#!/bin/sh\nprintf '%s\\n' \"$DATACORE_SSH_PASSPHRASE\"").map_err(|e| {
-                AppError::Other(format!("Failed to write SSH askpass helper: {}", e))
-            })?;
+            writeln!(
+                file,
+                "#!/bin/sh\nprintf '%s\\n' \"$DATACORE_SSH_PASSPHRASE\""
+            )
+            .map_err(|e| AppError::Other(format!("Failed to write SSH askpass helper: {}", e)))?;
             drop(file);
 
             #[cfg(unix)]
@@ -284,7 +284,11 @@ mod tests {
         assert!(res.is_err());
         match res.err().unwrap() {
             AppError::InvalidInput(msg) => {
-                assert!(msg.contains("cannot start with '-'"), "Expected leading dash error, got: {}", msg);
+                assert!(
+                    msg.contains("cannot start with '-'"),
+                    "Expected leading dash error, got: {}",
+                    msg
+                );
             }
             other => panic!("Expected AppError::InvalidInput, got: {:?}", other),
         }
@@ -306,7 +310,11 @@ mod tests {
         assert!(res.is_err());
         match res.err().unwrap() {
             AppError::InvalidInput(msg) => {
-                assert!(msg.contains("cannot start with '-'"), "Expected leading dash error, got: {}", msg);
+                assert!(
+                    msg.contains("cannot start with '-'"),
+                    "Expected leading dash error, got: {}",
+                    msg
+                );
             }
             other => panic!("Expected AppError::InvalidInput, got: {:?}", other),
         }

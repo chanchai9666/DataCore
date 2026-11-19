@@ -1003,7 +1003,7 @@
 - **34.1 In-Memory Secret Zeroization (`zeroize`) [Completed]:** ติดตั้ง crate `zeroize` และห่อหุ้ม Master Password, Vault Cache, Connection Password, และ SSH Passphrase ด้วย `Zeroizing` พร้อม Implement `Drop` เพื่อล้างหน่วยความจำทันทีที่ Lock หรือ Disconnect
 - **34.2 Type-Safe IPC Contract (`tauri-specta`) [Completed]:** ติดตั้ง `specta` และ `tauri-specta` พร้อมคำสั่ง `pnpm bindings` สร้าง TypeScript Bindings จาก Rust Struct Models อัตโนมัติ (`src/types/bindings.ts`) ป้องกัน IPC type drift
 - **34.3 Structured / Parameterized Filter Builder & AST [Completed]:** ออกแบบ `FilterCondition` AST แทนการต่อ String `WHERE` ป้องกัน SQL Injection อย่างเด็ดขาด พร้อม validation
-- **34.4 Opt-in macOS Keychain & Biometric (Touch ID) [Completed]:** สร้างโมดูล `src-tauri/src/services/macos_keychain.rs` และเชื่อมโยงกับ Vault จัดเก็บ Master KEK พร้อม Toggle Opt-in ใน Connection Security Modal โดยคง Local Encrypted Vault (DCV2) เป็นค่าเริ่มต้นแบบ Zero-popup
+- **34.4 Opt-in macOS Keychain Sync [Updated in Issue #197/#199]:** สร้างโมดูล `src-tauri/src/services/macos_keychain.rs` และเชื่อมโยงกับ Vault จัดเก็บ Master Password (ผ่าน `security -i` stdin) พร้อม Toggle Opt-in ใน Connection Security Modal โดยคง Local Encrypted Vault เป็นค่าเริ่มต้นแบบ Zero-popup (ยกเลิกคำกล่าวอ้างเรื่อง Biometric/Touch ID ที่ยังไม่ได้ implement ใน Phase 54)
 - **34.5 Production Environment Guardrails & Safe Mode [Completed]:** เพิ่มแถบสีระบุ Environment (`local`, `staging`, `production`) และระบบ Safe Mode บังคับพิมพ์ยืนยันก่อนรันคำสั่งแก้ไข/ลบข้อมูลที่มีความเสี่ยงสูง
 - **34.6 PII Sensitive Column Masking [Completed]:** สร้างระบบตรวจจับข้อมูลอ่อนไหวอัตโนมัติ (`src/utils/piiDetector.ts`) ครอบคลุม Passwords, Secrets, Tokens, Identifiers (SSN, Citizen ID), Financial (Cards, CVV), และ Contact (Email, Phone) พร้อมปุ่ม Toggle บน DataGrid Bottom Bar และระบบป้องกันการคัดลอก PII ใน Clipboard
 
@@ -1294,9 +1294,22 @@
 - **CSP, Entitlements, Updater, CI & Governance (`tauri.conf.json`, `capabilities/default.json`, `entitlements.plist`, `.github/workflows/ci.yml`, `release.yml`, `LICENSE`, `SECURITY.md`):**
   - เพิ่ม CSP directives (`object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none';`), ลบ `tauri-plugin-opener` ที่ไม่ได้ใช้, เพิ่ม `updater:default`, ลบ `disable-library-validation` และ `allow-unsigned-executable-memory` ออกจาก `entitlements.plist`
   - เพิ่ม `LICENSE` (MIT), `SECURITY.md`, และ CI workflow (`.github/workflows/ci.yml`) พร้อมปรับตัวเลขเทสใน `README.md` ให้ตรงความจริง
-- **Production Updater Keypair & Unpublished Release UX (Issue #198):**
+- **Production Updater Keypair & Unpublished Release UX (Issue #198, Commit `49983c4`):**
   - สร้าง production minisign keypair แทน demo key ใน `tauri.conf.json` และจัดเก็บ Private Key ใน GitHub Secret `TAURI_SIGNING_PRIVATE_KEY`
   - ปรับ `UpdateCheckerModal.tsx` ให้แสดงข้อความแจ้งเตือนที่ชัดเจนเมื่อยังไม่มี Release เผยแพร่ (404 / missing `latest.json`)
+
+### Phase 55: แก้ไขผลตรวจความปลอดภัยรอบ 2 — CI Pipeline, Vault Unlock, Keychain Consistency, Audit HMAC Fail-Closed & TLS Fallback (Issue #199) [Completed]
+
+- **CI Pipeline & Dependency Cleanup (`pnpm-workspace.yaml`, `package.json`, `.github/workflows/ci.yml`):**
+  - เพิ่ม `packages: ['.']` ใน `pnpm-workspace.yaml`, pin `packageManager: "pnpm@12.14.0"` ให้ตรงกับ CI, ถอด `@tauri-apps/plugin-opener` ที่ไม่ได้ใช้, จัดรูปแบบ Rust ด้วย `cargo fmt`, และเพิ่ม `audit` job (`pnpm audit --prod --audit-level=high` + `rustsec/audit-check@v2`)
+- **Vault Unlock Flow & Rate Limiting (`keychain.rs`, `commands/db.rs`, `lib.rs`, `VaultUnlockModal.tsx`, `App.tsx`):**
+  - เพิ่ม `vault_status` Tauri command และ `VaultUnlockModal` สำหรับปลดล็อก Vault เมื่อเปิดแอปหรือเมื่อเกิด error `"Vault is locked"`, พร้อม rate limiting (ล็อก 30 วินาทีเมื่อผิด 5 ครั้ง) และบันทึก `VAULT_UNLOCK` ลง Audit Log
+- **macOS Keychain Consistency (`keychain.rs`, `ConnectionSecurityModal.tsx`):**
+  - อัปเดต Keychain อัตโนมัติเมื่อเรียก `change_master_password`, ล้าง flag `.vault.keychain_opt_in` ทั้งฝั่ง Backend และ UI เมื่อลบ Master Password, และปฏิเสธการเปิด Keychain opt-in หากยังไม่มี Master Password หรือ Vault ล็อกอยู่
+- **Audit Log HMAC Fail-Closed (`audit_logger.rs`, `audit_logger_test.rs`):**
+  - ย้ายตำแหน่งคีย์ HMAC ออกนอกโฟลเดอร์ log (`~/.datacore_audit_keys/`), เพิ่ม `hash_algo` ต่อ entry (`hmac-sha256` / legacy `sha256`), คำนวณ HMAC จาก canonical JSON ของทุกฟิลด์ (รวม `error_message`, `execution_time_ms`, `rows_affected`, `connection_name`), และบังคับ fail-closed เมื่อคีย์หายหรือพบการ downgrade algorithm
+- **Backend SSL Fallback & Legacy Warning (`postgres.rs`, `mysql.rs`, `ConnectionSecurityModal.tsx`):**
+  - เปลี่ยน fallback SSL mode ใน `postgres.rs` และ `mysql.rs` เป็น `Require` / `Required` และแสดงแบนเนอร์เตือนเมื่อ connection เดิมใช้ `prefer` / `allow` / `disable`
 
 
 

@@ -1,8 +1,8 @@
-use std::fs;
-use std::path::{Path, PathBuf};
 use crate::error::AppError;
 use crate::models::WorkspaceState;
 use crate::services::keychain::{set_secure_dir_permissions, set_secure_permissions, Vault};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct WorkspaceStore {
@@ -98,21 +98,22 @@ mod tests {
         state.sidebar_width = Some(280.0);
         state.sidebar_collapsed = Some(false);
         state.sql_editor_ratio = Some(0.45);
-        state.tabs = vec![
-            serde_json::json!({
-                "id": "tab-sql-1",
-                "title": "Query 1",
-                "type": "sql",
-                "queryContent": "SELECT * FROM users;"
-            })
-        ];
+        state.tabs = vec![serde_json::json!({
+            "id": "tab-sql-1",
+            "title": "Query 1",
+            "type": "sql",
+            "queryContent": "SELECT * FROM users;"
+        })];
 
         store.save(&state).expect("save workspace state");
         assert!(path.exists());
 
         // 3. Load back and verify equality
         let loaded = store.load().unwrap().expect("loaded workspace state");
-        assert_eq!(loaded.active_connection_id.as_deref(), Some("conn-postgres-prod"));
+        assert_eq!(
+            loaded.active_connection_id.as_deref(),
+            Some("conn-postgres-prod")
+        );
         assert_eq!(loaded.active_tab_id.as_deref(), Some("tab-sql-1"));
         assert_eq!(loaded.sidebar_width, Some(280.0));
         assert_eq!(loaded.sidebar_collapsed, Some(false));

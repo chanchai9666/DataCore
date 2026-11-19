@@ -24,7 +24,7 @@
 * **พัฒนาด้วย Tauri 2 + Rust + React 18:** แอปพลิเคชันเดสก์ท็อปขนาดกะทัดรัด คอมไพล์เป็นเนทีฟไบนารีสำหรับ macOS Apple Silicon (ARM64)
 * **รองรับ 3 ฐานข้อมูลหลัก:** เชื่อมต่อและจัดการ **SQLite** (ทั้งไฟล์ดิสก์และ `:memory:`), **PostgreSQL** และ **MySQL**
 * **ระบบจัดเก็บรหัสผ่าน (Local Encrypted Vault & Session):**
-  - **เมื่อเลือก Remember password:** เข้ารหัสรหัสผ่านด้วย **AES-256-GCM** จัดเก็บที่ `~/.datacore/vault.enc` (สิทธิ์ไฟล์ 0600) โดยกุญแจเข้ารหัสถูกผูกกับเครื่อง (`~/.datacore/.vault.key`) ไม่จัดเก็บเป็นข้อความธรรมดา (plaintext) และไม่เรียกใช้ OS Keychain เพื่อลดการแสดงหน้าต่างแจ้งเตือนขอสิทธิ์
+  - **เมื่อเลือก Remember password:** เข้ารหัสรหัสผ่านด้วย **AES-256-GCM** จัดเก็บที่ `~/.datacore/vault.enc` (สิทธิ์ไฟล์ 0600) โดยค่าเริ่มต้นใช้กุญแจผูกกับเครื่อง (`DCV1` ใน `~/.datacore/.vault.key`) เพื่อไม่เรียกใช้ OS Keychain โดยอัตโนมัติ (Zero-popup) และสามารถตั้ง **Master Password (`DCV2` Argon2id)** พร้อมเปิดใช้งาน **macOS Keychain Sync (Opt-In)** ได้ในหน้า Connection Security
   - **เมื่อไม่เลือก Remember password:** จัดเก็บรหัสผ่านเฉพาะในหน่วยความจำ RAM ชั่วคราวระดับ Session และจะถูกล้างทิ้งเมื่อปิดโปรแกรม
 
 ### 2. การจัดการธุรกรรมและเซสชัน (Transactions & Sessions)
@@ -194,9 +194,9 @@ make dev-web
 | `make install` | ติดตั้ง Dependencies ของ Frontend ทั้งหมดผ่าน `pnpm` |
 | `make dev` | รันแอปพลิเคชัน Desktop ในโหมด Development (Tauri 2) |
 | `make dev-web` | รันเฉพาะ Vite Web Dev Server สำหรับทดสอบ UI บน Browser |
-| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 168 tests และ Vitest 1,119 tests รวม **1,287 tests ผ่าน 100%**) |
-| `make test-backend` | รันเฉพาะ Unit & Integration Tests ฝั่ง Rust Backend (168 tests) |
-| `make test-frontend`| รันเฉพาะ Unit & Component Tests ฝั่ง React Frontend (1,119 tests) |
+| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 174 tests และ Vitest 1,123 tests รวม **1,297 tests ผ่าน 100%**) |
+| `make test-backend` | รันเฉพาะ Unit & Integration Tests ฝั่ง Rust Backend (174 tests) |
+| `make test-frontend`| รันเฉพาะ Unit & Component Tests ฝั่ง React Frontend (1,123 tests) |
 | `make check` | ตรวจสอบ Compilation (`cargo check`) และ TypeScript Type Checking (`tsc`) ทั้งระบบ |
 | `make lint` | ตรวจสอบ Code Quality และคำเตือนด้วย Cargo Clippy |
 | `make build` | Build เป็น Production Desktop Application สำหรับ macOS (.app / .dmg) |
@@ -214,7 +214,7 @@ make dev-web
 make test
 ```
 
-* **Rust Backend (168 tests):**
+* **Rust Backend (174 tests):**
   - Data Contract Serialization & Roundtrip
   - Local Encrypted Vault (AES-256-GCM) Persistence, File Permissions (0600) & Argon2id Master Password KEK Derivation
   - Connection Store Atomic Persistence & Isolation
@@ -230,7 +230,7 @@ make test
   - Path Traversal Guard: ป้องกัน Directory Traversal (`../`), System Paths และ Sensitive User Directory Exposure
   - Tamper-Evident Cryptographic Hash Chain Audit Logger (Append-only, SHA-256 Hashing, Rotation & Verification)
   - Mutation Impact Preview Simulation Engine (Guaranteed 100% Rollback)
-* **React Frontend (1,119 tests):**
+* **React Frontend (1,123 tests):**
   - Zustand Stores (`tabStore`, `connectionStore`, `auditLogStore`, `snippetStore`, `folderStore`, `queryHistoryStore`, `schemaStore`, `pendingChangesStore`)
   - Object Browser Tree Component, Deep Tree Columns Drill-down (Lazy-loading, Types, PK/FK Badges, Drag & Drop), Node Navigation, Context Menu, Connection Color Folders
   - CodeMirror 6 SQL Editor, Dialects, Schema-Aware Autocomplete, Keymap (`⌘+Enter`, `⌘⇧F`), Toolbar Actions

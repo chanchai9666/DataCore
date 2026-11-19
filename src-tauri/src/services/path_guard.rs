@@ -70,13 +70,18 @@ fn check_blocked_locations(path: &Path, home: Option<&Path>) -> Result<(), Strin
     }
 
     // 3. Sensitive DataCore application data directory (~/.datacore, DATACORE_VAULT_DIR, DATACORE_LOG_DIR, DATACORE_DIR)
-    if normalized.components().any(|c| c.as_os_str() == ".datacore") {
+    if normalized
+        .components()
+        .any(|c| c.as_os_str() == ".datacore")
+    {
         return Err("Access to sensitive DataCore application directory is denied".to_string());
     }
     for env_key in ["DATACORE_VAULT_DIR", "DATACORE_LOG_DIR", "DATACORE_DIR"] {
         if let Ok(env_dir) = std::env::var(env_key) {
             if !env_dir.trim().is_empty() && normalized.starts_with(PathBuf::from(env_dir)) {
-                return Err("Access to sensitive DataCore application directory is denied".to_string());
+                return Err(
+                    "Access to sensitive DataCore application directory is denied".to_string(),
+                );
             }
         }
     }
@@ -117,7 +122,9 @@ pub fn validate_safe_transfer_path(
     if file_path.split(['/', '\\']).any(|part| part == "..")
         || file_path.contains("%2e%2e")
         || file_path.contains("%2E%2E")
-        || Path::new(file_path).components().any(|c| matches!(c, Component::ParentDir))
+        || Path::new(file_path)
+            .components()
+            .any(|c| matches!(c, Component::ParentDir))
     {
         return Err("Directory traversal (..) is not allowed".to_string());
     }
@@ -129,7 +136,8 @@ pub fn validate_safe_transfer_path(
         home.clone()
             .ok_or_else(|| "Could not determine user home directory for '~'".to_string())?
     } else if trimmed.starts_with("~/") || trimmed.starts_with("~\\") {
-        let h = home.clone()
+        let h = home
+            .clone()
             .ok_or_else(|| "Could not determine user home directory for '~'".to_string())?;
         h.join(&trimmed[2..])
     } else if trimmed.starts_with('~') {
@@ -312,7 +320,10 @@ mod tests {
             "/tmp/fake/.datacore/config.json",
         ];
         for path in sensitive {
-            let res = validate_safe_transfer_path(path, &["csv", "sql", "enc", "key", "txt", "json", "jsonl"]);
+            let res = validate_safe_transfer_path(
+                path,
+                &["csv", "sql", "enc", "key", "txt", "json", "jsonl"],
+            );
             assert!(res.is_err(), "Expected rejection for {}", path);
             let err = res.err().unwrap();
             assert!(
@@ -354,7 +365,9 @@ mod tests {
         let no_ext = dir.path().join("data");
 
         assert!(validate_safe_transfer_path(good_csv.to_str().unwrap(), &["csv", "json"]).is_ok());
-        assert!(validate_safe_transfer_path(good_json.to_str().unwrap(), &["csv", "ndjson"]).is_ok());
+        assert!(
+            validate_safe_transfer_path(good_json.to_str().unwrap(), &["csv", "ndjson"]).is_ok()
+        );
 
         let res_bad = validate_safe_transfer_path(bad_ext.to_str().unwrap(), &["csv", "json"]);
         assert!(res_bad.is_err());

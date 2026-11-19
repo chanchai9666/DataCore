@@ -8,7 +8,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_table_list_metadata_sqlite() {
         let conn = SqliteConnection::open_in_memory().expect("Failed to create memory db");
-        
+
         conn.execute_query("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);")
             .await
             .expect("Failed to create users table");

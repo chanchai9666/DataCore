@@ -59,7 +59,10 @@ fn test_query_result_serialization() {
     assert_eq!(first_row[1], json!({"Text": "alice"}));
     assert_eq!(first_row[2], json!({"Float": 95.5}));
     assert_eq!(first_row[3], json!({"Boolean": true}));
-    assert_eq!(first_row[4], json!({"Json": {"role": "admin", "level": 10}}));
+    assert_eq!(
+        first_row[4],
+        json!({"Json": {"role": "admin", "level": 10}})
+    );
     assert_eq!(first_row[5], json!({"Bytes": "aGVsbG8gd29ybGQ="}));
     assert_eq!(first_row[6], json!("Null"));
 

@@ -9,6 +9,6 @@ pub use transfer::*;
 pub use workspace::*;
 
 #[cfg(test)]
-mod query_test;
-#[cfg(test)]
 mod connection_test;
+#[cfg(test)]
+mod query_test;

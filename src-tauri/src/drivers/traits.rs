@@ -1,9 +1,9 @@
+use crate::error::AppError;
+use crate::models::query::{CellValue, ColumnMeta, QueryResult, TableFilterState};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::error::AppError;
-use crate::models::query::{CellValue, ColumnMeta, QueryResult, TableFilterState};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -136,7 +136,16 @@ pub trait DatabaseConnection: Send + Sync {
         })
     }
     #[allow(clippy::too_many_arguments)]
-    async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>, sort_col: Option<&str>, sort_dir: Option<&str>) -> Result<QueryResult, AppError>;
+    async fn fetch_table_data(
+        &self,
+        schema: Option<&str>,
+        table: &str,
+        limit: u32,
+        offset: u32,
+        filter: Option<&str>,
+        sort_col: Option<&str>,
+        sort_dir: Option<&str>,
+    ) -> Result<QueryResult, AppError>;
     async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError>;
     async fn commit(&self) -> Result<(), AppError>;
     async fn rollback(&self) -> Result<(), AppError>;
@@ -144,8 +153,15 @@ pub trait DatabaseConnection: Send + Sync {
     async fn set_autocommit(&self, _enabled: bool) -> Result<(), AppError> {
         Ok(())
     }
-    async fn get_object_ddl(&self, _schema: Option<&str>, _name: &str, _object_type: &str) -> Result<String, AppError> {
-        Err(AppError::NotSupported("Object DDL retrieval not supported for this driver".into()))
+    async fn get_object_ddl(
+        &self,
+        _schema: Option<&str>,
+        _name: &str,
+        _object_type: &str,
+    ) -> Result<String, AppError> {
+        Err(AppError::NotSupported(
+            "Object DDL retrieval not supported for this driver".into(),
+        ))
     }
     /// Streams raw CSV bytes from PostgreSQL `COPY (...) TO STDOUT` into `tx`.
     async fn copy_out_csv(
@@ -155,7 +171,9 @@ pub trait DatabaseConnection: Send + Sync {
         _delimiter: char,
         _tx: tokio::sync::mpsc::Sender<Vec<u8>>,
     ) -> Result<(), AppError> {
-        Err(AppError::NotSupported("Native COPY OUT is not supported for this driver".into()))
+        Err(AppError::NotSupported(
+            "Native COPY OUT is not supported for this driver".into(),
+        ))
     }
     /// Streams raw CSV bytes from `rx` into PostgreSQL `COPY <table> FROM STDIN`.
     async fn copy_in_csv(
@@ -166,7 +184,9 @@ pub trait DatabaseConnection: Send + Sync {
         _delimiter: char,
         _rx: tokio::sync::mpsc::Receiver<Vec<u8>>,
     ) -> Result<u64, AppError> {
-        Err(AppError::NotSupported("Native COPY IN is not supported for this driver".into()))
+        Err(AppError::NotSupported(
+            "Native COPY IN is not supported for this driver".into(),
+        ))
     }
 }
 
@@ -186,7 +206,11 @@ pub fn validate_table_filter(filter: &str) -> Result<(), AppError> {
 
     while i < len {
         let ch = chars[i];
-        let next = if i + 1 < len { Some(chars[i + 1]) } else { None };
+        let next = if i + 1 < len {
+            Some(chars[i + 1])
+        } else {
+            None
+        };
 
         if ch == '\'' {
             if in_single_quote {
@@ -270,7 +294,9 @@ pub fn validate_table_filter(filter: &str) -> Result<(), AppError> {
 pub fn validate_safe_column_identifier(name: &str) -> Result<(), AppError> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
-        return Err(AppError::InvalidInput("Column name cannot be empty".to_string()));
+        return Err(AppError::InvalidInput(
+            "Column name cannot be empty".to_string(),
+        ));
     }
     // Block dangerous SQL syntax in column names
     if trimmed.contains('\0')
@@ -282,7 +308,10 @@ pub fn validate_safe_column_identifier(name: &str) -> Result<(), AppError> {
         || trimmed.contains('"')
         || trimmed.contains('`')
     {
-        return Err(AppError::InvalidInput(format!("Invalid column identifier: '{}'", name)));
+        return Err(AppError::InvalidInput(format!(
+            "Invalid column identifier: '{}'",
+            name
+        )));
     }
     Ok(())
 }
@@ -376,7 +405,10 @@ pub fn build_safe_where_clause(filter: Option<&str>, driver: &str) -> Result<Str
                 return Ok(String::new());
             }
 
-            return Ok(format!(" WHERE {}", conditions_sql.join(&format!(" {} ", conjunction))));
+            return Ok(format!(
+                " WHERE {}",
+                conditions_sql.join(&format!(" {} ", conjunction))
+            ));
         }
     }
 
@@ -401,11 +433,19 @@ mod tests {
             ]
         }"#;
 
-        let where_clause = build_safe_where_clause(Some(json_filter), "sqlite").expect("parse structured filter");
-        assert_eq!(where_clause, " WHERE \"age\" >= 18 AND \"status\" = 'active' AND \"name\" LIKE '%John%'");
+        let where_clause =
+            build_safe_where_clause(Some(json_filter), "sqlite").expect("parse structured filter");
+        assert_eq!(
+            where_clause,
+            " WHERE \"age\" >= 18 AND \"status\" = 'active' AND \"name\" LIKE '%John%'"
+        );
 
-        let mysql_where = build_safe_where_clause(Some(json_filter), "mysql").expect("parse mysql filter");
-        assert_eq!(mysql_where, " WHERE `age` >= 18 AND `status` = 'active' AND `name` LIKE '%John%'");
+        let mysql_where =
+            build_safe_where_clause(Some(json_filter), "mysql").expect("parse mysql filter");
+        assert_eq!(
+            mysql_where,
+            " WHERE `age` >= 18 AND `status` = 'active' AND `name` LIKE '%John%'"
+        );
     }
 
     #[test]
@@ -450,7 +490,10 @@ mod tests {
             AppError::InvalidInput(msg) => {
                 assert!(msg.contains("unclosed string literal"));
             }
-            other => panic!("Expected InvalidInput with unclosed string literal, got {:?}", other),
+            other => panic!(
+                "Expected InvalidInput with unclosed string literal, got {:?}",
+                other
+            ),
         }
     }
 
@@ -471,17 +514,36 @@ mod tests {
 
     #[async_trait]
     impl DatabaseConnection for MockStreamConn {
-        async fn test_connection(&self) -> Result<u64, AppError> { Ok(1) }
+        async fn test_connection(&self) -> Result<u64, AppError> {
+            Ok(1)
+        }
         async fn execute_query(&self, _sql: &str) -> Result<QueryResult, AppError> {
             Ok(self.result.clone())
         }
-        async fn fetch_table_data(&self, _s: Option<&str>, _t: &str, _l: u32, _o: u32, _f: Option<&str>, _sc: Option<&str>, _sd: Option<&str>) -> Result<QueryResult, AppError> {
+        async fn fetch_table_data(
+            &self,
+            _s: Option<&str>,
+            _t: &str,
+            _l: u32,
+            _o: u32,
+            _f: Option<&str>,
+            _sc: Option<&str>,
+            _sd: Option<&str>,
+        ) -> Result<QueryResult, AppError> {
             Ok(self.result.clone())
         }
-        async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError> { Ok(vec![]) }
-        async fn commit(&self) -> Result<(), AppError> { Ok(()) }
-        async fn rollback(&self) -> Result<(), AppError> { Ok(()) }
-        async fn cancel(&self) -> Result<(), AppError> { Ok(()) }
+        async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError> {
+            Ok(vec![])
+        }
+        async fn commit(&self) -> Result<(), AppError> {
+            Ok(())
+        }
+        async fn rollback(&self) -> Result<(), AppError> {
+            Ok(())
+        }
+        async fn cancel(&self) -> Result<(), AppError> {
+            Ok(())
+        }
     }
 
     #[tokio::test]
@@ -505,7 +567,13 @@ mod tests {
         let (outcome_res, sizes) = tokio::join!(stream_fut, consume_fut);
         let outcome = outcome_res.expect("default stream_query");
         assert_eq!(sizes, vec![3, 3, 3, 1]);
-        assert_eq!(outcome, StreamOutcome { rows_sent: 10, stopped_early: false });
+        assert_eq!(
+            outcome,
+            StreamOutcome {
+                rows_sent: 10,
+                stopped_early: false
+            }
+        );
 
         // Early stop when rx is dropped
         let (tx2, mut rx2) = tokio::sync::mpsc::channel(1);
@@ -539,7 +607,13 @@ mod tests {
             }
         );
         let outcome = outcome_res.expect("empty stream_query");
-        assert_eq!(outcome, StreamOutcome { rows_sent: 0, stopped_early: false });
+        assert_eq!(
+            outcome,
+            StreamOutcome {
+                rows_sent: 0,
+                stopped_early: false
+            }
+        );
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].columns.len(), 1);
         assert!(chunks[0].rows.is_empty());

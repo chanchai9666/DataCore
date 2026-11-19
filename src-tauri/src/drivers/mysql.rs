@@ -1,16 +1,18 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
 use async_trait::async_trait;
 use base64::Engine;
 use futures::TryStreamExt;
 use sqlx::{Column, Connection, Either, Row, TypeInfo, ValueRef};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use zeroize::{Zeroize, Zeroizing};
 
+use crate::drivers::traits::{
+    build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome,
+};
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
-use crate::drivers::traits::{build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome};
 use crate::services::ssh_tunnel::SshTunnelHandle;
 
 pub struct MySqlConnection {
@@ -28,7 +30,15 @@ impl MySqlConnection {
     async fn establish_raw(
         config: &ConnectionConfig,
         password: Option<&str>,
-    ) -> Result<(sqlx::MySqlConnection, sqlx::mysql::MySqlConnectOptions, u64, Option<SshTunnelHandle>), AppError> {
+    ) -> Result<
+        (
+            sqlx::MySqlConnection,
+            sqlx::mysql::MySqlConnectOptions,
+            u64,
+            Option<SshTunnelHandle>,
+        ),
+        AppError,
+    > {
         let timeout_secs = config.timeout_seconds.unwrap_or(15).max(1) as u64;
         let remote_host = config.host.as_deref().unwrap_or("localhost");
         let remote_port = config.port.unwrap_or(3306);
@@ -36,7 +46,8 @@ impl MySqlConnection {
         let mut tunnel_handle: Option<SshTunnelHandle> = None;
         let (target_host, target_port) = if let Some(ref ssh) = config.ssh_tunnel {
             if ssh.enabled {
-                let handle = SshTunnelHandle::establish(ssh, remote_host, remote_port, timeout_secs).await?;
+                let handle =
+                    SshTunnelHandle::establish(ssh, remote_host, remote_port, timeout_secs).await?;
                 let port = handle.local_port();
                 tunnel_handle = Some(handle);
                 ("127.0.0.1".to_string(), port)
@@ -59,17 +70,7 @@ impl MySqlConnection {
             options = options.password(pwd);
         }
 
-        if let Some(mode) = &config.ssl_mode {
-            let ssl_mode = match mode.to_lowercase().as_str() {
-                "disable" | "disabled" => sqlx::mysql::MySqlSslMode::Disabled,
-                "preferred" | "prefer" => sqlx::mysql::MySqlSslMode::Preferred,
-                "require" | "required" => sqlx::mysql::MySqlSslMode::Required,
-                "verify-ca" => sqlx::mysql::MySqlSslMode::VerifyCa,
-                "verify-full" | "verify-identity" => sqlx::mysql::MySqlSslMode::VerifyIdentity,
-                _ => sqlx::mysql::MySqlSslMode::Preferred,
-            };
-            options = options.ssl_mode(ssl_mode);
-        }
+        options = options.ssl_mode(resolve_mysql_ssl_mode(config.ssl_mode.as_deref()));
 
         if let Some(ref certs) = config.ssl_certs {
             if let Some(ref ca) = certs.ca_cert_path {
@@ -90,9 +91,15 @@ impl MySqlConnection {
         }
 
         let connect_fut = sqlx::MySqlConnection::connect_with(&options);
-        let mut conn = tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), connect_fut)
-            .await
-            .map_err(|_| AppError::Other(format!("Connection timed out after {} seconds", timeout_secs)))??;
+        let mut conn =
+            tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), connect_fut)
+                .await
+                .map_err(|_| {
+                    AppError::Other(format!(
+                        "Connection timed out after {} seconds",
+                        timeout_secs
+                    ))
+                })??;
         let connection_id: u64 = sqlx::query_scalar("SELECT CONNECTION_ID();")
             .fetch_one(&mut conn)
             .await
@@ -107,8 +114,12 @@ impl MySqlConnection {
         Ok((conn, options, connection_id, tunnel_handle))
     }
 
-    pub async fn connect(config: &ConnectionConfig, password: Option<&str>) -> Result<Self, AppError> {
-        let (conn, options, connection_id, tunnel_handle) = Self::establish_raw(config, password).await?;
+    pub async fn connect(
+        config: &ConnectionConfig,
+        password: Option<&str>,
+    ) -> Result<Self, AppError> {
+        let (conn, options, connection_id, tunnel_handle) =
+            Self::establish_raw(config, password).await?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -152,13 +163,7 @@ impl MySqlConnection {
                         columns = row
                             .columns()
                             .iter()
-                            .map(|col| {
-                                ColumnMeta::new(
-                                    col.name(),
-                                    col.type_info().name(),
-                                    true,
-                                )
-                            })
+                            .map(|col| ColumnMeta::new(col.name(), col.type_info().name(), true))
                             .collect();
                     }
                     let col_len = row.columns().len();
@@ -197,13 +202,7 @@ impl MySqlConnection {
                         let cols: Vec<ColumnMeta> = row
                             .columns()
                             .iter()
-                            .map(|col| {
-                                ColumnMeta::new(
-                                    col.name(),
-                                    col.type_info().name(),
-                                    true,
-                                )
-                            })
+                            .map(|col| ColumnMeta::new(col.name(), col.type_info().name(), true))
                             .collect();
                         columns = Some(Arc::new(cols));
                     }
@@ -282,12 +281,30 @@ fn decode_mysql_cell(row: &sqlx::mysql::MySqlRow, index: usize) -> CellValue {
                 CellValue::Null
             }
         }
-        "TINYINT" => row.try_get::<i8, _>(index).map(|v| CellValue::Integer(v as i64)).unwrap_or(CellValue::Null),
-        "SMALLINT" => row.try_get::<i16, _>(index).map(|v| CellValue::Integer(v as i64)).unwrap_or(CellValue::Null),
-        "INT" | "INTEGER" | "MEDIUMINT" => row.try_get::<i32, _>(index).map(|v| CellValue::Integer(v as i64)).unwrap_or(CellValue::Null),
-        "BIGINT" => row.try_get::<i64, _>(index).map(CellValue::Integer).unwrap_or(CellValue::Null),
-        "FLOAT" => row.try_get::<f32, _>(index).map(|v| CellValue::Float(v as f64)).unwrap_or(CellValue::Null),
-        "DOUBLE" => row.try_get::<f64, _>(index).map(CellValue::Float).unwrap_or(CellValue::Null),
+        "TINYINT" => row
+            .try_get::<i8, _>(index)
+            .map(|v| CellValue::Integer(v as i64))
+            .unwrap_or(CellValue::Null),
+        "SMALLINT" => row
+            .try_get::<i16, _>(index)
+            .map(|v| CellValue::Integer(v as i64))
+            .unwrap_or(CellValue::Null),
+        "INT" | "INTEGER" | "MEDIUMINT" => row
+            .try_get::<i32, _>(index)
+            .map(|v| CellValue::Integer(v as i64))
+            .unwrap_or(CellValue::Null),
+        "BIGINT" => row
+            .try_get::<i64, _>(index)
+            .map(CellValue::Integer)
+            .unwrap_or(CellValue::Null),
+        "FLOAT" => row
+            .try_get::<f32, _>(index)
+            .map(|v| CellValue::Float(v as f64))
+            .unwrap_or(CellValue::Null),
+        "DOUBLE" => row
+            .try_get::<f64, _>(index)
+            .map(CellValue::Float)
+            .unwrap_or(CellValue::Null),
         "DECIMAL" => {
             if let Ok(s) = row.try_get::<String, _>(index) {
                 CellValue::Text(s)
@@ -297,12 +314,14 @@ fn decode_mysql_cell(row: &sqlx::mysql::MySqlRow, index: usize) -> CellValue {
                 CellValue::Text("DECIMAL".to_string())
             }
         }
-        "JSON" => row.try_get::<serde_json::Value, _>(index).map(CellValue::Json).unwrap_or(CellValue::Null),
-        "BLOB" | "VARBINARY" | "BINARY" | "LONGBLOB" | "MEDIUMBLOB" | "TINYBLOB" => {
-            row.try_get::<Vec<u8>, _>(index)
-                .map(|b| CellValue::Bytes(base64::engine::general_purpose::STANDARD.encode(b)))
-                .unwrap_or(CellValue::Null)
-        }
+        "JSON" => row
+            .try_get::<serde_json::Value, _>(index)
+            .map(CellValue::Json)
+            .unwrap_or(CellValue::Null),
+        "BLOB" | "VARBINARY" | "BINARY" | "LONGBLOB" | "MEDIUMBLOB" | "TINYBLOB" => row
+            .try_get::<Vec<u8>, _>(index)
+            .map(|b| CellValue::Bytes(base64::engine::general_purpose::STANDARD.encode(b)))
+            .unwrap_or(CellValue::Null),
         "TIMESTAMP" => {
             if let Ok(dt) = row.try_get::<chrono::DateTime<chrono::Utc>, _>(index) {
                 CellValue::Text(dt.to_rfc3339())
@@ -341,9 +360,10 @@ fn decode_mysql_cell(row: &sqlx::mysql::MySqlRow, index: usize) -> CellValue {
                 CellValue::Null
             }
         }
-        "VARCHAR" | "CHAR" | "TEXT" | "LONGTEXT" | "MEDIUMTEXT" | "TINYTEXT" => {
-            row.try_get::<String, _>(index).map(CellValue::Text).unwrap_or(CellValue::Null)
-        }
+        "VARCHAR" | "CHAR" | "TEXT" | "LONGTEXT" | "MEDIUMTEXT" | "TINYTEXT" => row
+            .try_get::<String, _>(index)
+            .map(CellValue::Text)
+            .unwrap_or(CellValue::Null),
         _ => {
             if let Ok(s) = row.try_get::<String, _>(index) {
                 CellValue::Text(s)
@@ -379,8 +399,11 @@ impl DatabaseConnection for MySqlConnection {
                 let auto_reconnect = self.config.auto_reconnect.unwrap_or(true);
                 let in_tx = self.in_manual_tx.load(Ordering::SeqCst);
                 if auto_reconnect && !in_tx && Self::is_disconnect_error(&err) {
-                    if let Ok((new_conn, new_opts, new_cid, new_tunnel)) =
-                        Self::establish_raw(&self.config, self.password.as_ref().map(|s| s.as_str())).await
+                    if let Ok((new_conn, new_opts, new_cid, new_tunnel)) = Self::establish_raw(
+                        &self.config,
+                        self.password.as_ref().map(|s| s.as_str()),
+                    )
+                    .await
                     {
                         *conn = new_conn;
                         *self.connect_options.lock().await = new_opts;
@@ -411,16 +434,25 @@ impl DatabaseConnection for MySqlConnection {
                 let auto_reconnect = self.config.auto_reconnect.unwrap_or(true);
                 let in_tx = self.in_manual_tx.load(Ordering::SeqCst);
                 if !any_sent && auto_reconnect && !in_tx && Self::is_disconnect_error(&err) {
-                    if let Ok((new_conn, new_opts, new_cid, new_tunnel)) =
-                        Self::establish_raw(&self.config, self.password.as_ref().map(|s| s.as_str())).await
+                    if let Ok((new_conn, new_opts, new_cid, new_tunnel)) = Self::establish_raw(
+                        &self.config,
+                        self.password.as_ref().map(|s| s.as_str()),
+                    )
+                    .await
                     {
                         *conn = new_conn;
                         *self.connect_options.lock().await = new_opts;
                         self.connection_id.store(new_cid, Ordering::SeqCst);
                         *self.ssh_tunnel.lock().await = new_tunnel;
-                        return Self::stream_raw_sql(&mut conn, sql, chunk_rows, &tx, &mut any_sent)
-                            .await
-                            .map_err(AppError::from);
+                        return Self::stream_raw_sql(
+                            &mut conn,
+                            sql,
+                            chunk_rows,
+                            &tx,
+                            &mut any_sent,
+                        )
+                        .await
+                        .map_err(AppError::from);
                     }
                 }
                 Err(AppError::from(err))
@@ -428,7 +460,16 @@ impl DatabaseConnection for MySqlConnection {
         }
     }
 
-    async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>, sort_col: Option<&str>, sort_dir: Option<&str>) -> Result<QueryResult, AppError> {
+    async fn fetch_table_data(
+        &self,
+        schema: Option<&str>,
+        table: &str,
+        limit: u32,
+        offset: u32,
+        filter: Option<&str>,
+        sort_col: Option<&str>,
+        sort_dir: Option<&str>,
+    ) -> Result<QueryResult, AppError> {
         let escaped_table = table.replace('`', "``");
         let from_clause = if let Some(sch) = schema {
             let escaped_schema = sch.replace('`', "``");
@@ -442,7 +483,11 @@ impl DatabaseConnection for MySqlConnection {
         let order_clause = match sort_col {
             Some(col) if !col.trim().is_empty() => {
                 let escaped_col = col.trim().replace('`', "``");
-                let dir = if sort_dir == Some("DESC") { "DESC" } else { "ASC" };
+                let dir = if sort_dir == Some("DESC") {
+                    "DESC"
+                } else {
+                    "ASC"
+                };
                 format!(" ORDER BY `{}` {}", escaped_col, dir)
             }
             _ => String::new(),
@@ -464,10 +509,14 @@ impl DatabaseConnection for MySqlConnection {
                 )
             };
             match self.execute_query(&approx_sql).await {
-                Ok(r) => r.rows.first().and_then(|row| row.first()).and_then(|v| match v {
-                    CellValue::Integer(n) if *n >= 0 => Some(*n as u64),
-                    _ => None,
-                }),
+                Ok(r) => r
+                    .rows
+                    .first()
+                    .and_then(|row| row.first())
+                    .and_then(|v| match v {
+                        CellValue::Integer(n) if *n >= 0 => Some(*n as u64),
+                        _ => None,
+                    }),
                 Err(_) => None,
             }
         } else {
@@ -497,7 +546,10 @@ impl DatabaseConnection for MySqlConnection {
             }
         };
 
-        let sql = format!("SELECT * FROM {}{}{} LIMIT {} OFFSET {};", from_clause, where_clause, order_clause, limit, offset);
+        let sql = format!(
+            "SELECT * FROM {}{}{} LIMIT {} OFFSET {};",
+            from_clause, where_clause, order_clause, limit, offset
+        );
         let mut res = self.execute_query(&sql).await?;
         super::reconcile_page_row_count(&mut res, total_count, is_approx, limit, offset);
         if res.columns.is_empty() {
@@ -524,7 +576,11 @@ impl DatabaseConnection for MySqlConnection {
                     .filter_map(|r| {
                         let name = r.first()?.as_text()?.to_string();
                         let dtype = r.get(1)?.as_text()?.to_string();
-                        let nullable = r.get(2).and_then(|c| c.as_text()).map(|s| s == "YES").unwrap_or(true);
+                        let nullable = r
+                            .get(2)
+                            .and_then(|c| c.as_text())
+                            .map(|s| s == "YES")
+                            .unwrap_or(true);
                         Some(ColumnMeta::new(name, dtype, nullable))
                     })
                     .collect();
@@ -548,11 +604,18 @@ impl DatabaseConnection for MySqlConnection {
                 )
             };
             if let Ok(meta_res) = self.execute_query(&meta_sql).await {
-                let mut flags: std::collections::HashMap<String, (bool, bool)> = std::collections::HashMap::new();
+                let mut flags: std::collections::HashMap<String, (bool, bool)> =
+                    std::collections::HashMap::new();
                 for r in &meta_res.rows {
                     if let Some(CellValue::Text(name)) = r.first() {
-                        let is_pk = matches!(r.get(1), Some(CellValue::Boolean(true)) | Some(CellValue::Integer(1)));
-                        let is_auto = matches!(r.get(2), Some(CellValue::Boolean(true)) | Some(CellValue::Integer(1)));
+                        let is_pk = matches!(
+                            r.get(1),
+                            Some(CellValue::Boolean(true)) | Some(CellValue::Integer(1))
+                        );
+                        let is_auto = matches!(
+                            r.get(2),
+                            Some(CellValue::Boolean(true)) | Some(CellValue::Integer(1))
+                        );
                         flags.insert(name.clone(), (is_pk, is_auto));
                     }
                 }
@@ -573,7 +636,11 @@ impl DatabaseConnection for MySqlConnection {
 
         let mut children = Vec::new();
         for row in query_res.rows {
-            let table_name = row.first().and_then(|c| c.as_text()).unwrap_or("").to_string();
+            let table_name = row
+                .first()
+                .and_then(|c| c.as_text())
+                .unwrap_or("")
+                .to_string();
             let table_type = row.get(1).and_then(|c| c.as_text()).unwrap_or("BASE TABLE");
 
             let node_type = if table_type.contains("VIEW") {
@@ -590,7 +657,11 @@ impl DatabaseConnection for MySqlConnection {
         let routine_sql = "SELECT ROUTINE_NAME, ROUTINE_TYPE FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = DATABASE() ORDER BY ROUTINE_TYPE, ROUTINE_NAME;";
         if let Ok(routine_res) = self.execute_query(routine_sql).await {
             for row in routine_res.rows {
-                let routine_name = row.first().and_then(|c| c.as_text()).unwrap_or("").to_string();
+                let routine_name = row
+                    .first()
+                    .and_then(|c| c.as_text())
+                    .unwrap_or("")
+                    .to_string();
                 let r_type = row.get(1).and_then(|c| c.as_text()).unwrap_or("FUNCTION");
                 let node_type = if r_type.contains("PROCEDURE") {
                     SchemaNodeType::Procedure
@@ -606,8 +677,16 @@ impl DatabaseConnection for MySqlConnection {
         let trigger_sql = "SELECT TRIGGER_NAME, EVENT_OBJECT_TABLE FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() ORDER BY TRIGGER_NAME;";
         if let Ok(trigger_res) = self.execute_query(trigger_sql).await {
             for row in trigger_res.rows {
-                let trigger_name = row.first().and_then(|c| c.as_text()).unwrap_or("").to_string();
-                let tbl_name = row.get(1).and_then(|c| c.as_text()).unwrap_or("").to_string();
+                let trigger_name = row
+                    .first()
+                    .and_then(|c| c.as_text())
+                    .unwrap_or("")
+                    .to_string();
+                let tbl_name = row
+                    .get(1)
+                    .and_then(|c| c.as_text())
+                    .unwrap_or("")
+                    .to_string();
                 let mut node = SchemaNode::new(trigger_name, SchemaNodeType::Trigger);
                 if !tbl_name.is_empty() {
                     node = node.with_meta("table_name", tbl_name);
@@ -616,8 +695,8 @@ impl DatabaseConnection for MySqlConnection {
             }
         }
 
-        let root = SchemaNode::new(&self.database_name, SchemaNodeType::Database)
-            .with_children(children);
+        let root =
+            SchemaNode::new(&self.database_name, SchemaNodeType::Database).with_children(children);
         Ok(vec![root])
     }
 
@@ -645,12 +724,21 @@ impl DatabaseConnection for MySqlConnection {
 
     async fn set_autocommit(&self, enabled: bool) -> Result<(), AppError> {
         self.in_manual_tx.store(!enabled, Ordering::SeqCst);
-        let sql = if enabled { "SET autocommit = 1;" } else { "SET autocommit = 0;" };
+        let sql = if enabled {
+            "SET autocommit = 1;"
+        } else {
+            "SET autocommit = 0;"
+        };
         self.execute_query(sql).await?;
         Ok(())
     }
 
-    async fn get_object_ddl(&self, _schema: Option<&str>, name: &str, object_type: &str) -> Result<String, AppError> {
+    async fn get_object_ddl(
+        &self,
+        _schema: Option<&str>,
+        name: &str,
+        object_type: &str,
+    ) -> Result<String, AppError> {
         let safe_name = name.replace('`', "``");
         let lower_type = object_type.to_lowercase();
 
@@ -669,11 +757,18 @@ impl DatabaseConnection for MySqlConnection {
         let res = self.execute_query(&query).await?;
         if let Some(row) = res.rows.into_iter().next() {
             // MySQL SHOW CREATE outputs the SQL in column 1 (for table/view/procedure/function) or column 2 (for trigger)
-            if let Some(ddl) = row.get(2).and_then(|c| c.as_text()).or_else(|| row.get(1).and_then(|c| c.as_text())) {
+            if let Some(ddl) = row
+                .get(2)
+                .and_then(|c| c.as_text())
+                .or_else(|| row.get(1).and_then(|c| c.as_text()))
+            {
                 return Ok(ddl.to_string());
             }
         }
-        Err(AppError::NotFound(format!("Could not generate DDL for '{}'", name)))
+        Err(AppError::NotFound(format!(
+            "Could not generate DDL for '{}'",
+            name
+        )))
     }
 }
 
@@ -682,5 +777,40 @@ impl Drop for MySqlConnection {
         if let Some(ref mut pwd) = self.password {
             pwd.zeroize();
         }
+    }
+}
+
+pub(crate) fn resolve_mysql_ssl_mode(mode: Option<&str>) -> sqlx::mysql::MySqlSslMode {
+    match mode.map(|s| s.to_lowercase()).as_deref() {
+        Some("disable") | Some("disabled") => sqlx::mysql::MySqlSslMode::Disabled,
+        Some("preferred") | Some("prefer") => sqlx::mysql::MySqlSslMode::Preferred,
+        Some("verify-ca") => sqlx::mysql::MySqlSslMode::VerifyCa,
+        Some("verify-full") | Some("verify-identity") => sqlx::mysql::MySqlSslMode::VerifyIdentity,
+        _ => sqlx::mysql::MySqlSslMode::Required,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_mysql_ssl_mode_defaults_to_required() {
+        assert!(matches!(
+            resolve_mysql_ssl_mode(None),
+            sqlx::mysql::MySqlSslMode::Required
+        ));
+        assert!(matches!(
+            resolve_mysql_ssl_mode(Some("unknown")),
+            sqlx::mysql::MySqlSslMode::Required
+        ));
+        assert!(matches!(
+            resolve_mysql_ssl_mode(Some("verify-full")),
+            sqlx::mysql::MySqlSslMode::VerifyIdentity
+        ));
+        assert!(matches!(
+            resolve_mysql_ssl_mode(Some("prefer")),
+            sqlx::mysql::MySqlSslMode::Preferred
+        ));
     }
 }

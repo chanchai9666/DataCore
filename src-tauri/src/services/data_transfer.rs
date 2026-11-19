@@ -91,10 +91,15 @@ pub fn detect_csv_delimiter(sample: &str) -> char {
 }
 
 /// Parses preview rows and headers from a CSV reader.
-pub fn parse_csv_preview<R: Read>(mut reader: R, delimiter: Option<char>) -> Result<ImportPreview, AppError> {
+pub fn parse_csv_preview<R: Read>(
+    mut reader: R,
+    delimiter: Option<char>,
+) -> Result<ImportPreview, AppError> {
     let mut initial_buf = Vec::new();
     let mut chunk = [0u8; 4096];
-    let n = reader.read(&mut chunk).map_err(|e| AppError::Other(e.to_string()))?;
+    let n = reader
+        .read(&mut chunk)
+        .map_err(|e| AppError::Other(e.to_string()))?;
     initial_buf.extend_from_slice(&chunk[..n]);
 
     let detected_delim = match delimiter {
@@ -151,7 +156,9 @@ pub fn parse_csv_preview<R: Read>(mut reader: R, delimiter: Option<char>) -> Res
 pub fn parse_json_preview<R: Read>(reader: R) -> Result<ImportPreview, AppError> {
     let mut buf_reader = BufReader::new(reader);
     let mut first_bytes = [0u8; 1];
-    let n = buf_reader.read(&mut first_bytes).map_err(|e| AppError::Other(e.to_string()))?;
+    let n = buf_reader
+        .read(&mut first_bytes)
+        .map_err(|e| AppError::Other(e.to_string()))?;
     if n == 0 {
         return Ok(ImportPreview {
             detected_delimiter: ',',
@@ -234,10 +241,16 @@ pub fn parse_json_preview<R: Read>(reader: R) -> Result<ImportPreview, AppError>
 }
 
 /// Previews an import file (CSV or JSON, optionally gzip/zstd compressed) from disk.
-pub fn preview_import_file_impl(file_path: &str, delimiter: Option<char>) -> Result<ImportPreview, AppError> {
+pub fn preview_import_file_impl(
+    file_path: &str,
+    delimiter: Option<char>,
+) -> Result<ImportPreview, AppError> {
     let path = Path::new(file_path);
     if !path.exists() {
-        return Err(AppError::NotFound(format!("File '{}' not found", file_path)));
+        return Err(AppError::NotFound(format!(
+            "File '{}' not found",
+            file_path
+        )));
     }
 
     let reader = open_decompressed_reader(file_path)?;
@@ -369,7 +382,10 @@ pub fn export_query_result_to_writer<W: Write>(
     Ok((result.rows.len(), bytes_written))
 }
 
-fn row_to_json_map(col_names: &[&str], row: &[CellValue]) -> serde_json::Map<String, serde_json::Value> {
+fn row_to_json_map(
+    col_names: &[&str],
+    row: &[CellValue],
+) -> serde_json::Map<String, serde_json::Value> {
     let mut map = serde_json::Map::new();
     for (i, cell) in row.iter().enumerate() {
         let key = col_names.get(i).copied().unwrap_or("unknown").to_string();
@@ -465,9 +481,17 @@ pub fn format_sql_literal_with_options(
 
     if let Some(data_type) = target_type {
         let dt = data_type.to_lowercase();
-        if dt.contains("char") || dt.contains("text") || dt.contains("clob") || dt.contains("string") {
+        if dt.contains("char")
+            || dt.contains("text")
+            || dt.contains("clob")
+            || dt.contains("string")
+        {
             if val.is_empty() {
-                return Ok(if empty_as_null { "NULL".to_string() } else { "''".to_string() });
+                return Ok(if empty_as_null {
+                    "NULL".to_string()
+                } else {
+                    "''".to_string()
+                });
             }
             if trimmed.eq_ignore_ascii_case("null") {
                 return Ok("NULL".to_string());
@@ -488,7 +512,12 @@ pub fn format_sql_literal_with_options(
                 reason: "invalid integer value".to_string(),
             });
         }
-        if dt.contains("float") || dt.contains("double") || dt.contains("real") || dt.contains("numeric") || dt.contains("decimal") {
+        if dt.contains("float")
+            || dt.contains("double")
+            || dt.contains("real")
+            || dt.contains("numeric")
+            || dt.contains("decimal")
+        {
             if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("null") {
                 return Ok("NULL".to_string());
             }
@@ -509,10 +538,18 @@ pub fn format_sql_literal_with_options(
                 return Ok("NULL".to_string());
             }
             if trimmed.eq_ignore_ascii_case("true") || trimmed == "1" {
-                return Ok(if is_sqlite { "1".to_string() } else { "TRUE".to_string() });
+                return Ok(if is_sqlite {
+                    "1".to_string()
+                } else {
+                    "TRUE".to_string()
+                });
             }
             if trimmed.eq_ignore_ascii_case("false") || trimmed == "0" {
-                return Ok(if is_sqlite { "0".to_string() } else { "FALSE".to_string() });
+                return Ok(if is_sqlite {
+                    "0".to_string()
+                } else {
+                    "FALSE".to_string()
+                });
             }
             return Err(ValueError {
                 column: None,
@@ -524,22 +561,35 @@ pub fn format_sql_literal_with_options(
     }
 
     if val.is_empty() {
-        return Ok(if empty_as_null { "NULL".to_string() } else { "''".to_string() });
+        return Ok(if empty_as_null {
+            "NULL".to_string()
+        } else {
+            "''".to_string()
+        });
     }
     if trimmed.eq_ignore_ascii_case("null") || trimmed == "\\N" {
         return Ok("NULL".to_string());
     }
 
     if trimmed.eq_ignore_ascii_case("true") {
-        return Ok(if is_sqlite { "1".to_string() } else { "TRUE".to_string() });
+        return Ok(if is_sqlite {
+            "1".to_string()
+        } else {
+            "TRUE".to_string()
+        });
     }
     if trimmed.eq_ignore_ascii_case("false") {
-        return Ok(if is_sqlite { "0".to_string() } else { "FALSE".to_string() });
+        return Ok(if is_sqlite {
+            "0".to_string()
+        } else {
+            "FALSE".to_string()
+        });
     }
 
     // Do NOT coerce numbers with leading zeroes (e.g. "0123", "007") or leading "-0" into integers!
-    let has_leading_zero = (trimmed.starts_with('0') && trimmed.len() > 1 && !trimmed.starts_with("0."))
-        || (trimmed.starts_with("-0") && trimmed.len() > 2 && !trimmed.starts_with("-0."));
+    let has_leading_zero =
+        (trimmed.starts_with('0') && trimmed.len() > 1 && !trimmed.starts_with("0."))
+            || (trimmed.starts_with("-0") && trimmed.len() > 2 && !trimmed.starts_with("-0."));
 
     if !has_leading_zero {
         // Try parsing as integer
@@ -576,9 +626,17 @@ pub fn cell_value_to_sql_literal(val: &CellValue, dialect: &str) -> String {
         }
         CellValue::Boolean(b) => {
             if is_sqlite {
-                if *b { "1".to_string() } else { "0".to_string() }
+                if *b {
+                    "1".to_string()
+                } else {
+                    "0".to_string()
+                }
             } else {
-                if *b { "TRUE".to_string() } else { "FALSE".to_string() }
+                if *b {
+                    "TRUE".to_string()
+                } else {
+                    "FALSE".to_string()
+                }
             }
         }
         CellValue::Text(s) => format!("'{}'", escape_sql_string(s, dialect)),
@@ -688,7 +746,8 @@ pub async fn export_data_impl(
     file_path: &str,
     options: &ExportOptions,
 ) -> Result<ExportResult, AppError> {
-    export_data_with_progress_impl(conn, sql, file_path, options, None::<fn(TransferProgress)>).await
+    export_data_with_progress_impl(conn, sql, file_path, options, None::<fn(TransferProgress)>)
+        .await
 }
 
 /// Streams and executes export to a local file with optional progress reporting,
@@ -718,7 +777,16 @@ where
     let compression = detect_compression(file_path);
     let mut writer = AsyncCompressedFileWriter::create(file_path, compression)?;
 
-    let res = export_data_inner(conn, sql, options, &mut writer, &start_time, &on_progress, &check_cancel).await;
+    let res = export_data_inner(
+        conn,
+        sql,
+        options,
+        &mut writer,
+        &start_time,
+        &on_progress,
+        &check_cancel,
+    )
+    .await;
 
     match res {
         Ok(total_rows) => {
@@ -870,11 +938,16 @@ where
                             .delimiter(delim as u8)
                             .from_writer(&mut buf);
 
-                        if !headers_written && options.include_headers && !chunk.columns.is_empty() {
-                            let headers: Vec<&str> = chunk.columns.iter().map(|c| c.name.as_str()).collect();
+                        if !headers_written && options.include_headers && !chunk.columns.is_empty()
+                        {
+                            let headers: Vec<&str> =
+                                chunk.columns.iter().map(|c| c.name.as_str()).collect();
                             if let Err(e) = csv_writer.write_record(&headers) {
                                 drop(rx);
-                                return Err(AppError::Other(format!("CSV write header error: {}", e)));
+                                return Err(AppError::Other(format!(
+                                    "CSV write header error: {}",
+                                    e
+                                )));
                             }
                             headers_written = true;
                         }
@@ -975,7 +1048,10 @@ where
                                 Ok(l) => l,
                                 Err(e) => {
                                     drop(rx);
-                                    return Err(AppError::Other(format!("JSON serialization error: {}", e)));
+                                    return Err(AppError::Other(format!(
+                                        "JSON serialization error: {}",
+                                        e
+                                    )));
                                 }
                             };
                             if let Err(e) = writeln!(buf, "{}", line) {
@@ -986,7 +1062,10 @@ where
                             if !first_item {
                                 if let Err(e) = writeln!(buf, ",") {
                                     drop(rx);
-                                    return Err(AppError::Other(format!("JSON write error: {}", e)));
+                                    return Err(AppError::Other(format!(
+                                        "JSON write error: {}",
+                                        e
+                                    )));
                                 }
                             }
                             first_item = false;
@@ -994,7 +1073,10 @@ where
                                 Ok(s) => s,
                                 Err(e) => {
                                     drop(rx);
-                                    return Err(AppError::Other(format!("JSON serialization error: {}", e)));
+                                    return Err(AppError::Other(format!(
+                                        "JSON serialization error: {}",
+                                        e
+                                    )));
                                 }
                             };
                             let indented = json_str
@@ -1083,10 +1165,7 @@ fn validate_and_filter_chunk(
 
         if let Some(err) = row_err {
             if error_policy == ImportErrorPolicy::Abort {
-                return Err(AppError::InvalidInput(format!(
-                    "Row {}: {}",
-                    row_num, err
-                )));
+                return Err(AppError::InvalidInput(format!("Row {}: {}", row_num, err)));
             } else {
                 rejects.write_reject(*row_num, &err.to_string(), row)?;
                 skipped += 1;
@@ -1126,9 +1205,13 @@ async fn execute_batch_with_savepoint(
         }
         Err(err) => {
             if is_mssql {
-                let _ = conn.execute_query("ROLLBACK TRANSACTION sp_dc_batch;").await;
+                let _ = conn
+                    .execute_query("ROLLBACK TRANSACTION sp_dc_batch;")
+                    .await;
             } else {
-                let _ = conn.execute_query("ROLLBACK TO SAVEPOINT sp_dc_batch;").await;
+                let _ = conn
+                    .execute_query("ROLLBACK TO SAVEPOINT sp_dc_batch;")
+                    .await;
                 let _ = conn.execute_query("RELEASE SAVEPOINT sp_dc_batch;").await;
             }
             Err(err)
@@ -1271,7 +1354,10 @@ async fn execute_import_chunk(
                         e, rollback_msg
                     )))
                 } else {
-                    Err(AppError::Other(format!("Import failed during batch: {}", e)))
+                    Err(AppError::Other(format!(
+                        "Import failed during batch: {}",
+                        e
+                    )))
                 }
             } else {
                 let (imp, db_skipped) = bisect_insert_rows(
@@ -1364,7 +1450,11 @@ fn count_import_file_records(
                 .flexible(true)
                 .from_reader(reader);
             let count = csv_reader.records().filter(|r| r.is_ok()).count();
-            if count > 0 { Some(count) } else { None }
+            if count > 0 {
+                Some(count)
+            } else {
+                None
+            }
         }
         TransferFormat::Json => {
             let mut buf_reader = BufReader::new(reader);
@@ -1409,14 +1499,22 @@ fn count_import_file_records(
                         }
                     }
                 }
-                if count > 0 { Some(count) } else { None }
+                if count > 0 {
+                    Some(count)
+                } else {
+                    None
+                }
             } else {
                 let count = BufReader::new(full_reader)
                     .lines()
                     .map_while(Result::ok)
                     .filter(|l| !l.trim().is_empty())
                     .count();
-                if count > 0 { Some(count) } else { None }
+                if count > 0 {
+                    Some(count)
+                } else {
+                    None
+                }
             }
         }
     }
@@ -1438,7 +1536,10 @@ where
     let start_time = Instant::now();
     let path = Path::new(&options.file_path);
     if !path.exists() {
-        return Err(AppError::NotFound(format!("Import file '{}' not found", options.file_path)));
+        return Err(AppError::NotFound(format!(
+            "Import file '{}' not found",
+            options.file_path
+        )));
     }
 
     let target_columns: Vec<String> = options
@@ -1727,7 +1828,10 @@ where
         parse_handle.abort();
         let _ = rejects.finish();
         if mode == ImportMode::Staging {
-            let drop_sql = format!("DROP TABLE IF EXISTS {};", quote_identifier(&active_table, dialect));
+            let drop_sql = format!(
+                "DROP TABLE IF EXISTS {};",
+                quote_identifier(&active_table, dialect)
+            );
             let _ = conn.execute_query(&drop_sql).await;
         }
         if let Some(ref jid) = options.job_id {
@@ -1866,7 +1970,8 @@ fn stream_parsed_batches(
             current_chunk.push((data_row_index, row));
 
             if current_chunk.len() >= batch_size {
-                let send_batch = std::mem::replace(&mut current_chunk, Vec::with_capacity(batch_size));
+                let send_batch =
+                    std::mem::replace(&mut current_chunk, Vec::with_capacity(batch_size));
                 if tx.blocking_send(Ok(send_batch)).is_err() {
                     return Ok(());
                 }
@@ -1897,7 +2002,9 @@ fn stream_parsed_batches(
             if is_array {
                 let mut stream_bytes = full_reader.bytes();
 
-                fn get_next_non_ws<I: Iterator<Item = std::io::Result<u8>>>(iter: &mut I) -> Option<u8> {
+                fn get_next_non_ws<I: Iterator<Item = std::io::Result<u8>>>(
+                    iter: &mut I,
+                ) -> Option<u8> {
                     while let Some(Ok(b)) = iter.next() {
                         if !b.is_ascii_whitespace() {
                             return Some(b);
@@ -1927,7 +2034,8 @@ fn stream_parsed_batches(
                         let mut escape_next = false;
 
                         for byte_res in &mut stream_bytes {
-                            let b = byte_res.map_err(|e| AppError::Other(format!("Read error: {}", e)))?;
+                            let b = byte_res
+                                .map_err(|e| AppError::Other(format!("Read error: {}", e)))?;
                             obj_bytes.push(b);
 
                             if escape_next {
@@ -1954,7 +2062,9 @@ fn stream_parsed_batches(
                             }
                         }
 
-                        if let Ok(serde_json::Value::Object(map)) = serde_json::from_slice(&obj_bytes) {
+                        if let Ok(serde_json::Value::Object(map)) =
+                            serde_json::from_slice(&obj_bytes)
+                        {
                             data_row_index += 1;
                             if data_row_index > skip_rows {
                                 let mut row = Vec::with_capacity(options.column_mappings.len());

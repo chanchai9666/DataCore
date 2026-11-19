@@ -203,6 +203,46 @@ describe('ConnectionSecurityModal', () => {
     });
   });
 
+  it('resets keychain opt-in flag when removing Master Password', async () => {
+    vi.mocked(dbApi.executeDirectQuery).mockResolvedValue({
+      columns: [],
+      rows: [],
+      execution_time_ms: 1,
+    });
+    vi.mocked(dbApi.isVaultKeychainEnabled).mockResolvedValue(true);
+    vi.mocked(dbApi.hasVaultMasterPassword).mockResolvedValue(true);
+    vi.mocked(dbApi.removeVaultMasterPassword).mockResolvedValue(undefined);
+    vi.mocked(dbApi.setVaultKeychainEnabled).mockResolvedValue(undefined);
+
+    render(
+      <ConnectionSecurityModal
+        isOpen={true}
+        connectionId="conn-1"
+        driver="sqlite"
+        onClose={onClose}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /remove master password/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /remove master password/i }));
+    fireEvent.change(screen.getByPlaceholderText(/confirm current master password/i), {
+      target: { value: 'StrongMaster123!' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+
+    await waitFor(() => {
+      expect(dbApi.removeVaultMasterPassword).toHaveBeenCalledWith('StrongMaster123!');
+      expect(dbApi.setVaultKeychainEnabled).toHaveBeenCalledWith(false);
+      expect(screen.getByRole('switch', { name: /toggle macos keychain sync/i })).toHaveAttribute(
+        'aria-checked',
+        'false'
+      );
+    });
+  });
+
   it('toggles Screen Sharing Protection switch and updates privacyStore', async () => {
     const { setScreenProtection } = await import('../../api/db');
     vi.mocked(setScreenProtection).mockResolvedValue(undefined);

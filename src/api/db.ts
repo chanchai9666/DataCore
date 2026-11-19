@@ -15,14 +15,36 @@ import type {
 } from '../types/dataTransfer';
 import { splitSqlStatements } from './sqlSplitter';
 
+const dispatchVaultLockedIfNeeded = (err: unknown): never => {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/vault is locked/i.test(msg) && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('datacore:vault-locked'));
+  }
+  throw err;
+};
+
+export interface VaultStatus {
+  hasMasterPassword: boolean;
+  isUnlocked: boolean;
+  keychainOptIn: boolean;
+}
+
+export const getVaultStatus = async (): Promise<VaultStatus> => {
+  return invoke<VaultStatus>('vault_status');
+};
+
 export const testConnection = async (
   config: ConnectionConfig,
   password?: string
 ): Promise<number> => {
-  return invoke<number>('test_connection', {
-    config,
-    password: password ?? null,
-  });
+  try {
+    return await invoke<number>('test_connection', {
+      config,
+      password: password ?? null,
+    });
+  } catch (err) {
+    return dispatchVaultLockedIfNeeded(err);
+  }
 };
 
 export const getConnections = async (): Promise<ConnectionConfig[]> => {
@@ -91,6 +113,8 @@ export const openSession = async (
         tabId,
       });
       establishedSessions.add(key);
+    } catch (err) {
+      return dispatchVaultLockedIfNeeded(err);
     } finally {
       inFlightSessions.delete(key);
     }
@@ -473,6 +497,7 @@ export const dbApi = {
   isVaultKeychainEnabled,
   setVaultKeychainEnabled,
   hasVaultMasterPassword,
+  getVaultStatus,
   setVaultMasterPassword,
   changeVaultMasterPassword,
   removeVaultMasterPassword,

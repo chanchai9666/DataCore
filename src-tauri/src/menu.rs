@@ -35,10 +35,7 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> 
     let app_menu = SubmenuBuilder::new(app, "DataCore")
         .item(&MenuItemBuilder::with_id(MENU_ABOUT, "About DataCore").build(app)?)
         .separator()
-        .item(
-            &MenuItemBuilder::with_id(MENU_CHECK_UPDATES, "Check for Updates...")
-                .build(app)?,
-        )
+        .item(&MenuItemBuilder::with_id(MENU_CHECK_UPDATES, "Check for Updates...").build(app)?)
         .item(
             &MenuItemBuilder::with_id(MENU_EXPORT_DIAGNOSTICS, "Export Diagnostic Bundle...")
                 .build(app)?,
@@ -100,10 +97,7 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> 
             .build(app)?,
         )
         .separator()
-        .item(
-            &MenuItemBuilder::with_id(MENU_REFRESH_SCHEMA, "Refresh Schema")
-                .build(app)?,
-        )
+        .item(&MenuItemBuilder::with_id(MENU_REFRESH_SCHEMA, "Refresh Schema").build(app)?)
         .build()?;
 
     let window_menu = SubmenuBuilder::new(app, "Window")
@@ -120,7 +114,14 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> 
         .build()?;
 
     MenuBuilder::new(app)
-        .items(&[&app_menu, &file_menu, &edit_menu, &view_menu, &window_menu, &help_menu])
+        .items(&[
+            &app_menu,
+            &file_menu,
+            &edit_menu,
+            &view_menu,
+            &window_menu,
+            &help_menu,
+        ])
         .build()
 }
 

@@ -11,6 +11,8 @@ import { DatabaseMetricsModal } from './components/performance/DatabaseMetricsMo
 import { LockInspectorModal } from './components/transactions/LockInspectorModal';
 import { AuditLogDrawer } from './components/security/AuditLogDrawer';
 import { ConnectionSecurityModal } from './components/security/ConnectionSecurityModal';
+import { VaultUnlockModal } from './components/security/VaultUnlockModal';
+import { getVaultStatus } from './api/db';
 import { HistorySnippetsDrawer } from './components/editor/HistorySnippetsDrawer';
 import { SchemaDiffModal } from './components/diff/SchemaDiffModal';
 import { ActivityMonitorModal } from './components/monitor/ActivityMonitorModal';
@@ -73,6 +75,7 @@ export function App() {
   const [isUpdateCheckerOpen, setIsUpdateCheckerOpen] = useState(false);
   const [isDiagnosticBundleOpen, setIsDiagnosticBundleOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
+  const [isVaultUnlockOpen, setIsVaultUnlockOpen] = useState(false);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
@@ -210,10 +213,25 @@ export function App() {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  // Load saved connections and restore workspace state on application mount
+  // Load saved connections, check vault lock state, and restore workspace state on mount
   useEffect(() => {
     loadConnections();
     restoreWorkspaceState();
+    if (typeof getVaultStatus === 'function') {
+      Promise.resolve(getVaultStatus())
+        .then((status) => {
+          if (status?.hasMasterPassword && !status?.isUnlocked) {
+            setIsVaultUnlockOpen(true);
+          }
+        })
+        .catch(() => {
+          // Ignore in web/test environments without Tauri IPC
+        });
+    }
+
+    const handleVaultLocked = () => setIsVaultUnlockOpen(true);
+    window.addEventListener('datacore:vault-locked', handleVaultLocked);
+    return () => window.removeEventListener('datacore:vault-locked', handleVaultLocked);
   }, [loadConnections]);
 
   // Debounced auto-save workspace state on tabs or active connection changes
@@ -558,6 +576,16 @@ export function App() {
           onClose={() => setIsSecurityModalOpen(false)}
         />
       )}
+
+      {/* Global Vault Unlock Modal (Master Password Mode) */}
+      <VaultUnlockModal
+        isOpen={isVaultUnlockOpen}
+        onUnlocked={() => {
+          setIsVaultUnlockOpen(false);
+          toast.success('Credential Vault unlocked');
+        }}
+        onClose={() => setIsVaultUnlockOpen(false)}
+      />
 
       {/* Global Schema Diff & Synchronization Modal */}
       <SchemaDiffModal

@@ -187,6 +187,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
         await dbApi.changeVaultMasterPassword?.(pwdInput1, pwdInput2);
       } else if (masterPwdMode === 'remove') {
         await dbApi.removeVaultMasterPassword?.(pwdInput1);
+        await dbApi.setVaultKeychainEnabled?.(false);
         setHasMasterPassword(false);
         setIsKeychainOptIn(false);
       }
@@ -312,6 +313,18 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                 {tlsInfo?.cipherSuite || 'Unknown'}
               </div>
             </div>
+
+            {driver !== 'sqlite' && driver !== 'duckdb' && (!sslMode || sslMode === 'prefer' || sslMode === 'allow' || sslMode === 'disable') && (
+              <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-2.5 text-[11px] text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>
+                  {t(
+                    'security.legacySslWarning',
+                    `SSL mode is "${sslMode || 'prefer'}" (does not enforce TLS or certificate verification). Upgrade to "require" or "verify-full" in Connection Settings.`
+                  )}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* At-Rest Encryption Section */}

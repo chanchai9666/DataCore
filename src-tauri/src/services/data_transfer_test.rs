@@ -1,5 +1,3 @@
-use std::io::Write;
-use tempfile::NamedTempFile;
 use crate::drivers::{DatabaseConnection, SqliteConnection};
 use crate::models::{
     CellValue, ColumnMapping, ColumnMeta, ExportOptions, ImportErrorPolicy, ImportOptions,
@@ -10,6 +8,8 @@ use crate::services::data_transfer::{
     export_query_result_to_writer, generate_batch_insert_sql, import_data_impl, parse_csv_preview,
     parse_json_preview, register_cancellation_token, trigger_cancellation,
 };
+use std::io::Write;
+use tempfile::NamedTempFile;
 
 #[test]
 fn test_detect_csv_delimiter() {
@@ -31,7 +31,10 @@ fn test_parse_csv_preview() {
     assert_eq!(preview.detected_delimiter, ',');
     assert_eq!(preview.headers, vec!["id", "name", "email"]);
     assert_eq!(preview.preview_rows.len(), 2);
-    assert_eq!(preview.preview_rows[0], vec!["1", "John Doe", "john@example.com"]);
+    assert_eq!(
+        preview.preview_rows[0],
+        vec!["1", "John Doe", "john@example.com"]
+    );
 }
 
 #[test]
@@ -85,7 +88,8 @@ fn test_export_query_result_to_csv() {
         total_rows: None,
     };
 
-    let (rows, bytes) = export_query_result_to_writer(&query_result, &mut buf, &options).expect("export csv");
+    let (rows, bytes) =
+        export_query_result_to_writer(&query_result, &mut buf, &options).expect("export csv");
     assert_eq!(rows, 2);
     assert!(bytes > 0);
 
@@ -102,9 +106,10 @@ fn test_export_query_result_to_json_array() {
             ColumnMeta::new("id", "INTEGER", false),
             ColumnMeta::new("name", "TEXT", true),
         ],
-        vec![
-            vec![CellValue::Integer(1), CellValue::Text("Alice".to_string())],
-        ],
+        vec![vec![
+            CellValue::Integer(1),
+            CellValue::Text("Alice".to_string()),
+        ]],
         5,
         None,
     );
@@ -120,7 +125,8 @@ fn test_export_query_result_to_json_array() {
         total_rows: None,
     };
 
-    let (rows, _) = export_query_result_to_writer(&query_result, &mut buf, &options).expect("export json");
+    let (rows, _) =
+        export_query_result_to_writer(&query_result, &mut buf, &options).expect("export json");
     assert_eq!(rows, 1);
 
     let output = String::from_utf8(buf).expect("utf8");
@@ -141,8 +147,13 @@ async fn test_streaming_export_data_impl_across_multiple_batches() {
     for i in 1..=2500 {
         values.push(format!("({}, 'Row_{}')", i, i));
     }
-    let insert_sql = format!("INSERT INTO big_export (id, label) VALUES {};", values.join(","));
-    conn.execute_query(&insert_sql).await.expect("insert 2500 rows");
+    let insert_sql = format!(
+        "INSERT INTO big_export (id, label) VALUES {};",
+        values.join(",")
+    );
+    conn.execute_query(&insert_sql)
+        .await
+        .expect("insert 2500 rows");
 
     let temp_csv = NamedTempFile::new().expect("temp csv");
     let csv_path = temp_csv.path().to_str().unwrap().to_string();
@@ -179,7 +190,12 @@ fn test_export_cancellation() {
             ColumnMeta::new("name", "TEXT", true),
         ],
         (0..500)
-            .map(|i| vec![CellValue::Integer(i), CellValue::Text(format!("User {}", i))])
+            .map(|i| {
+                vec![
+                    CellValue::Integer(i),
+                    CellValue::Text(format!("User {}", i)),
+                ]
+            })
             .collect(),
         5,
         None,
@@ -201,14 +217,21 @@ fn test_export_cancellation() {
     };
 
     let res = export_query_result_to_writer(&query_result, &mut buf, &options);
-    assert!(res.is_err(), "Export must fail when cancellation token is triggered");
+    assert!(
+        res.is_err(),
+        "Export must fail when cancellation token is triggered"
+    );
     assert!(res.unwrap_err().to_string().contains("cancelled"));
 }
 
 #[test]
 fn test_generate_batch_insert_sql() {
     let table = "users";
-    let target_columns = vec!["name".to_string(), "age".to_string(), "is_active".to_string()];
+    let target_columns = vec![
+        "name".to_string(),
+        "age".to_string(),
+        "is_active".to_string(),
+    ];
     let rows = vec![
         vec!["O'Connor".to_string(), "28".to_string(), "true".to_string()],
         vec!["".to_string(), "null".to_string(), "false".to_string()],
@@ -265,24 +288,35 @@ async fn test_import_csv_sqlite() {
         use_native_copy: None,
     };
 
-    let result = import_data_impl(&conn, "employees", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect("import csv");
+    let result = import_data_impl(
+        &conn,
+        "employees",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect("import csv");
 
     assert_eq!(result.total_rows, 2);
     assert_eq!(result.imported_rows, 2);
     assert_eq!(result.skipped_rows, 0);
 
-    let query_res = conn.execute_query("SELECT COUNT(*) FROM employees;").await.expect("count");
+    let query_res = conn
+        .execute_query("SELECT COUNT(*) FROM employees;")
+        .await
+        .expect("count");
     assert_eq!(query_res.rows[0][0], CellValue::Integer(2));
 }
 
 #[tokio::test]
 async fn test_import_csv_skip_invalid_rows() {
     let conn = SqliteConnection::open_in_memory().expect("open sqlite");
-    conn.execute_query("CREATE TABLE products (id INTEGER PRIMARY KEY, sku TEXT UNIQUE, price REAL);")
-        .await
-        .expect("create table");
+    conn.execute_query(
+        "CREATE TABLE products (id INTEGER PRIMARY KEY, sku TEXT UNIQUE, price REAL);",
+    )
+    .await
+    .expect("create table");
 
     let mut temp_csv = NamedTempFile::new().expect("create temp file");
     writeln!(temp_csv, "sku,price").unwrap();
@@ -318,9 +352,15 @@ async fn test_import_csv_skip_invalid_rows() {
         use_native_copy: None,
     };
 
-    let result = import_data_impl(&conn, "products", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect("import csv skip");
+    let result = import_data_impl(
+        &conn,
+        "products",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect("import csv skip");
 
     assert_eq!(result.total_rows, 3);
     assert_eq!(result.imported_rows, 2);
@@ -374,9 +414,15 @@ async fn test_import_json_sqlite() {
         use_native_copy: None,
     };
 
-    let result = import_data_impl(&conn, "books", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect("import json");
+    let result = import_data_impl(
+        &conn,
+        "books",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect("import json");
 
     assert_eq!(result.total_rows, 2);
     assert_eq!(result.imported_rows, 2);
@@ -426,9 +472,15 @@ async fn test_import_preserves_empty_string_and_leading_zeros() {
         use_native_copy: None,
     };
 
-    let result = import_data_impl(&conn, "items", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect("import csv");
+    let result = import_data_impl(
+        &conn,
+        "items",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect("import csv");
 
     assert_eq!(result.imported_rows, 1);
 
@@ -487,13 +539,27 @@ async fn test_import_abort_policy_rolls_back_and_returns_error() {
         use_native_copy: None,
     };
 
-    let err = import_data_impl(&conn, "unique_items", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect_err("should abort on duplicate");
+    let err = import_data_impl(
+        &conn,
+        "unique_items",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect_err("should abort on duplicate");
 
     let err_str = err.to_string();
-    assert!(err_str.contains("Import failed during batch"), "Error should mention batch failure: {}", err_str);
-    assert!(err_str.contains("Transaction rolled back successfully"), "Error should report rollback status: {}", err_str);
+    assert!(
+        err_str.contains("Import failed during batch"),
+        "Error should mention batch failure: {}",
+        err_str
+    );
+    assert!(
+        err_str.contains("Transaction rolled back successfully"),
+        "Error should report rollback status: {}",
+        err_str
+    );
 
     // Verify row 2 was rolled back and only the initial row 1 exists
     let count_res = conn
@@ -549,13 +615,22 @@ async fn test_import_cancellation() {
         use_native_copy: None,
     };
 
-    let err = import_data_impl(&conn, "cancel_test", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect_err("should cancel");
+    let err = import_data_impl(
+        &conn,
+        "cancel_test",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect_err("should cancel");
 
     assert!(err.to_string().contains("Import cancelled by user"));
 
-    let count_res = conn.execute_query("SELECT COUNT(*) FROM cancel_test;").await.expect("count");
+    let count_res = conn
+        .execute_query("SELECT COUNT(*) FROM cancel_test;")
+        .await
+        .expect("count");
     assert_eq!(count_res.rows[0][0], CellValue::Integer(0));
 }
 
@@ -589,7 +664,10 @@ fn test_cell_value_to_sql_literal_binary_hex() {
     assert_eq!(cell_value_to_sql_literal(&cell, "mysql"), "X'DEADBEEF'");
 
     // Postgres format: '\xDEADBEEF'::bytea
-    assert_eq!(cell_value_to_sql_literal(&cell, "postgres"), "'\\xDEADBEEF'::bytea");
+    assert_eq!(
+        cell_value_to_sql_literal(&cell, "postgres"),
+        "'\\xDEADBEEF'::bytea"
+    );
 }
 
 #[tokio::test]
@@ -652,8 +730,9 @@ fn test_format_sql_literal_rejects_invalid_numeric_and_boolean_no_silent_null() 
     assert_eq!(int_err.expected_type, "INTEGER");
 
     // Invalid float/decimal must return Err, NOT "NULL"
-    let float_err = format_sql_literal_with_options("12.34.56", Some("DECIMAL(10,2)"), false, "postgres")
-        .expect_err("dirty float must not silently become NULL");
+    let float_err =
+        format_sql_literal_with_options("12.34.56", Some("DECIMAL(10,2)"), false, "postgres")
+            .expect_err("dirty float must not silently become NULL");
     assert_eq!(float_err.value, "12.34.56");
 
     let nan_err = format_sql_literal_with_options("NaN", Some("DOUBLE"), false, "postgres")
@@ -733,16 +812,33 @@ async fn test_import_abort_mode_reports_row_and_column_on_dirty_data() {
         use_native_copy: None,
     };
 
-    let err = import_data_impl(&conn, "typed_items", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect_err("abort mode should fail on dirty float");
+    let err = import_data_impl(
+        &conn,
+        "typed_items",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect_err("abort mode should fail on dirty float");
     let msg = err.to_string();
     assert!(msg.contains("Row 2"), "Expected row 2 in error: {}", msg);
-    assert!(msg.contains("price"), "Expected column 'price' in error: {}", msg);
-    assert!(msg.contains("bad_float"), "Expected bad value in error: {}", msg);
+    assert!(
+        msg.contains("price"),
+        "Expected column 'price' in error: {}",
+        msg
+    );
+    assert!(
+        msg.contains("bad_float"),
+        "Expected bad value in error: {}",
+        msg
+    );
 
     // Rolled back — 0 rows inserted
-    let cnt = conn.execute_query("SELECT COUNT(*) FROM typed_items;").await.unwrap();
+    let cnt = conn
+        .execute_query("SELECT COUNT(*) FROM typed_items;")
+        .await
+        .unwrap();
     assert_eq!(cnt.rows[0][0], CellValue::Integer(0));
 }
 
@@ -793,13 +889,21 @@ async fn test_import_skip_mode_writes_rejects_csv() {
         use_native_copy: None,
     };
 
-    let res = import_data_impl(&conn, "typed_skip", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect("skip mode should succeed");
+    let res = import_data_impl(
+        &conn,
+        "typed_skip",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect("skip mode should succeed");
     assert_eq!(res.imported_rows, 2);
     assert_eq!(res.skipped_rows, 2);
 
-    let rejects_path = res.rejects_file_path.expect("rejects_file_path should be set");
+    let rejects_path = res
+        .rejects_file_path
+        .expect("rejects_file_path should be set");
     assert!(rejects_path.ends_with(".rejects.csv"));
     let rejects_content = std::fs::read_to_string(&rejects_path).expect("read rejects file");
     assert!(rejects_content.contains("row_number,reject_reason,id,price,active"));
@@ -823,9 +927,12 @@ impl DatabaseConnection for MockCancelConn {
         Ok(1)
     }
     async fn execute_query(&self, sql: &str) -> Result<QueryResult, crate::error::AppError> {
-        self.query_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.query_count
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if self.fail_on_batch && sql.contains("bad_row") {
-            return Err(crate::error::AppError::Database("UNIQUE constraint failed".to_string()));
+            return Err(crate::error::AppError::Database(
+                "UNIQUE constraint failed".to_string(),
+            ));
         }
         Ok(QueryResult::new(
             vec![ColumnMeta::new("id", "INTEGER", false)],
@@ -846,7 +953,9 @@ impl DatabaseConnection for MockCancelConn {
     ) -> Result<QueryResult, crate::error::AppError> {
         unreachable!()
     }
-    async fn fetch_schema_tree(&self) -> Result<Vec<crate::drivers::SchemaNode>, crate::error::AppError> {
+    async fn fetch_schema_tree(
+        &self,
+    ) -> Result<Vec<crate::drivers::SchemaNode>, crate::error::AppError> {
         Ok(vec![])
     }
     async fn commit(&self) -> Result<(), crate::error::AppError> {
@@ -856,18 +965,20 @@ impl DatabaseConnection for MockCancelConn {
         Ok(())
     }
     async fn cancel(&self) -> Result<(), crate::error::AppError> {
-        self.cancel_called.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.cancel_called
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         Ok(())
     }
 }
 
 #[tokio::test]
 async fn test_transfer_job_registry_calls_server_cancel() {
+    use crate::services::data_transfer::{
+        cancel_transfer_job, is_transfer_cancelled, register_transfer_job,
+        remove_cancellation_token,
+    };
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
-    use crate::services::data_transfer::{
-        cancel_transfer_job, is_transfer_cancelled, register_transfer_job, remove_cancellation_token,
-    };
 
     let cancel_called = Arc::new(AtomicBool::new(false));
     let conn: Arc<dyn DatabaseConnection> = Arc::new(MockCancelConn {
@@ -891,8 +1002,8 @@ async fn test_transfer_job_registry_calls_server_cancel() {
 
 #[tokio::test]
 async fn test_export_data_with_progress_emits_events_and_cleans_up_on_cancel() {
-    use std::sync::{Arc, Mutex};
     use crate::services::data_transfer::export_data_with_progress_impl;
+    use std::sync::{Arc, Mutex};
 
     let conn = SqliteConnection::open_in_memory().expect("sqlite");
     conn.execute_query("CREATE TABLE exp_prog (id INTEGER, name TEXT);")
@@ -993,7 +1104,9 @@ fn test_clamp_import_batch_size_mssql_vs_other() {
 #[tokio::test]
 async fn test_import_chunked_mode_and_checkpoint_resume() {
     use crate::models::ImportMode;
-    use crate::services::transfer_checkpoint::{checkpoint_file_path, save_checkpoint, ImportCheckpoint};
+    use crate::services::transfer_checkpoint::{
+        checkpoint_file_path, save_checkpoint, ImportCheckpoint,
+    };
 
     let conn = SqliteConnection::open_in_memory().expect("sqlite");
     conn.execute_query("CREATE TABLE chunked_t (id INTEGER PRIMARY KEY, val TEXT);")
@@ -1031,9 +1144,15 @@ async fn test_import_chunked_mode_and_checkpoint_resume() {
         use_native_copy: None,
     };
 
-    let res = import_data_impl(&conn, "chunked_t", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect("chunked import");
+    let res = import_data_impl(
+        &conn,
+        "chunked_t",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect("chunked import");
     assert_eq!(res.imported_rows, 5);
     assert!(
         !checkpoint_file_path(csv_path.to_str().unwrap()).exists(),
@@ -1041,7 +1160,9 @@ async fn test_import_chunked_mode_and_checkpoint_resume() {
     );
 
     // Test resume from checkpoint: simulate 3 rows already committed
-    conn.execute_query("DELETE FROM chunked_t WHERE id > 3;").await.unwrap();
+    conn.execute_query("DELETE FROM chunked_t WHERE id > 3;")
+        .await
+        .unwrap();
     save_checkpoint(
         csv_path.to_str().unwrap(),
         &ImportCheckpoint {
@@ -1056,11 +1177,20 @@ async fn test_import_chunked_mode_and_checkpoint_resume() {
 
     let mut resume_opts = options.clone();
     resume_opts.resume_from_checkpoint = Some(true);
-    let res2 = import_data_impl(&conn, "chunked_t", &resume_opts, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect("resumed import");
+    let res2 = import_data_impl(
+        &conn,
+        "chunked_t",
+        &resume_opts,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect("resumed import");
     assert_eq!(res2.imported_rows, 5);
-    let cnt = conn.execute_query("SELECT COUNT(*) FROM chunked_t;").await.unwrap();
+    let cnt = conn
+        .execute_query("SELECT COUNT(*) FROM chunked_t;")
+        .await
+        .unwrap();
     assert_eq!(cnt.rows[0][0], CellValue::Integer(5));
 }
 
@@ -1104,11 +1234,20 @@ async fn test_import_staging_mode() {
         use_native_copy: None,
     };
 
-    let res = import_data_impl(&conn, "staging_t", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect("staging import");
+    let res = import_data_impl(
+        &conn,
+        "staging_t",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect("staging import");
     assert_eq!(res.imported_rows, 3);
-    let cnt = conn.execute_query("SELECT COUNT(*) FROM staging_t;").await.unwrap();
+    let cnt = conn
+        .execute_query("SELECT COUNT(*) FROM staging_t;")
+        .await
+        .unwrap();
     assert_eq!(cnt.rows[0][0], CellValue::Integer(3));
 }
 
@@ -1163,9 +1302,15 @@ async fn test_import_bisect_skip_isolates_bad_rows_efficiently() {
         use_native_copy: None,
     };
 
-    let res = import_data_impl(&conn, "bisect_t", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect("bisect skip import");
+    let res = import_data_impl(
+        &conn,
+        "bisect_t",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect("bisect skip import");
     assert_eq!(res.imported_rows, 31);
     assert_eq!(res.skipped_rows, 1);
 
@@ -1217,30 +1362,42 @@ async fn test_export_and_import_gzip_and_zstd_on_the_fly() {
         total_rows: None,
     };
 
-    let exp_gz = export_data_impl(&conn, "SELECT * FROM comp_src", gz_path.to_str().unwrap(), &gz_opts)
-        .await
-        .expect("export .csv.gz");
+    let exp_gz = export_data_impl(
+        &conn,
+        "SELECT * FROM comp_src",
+        gz_path.to_str().unwrap(),
+        &gz_opts,
+    )
+    .await
+    .expect("export .csv.gz");
     assert_eq!(exp_gz.total_rows, 3);
     // Gzip magic bytes 0x1f 0x8b
     let gz_bytes = std::fs::read(&gz_path).unwrap();
     assert!(gz_bytes.starts_with(&[0x1f, 0x8b]));
 
-    let exp_zst = export_data_impl(&conn, "SELECT * FROM comp_src", zst_path.to_str().unwrap(), &gz_opts)
-        .await
-        .expect("export .csv.zst");
+    let exp_zst = export_data_impl(
+        &conn,
+        "SELECT * FROM comp_src",
+        zst_path.to_str().unwrap(),
+        &gz_opts,
+    )
+    .await
+    .expect("export .csv.zst");
     assert_eq!(exp_zst.total_rows, 3);
     // Zstd magic bytes 0x28 0xb5 0x2f 0xfd
     let zst_bytes = std::fs::read(&zst_path).unwrap();
     assert!(zst_bytes.starts_with(&[0x28, 0xb5, 0x2f, 0xfd]));
 
     // Preview compressed files directly
-    let prev_gz = crate::services::data_transfer::preview_import_file_impl(gz_path.to_str().unwrap(), None)
-        .expect("preview gz");
+    let prev_gz =
+        crate::services::data_transfer::preview_import_file_impl(gz_path.to_str().unwrap(), None)
+            .expect("preview gz");
     assert_eq!(prev_gz.headers, vec!["id", "label"]);
     assert_eq!(prev_gz.preview_rows.len(), 3);
 
-    let prev_zst = crate::services::data_transfer::preview_import_file_impl(zst_path.to_str().unwrap(), None)
-        .expect("preview zst");
+    let prev_zst =
+        crate::services::data_transfer::preview_import_file_impl(zst_path.to_str().unwrap(), None)
+            .expect("preview zst");
     assert_eq!(prev_zst.headers, vec!["id", "label"]);
     assert_eq!(prev_zst.preview_rows.len(), 3);
 
@@ -1351,12 +1508,22 @@ async fn test_import_probes_target_types_when_none_provided() {
         use_native_copy: None,
     };
 
-    let err = import_data_impl(&conn, "probed_items", &options, "sqlite", None::<fn(TransferProgress)>)
-        .await
-        .expect_err("dirty integer must be rejected via probed table metadata");
+    let err = import_data_impl(
+        &conn,
+        "probed_items",
+        &options,
+        "sqlite",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect_err("dirty integer must be rejected via probed table metadata");
     let msg = err.to_string();
     assert!(msg.contains("Row 2"), "Expected Row 2 in error: {}", msg);
-    assert!(msg.contains("not_an_int"), "Expected invalid value in error: {}", msg);
+    assert!(
+        msg.contains("not_an_int"),
+        "Expected invalid value in error: {}",
+        msg
+    );
 }
 
 #[tokio::test]
@@ -1377,11 +1544,13 @@ async fn test_import_chunked_skip_uses_savepoint_and_keeps_valid_rows() {
         async fn execute_query(&self, sql: &str) -> Result<QueryResult, crate::error::AppError> {
             self.executed.lock().unwrap().push(sql.to_string());
             if sql == "BEGIN" || sql == "COMMIT" || sql == "ROLLBACK" {
-                self.aborted.store(false, std::sync::atomic::Ordering::SeqCst);
+                self.aborted
+                    .store(false, std::sync::atomic::Ordering::SeqCst);
                 return Ok(QueryResult::empty());
             }
             if sql.starts_with("ROLLBACK TO SAVEPOINT") {
-                self.aborted.store(false, std::sync::atomic::Ordering::SeqCst);
+                self.aborted
+                    .store(false, std::sync::atomic::Ordering::SeqCst);
                 return Ok(QueryResult::empty());
             }
             if sql.starts_with("SAVEPOINT") || sql.starts_with("RELEASE SAVEPOINT") {
@@ -1393,7 +1562,8 @@ async fn test_import_chunked_skip_uses_savepoint_and_keeps_valid_rows() {
                 ));
             }
             if sql.contains("bad_dup") {
-                self.aborted.store(true, std::sync::atomic::Ordering::SeqCst);
+                self.aborted
+                    .store(true, std::sync::atomic::Ordering::SeqCst);
                 return Err(crate::error::AppError::Database(
                     "duplicate key value violates unique constraint".to_string(),
                 ));
@@ -1412,7 +1582,9 @@ async fn test_import_chunked_skip_uses_savepoint_and_keeps_valid_rows() {
         ) -> Result<QueryResult, crate::error::AppError> {
             unreachable!()
         }
-        async fn fetch_schema_tree(&self) -> Result<Vec<crate::drivers::SchemaNode>, crate::error::AppError> {
+        async fn fetch_schema_tree(
+            &self,
+        ) -> Result<Vec<crate::drivers::SchemaNode>, crate::error::AppError> {
             Ok(vec![])
         }
         async fn commit(&self) -> Result<(), crate::error::AppError> {
@@ -1463,16 +1635,26 @@ async fn test_import_chunked_skip_uses_savepoint_and_keeps_valid_rows() {
         use_native_copy: None,
     };
 
-    let res = import_data_impl(&conn, "pg_tbl", &options, "postgres", None::<fn(TransferProgress)>)
-        .await
-        .expect("chunked skip mode must recover from DB error via SAVEPOINT");
+    let res = import_data_impl(
+        &conn,
+        "pg_tbl",
+        &options,
+        "postgres",
+        None::<fn(TransferProgress)>,
+    )
+    .await
+    .expect("chunked skip mode must recover from DB error via SAVEPOINT");
     assert_eq!(res.imported_rows, 3);
     assert_eq!(res.skipped_rows, 1);
 
     let queries = executed.lock().unwrap();
     assert!(queries.iter().any(|q| q == "SAVEPOINT sp_dc_batch;"));
-    assert!(queries.iter().any(|q| q == "ROLLBACK TO SAVEPOINT sp_dc_batch;"));
-    assert!(queries.iter().any(|q| q == "RELEASE SAVEPOINT sp_dc_batch;"));
+    assert!(queries
+        .iter()
+        .any(|q| q == "ROLLBACK TO SAVEPOINT sp_dc_batch;"));
+    assert!(queries
+        .iter()
+        .any(|q| q == "RELEASE SAVEPOINT sp_dc_batch;"));
     assert!(queries.iter().any(|q| q == "COMMIT"));
 }
 
@@ -1534,7 +1716,9 @@ async fn test_import_data_emits_percent_progress_from_file_row_count() {
 
     let captured = events.lock().unwrap();
     assert!(captured.len() >= 2);
-    assert!(captured.iter().all(|p| p.total_rows == Some(3) && p.percent.is_some()));
+    assert!(captured
+        .iter()
+        .all(|p| p.total_rows == Some(3) && p.percent.is_some()));
     let last = captured.last().unwrap();
     assert_eq!(last.status, "done");
     assert_eq!(last.percent, Some(100.0));

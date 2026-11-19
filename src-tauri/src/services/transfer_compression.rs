@@ -70,7 +70,10 @@ pub struct AsyncCompressedFileWriter {
 impl AsyncCompressedFileWriter {
     pub fn create(file_path: &str, compression: CompressionFormat) -> Result<Self, AppError> {
         let file = File::create(file_path).map_err(|e| {
-            AppError::Other(format!("Failed to create export file '{}': {}", file_path, e))
+            AppError::Other(format!(
+                "Failed to create export file '{}': {}",
+                file_path, e
+            ))
         })?;
         let bytes_written = Arc::new(AtomicU64::new(0));
         let bytes_clone = bytes_written.clone();
@@ -148,9 +151,9 @@ impl AsyncCompressedFileWriter {
             .tx
             .as_ref()
             .ok_or_else(|| AppError::Other("Writer already closed".to_string()))?;
-        tx.send(data.to_vec())
-            .await
-            .map_err(|_| AppError::Other("Compression writer task terminated unexpectedly".to_string()))
+        tx.send(data.to_vec()).await.map_err(|_| {
+            AppError::Other("Compression writer task terminated unexpectedly".to_string())
+        })
     }
 
     pub async fn finish(mut self) -> Result<u64, AppError> {

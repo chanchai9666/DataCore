@@ -7,13 +7,23 @@ pub enum DatabaseDriver {
     #[default]
     #[serde(alias = "Sqlite", alias = "SQLITE")]
     Sqlite,
-    #[serde(alias = "Postgres", alias = "POSTGRES", alias = "postgresql", alias = "PostgreSQL")]
+    #[serde(
+        alias = "Postgres",
+        alias = "POSTGRES",
+        alias = "postgresql",
+        alias = "PostgreSQL"
+    )]
     Postgres,
     #[serde(alias = "Mysql", alias = "MYSQL", alias = "MySQL")]
     Mysql,
     #[serde(alias = "Duckdb", alias = "DUCKDB", alias = "DuckDB")]
     Duckdb,
-    #[serde(alias = "Mssql", alias = "MSSQL", alias = "sqlserver", alias = "SqlServer")]
+    #[serde(
+        alias = "Mssql",
+        alias = "MSSQL",
+        alias = "sqlserver",
+        alias = "SqlServer"
+    )]
     Mssql,
 }
 

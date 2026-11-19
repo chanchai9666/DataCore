@@ -1,8 +1,8 @@
-use std::fs;
-use std::path::{Path, PathBuf};
 use crate::error::AppError;
 use crate::models::ConnectionConfig;
 use crate::services::keychain::{set_secure_dir_permissions, set_secure_permissions, Vault};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct ConnectionStore {
@@ -92,7 +92,8 @@ impl ConnectionStore {
 
         if let Some(ref ssh_pass) = ssh_passphrase {
             if !ssh_pass.is_empty() {
-                self.vault.save_password(&format!("{}:ssh", sanitized_config.id), ssh_pass)?;
+                self.vault
+                    .save_password(&format!("{}:ssh", sanitized_config.id), ssh_pass)?;
             }
         }
 

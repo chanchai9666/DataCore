@@ -43,7 +43,9 @@ fn format_cell_literal(val: &CellValue, driver: &str) -> Result<String, AppError
             if f.is_finite() {
                 Ok(f.to_string())
             } else {
-                Err(AppError::InvalidInput("Non-finite float in keyset cursor".into()))
+                Err(AppError::InvalidInput(
+                    "Non-finite float in keyset cursor".into(),
+                ))
             }
         }
         CellValue::Boolean(b) => {
@@ -100,7 +102,13 @@ pub fn build_keyset_clause(
 
     let order_by_parts: Vec<String> = key_columns
         .iter()
-        .map(|col| format!("{} {}", quote_keyset_identifier(col.trim(), driver), order_dir))
+        .map(|col| {
+            format!(
+                "{} {}",
+                quote_keyset_identifier(col.trim(), driver),
+                order_dir
+            )
+        })
         .collect();
     let order_by_clause = format!(" ORDER BY {}", order_by_parts.join(", "));
 
@@ -156,9 +164,14 @@ mod tests {
     fn test_single_key_next_asc() {
         let keys = vec!["id".to_string()];
         let cursor = vec![CellValue::Integer(100)];
-        let (pred, order, rev) =
-            build_keyset_clause(&keys, Some(&cursor), KeysetDirection::Next, "ASC", "postgres")
-                .expect("build single key");
+        let (pred, order, rev) = build_keyset_clause(
+            &keys,
+            Some(&cursor),
+            KeysetDirection::Next,
+            "ASC",
+            "postgres",
+        )
+        .expect("build single key");
         assert_eq!(pred.as_deref(), Some("\"id\" > 100"));
         assert_eq!(order, " ORDER BY \"id\" ASC");
         assert!(!rev);
@@ -179,7 +192,10 @@ mod tests {
     #[test]
     fn test_composite_key_next_asc() {
         let keys = vec!["tenant_id".to_string(), "created_id".to_string()];
-        let cursor = vec![CellValue::Text("acme's".to_string()), CellValue::Integer(42)];
+        let cursor = vec![
+            CellValue::Text("acme's".to_string()),
+            CellValue::Integer(42),
+        ];
         let (pred, order, rev) =
             build_keyset_clause(&keys, Some(&cursor), KeysetDirection::Next, "ASC", "sqlite")
                 .expect("build composite key");

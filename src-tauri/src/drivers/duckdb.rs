@@ -1,11 +1,13 @@
-use std::sync::Arc;
-use async_trait::async_trait;
-use tokio::sync::Mutex;
+use crate::drivers::sqlite::split_sql_statements;
+use crate::drivers::traits::{
+    build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome,
+};
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
-use crate::drivers::traits::{build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome};
-use crate::drivers::sqlite::split_sql_statements;
+use async_trait::async_trait;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct DuckdbConnection {
@@ -22,19 +24,28 @@ impl DuckdbConnection {
         let read_only = config.read_only.unwrap_or(false);
 
         let duck_conn = if is_memory {
-            duckdb::Connection::open_in_memory()
-                .map_err(|e| AppError::Database(format!("Failed to open in-memory DuckDB: {}", e)))?
+            duckdb::Connection::open_in_memory().map_err(|e| {
+                AppError::Database(format!("Failed to open in-memory DuckDB: {}", e))
+            })?
         } else {
             let path = std::path::Path::new(&config.database);
             if read_only {
                 let cfg = duckdb::Config::default()
                     .access_mode(duckdb::AccessMode::ReadOnly)
                     .map_err(|e| AppError::Database(format!("Invalid DuckDB config: {}", e)))?;
-                duckdb::Connection::open_with_flags(path, cfg)
-                    .map_err(|e| AppError::Database(format!("Failed to open DuckDB file '{}': {}", config.database, e)))?
+                duckdb::Connection::open_with_flags(path, cfg).map_err(|e| {
+                    AppError::Database(format!(
+                        "Failed to open DuckDB file '{}': {}",
+                        config.database, e
+                    ))
+                })?
             } else {
-                duckdb::Connection::open(path)
-                    .map_err(|e| AppError::Database(format!("Failed to open DuckDB file '{}': {}", config.database, e)))?
+                duckdb::Connection::open(path).map_err(|e| {
+                    AppError::Database(format!(
+                        "Failed to open DuckDB file '{}': {}",
+                        config.database, e
+                    ))
+                })?
             }
         };
 
@@ -72,9 +83,7 @@ impl DuckdbConnection {
             ValueRef::UBigInt(n) => CellValue::Text(n.to_string()),
             ValueRef::Float(f) => CellValue::Float(f as f64),
             ValueRef::Double(d) => CellValue::Float(d),
-            ValueRef::Text(bytes) => {
-                CellValue::Text(String::from_utf8_lossy(bytes).into_owned())
-            }
+            ValueRef::Text(bytes) => CellValue::Text(String::from_utf8_lossy(bytes).into_owned()),
             ValueRef::Blob(b) => {
                 use base64::Engine;
                 CellValue::Bytes(base64::engine::general_purpose::STANDARD.encode(b))
@@ -136,7 +145,12 @@ impl DuckdbConnection {
             Ok(QueryResult::new(columns, rows_out, 0, None))
         } else {
             let rows_affected = stmt.execute([])? as u64;
-            Ok(QueryResult::new(Vec::new(), Vec::new(), 0, Some(rows_affected)))
+            Ok(QueryResult::new(
+                Vec::new(),
+                Vec::new(),
+                0,
+                Some(rows_affected),
+            ))
         }
     }
 
@@ -339,7 +353,9 @@ impl DatabaseConnection for DuckdbConnection {
     ) -> Result<QueryResult, AppError> {
         let escaped_table = table.replace('"', "\"\"");
         let from_clause = match schema {
-            Some(s) if !s.is_empty() => format!("\"{}\".\"{}\"", s.replace('"', "\"\""), escaped_table),
+            Some(s) if !s.is_empty() => {
+                format!("\"{}\".\"{}\"", s.replace('"', "\"\""), escaped_table)
+            }
             _ => format!("\"{}\"", escaped_table),
         };
 
@@ -348,7 +364,11 @@ impl DatabaseConnection for DuckdbConnection {
         let order_clause = match sort_col {
             Some(col) if !col.trim().is_empty() => {
                 let escaped_col = col.trim().replace('"', "\"\"");
-                let dir = if sort_dir == Some("DESC") { "DESC" } else { "ASC" };
+                let dir = if sort_dir == Some("DESC") {
+                    "DESC"
+                } else {
+                    "ASC"
+                };
                 format!(" ORDER BY \"{}\" {}", escaped_col, dir)
             }
             _ => String::new(),
@@ -387,8 +407,12 @@ impl DatabaseConnection for DuckdbConnection {
                    SELECT table_schema, table_name, 'view' as type FROM information_schema.views \
                    ORDER BY type, table_name;";
 
-        let mut stmt = conn.prepare(sql).map_err(|e| AppError::Database(e.to_string()))?;
-        let mut rows = stmt.query([]).map_err(|e| AppError::Database(e.to_string()))?;
+        let mut stmt = conn
+            .prepare(sql)
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut rows = stmt
+            .query([])
+            .map_err(|e| AppError::Database(e.to_string()))?;
 
         let mut children = Vec::new();
         while let Some(row) = rows.next().map_err(|e| AppError::Database(e.to_string()))? {
@@ -406,8 +430,8 @@ impl DatabaseConnection for DuckdbConnection {
             children.push(node);
         }
 
-        let db_node = SchemaNode::new(&self.database_name, SchemaNodeType::Database)
-            .with_children(children);
+        let db_node =
+            SchemaNode::new(&self.database_name, SchemaNodeType::Database).with_children(children);
         Ok(vec![db_node])
     }
 
@@ -465,6 +489,9 @@ impl DatabaseConnection for DuckdbConnection {
                 return Ok(ddl.clone());
             }
         }
-        Err(AppError::NotFound(format!("DDL for object '{}' not found", name)))
+        Err(AppError::NotFound(format!(
+            "DDL for object '{}' not found",
+            name
+        )))
     }
 }

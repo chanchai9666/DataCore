@@ -1,8 +1,8 @@
-use tempfile::tempdir;
 use crate::commands::db::*;
 use crate::models::{CellValue, ConnectionConfig, DatabaseDriver};
 use crate::services::connection_store::ConnectionStore;
 use crate::session::SessionManager;
+use tempfile::tempdir;
 
 #[tokio::test]
 async fn test_session_lifecycle() {
@@ -37,7 +37,9 @@ async fn test_session_lifecycle() {
     assert_eq!(connections[0].id, "conn-sqlite-mem");
 
     // 2. Test latency check (test_connection)
-    let latency = test_connection_impl(&store, &config, None).await.expect("test connection");
+    let latency = test_connection_impl(&store, &config, None)
+        .await
+        .expect("test connection");
     assert!(latency < 1000);
 
     // 3. Open dedicated sessions for two tabs: tab-1 and tab-2
@@ -73,7 +75,10 @@ async fn test_session_lifecycle() {
         .await
         .expect("select tab1_table in tab-1");
     assert_eq!(tab1_res.rows.len(), 1);
-    assert_eq!(tab1_res.rows[0][1], CellValue::Text("created in tab 1".to_string()));
+    assert_eq!(
+        tab1_res.rows[0][1],
+        CellValue::Text("created in tab 1".to_string())
+    );
 
     // In tab-2, tab1_table must not exist because tab-2 has its own dedicated handle
     let tab2_check = execute_query_impl(&session_mgr, "tab-2", "SELECT * FROM tab1_table;").await;
@@ -83,29 +88,69 @@ async fn test_session_lifecycle() {
     );
 
     // 5. Test pagination (fetch_table_data) on tab-1
-    let paged = fetch_table_data_impl(&session_mgr, "tab-1", None, "tab1_table", 10, 0, None, None, None)
-        .await
-        .expect("fetch table data");
+    let paged = fetch_table_data_impl(
+        &session_mgr,
+        "tab-1",
+        None,
+        "tab1_table",
+        10,
+        0,
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("fetch table data");
     assert_eq!(paged.rows.len(), 1);
     assert_eq!(paged.rows_affected, Some(1));
 
     // 5b. Test fetch_table_data with filter
-    let filtered_empty = fetch_table_data_impl(&session_mgr, "tab-1", None, "tab1_table", 10, 0, Some("note = 'non-existent'"), None, None)
-        .await
-        .expect("fetch filtered data");
+    let filtered_empty = fetch_table_data_impl(
+        &session_mgr,
+        "tab-1",
+        None,
+        "tab1_table",
+        10,
+        0,
+        Some("note = 'non-existent'"),
+        None,
+        None,
+    )
+    .await
+    .expect("fetch filtered data");
     assert_eq!(filtered_empty.rows.len(), 0);
     assert_eq!(filtered_empty.rows_affected, Some(0));
 
-    let filtered_match = fetch_table_data_impl(&session_mgr, "tab-1", None, "tab1_table", 10, 0, Some("note LIKE '%created%'"), None, None)
-        .await
-        .expect("fetch filtered match");
+    let filtered_match = fetch_table_data_impl(
+        &session_mgr,
+        "tab-1",
+        None,
+        "tab1_table",
+        10,
+        0,
+        Some("note LIKE '%created%'"),
+        None,
+        None,
+    )
+    .await
+    .expect("fetch filtered match");
     assert_eq!(filtered_match.rows.len(), 1);
     assert_eq!(filtered_match.rows_affected, Some(1));
 
     // 5c. Test fetch_table_data with sort
-    let sorted_desc = fetch_table_data_impl(&session_mgr, "tab-1", None, "tab1_table", 10, 0, None, Some("id"), Some("DESC"))
-        .await
-        .expect("fetch sorted data");
+    let sorted_desc = fetch_table_data_impl(
+        &session_mgr,
+        "tab-1",
+        None,
+        "tab1_table",
+        10,
+        0,
+        None,
+        Some("id"),
+        Some("DESC"),
+    )
+    .await
+    .expect("fetch sorted data");
     assert_eq!(sorted_desc.rows.len(), 1);
 
     // 6. Test transaction management (set_autocommit, rollback, commit) on tab-1
@@ -132,7 +177,11 @@ async fn test_session_lifecycle() {
     )
     .await
     .expect("query after rollback");
-    assert_eq!(after_rollback.rows.len(), 0, "Rolled back row must not exist");
+    assert_eq!(
+        after_rollback.rows.len(),
+        0,
+        "Rolled back row must not exist"
+    );
 
     execute_query_impl(
         &session_mgr,
@@ -231,24 +280,31 @@ async fn test_command_error_handling_and_cancellation() {
     assert!(latency_res.is_ok());
 
     // Cancel on valid tab session succeeds
-    store.save_connection(&ConnectionConfig {
-        id: "mem-test".to_string(),
-        name: "Mem Test".to_string(),
-        driver: DatabaseDriver::Sqlite,
-        host: None,
-        port: None,
-        database: ":memory:".to_string(),
-        user: None,
-        folder: None,
-        ssl_mode: None,
-        ssl_certs: None,
-        ssh_tunnel: None,
-        timeout_seconds: None,
-        auto_reconnect: None,
-        environment: None,
-        read_only: None,
-    }, None).unwrap();
-    open_session_impl(&store, &session_mgr, "mem-test", "tab-cancel").await.unwrap();
+    store
+        .save_connection(
+            &ConnectionConfig {
+                id: "mem-test".to_string(),
+                name: "Mem Test".to_string(),
+                driver: DatabaseDriver::Sqlite,
+                host: None,
+                port: None,
+                database: ":memory:".to_string(),
+                user: None,
+                folder: None,
+                ssl_mode: None,
+                ssl_certs: None,
+                ssh_tunnel: None,
+                timeout_seconds: None,
+                auto_reconnect: None,
+                environment: None,
+                read_only: None,
+            },
+            None,
+        )
+        .unwrap();
+    open_session_impl(&store, &session_mgr, "mem-test", "tab-cancel")
+        .await
+        .unwrap();
     let cancel_ok = cancel_query_impl(&session_mgr, "tab-cancel").await;
     assert!(cancel_ok.is_ok());
 }
@@ -281,7 +337,9 @@ async fn test_close_session_performs_explicit_rollback() {
     store.save_connection(&config, None).unwrap();
 
     // 1. Initial setup: create table and insert initial committed row
-    open_session_impl(&store, &session_mgr, "file-db-1", "tab-init").await.unwrap();
+    open_session_impl(&store, &session_mgr, "file-db-1", "tab-init")
+        .await
+        .unwrap();
     execute_query_impl(
         &session_mgr,
         "tab-init",
@@ -299,8 +357,12 @@ async fn test_close_session_performs_explicit_rollback() {
     close_session_impl(&session_mgr, "tab-init").await.unwrap();
 
     // 2. Open tab-work, turn off autocommit (start manual transaction), insert uncommitted row
-    open_session_impl(&store, &session_mgr, "file-db-1", "tab-work").await.unwrap();
-    set_autocommit_impl(&session_mgr, "tab-work", false).await.unwrap();
+    open_session_impl(&store, &session_mgr, "file-db-1", "tab-work")
+        .await
+        .unwrap();
+    set_autocommit_impl(&session_mgr, "tab-work", false)
+        .await
+        .unwrap();
     execute_query_impl(
         &session_mgr,
         "tab-work",
@@ -313,7 +375,9 @@ async fn test_close_session_performs_explicit_rollback() {
     close_session_impl(&session_mgr, "tab-work").await.unwrap();
 
     // 4. Open tab-verify to check accounts: row 2 must NOT exist because it was rolled back on close
-    open_session_impl(&store, &session_mgr, "file-db-1", "tab-verify").await.unwrap();
+    open_session_impl(&store, &session_mgr, "file-db-1", "tab-verify")
+        .await
+        .unwrap();
     let res = execute_query_impl(
         &session_mgr,
         "tab-verify",
@@ -326,7 +390,9 @@ async fn test_close_session_performs_explicit_rollback() {
         0,
         "Uncommitted data in tab-work must be automatically rolled back when closing the tab"
     );
-    close_session_impl(&session_mgr, "tab-verify").await.unwrap();
+    close_session_impl(&session_mgr, "tab-verify")
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -357,7 +423,9 @@ async fn test_schema_tree_uses_dedicated_connection_independent_of_tab_transacti
     store.save_connection(&config, None).unwrap();
 
     // Tab 1 creates table and enters manual transaction
-    open_session_impl(&store, &session_mgr, "file-db-schema", "tab-tx").await.unwrap();
+    open_session_impl(&store, &session_mgr, "file-db-schema", "tab-tx")
+        .await
+        .unwrap();
     execute_query_impl(
         &session_mgr,
         "tab-tx",
@@ -366,7 +434,9 @@ async fn test_schema_tree_uses_dedicated_connection_independent_of_tab_transacti
     .await
     .unwrap();
 
-    set_autocommit_impl(&session_mgr, "tab-tx", false).await.unwrap();
+    set_autocommit_impl(&session_mgr, "tab-tx", false)
+        .await
+        .unwrap();
     execute_query_impl(
         &session_mgr,
         "tab-tx",
@@ -376,17 +446,30 @@ async fn test_schema_tree_uses_dedicated_connection_independent_of_tab_transacti
     .unwrap();
 
     // Fetching schema tree must succeed on a dedicated metadata connection and not borrow or interfere with tab-tx
-    let tree = get_schema_tree_impl(&store, &session_mgr, "file-db-schema").await.unwrap();
+    let tree = get_schema_tree_impl(&store, &session_mgr, "file-db-schema")
+        .await
+        .unwrap();
     assert!(!tree.is_empty());
     let db_node = &tree[0];
     assert!(db_node.children.iter().any(|c| c.name == "customers"));
 
     // Test get_object_ddl_impl
-    let ddl = get_object_ddl_impl(&store, &session_mgr, "file-db-schema", None, "customers", "table").await.unwrap();
+    let ddl = get_object_ddl_impl(
+        &store,
+        &session_mgr,
+        "file-db-schema",
+        None,
+        "customers",
+        "table",
+    )
+    .await
+    .unwrap();
     assert!(ddl.contains("CREATE TABLE customers"));
 
     // tab-tx can still rollback cleanly
-    rollback_transaction_impl(&session_mgr, "tab-tx").await.unwrap();
+    rollback_transaction_impl(&session_mgr, "tab-tx")
+        .await
+        .unwrap();
     close_session_impl(&session_mgr, "tab-tx").await.unwrap();
 }
 
@@ -542,7 +625,9 @@ async fn test_session_password_in_memory_lifecycle_without_vault() {
     };
 
     // 1. User saves connection WITHOUT remember password (stored password is None)
-    store.save_connection(&config, None).expect("save connection without vault password");
+    store
+        .save_connection(&config, None)
+        .expect("save connection without vault password");
     assert_eq!(store.get_password("conn-no-vault").unwrap(), None);
 
     // 2. User provides password for the in-memory session (RAM only)
@@ -611,7 +696,9 @@ async fn test_session_ssh_passphrase_lifecycle_in_memory_and_vault() {
         read_only: None,
     };
 
-    store.save_connection(&config, None).expect("save connection");
+    store
+        .save_connection(&config, None)
+        .expect("save connection");
 
     // 1. In-memory SSH passphrase store
     session_mgr
@@ -619,7 +706,9 @@ async fn test_session_ssh_passphrase_lifecycle_in_memory_and_vault() {
         .await;
 
     assert_eq!(
-        session_mgr.get_session_ssh_passphrase("conn-ssh-test-ram").await,
+        session_mgr
+            .get_session_ssh_passphrase("conn-ssh-test-ram")
+            .await,
         Some("temporary_ssh_pass".to_string())
     );
 
@@ -634,7 +723,9 @@ async fn test_session_ssh_passphrase_lifecycle_in_memory_and_vault() {
         .expect("disconnect");
 
     assert_eq!(
-        session_mgr.get_session_ssh_passphrase("conn-ssh-test-ram").await,
+        session_mgr
+            .get_session_ssh_passphrase("conn-ssh-test-ram")
+            .await,
         None,
         "RAM session SSH passphrase must be cleared on disconnect"
     );
@@ -643,9 +734,18 @@ async fn test_session_ssh_passphrase_lifecycle_in_memory_and_vault() {
 #[test]
 fn test_parse_mutation_info_detection() {
     // 1. Non-mutations
-    assert_eq!(parse_mutation_info("SELECT * FROM users;"), (false, None, false));
-    assert_eq!(parse_mutation_info("INSERT INTO users VALUES (1, 'alice');"), (false, None, false));
-    assert_eq!(parse_mutation_info("CREATE TABLE test (id INT);"), (false, None, false));
+    assert_eq!(
+        parse_mutation_info("SELECT * FROM users;"),
+        (false, None, false)
+    );
+    assert_eq!(
+        parse_mutation_info("INSERT INTO users VALUES (1, 'alice');"),
+        (false, None, false)
+    );
+    assert_eq!(
+        parse_mutation_info("CREATE TABLE test (id INT);"),
+        (false, None, false)
+    );
     assert_eq!(parse_mutation_info(""), (false, None, false));
 
     // 2. DELETE queries
@@ -724,7 +824,12 @@ async fn test_simulate_query_impact_delete_and_update() {
         execute_query_impl(
             &session_mgr,
             "tab-init",
-            &format!("INSERT INTO test_items (id, status, val) VALUES ({}, '{}', {});", i, status, i * 10),
+            &format!(
+                "INSERT INTO test_items (id, status, val) VALUES ({}, '{}', {});",
+                i,
+                status,
+                i * 10
+            ),
         )
         .await
         .expect("insert row");
@@ -754,16 +859,20 @@ async fn test_simulate_query_impact_delete_and_update() {
     assert!(del_res.is_mutation);
     assert_eq!(del_res.table_name.as_deref(), Some("test_items"));
     assert_eq!(del_res.affected_rows, 30);
-    assert!(del_res.preview_warning.is_none() || !del_res.preview_warning.as_ref().unwrap().contains("HIGH RISK"));
+    assert!(
+        del_res.preview_warning.is_none()
+            || !del_res
+                .preview_warning
+                .as_ref()
+                .unwrap()
+                .contains("HIGH RISK")
+    );
 
     // Verify rows were NOT deleted (rollback verified)
-    let count_after_del = execute_query_impl(
-        &session_mgr,
-        "tab-init",
-        "SELECT COUNT(*) FROM test_items;",
-    )
-    .await
-    .expect("count items");
+    let count_after_del =
+        execute_query_impl(&session_mgr, "tab-init", "SELECT COUNT(*) FROM test_items;")
+            .await
+            .expect("count items");
     assert_eq!(
         count_after_del.rows[0][0],
         CellValue::Integer(120),
@@ -782,18 +891,19 @@ async fn test_simulate_query_impact_delete_and_update() {
     assert!(del_all_res.is_mutation);
     assert_eq!(del_all_res.affected_rows, 120);
     assert!(
-        del_all_res.preview_warning.as_ref().unwrap().contains("HIGH RISK"),
+        del_all_res
+            .preview_warning
+            .as_ref()
+            .unwrap()
+            .contains("HIGH RISK"),
         "Should warn about high risk when no WHERE clause is present"
     );
 
     // Verify still 120 rows
-    let count_after_del_all = execute_query_impl(
-        &session_mgr,
-        "tab-init",
-        "SELECT COUNT(*) FROM test_items;",
-    )
-    .await
-    .expect("count items");
+    let count_after_del_all =
+        execute_query_impl(&session_mgr, "tab-init", "SELECT COUNT(*) FROM test_items;")
+            .await
+            .expect("count items");
     assert_eq!(count_after_del_all.rows[0][0], CellValue::Integer(120));
 
     // 4. UPDATE with WHERE clause affecting > 100 rows (90 rows <= 100, so let's update > 100)
@@ -822,7 +932,11 @@ async fn test_simulate_query_impact_delete_and_update() {
     .await
     .expect("multi-statement simulation response");
     assert!(!multi_res.is_mutation);
-    assert!(multi_res.preview_warning.as_ref().unwrap().contains("single"));
+    assert!(multi_res
+        .preview_warning
+        .as_ref()
+        .unwrap()
+        .contains("single"));
 
     // 6. Query with syntax error fails gracefully
     let err_res = simulate_query_impact_impl(
@@ -832,7 +946,10 @@ async fn test_simulate_query_impact_delete_and_update() {
         "DELETE FROM non_existing_table_12345 WHERE x = 1;",
     )
     .await;
-    assert!(err_res.is_err(), "Simulation of invalid query must return error");
+    assert!(
+        err_res.is_err(),
+        "Simulation of invalid query must return error"
+    );
 }
 
 #[tokio::test]
@@ -845,22 +962,36 @@ async fn test_vault_keychain_opt_in_commands_lifecycle() {
     assert!(!store.vault().is_keychain_opt_in());
     assert!(!store.vault().has_master_password().unwrap());
 
-    // Enable keychain opt-in
-    store.vault().set_keychain_opt_in(true).expect("enable keychain opt-in");
-    assert!(store.vault().is_keychain_opt_in());
-
-    // Set master password and lock
+    // Set master password first
     let master_pass = "TestMasterPassword!2026";
-    store.vault().set_master_password(master_pass).expect("set master password");
+    store
+        .vault()
+        .set_master_password(master_pass)
+        .expect("set master password");
     assert!(store.vault().has_master_password().unwrap());
 
+    // Enable keychain opt-in while unlocked
+    store
+        .vault()
+        .set_keychain_opt_in(true)
+        .expect("enable keychain opt-in");
+    assert!(store.vault().is_keychain_opt_in());
+
     store.vault().lock();
+    assert!(!store.vault().is_unlocked().unwrap());
 
     // Unlock with explicit master password
-    store.vault().unlock(master_pass).expect("unlock vault with password");
+    store
+        .vault()
+        .unlock(master_pass)
+        .expect("unlock vault with password");
+    assert!(store.vault().is_unlocked().unwrap());
 
     // Disable keychain opt-in
-    store.vault().set_keychain_opt_in(false).expect("disable keychain opt-in");
+    store
+        .vault()
+        .set_keychain_opt_in(false)
+        .expect("disable keychain opt-in");
     assert!(!store.vault().is_keychain_opt_in());
 }
 
@@ -906,11 +1037,11 @@ async fn test_open_session_idempotent() {
 
 #[tokio::test]
 async fn test_execute_query_with_row_and_byte_cap_triggers_cancel() {
+    use crate::drivers::{Chunk, DatabaseConnection, SchemaNode, StreamOutcome};
+    use crate::models::{ColumnMeta, QueryResult};
     use async_trait::async_trait;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
-    use crate::drivers::{Chunk, DatabaseConnection, SchemaNode, StreamOutcome};
-    use crate::models::{ColumnMeta, QueryResult};
 
     struct MockStreamConn {
         cancel_called: Arc<AtomicBool>,
@@ -973,7 +1104,14 @@ async fn test_execute_query_with_row_and_byte_cap_triggers_cancel() {
                     })
                     .collect::<Vec<_>>();
                 let count = rows.len() as u64;
-                if tx.send(Chunk { columns: cols.clone(), rows }).await.is_err() {
+                if tx
+                    .send(Chunk {
+                        columns: cols.clone(),
+                        rows,
+                    })
+                    .await
+                    .is_err()
+                {
                     return Ok(StreamOutcome {
                         rows_sent: sent,
                         stopped_early: true,
@@ -995,13 +1133,20 @@ async fn test_execute_query_with_row_and_byte_cap_triggers_cancel() {
         payload_size: 10,
         total_rows: 1000,
     };
-    let res_row = execute_query_with_cap(&conn_row, "SELECT * FROM big_table", 120, 64 * 1024 * 1024)
-        .await
-        .expect("row cap query");
+    let res_row =
+        execute_query_with_cap(&conn_row, "SELECT * FROM big_table", 120, 64 * 1024 * 1024)
+            .await
+            .expect("row cap query");
     assert_eq!(res_row.rows.len(), 120);
     assert_eq!(res_row.truncated, Some(true));
-    assert_eq!(res_row.truncation_reason, Some(crate::models::TruncationReason::RowCapReached));
-    assert!(cancel_row.load(Ordering::SeqCst), "cancel() must be called when row cap is reached");
+    assert_eq!(
+        res_row.truncation_reason,
+        Some(crate::models::TruncationReason::RowCapReached)
+    );
+    assert!(
+        cancel_row.load(Ordering::SeqCst),
+        "cancel() must be called when row cap is reached"
+    );
 
     // 2. Byte cap test
     let cancel_byte = Arc::new(AtomicBool::new(false));
@@ -1014,9 +1159,15 @@ async fn test_execute_query_with_row_and_byte_cap_triggers_cancel() {
         .await
         .expect("byte cap query");
     assert_eq!(res_byte.truncated, Some(true));
-    assert_eq!(res_byte.truncation_reason, Some(crate::models::TruncationReason::ByteCapReached));
+    assert_eq!(
+        res_byte.truncation_reason,
+        Some(crate::models::TruncationReason::ByteCapReached)
+    );
     assert!(res_byte.rows.len() <= 3);
-    assert!(cancel_byte.load(Ordering::SeqCst), "cancel() must be called when byte cap is reached");
+    assert!(
+        cancel_byte.load(Ordering::SeqCst),
+        "cancel() must be called when byte cap is reached"
+    );
 }
 
 #[tokio::test]
@@ -1061,7 +1212,10 @@ async fn test_keyset_pagination_and_exact_count_sqlite() {
         execute_query_impl(
             &session_mgr,
             "tab-ks",
-            &format!("INSERT INTO items (grp, id, label) VALUES ('{}', {}, 'item-{}');", grp, i, i),
+            &format!(
+                "INSERT INTO items (grp, id, label) VALUES ('{}', {}, 'item-{}');",
+                grp, i, i
+            ),
         )
         .await
         .expect("insert");

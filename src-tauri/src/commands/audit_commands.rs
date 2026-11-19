@@ -1,8 +1,8 @@
-use tauri::State;
 use crate::error::AppError;
 use crate::services::audit_logger::{
     AuditIntegrityResult, AuditLogEntry, AuditLogEntryInput, AuditLogger,
 };
+use tauri::State;
 
 pub fn get_audit_logs_impl(
     logger: &AuditLogger,

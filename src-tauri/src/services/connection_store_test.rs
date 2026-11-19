@@ -142,7 +142,10 @@ fn test_connection_storage_update_existing() {
         .save_connection(&conn, Some("pass2"))
         .expect("update save");
 
-    let loaded = store.get(&conn.id).expect("get connection").expect("exists");
+    let loaded = store
+        .get(&conn.id)
+        .expect("get connection")
+        .expect("exists");
     assert_eq!(loaded.name, "Updated MySQL Name");
     assert_eq!(
         store.get_password(&conn.id).expect("pwd").as_deref(),
@@ -256,7 +259,9 @@ fn test_ssh_passphrase_vault_encryption_and_json_omission() {
     );
 
     // 4. Verify deleting connection also purges the SSH passphrase from vault
-    store.delete_connection(&conn.id).expect("delete connection");
+    store
+        .delete_connection(&conn.id)
+        .expect("delete connection");
     let after_delete = store
         .get_ssh_passphrase(&conn.id)
         .expect("get ssh passphrase after delete");

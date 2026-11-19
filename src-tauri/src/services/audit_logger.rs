@@ -1,10 +1,10 @@
+use crate::error::AppError;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use crate::error::AppError;
 
 pub const GENESIS_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 pub const DEFAULT_MAX_FILE_SIZE_BYTES: u64 = 10 * 1024 * 1024; // 10MB
@@ -39,6 +39,8 @@ pub struct AuditLogEntry {
     pub prev_hash: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entry_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash_algo: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -73,12 +75,7 @@ pub struct AuditIntegrityResult {
 }
 
 /// Computes legacy SHA-256 tamper-evident hash over (prev_hash, timestamp, action/event_type, details)
-pub fn compute_entry_hash(
-    prev_hash: &str,
-    timestamp: &str,
-    action: &str,
-    details: &str,
-) -> String {
+pub fn compute_entry_hash(prev_hash: &str, timestamp: &str, action: &str, details: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(prev_hash.as_bytes());
     hasher.update(b"|");
@@ -121,30 +118,12 @@ pub fn compute_hmac_sha256(key: &[u8], message: &[u8]) -> String {
     format!("{:x}", outer.finalize())
 }
 
-/// Computes keyed HMAC-SHA256 for an audit log entry covering all critical fields.
-pub fn compute_entry_hmac(
-    key: &[u8],
-    prev_hash: &str,
-    entry: &AuditLogEntry,
-) -> String {
-    let details = entry.details.as_deref().unwrap_or("");
-    let user = entry.user.as_deref().unwrap_or("");
-    let conn_id = entry.connection_id.as_deref().unwrap_or("");
-    let db = entry.database.as_deref().unwrap_or("");
-    let query = entry.query.as_deref().unwrap_or("");
-    let payload = format!(
-        "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
-        prev_hash,
-        entry.id,
-        entry.timestamp,
-        entry.action,
-        user,
-        conn_id,
-        db,
-        query,
-        entry.status,
-        details
-    );
+/// Computes keyed HMAC-SHA256 over canonical JSON serialization of all audit entry fields
+/// (with `entry_hash` cleared) so tampering with any field is detected.
+pub fn compute_entry_hmac(key: &[u8], _prev_hash: &str, entry: &AuditLogEntry) -> String {
+    let mut canonical = entry.clone();
+    canonical.entry_hash = None;
+    let payload = serde_json::to_string(&canonical).unwrap_or_default();
     compute_hmac_sha256(key, payload.as_bytes())
 }
 
@@ -206,12 +185,7 @@ pub fn redact_sensitive_sql(sql: &str) -> String {
         }
     }
 
-    let keywords = [
-        "WITH PASSWORD",
-        "PASSWORD =",
-        "PASSWORD=",
-        "PASSWORD",
-    ];
+    let keywords = ["WITH PASSWORD", "PASSWORD =", "PASSWORD=", "PASSWORD"];
 
     for kw in &keywords {
         let mut search_start = 0;
@@ -292,13 +266,30 @@ impl AuditLogger {
         self.log_dir.join("audit.jsonl")
     }
 
-    fn hmac_key_path(&self) -> PathBuf {
-        self.log_dir.join(".audit.hmac.key")
+    pub fn hmac_key_path(&self) -> PathBuf {
+        if let Ok(p) = std::env::var("DATACORE_AUDIT_KEY_PATH") {
+            return PathBuf::from(p);
+        }
+        let dir_name = self
+            .log_dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("datacore");
+        if let Some(parent) = self.log_dir.parent() {
+            parent
+                .join(".datacore_audit_keys")
+                .join(format!("{}.hmac.key", dir_name))
+        } else {
+            self.log_dir.join(".audit.hmac.key")
+        }
     }
 
     fn get_or_create_hmac_key(&self) -> Result<[u8; 32], AppError> {
         ensure_dir_0700(&self.log_dir)?;
         let key_path = self.hmac_key_path();
+        if let Some(key_dir) = key_path.parent() {
+            ensure_dir_0700(key_dir)?;
+        }
         if key_path.exists() {
             let bytes = fs::read(&key_path)?;
             if bytes.len() == 32 {
@@ -310,7 +301,7 @@ impl AuditLogger {
         use rand::RngExt;
         let mut key = [0u8; 32];
         rand::rng().fill(&mut key);
-        let tmp_path = self.log_dir.join(".audit.hmac.key.tmp");
+        let tmp_path = key_path.with_extension("key.tmp");
         fs::write(&tmp_path, key)?;
         set_file_permissions_0600(&tmp_path)?;
         fs::rename(&tmp_path, &key_path)?;
@@ -396,7 +387,10 @@ impl AuditLogger {
             let entry = entry?;
             let path = entry.path();
             if let Some(fname) = path.file_name().and_then(|f| f.to_str()) {
-                if fname.starts_with("audit.") && fname.ends_with(".jsonl") && fname != "audit.jsonl" {
+                if fname.starts_with("audit.")
+                    && fname.ends_with(".jsonl")
+                    && fname != "audit.jsonl"
+                {
                     files.push(path);
                 }
             }
@@ -473,6 +467,7 @@ impl AuditLogger {
             details: Some(details),
             prev_hash: Some(prev_hash.clone()),
             entry_hash: None,
+            hash_algo: Some("hmac-sha256".to_string()),
         };
 
         let entry_hash = compute_entry_hmac(&hmac_key, &prev_hash, &entry);
@@ -518,7 +513,9 @@ impl AuditLogger {
         let mut target = self.log_dir.join(format!("audit.{}.jsonl", now_str));
         let mut counter = 1;
         while target.exists() {
-            target = self.log_dir.join(format!("audit.{}_{}.jsonl", now_str, counter));
+            target = self
+                .log_dir
+                .join(format!("audit.{}_{}.jsonl", now_str, counter));
             counter += 1;
         }
 
@@ -557,11 +554,7 @@ impl AuditLogger {
         let offset = offset.unwrap_or(0);
         let limit = limit.unwrap_or(1000);
 
-        let result = all_entries
-            .into_iter()
-            .skip(offset)
-            .take(limit)
-            .collect();
+        let result = all_entries.into_iter().skip(offset).take(limit).collect();
 
         Ok(result)
     }
@@ -602,6 +595,8 @@ impl AuditLogger {
 
         let mut expected_prev_hash: Option<String> = None;
         let mut count = 0;
+        let mut seen_hmac = false;
+        let hmac_key = self.read_hmac_key_if_exists();
 
         for (idx, line) in reader.lines().enumerate() {
             let line = line?;
@@ -673,27 +668,64 @@ impl AuditLogger {
                 }
             }
 
-            // Verify entry hash computation: require HMAC-SHA256 whenever an HMAC key exists
+            // Verify entry hash computation according to entry's hash_algo (fail-closed for HMAC)
             let details = entry.details.as_deref().unwrap_or("");
-            let (is_hash_valid, expected_hash) = if let Some(hmac_key) = self.read_hmac_key_if_exists() {
-                let expected = compute_entry_hmac(&hmac_key, entry_prev, &entry);
-                (entry.entry_hash.as_deref() == Some(expected.as_str()), expected)
-            } else {
-                let expected = compute_entry_hash(entry_prev, &entry.timestamp, &entry.action, details);
-                (entry.entry_hash.as_deref() == Some(expected.as_str()), expected)
-            };
+            let algo = entry.hash_algo.as_deref().unwrap_or("sha256");
 
-            if !is_hash_valid {
-                return Ok(AuditIntegrityResult {
-                    is_valid: false,
-                    total_entries: count,
-                    verified_at,
-                    error: Some(format!(
-                        "Tamper detected at entry {}: entry_hash '{:?}' does not match computed '{:?}'",
-                        entry.id, entry.entry_hash, expected_hash
-                    )),
-                    tampered_entry_id: Some(entry.id),
-                });
+            if algo == "hmac-sha256" {
+                seen_hmac = true;
+                let Some(ref key) = hmac_key else {
+                    return Ok(AuditIntegrityResult {
+                        is_valid: false,
+                        total_entries: count,
+                        verified_at,
+                        error: Some(format!(
+                            "HMAC key missing for entry {} (fail-closed integrity check)",
+                            entry.id
+                        )),
+                        tampered_entry_id: Some(entry.id),
+                    });
+                };
+                let expected_hash = compute_entry_hmac(key, entry_prev, &entry);
+                if entry.entry_hash.as_deref() != Some(expected_hash.as_str()) {
+                    return Ok(AuditIntegrityResult {
+                        is_valid: false,
+                        total_entries: count,
+                        verified_at,
+                        error: Some(format!(
+                            "Tamper detected at entry {}: entry_hash '{:?}' does not match computed '{:?}'",
+                            entry.id, entry.entry_hash, expected_hash
+                        )),
+                        tampered_entry_id: Some(entry.id),
+                    });
+                }
+            } else {
+                if seen_hmac {
+                    return Ok(AuditIntegrityResult {
+                        is_valid: false,
+                        total_entries: count,
+                        verified_at,
+                        error: Some(format!(
+                            "Hash algorithm downgrade detected at entry {}: legacy '{}' after hmac-sha256",
+                            entry.id, algo
+                        )),
+                        tampered_entry_id: Some(entry.id),
+                    });
+                }
+                let expected_hash =
+                    compute_entry_hash(entry_prev, &entry.timestamp, &entry.action, details);
+                if entry.entry_hash.as_deref() != Some(expected_hash.as_str()) {
+                    return Ok(AuditIntegrityResult {
+                        is_valid: false,
+                        total_entries: count,
+                        verified_at,
+                        error: Some(format!(
+                            "Tamper detected at entry {}: entry_hash '{:?}' does not match computed '{:?}'",
+                            entry.id, entry.entry_hash, expected_hash
+                        )),
+                        tampered_entry_id: Some(entry.id),
+                    });
+                }
             }
 
             expected_prev_hash = entry.entry_hash;

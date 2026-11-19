@@ -1,13 +1,15 @@
-use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write};
 use crate::drivers::{Chunk, DatabaseConnection};
 use crate::error::AppError;
-use crate::models::transfer::{SqlExportOptions, SqlExportResult, SqlImportOptions, SqlImportResult, TransferProgress};
+use crate::models::transfer::{
+    SqlExportOptions, SqlExportResult, SqlImportOptions, SqlImportResult, TransferProgress,
+};
 use crate::models::{CellValue, DatabaseDriver};
 use crate::services::data_transfer::{
     escape_sql_string, is_transfer_cancelled, remove_cancellation_token,
 };
 use crate::services::table_list::get_table_list_metadata_impl;
+use std::fs::File;
+use std::io::{BufRead, BufReader, BufWriter, Write};
 
 /// Checks whether a statement string contains any executable SQL (i.e. not solely whitespace and comments).
 fn is_executable_sql(stmt: &str) -> bool {
@@ -22,7 +24,11 @@ fn is_executable_sql(stmt: &str) -> bool {
         let mut i = 0;
         while i < len {
             let c = chars[i];
-            let next_c = if i + 1 < len { Some(chars[i + 1]) } else { None };
+            let next_c = if i + 1 < len {
+                Some(chars[i + 1])
+            } else {
+                None
+            };
 
             if in_block_comment {
                 if c == '*' && next_c == Some('/') {
@@ -34,7 +40,12 @@ fn is_executable_sql(stmt: &str) -> bool {
                 continue;
             }
 
-            if !in_single_quote && !in_double_quote && !in_backtick && c == '/' && next_c == Some('*') {
+            if !in_single_quote
+                && !in_double_quote
+                && !in_backtick
+                && c == '/'
+                && next_c == Some('*')
+            {
                 in_block_comment = true;
                 i += 2;
                 continue;
@@ -104,7 +115,11 @@ pub fn split_sql_script(content: &str) -> Vec<String> {
 
         while i < len {
             let c = chars[i];
-            let next_c = if i + 1 < len { Some(chars[i + 1]) } else { None };
+            let next_c = if i + 1 < len {
+                Some(chars[i + 1])
+            } else {
+                None
+            };
 
             // Handle block comment
             if in_block_comment {
@@ -121,7 +136,12 @@ pub fn split_sql_script(content: &str) -> Vec<String> {
             }
 
             // Start block comment
-            if !in_single_quote && !in_double_quote && !in_backtick && c == '/' && next_c == Some('*') {
+            if !in_single_quote
+                && !in_double_quote
+                && !in_backtick
+                && c == '/'
+                && next_c == Some('*')
+            {
                 in_block_comment = true;
                 current_stmt.push(c);
                 current_stmt.push('*');
@@ -206,9 +226,17 @@ fn format_cell_value(val: &CellValue, dialect: &str) -> String {
         }
         CellValue::Boolean(b) => {
             if dialect == "postgres" {
-                if *b { "TRUE".to_string() } else { "FALSE".to_string() }
+                if *b {
+                    "TRUE".to_string()
+                } else {
+                    "FALSE".to_string()
+                }
             } else {
-                if *b { "1".to_string() } else { "0".to_string() }
+                if *b {
+                    "1".to_string()
+                } else {
+                    "0".to_string()
+                }
             }
         }
         CellValue::Json(j) => {
@@ -268,11 +296,21 @@ where
     let mut writer = BufWriter::new(file);
 
     let export_res: Result<(usize, usize), AppError> = async {
-        writeln!(writer, "-- --------------------------------------------------------")?;
+        writeln!(
+            writer,
+            "-- --------------------------------------------------------"
+        )?;
         writeln!(writer, "-- DataCore SQL Dump")?;
         writeln!(writer, "-- Target: {}", dialect)?;
-        writeln!(writer, "-- Generated at: {}", chrono::Utc::now().to_rfc3339())?;
-        writeln!(writer, "-- --------------------------------------------------------\n")?;
+        writeln!(
+            writer,
+            "-- Generated at: {}",
+            chrono::Utc::now().to_rfc3339()
+        )?;
+        writeln!(
+            writer,
+            "-- --------------------------------------------------------\n"
+        )?;
 
         let batch_size = options.batch_size.unwrap_or(500).max(1);
         let mut total_rows = 0usize;
@@ -289,7 +327,8 @@ where
             if !tables_meta.is_empty() {
                 tables_meta.into_iter().map(|t| t.name).collect::<Vec<_>>()
             } else {
-                let fallback = get_table_list_metadata_impl(conn, driver, options.schema.as_deref()).await?;
+                let fallback =
+                    get_table_list_metadata_impl(conn, driver, options.schema.as_deref()).await?;
                 fallback.into_iter().map(|t| t.name).collect::<Vec<_>>()
             }
         } else {
@@ -304,7 +343,9 @@ where
         for (table_idx, table) in target_tables.iter().enumerate() {
             if let Some(ref jid) = options.job_id {
                 if is_transfer_cancelled(jid) {
-                    return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
+                    return Err(AppError::Cancelled(
+                        "SQL export cancelled by user".to_string(),
+                    ));
                 }
             }
 
@@ -317,7 +358,11 @@ where
                     0.0
                 };
                 cb(TransferProgress {
-                    current_row: if estimated_total_rows > 0 { total_rows } else { table_idx },
+                    current_row: if estimated_total_rows > 0 {
+                        total_rows
+                    } else {
+                        table_idx
+                    },
                     total_rows: Some(if estimated_total_rows > 0 {
                         estimated_total_rows.max(total_rows)
                     } else {
@@ -332,103 +377,133 @@ where
                 });
             }
 
-        writeln!(writer, "--")?;
-        writeln!(writer, "-- Table structure and data for `{}`", table)?;
-        writeln!(writer, "--\n")?;
+            writeln!(writer, "--")?;
+            writeln!(writer, "-- Table structure and data for `{}`", table)?;
+            writeln!(writer, "--\n")?;
 
-        let schema_name = options.schema.as_deref();
+            let schema_name = options.schema.as_deref();
 
-        // 1. Drop Table statement
-        if options.include_drop_table {
-            let drop_sql = match driver {
-                DatabaseDriver::Sqlite => format!("DROP TABLE IF EXISTS \"{}\";\n", table.replace('"', "\"\"")),
-                DatabaseDriver::Mysql => {
-                    let schema_prefix = match schema_name {
-                        Some(s) if !s.is_empty() => format!("`{}`.", s.replace('`', "``")),
-                        _ => String::new(),
-                    };
-                    format!("DROP TABLE IF EXISTS {schema_prefix}`{}`;\n", table.replace('`', "``"))
-                }
-                DatabaseDriver::Postgres => {
-                    let s_name = schema_name.unwrap_or("public");
-                    format!("DROP TABLE IF EXISTS \"{}\".\"{}\" CASCADE;\n", s_name.replace('"', "\"\""), table.replace('"', "\"\""))
-                }
-                DatabaseDriver::Duckdb => {
-                    format!("DROP TABLE IF EXISTS \"{}\";\n", table.replace('"', "\"\""))
-                }
-                DatabaseDriver::Mssql => {
-                    let s_name = schema_name.unwrap_or("dbo");
-                    format!("DROP TABLE IF EXISTS [{s_name}].[{}];\n", table.replace(']', "]]"))
-                }
-            };
-            writer.write_all(drop_sql.as_bytes())?;
-        }
-
-        // 2. DDL Structure
-        if options.include_structure {
-            match driver {
-                DatabaseDriver::Sqlite => {
-                    let ddl_query = format!(
-                        "SELECT sql FROM sqlite_schema WHERE type='table' AND name = '{}';",
-                        table.replace('\'', "''")
-                    );
-                    let res = conn.execute_query(&ddl_query).await?;
-                    for row in res.rows {
-                        if let Some(CellValue::Text(ddl)) = row.first() {
-                            writeln!(writer, "{};\n", ddl.trim_end_matches(';'))?;
-                        }
+            // 1. Drop Table statement
+            if options.include_drop_table {
+                let drop_sql = match driver {
+                    DatabaseDriver::Sqlite => {
+                        format!("DROP TABLE IF EXISTS \"{}\";\n", table.replace('"', "\"\""))
                     }
-                }
-                DatabaseDriver::Mysql => {
-                    let schema_prefix = match schema_name {
-                        Some(s) if !s.is_empty() => format!("`{}`.", s.replace('`', "``")),
-                        _ => String::new(),
-                    };
-                    let ddl_query = format!("SHOW CREATE TABLE {schema_prefix}`{}`;", table.replace('`', "``"));
-                    if let Ok(res) = conn.execute_query(&ddl_query).await {
+                    DatabaseDriver::Mysql => {
+                        let schema_prefix = match schema_name {
+                            Some(s) if !s.is_empty() => format!("`{}`.", s.replace('`', "``")),
+                            _ => String::new(),
+                        };
+                        format!(
+                            "DROP TABLE IF EXISTS {schema_prefix}`{}`;\n",
+                            table.replace('`', "``")
+                        )
+                    }
+                    DatabaseDriver::Postgres => {
+                        let s_name = schema_name.unwrap_or("public");
+                        format!(
+                            "DROP TABLE IF EXISTS \"{}\".\"{}\" CASCADE;\n",
+                            s_name.replace('"', "\"\""),
+                            table.replace('"', "\"\"")
+                        )
+                    }
+                    DatabaseDriver::Duckdb => {
+                        format!("DROP TABLE IF EXISTS \"{}\";\n", table.replace('"', "\"\""))
+                    }
+                    DatabaseDriver::Mssql => {
+                        let s_name = schema_name.unwrap_or("dbo");
+                        format!(
+                            "DROP TABLE IF EXISTS [{s_name}].[{}];\n",
+                            table.replace(']', "]]")
+                        )
+                    }
+                };
+                writer.write_all(drop_sql.as_bytes())?;
+            }
+
+            // 2. DDL Structure
+            if options.include_structure {
+                match driver {
+                    DatabaseDriver::Sqlite => {
+                        let ddl_query = format!(
+                            "SELECT sql FROM sqlite_schema WHERE type='table' AND name = '{}';",
+                            table.replace('\'', "''")
+                        );
+                        let res = conn.execute_query(&ddl_query).await?;
                         for row in res.rows {
-                            if let Some(CellValue::Text(ddl)) = row.get(1) {
+                            if let Some(CellValue::Text(ddl)) = row.first() {
                                 writeln!(writer, "{};\n", ddl.trim_end_matches(';'))?;
                             }
                         }
                     }
-                }
-                DatabaseDriver::Postgres => {
-                    let s_name = schema_name.unwrap_or("public");
-                    let cols_query = format!(
-                        r#"SELECT column_name, data_type, is_nullable, column_default 
+                    DatabaseDriver::Mysql => {
+                        let schema_prefix = match schema_name {
+                            Some(s) if !s.is_empty() => format!("`{}`.", s.replace('`', "``")),
+                            _ => String::new(),
+                        };
+                        let ddl_query = format!(
+                            "SHOW CREATE TABLE {schema_prefix}`{}`;",
+                            table.replace('`', "``")
+                        );
+                        if let Ok(res) = conn.execute_query(&ddl_query).await {
+                            for row in res.rows {
+                                if let Some(CellValue::Text(ddl)) = row.get(1) {
+                                    writeln!(writer, "{};\n", ddl.trim_end_matches(';'))?;
+                                }
+                            }
+                        }
+                    }
+                    DatabaseDriver::Postgres => {
+                        let s_name = schema_name.unwrap_or("public");
+                        let cols_query = format!(
+                            r#"SELECT column_name, data_type, is_nullable, column_default 
                            FROM information_schema.columns 
                            WHERE table_schema = '{}' AND table_name = '{}'
                            ORDER BY ordinal_position;"#,
-                        s_name.replace('\'', "''"),
-                        table.replace('\'', "''")
-                    );
-                    if let Ok(res) = conn.execute_query(&cols_query).await {
-                        if !res.rows.is_empty() {
-                            let mut col_defs = Vec::new();
-                            for row in res.rows {
-                                if let (Some(CellValue::Text(name)), Some(CellValue::Text(dtype))) = (row.first(), row.get(1)) {
-                                    let is_not_null = row.get(2).and_then(|c| match c {
-                                        CellValue::Text(t) => Some(t == "NO"),
-                                        _ => None,
-                                    }).unwrap_or(false);
-                                    let default_str = if let Some(CellValue::Text(def)) = row.get(3) {
-                                        if !def.is_empty() {
-                                            format!(" DEFAULT {}", def)
-                                        } else {
-                                            String::new()
-                                        }
-                                    } else {
-                                        String::new()
-                                    };
-                                    let not_null_str = if is_not_null { " NOT NULL" } else { "" };
-                                    col_defs.push(format!("    \"{}\" {}{}{}", name.replace('"', "\"\""), dtype, default_str, not_null_str));
+                            s_name.replace('\'', "''"),
+                            table.replace('\'', "''")
+                        );
+                        if let Ok(res) = conn.execute_query(&cols_query).await {
+                            if !res.rows.is_empty() {
+                                let mut col_defs = Vec::new();
+                                for row in res.rows {
+                                    if let (
+                                        Some(CellValue::Text(name)),
+                                        Some(CellValue::Text(dtype)),
+                                    ) = (row.first(), row.get(1))
+                                    {
+                                        let is_not_null = row
+                                            .get(2)
+                                            .and_then(|c| match c {
+                                                CellValue::Text(t) => Some(t == "NO"),
+                                                _ => None,
+                                            })
+                                            .unwrap_or(false);
+                                        let default_str =
+                                            if let Some(CellValue::Text(def)) = row.get(3) {
+                                                if !def.is_empty() {
+                                                    format!(" DEFAULT {}", def)
+                                                } else {
+                                                    String::new()
+                                                }
+                                            } else {
+                                                String::new()
+                                            };
+                                        let not_null_str =
+                                            if is_not_null { " NOT NULL" } else { "" };
+                                        col_defs.push(format!(
+                                            "    \"{}\" {}{}{}",
+                                            name.replace('"', "\"\""),
+                                            dtype,
+                                            default_str,
+                                            not_null_str
+                                        ));
+                                    }
                                 }
-                            }
 
-                            // Query primary key constraints
-                            let pk_query = format!(
-                                r#"SELECT kcu.column_name 
+                                // Query primary key constraints
+                                let pk_query = format!(
+                                    r#"SELECT kcu.column_name 
                                    FROM information_schema.table_constraints tc 
                                    JOIN information_schema.key_column_usage kcu 
                                      ON tc.constraint_name = kcu.constraint_name 
@@ -437,160 +512,191 @@ where
                                      AND tc.table_schema = '{}' 
                                      AND tc.table_name = '{}' 
                                    ORDER BY kcu.ordinal_position;"#,
-                                s_name.replace('\'', "''"),
-                                table.replace('\'', "''")
-                            );
-                            if let Ok(pk_res) = conn.execute_query(&pk_query).await {
-                                let pk_cols: Vec<String> = pk_res
-                                    .rows
-                                    .into_iter()
-                                    .filter_map(|r| match r.first() {
-                                        Some(CellValue::Text(c)) => Some(format!("\"{}\"", c.replace('"', "\"\""))),
-                                        _ => None,
-                                    })
-                                    .collect();
-                                if !pk_cols.is_empty() {
-                                    col_defs.push(format!("    PRIMARY KEY ({})", pk_cols.join(", ")));
+                                    s_name.replace('\'', "''"),
+                                    table.replace('\'', "''")
+                                );
+                                if let Ok(pk_res) = conn.execute_query(&pk_query).await {
+                                    let pk_cols: Vec<String> = pk_res
+                                        .rows
+                                        .into_iter()
+                                        .filter_map(|r| match r.first() {
+                                            Some(CellValue::Text(c)) => {
+                                                Some(format!("\"{}\"", c.replace('"', "\"\"")))
+                                            }
+                                            _ => None,
+                                        })
+                                        .collect();
+                                    if !pk_cols.is_empty() {
+                                        col_defs.push(format!(
+                                            "    PRIMARY KEY ({})",
+                                            pk_cols.join(", ")
+                                        ));
+                                    }
+                                }
+
+                                writeln!(
+                                    writer,
+                                    "CREATE TABLE \"{}\".\"{}\" (\n{}\n);\n",
+                                    s_name.replace('"', "\"\""),
+                                    table.replace('"', "\"\""),
+                                    col_defs.join(",\n")
+                                )?;
+                            }
+                        }
+                    }
+                    DatabaseDriver::Duckdb => {
+                        let ddl_query = format!(
+                            "SELECT sql FROM duckdb_tables() WHERE table_name = '{}';",
+                            table.replace('\'', "''")
+                        );
+                        if let Ok(res) = conn.execute_query(&ddl_query).await {
+                            for row in res.rows {
+                                if let Some(CellValue::Text(ddl)) = row.first() {
+                                    writeln!(writer, "{};\n", ddl.trim_end_matches(';'))?;
                                 }
                             }
-
-                            writeln!(writer, "CREATE TABLE \"{}\".\"{}\" (\n{}\n);\n",
-                                s_name.replace('"', "\"\""),
-                                table.replace('"', "\"\""),
-                                col_defs.join(",\n")
-                            )?;
                         }
                     }
-                }
-                DatabaseDriver::Duckdb => {
-                    let ddl_query = format!("SELECT sql FROM duckdb_tables() WHERE table_name = '{}';", table.replace('\'', "''"));
-                    if let Ok(res) = conn.execute_query(&ddl_query).await {
-                        for row in res.rows {
-                            if let Some(CellValue::Text(ddl)) = row.first() {
-                                writeln!(writer, "{};\n", ddl.trim_end_matches(';'))?;
-                            }
-                        }
+                    DatabaseDriver::Mssql => {
+                        let s_name = schema_name.unwrap_or("dbo");
+                        writeln!(
+                            writer,
+                            "-- DDL for [{s_name}].[{}]",
+                            table.replace(']', "]]")
+                        )?;
                     }
-                }
-                DatabaseDriver::Mssql => {
-                    let s_name = schema_name.unwrap_or("dbo");
-                    writeln!(writer, "-- DDL for [{s_name}].[{}]", table.replace(']', "]]"))?;
                 }
             }
-        }
 
-        // 3. Table Data (Streamed in batches of `batch_size` rows via single-statement stream_query)
-        if options.include_data {
-            let quoted_table = match driver {
-                DatabaseDriver::Sqlite => format!("\"{}\"", table.replace('"', "\"\"")),
-                DatabaseDriver::Mysql => {
-                    let schema_prefix = match schema_name {
-                        Some(s) if !s.is_empty() => format!("`{}`.", s.replace('`', "``")),
-                        _ => String::new(),
-                    };
-                    format!("{schema_prefix}`{}`", table.replace('`', "``"))
-                }
-                DatabaseDriver::Postgres => {
-                    let s_name = schema_name.unwrap_or("public");
-                    format!("\"{}\".\"{}\"", s_name.replace('"', "\"\""), table.replace('"', "\"\""))
-                }
-                DatabaseDriver::Duckdb => {
-                    format!("\"{}\"", table.replace('"', "\"\""))
-                }
-                DatabaseDriver::Mssql => {
-                    let s_name = schema_name.unwrap_or("dbo");
-                    format!("[{s_name}].[{}]", table.replace(']', "]]"))
-                }
-            };
+            // 3. Table Data (Streamed in batches of `batch_size` rows via single-statement stream_query)
+            if options.include_data {
+                let quoted_table = match driver {
+                    DatabaseDriver::Sqlite => format!("\"{}\"", table.replace('"', "\"\"")),
+                    DatabaseDriver::Mysql => {
+                        let schema_prefix = match schema_name {
+                            Some(s) if !s.is_empty() => format!("`{}`.", s.replace('`', "``")),
+                            _ => String::new(),
+                        };
+                        format!("{schema_prefix}`{}`", table.replace('`', "``"))
+                    }
+                    DatabaseDriver::Postgres => {
+                        let s_name = schema_name.unwrap_or("public");
+                        format!(
+                            "\"{}\".\"{}\"",
+                            s_name.replace('"', "\"\""),
+                            table.replace('"', "\"\"")
+                        )
+                    }
+                    DatabaseDriver::Duckdb => {
+                        format!("\"{}\"", table.replace('"', "\"\""))
+                    }
+                    DatabaseDriver::Mssql => {
+                        let s_name = schema_name.unwrap_or("dbo");
+                        format!("[{s_name}].[{}]", table.replace(']', "]]"))
+                    }
+                };
 
-            let select_sql = format!("SELECT * FROM {};", quoted_table);
-            let (tx, mut rx) = tokio::sync::mpsc::channel::<Chunk>(4);
-            let stream_fut = conn.stream_query(&select_sql, batch_size, tx);
-            let total_rows_ref = &mut total_rows;
-            let on_progress_ref = &on_progress;
-            let file_path_ref = &options.file_path;
-            let job_id_ref = &options.job_id;
-            let consume_fut = async {
-                while let Some(chunk) = rx.recv().await {
-                    if let Some(ref jid) = job_id_ref {
-                        if is_transfer_cancelled(jid) {
-                            remove_cancellation_token(jid);
+                let select_sql = format!("SELECT * FROM {};", quoted_table);
+                let (tx, mut rx) = tokio::sync::mpsc::channel::<Chunk>(4);
+                let stream_fut = conn.stream_query(&select_sql, batch_size, tx);
+                let total_rows_ref = &mut total_rows;
+                let on_progress_ref = &on_progress;
+                let file_path_ref = &options.file_path;
+                let job_id_ref = &options.job_id;
+                let consume_fut = async {
+                    while let Some(chunk) = rx.recv().await {
+                        if let Some(ref jid) = job_id_ref {
+                            if is_transfer_cancelled(jid) {
+                                remove_cancellation_token(jid);
+                                drop(rx);
+                                return Err(AppError::Cancelled(
+                                    "SQL export cancelled by user".to_string(),
+                                ));
+                            }
+                        }
+
+                        if chunk.rows.is_empty() || chunk.columns.is_empty() {
+                            continue;
+                        }
+
+                        let fetched_count = chunk.rows.len();
+                        *total_rows_ref += fetched_count;
+
+                        let quoted_cols: Vec<String> = chunk
+                            .columns
+                            .iter()
+                            .map(|c| match driver {
+                                DatabaseDriver::Mysql => format!("`{}`", c.name.replace('`', "``")),
+                                _ => format!("\"{}\"", c.name.replace('"', "\"\"")),
+                            })
+                            .collect();
+
+                        let cols_joined = quoted_cols.join(", ");
+
+                        let mut value_tuples = Vec::with_capacity(fetched_count);
+                        for row in &chunk.rows {
+                            let formatted: Vec<String> =
+                                row.iter().map(|v| format_cell_value(v, dialect)).collect();
+                            value_tuples.push(format!("({})", formatted.join(", ")));
+                        }
+
+                        if let Err(e) = writeln!(
+                            writer,
+                            "INSERT INTO {} ({}) VALUES\n{};\n",
+                            quoted_table,
+                            cols_joined,
+                            value_tuples.join(",\n")
+                        ) {
                             drop(rx);
-                            return Err(AppError::Cancelled("SQL export cancelled by user".to_string()));
+                            return Err(AppError::from(e));
+                        }
+
+                        if let Some(ref cb) = on_progress_ref {
+                            let current = *total_rows_ref;
+                            let pct = if estimated_total_rows > 0 {
+                                ((current as f64 / estimated_total_rows as f64) * 100.0)
+                                    .clamp(0.0, 99.0)
+                            } else if total_tables > 0 {
+                                (((table_idx as f64 + 0.5) / total_tables as f64) * 100.0)
+                                    .clamp(0.0, 99.0)
+                            } else {
+                                0.0
+                            };
+                            cb(TransferProgress {
+                                current_row: if estimated_total_rows > 0 {
+                                    current
+                                } else {
+                                    table_idx + 1
+                                },
+                                total_rows: Some(if estimated_total_rows > 0 {
+                                    estimated_total_rows.max(current)
+                                } else {
+                                    total_tables.max(1)
+                                }),
+                                status: format!(
+                                    "Exporting {} ({}/{})",
+                                    table,
+                                    table_idx + 1,
+                                    total_tables
+                                ),
+                                job_id: job_id_ref.clone(),
+                                rows_processed: Some(current),
+                                bytes_written: std::fs::metadata(file_path_ref)
+                                    .ok()
+                                    .map(|m| m.len()),
+                                elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
+                                percent: Some(pct),
+                            });
                         }
                     }
+                    Ok::<(), AppError>(())
+                };
 
-                    if chunk.rows.is_empty() || chunk.columns.is_empty() {
-                        continue;
-                    }
-
-                    let fetched_count = chunk.rows.len();
-                    *total_rows_ref += fetched_count;
-
-                    let quoted_cols: Vec<String> = chunk
-                        .columns
-                        .iter()
-                        .map(|c| match driver {
-                            DatabaseDriver::Mysql => format!("`{}`", c.name.replace('`', "``")),
-                            _ => format!("\"{}\"", c.name.replace('"', "\"\"")),
-                        })
-                        .collect();
-
-                    let cols_joined = quoted_cols.join(", ");
-
-                    let mut value_tuples = Vec::with_capacity(fetched_count);
-                    for row in &chunk.rows {
-                        let formatted: Vec<String> = row
-                            .iter()
-                            .map(|v| format_cell_value(v, dialect))
-                            .collect();
-                        value_tuples.push(format!("({})", formatted.join(", ")));
-                    }
-
-                    if let Err(e) = writeln!(
-                        writer,
-                        "INSERT INTO {} ({}) VALUES\n{};\n",
-                        quoted_table,
-                        cols_joined,
-                        value_tuples.join(",\n")
-                    ) {
-                        drop(rx);
-                        return Err(AppError::from(e));
-                    }
-
-                    if let Some(ref cb) = on_progress_ref {
-                        let current = *total_rows_ref;
-                        let pct = if estimated_total_rows > 0 {
-                            ((current as f64 / estimated_total_rows as f64) * 100.0).clamp(0.0, 99.0)
-                        } else if total_tables > 0 {
-                            (((table_idx as f64 + 0.5) / total_tables as f64) * 100.0).clamp(0.0, 99.0)
-                        } else {
-                            0.0
-                        };
-                        cb(TransferProgress {
-                            current_row: if estimated_total_rows > 0 { current } else { table_idx + 1 },
-                            total_rows: Some(if estimated_total_rows > 0 {
-                                estimated_total_rows.max(current)
-                            } else {
-                                total_tables.max(1)
-                            }),
-                            status: format!("Exporting {} ({}/{})", table, table_idx + 1, total_tables),
-                            job_id: job_id_ref.clone(),
-                            rows_processed: Some(current),
-                            bytes_written: std::fs::metadata(file_path_ref).ok().map(|m| m.len()),
-                            elapsed_ms: Some(start_time.elapsed().as_millis() as u64),
-                            percent: Some(pct),
-                        });
-                    }
-                }
-                Ok::<(), AppError>(())
-            };
-
-            let (stream_res, consume_res) = tokio::join!(stream_fut, consume_fut);
-            consume_res?;
-            stream_res?;
+                let (stream_res, consume_res) = tokio::join!(stream_fut, consume_fut);
+                consume_res?;
+                stream_res?;
+            }
         }
-    }
 
         writer.flush()?;
         Ok((total_tables, total_rows))
@@ -675,7 +781,8 @@ where
     }
 
     for line_res in reader.lines() {
-        let line = line_res.map_err(|e| AppError::Other(format!("Failed to read SQL script line: {}", e)))?;
+        let line = line_res
+            .map_err(|e| AppError::Other(format!("Failed to read SQL script line: {}", e)))?;
         bytes_read = bytes_read.saturating_add(line.len() as u64 + 1);
         let trimmed_line = line.trim();
 
@@ -686,7 +793,9 @@ where
                     let _ = conn.execute_query("ROLLBACK").await;
                 }
                 remove_cancellation_token(jid);
-                return Err(AppError::Cancelled("SQL import cancelled by user".to_string()));
+                return Err(AppError::Cancelled(
+                    "SQL import cancelled by user".to_string(),
+                ));
             }
         }
 
@@ -710,7 +819,11 @@ where
 
         while i < len {
             let c = chars[i];
-            let next_c = if i + 1 < len { Some(chars[i + 1]) } else { None };
+            let next_c = if i + 1 < len {
+                Some(chars[i + 1])
+            } else {
+                None
+            };
 
             // Handle block comment
             if in_block_comment {
@@ -727,7 +840,12 @@ where
             }
 
             // Start block comment
-            if !in_single_quote && !in_double_quote && !in_backtick && c == '/' && next_c == Some('*') {
+            if !in_single_quote
+                && !in_double_quote
+                && !in_backtick
+                && c == '/'
+                && next_c == Some('*')
+            {
                 in_block_comment = true;
                 current_stmt.push(c);
                 current_stmt.push('*');
@@ -790,15 +908,19 @@ where
                                         let _ = conn.execute_query("ROLLBACK").await;
                                     }
                                     remove_cancellation_token(jid);
-                                    return Err(AppError::Cancelled("SQL import cancelled by user".to_string()));
+                                    return Err(AppError::Cancelled(
+                                        "SQL import cancelled by user".to_string(),
+                                    ));
                                 }
                             }
 
                             executed_count += 1;
                             if let Some(ref cb) = on_progress {
-                                let pct = ((bytes_read as f64 / total_file_bytes as f64) * 100.0).clamp(1.0, 99.0);
-                                let estimated_total_stmts = ((executed_count as f64 / (pct / 100.0)).round() as usize)
-                                    .max(executed_count + 1);
+                                let pct = ((bytes_read as f64 / total_file_bytes as f64) * 100.0)
+                                    .clamp(1.0, 99.0);
+                                let estimated_total_stmts =
+                                    ((executed_count as f64 / (pct / 100.0)).round() as usize)
+                                        .max(executed_count + 1);
                                 cb(TransferProgress {
                                     current_row: executed_count,
                                     total_rows: Some(estimated_total_stmts),
@@ -848,7 +970,9 @@ where
                     let _ = conn.execute_query("ROLLBACK").await;
                 }
                 remove_cancellation_token(jid);
-                return Err(AppError::Cancelled("SQL import cancelled by user".to_string()));
+                return Err(AppError::Cancelled(
+                    "SQL import cancelled by user".to_string(),
+                ));
             }
         }
 
@@ -1049,7 +1173,9 @@ mod tests {
 
         let captured = events.lock().unwrap();
         assert!(captured.len() >= 3);
-        assert!(captured.iter().all(|p| p.percent.is_some() && p.total_rows.is_some()));
+        assert!(captured
+            .iter()
+            .all(|p| p.percent.is_some() && p.total_rows.is_some()));
         let last = captured.last().unwrap();
         assert_eq!(last.status, "done");
         assert_eq!(last.percent, Some(100.0));

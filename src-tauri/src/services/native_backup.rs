@@ -1,7 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
-use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -52,7 +52,8 @@ pub struct NativeProgressEvent {
 }
 
 fn get_running_native_tasks() -> &'static Mutex<HashMap<String, tokio::sync::oneshot::Sender<()>>> {
-    static TASKS: OnceLock<Mutex<HashMap<String, tokio::sync::oneshot::Sender<()>>>> = OnceLock::new();
+    static TASKS: OnceLock<Mutex<HashMap<String, tokio::sync::oneshot::Sender<()>>>> =
+        OnceLock::new();
     TASKS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -149,7 +150,10 @@ pub fn validate_cli_arg_no_leading_dash(label: &str, value: &str) -> Result<(), 
         )));
     }
     if value.trim().is_empty() {
-        return Err(AppError::Other(format!("Invalid {}: cannot be empty", label)));
+        return Err(AppError::Other(format!(
+            "Invalid {}: cannot be empty",
+            label
+        )));
     }
     if value.trim_start().starts_with('-') {
         return Err(AppError::Other(format!(
@@ -173,14 +177,24 @@ fn validate_no_control_chars(label: &str, value: &str) -> Result<(), AppError> {
 fn create_mysql_defaults_file(password: &str) -> Result<tempfile::NamedTempFile, AppError> {
     use std::io::Write;
 
-    let mut tmp = tempfile::NamedTempFile::new()
-        .map_err(|e| AppError::Other(format!("Failed to create temporary MySQL defaults file: {}", e)))?;
+    let mut tmp = tempfile::NamedTempFile::new().map_err(|e| {
+        AppError::Other(format!(
+            "Failed to create temporary MySQL defaults file: {}",
+            e
+        ))
+    })?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o600))
-            .map_err(|e| AppError::Other(format!("Failed to set 0600 permissions on MySQL defaults file: {}", e)))?;
+        std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o600)).map_err(
+            |e| {
+                AppError::Other(format!(
+                    "Failed to set 0600 permissions on MySQL defaults file: {}",
+                    e
+                ))
+            },
+        )?;
     }
 
     let escaped = password
@@ -528,7 +542,10 @@ pub async fn cancel_running_native_task(task_id: &str) -> Result<(), AppError> {
         let _ = sender.send(());
         Ok(())
     } else {
-        Err(AppError::NotFound(format!("Task '{}' not found or already finished", task_id)))
+        Err(AppError::NotFound(format!(
+            "Task '{}' not found or already finished",
+            task_id
+        )))
     }
 }
 
@@ -563,12 +580,19 @@ where
         .stderr(std::process::Stdio::piped());
 
     if let Some(in_path) = stdin_file {
-        let file = std::fs::File::open(&in_path)
-            .map_err(|e| AppError::Other(format!("Failed to open input file '{}': {}", in_path.display(), e)))?;
+        let file = std::fs::File::open(&in_path).map_err(|e| {
+            AppError::Other(format!(
+                "Failed to open input file '{}': {}",
+                in_path.display(),
+                e
+            ))
+        })?;
         cmd.stdin(std::process::Stdio::from(file));
     }
 
-    let mut child = cmd.spawn().map_err(|e| AppError::Other(format!("Failed to spawn process: {}", e)))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| AppError::Other(format!("Failed to spawn process: {}", e)))?;
 
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();

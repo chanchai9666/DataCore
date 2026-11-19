@@ -5,6 +5,11 @@ import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
 
 vi.mock('./api/db', () => ({
+  getVaultStatus: vi.fn().mockResolvedValue({
+    hasMasterPassword: false,
+    isUnlocked: true,
+    keychainOptIn: false,
+  }),
   dbApi: {
     getConnections: vi.fn().mockResolvedValue([]),
     getSchemaTree: vi.fn().mockResolvedValue([]),

@@ -3,11 +3,11 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use zeroize::{Zeroize, Zeroizing};
 
+use crate::drivers::duckdb::DuckdbConnection;
+use crate::drivers::mssql::MssqlConnection;
 use crate::drivers::mysql::MySqlConnection;
 use crate::drivers::postgres::PostgresConnection;
 use crate::drivers::sqlite::SqliteConnection;
-use crate::drivers::duckdb::DuckdbConnection;
-use crate::drivers::mssql::MssqlConnection;
 use crate::drivers::traits::DatabaseConnection;
 use crate::error::AppError;
 use crate::models::connection::{ConnectionConfig, DatabaseDriver};
@@ -36,7 +36,11 @@ impl SessionManager {
     }
 
     /// Stores password temporarily in RAM for the lifetime of this session/connection wrapped in Zeroizing
-    pub async fn set_session_password(&self, connection_id: impl Into<String>, password: impl Into<String>) {
+    pub async fn set_session_password(
+        &self,
+        connection_id: impl Into<String>,
+        password: impl Into<String>,
+    ) {
         let mut map = self.session_passwords.write().await;
         map.insert(connection_id.into(), Zeroizing::new(password.into()));
     }
@@ -56,7 +60,11 @@ impl SessionManager {
     }
 
     /// Stores SSH passphrase temporarily in RAM for the lifetime of this session/connection wrapped in Zeroizing
-    pub async fn set_session_ssh_passphrase(&self, connection_id: impl Into<String>, passphrase: impl Into<String>) {
+    pub async fn set_session_ssh_passphrase(
+        &self,
+        connection_id: impl Into<String>,
+        passphrase: impl Into<String>,
+    ) {
         let mut map = self.session_ssh_passphrases.write().await;
         map.insert(connection_id.into(), Zeroizing::new(passphrase.into()));
     }
@@ -135,7 +143,8 @@ impl SessionManager {
         let conn = Self::create_connection(config, password).await?;
         let tab_id = tab_id.into();
         let connection_id = connection_id.into();
-        self.register_session(tab_id.clone(), connection_id, conn.clone()).await;
+        self.register_session(tab_id.clone(), connection_id, conn.clone())
+            .await;
         Ok(conn)
     }
 
@@ -170,7 +179,10 @@ impl SessionManager {
     }
 
     /// Close and remove all sessions associated with a connection_id, rolling back any transactions.
-    pub async fn close_sessions_for_connection(&self, connection_id: &str) -> Result<usize, AppError> {
+    pub async fn close_sessions_for_connection(
+        &self,
+        connection_id: &str,
+    ) -> Result<usize, AppError> {
         let entries_to_close: Vec<SessionEntry> = {
             let mut map = self.sessions.write().await;
             let tab_ids_to_remove: Vec<String> = map

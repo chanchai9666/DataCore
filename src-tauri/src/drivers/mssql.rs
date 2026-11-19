@@ -1,15 +1,17 @@
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
+use tiberius::{AuthMethod, Client, Config, Query};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
-use tiberius::{AuthMethod, Client, Config, Query};
 
+use crate::drivers::is_write_sql;
+use crate::drivers::traits::{
+    build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome,
+};
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
-use crate::drivers::is_write_sql;
-use crate::drivers::traits::{build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome};
 use crate::services::ssh_tunnel::SshTunnelHandle;
 
 type TiberiusClient = Client<Compat<TcpStream>>;
@@ -45,7 +47,8 @@ impl MssqlConnection {
         let mut tunnel_handle: Option<SshTunnelHandle> = None;
         let (target_host, target_port) = if let Some(ref ssh) = config.ssh_tunnel {
             if ssh.enabled {
-                let handle = SshTunnelHandle::establish(ssh, remote_host, remote_port, timeout_secs).await?;
+                let handle =
+                    SshTunnelHandle::establish(ssh, remote_host, remote_port, timeout_secs).await?;
                 let port = handle.local_port();
                 tunnel_handle = Some(handle);
                 ("127.0.0.1".to_string(), port)
@@ -65,9 +68,12 @@ impl MssqlConnection {
             t_config.trust_cert();
         }
 
-        let tcp = TcpStream::connect(t_config.get_addr())
-            .await
-            .map_err(|e| AppError::Database(format!("MSSQL connection to {}:{} failed: {}", target_host, target_port, e)))?;
+        let tcp = TcpStream::connect(t_config.get_addr()).await.map_err(|e| {
+            AppError::Database(format!(
+                "MSSQL connection to {}:{} failed: {}",
+                target_host, target_port, e
+            ))
+        })?;
         tcp.set_nodelay(true)
             .map_err(|e| AppError::Database(format!("Failed to set TCP nodelay: {}", e)))?;
 
@@ -112,7 +118,9 @@ impl MssqlConnection {
                 cells.push(CellValue::Text(d.to_string()));
             } else if let Ok(Some(bytes)) = row.try_get::<&[u8], _>(i) {
                 use base64::Engine;
-                cells.push(CellValue::Bytes(base64::engine::general_purpose::STANDARD.encode(bytes)));
+                cells.push(CellValue::Bytes(
+                    base64::engine::general_purpose::STANDARD.encode(bytes),
+                ));
             } else {
                 let is_null = row.try_get::<&str, _>(i).is_ok();
                 if is_null {
@@ -164,11 +172,13 @@ impl DatabaseConnection for MssqlConnection {
         }
 
         let query = Query::new(trimmed);
-        let stream = query.query(&mut *client)
+        let stream = query
+            .query(&mut *client)
             .await
             .map_err(|e| AppError::Database(format!("MSSQL query error: {}", e)))?;
 
-        let result_set = stream.into_first_result()
+        let result_set = stream
+            .into_first_result()
             .await
             .map_err(|e| AppError::Database(format!("MSSQL result fetch error: {}", e)))?;
 
@@ -333,14 +343,22 @@ impl DatabaseConnection for MssqlConnection {
         sort_dir: Option<&str>,
     ) -> Result<QueryResult, AppError> {
         let schema_name = schema.unwrap_or("dbo");
-        let from_clause = format!("[{}].[{}]", schema_name.replace(']', "]]"), table.replace(']', "]]"));
+        let from_clause = format!(
+            "[{}].[{}]",
+            schema_name.replace(']', "]]"),
+            table.replace(']', "]]")
+        );
 
         let where_clause = build_safe_where_clause(filter, "mssql")?;
 
         let order_clause = match sort_col {
             Some(col) if !col.trim().is_empty() => {
                 let escaped_col = col.trim().replace(']', "]]");
-                let dir = if sort_dir == Some("DESC") { "DESC" } else { "ASC" };
+                let dir = if sort_dir == Some("DESC") {
+                    "DESC"
+                } else {
+                    "ASC"
+                };
                 format!(" ORDER BY [{}] {}", escaped_col, dir)
             }
             _ => " ORDER BY (SELECT NULL)".to_string(),
@@ -354,10 +372,14 @@ impl DatabaseConnection for MssqlConnection {
                 table.replace('\'', "''")
             );
             match self.execute_query(&approx_sql).await {
-                Ok(r) => r.rows.first().and_then(|row| row.first()).and_then(|v| match v {
-                    CellValue::Integer(n) if *n >= 0 => Some(*n as u64),
-                    _ => None,
-                }),
+                Ok(r) => r
+                    .rows
+                    .first()
+                    .and_then(|row| row.first())
+                    .and_then(|v| match v {
+                        CellValue::Integer(n) if *n >= 0 => Some(*n as u64),
+                        _ => None,
+                    }),
                 Err(_) => None,
             }
         } else {
@@ -405,7 +427,8 @@ impl DatabaseConnection for MssqlConnection {
                    ORDER BY schema_name, table_name;";
 
         let res = self.execute_query(sql).await?;
-        let mut schema_map: std::collections::BTreeMap<String, Vec<SchemaNode>> = std::collections::BTreeMap::new();
+        let mut schema_map: std::collections::BTreeMap<String, Vec<SchemaNode>> =
+            std::collections::BTreeMap::new();
 
         for row in res.rows {
             if row.len() >= 3 {
@@ -435,8 +458,8 @@ impl DatabaseConnection for MssqlConnection {
 
         let mut children = Vec::new();
         for (schema_name, tables) in schema_map {
-            let schema_node = SchemaNode::new(schema_name, SchemaNodeType::Schema)
-                .with_children(tables);
+            let schema_node =
+                SchemaNode::new(schema_name, SchemaNodeType::Schema).with_children(tables);
             children.push(schema_node);
         }
 
@@ -480,7 +503,10 @@ impl DatabaseConnection for MssqlConnection {
                 return Ok(ddl.clone());
             }
         }
-        Err(AppError::NotFound(format!("DDL for object '{}.{}' not found", s_name, name)))
+        Err(AppError::NotFound(format!(
+            "DDL for object '{}.{}' not found",
+            s_name, name
+        )))
     }
 }
 

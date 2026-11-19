@@ -1,18 +1,18 @@
-pub mod traits;
-pub mod keyset;
-pub mod sqlite;
-pub mod postgres;
-pub mod mysql;
 pub mod duckdb;
+pub mod keyset;
 pub mod mssql;
+pub mod mysql;
+pub mod postgres;
+pub mod sqlite;
+pub mod traits;
 
-pub use traits::*;
-pub use keyset::*;
-pub use sqlite::*;
-pub use postgres::*;
-pub use mysql::*;
 pub use duckdb::*;
+pub use keyset::*;
 pub use mssql::*;
+pub use mysql::*;
+pub use postgres::*;
+pub use sqlite::*;
+pub use traits::*;
 
 use crate::models::QueryResult;
 
@@ -52,9 +52,9 @@ pub(crate) fn reconcile_page_row_count(
 }
 
 #[cfg(test)]
-mod sqlite_test;
-#[cfg(test)]
 mod duckdb_test;
+#[cfg(test)]
+mod sqlite_test;
 
 /// Extracts uppercase SQL identifier/keyword tokens per statement, skipping comments and string literals.
 fn tokenize_sql_statements(sql: &str) -> Vec<Vec<(String, usize)>> {
@@ -242,7 +242,9 @@ mod tests {
 
     fn make_result_with_rows(count: usize) -> QueryResult {
         let mut res = QueryResult::new(vec![], vec![], 1, None);
-        res.rows = (0..count).map(|i| vec![CellValue::Integer(i as i64)]).collect();
+        res.rows = (0..count)
+            .map(|i| vec![CellValue::Integer(i as i64)])
+            .collect();
         res
     }
 
@@ -289,18 +291,32 @@ mod tests {
     #[test]
     fn read_only_sql_blocks_bypass_vectors() {
         assert!(is_read_only_blocked_sql("SELECT 1; DELETE FROM users;"));
-        assert!(is_read_only_blocked_sql("WITH d AS (DELETE FROM users RETURNING *) SELECT * FROM d"));
-        assert!(is_read_only_blocked_sql("WITH u AS (UPDATE users SET a = 1) SELECT 1"));
-        assert!(is_read_only_blocked_sql("SELECT * INTO backup_users FROM users"));
+        assert!(is_read_only_blocked_sql(
+            "WITH d AS (DELETE FROM users RETURNING *) SELECT * FROM d"
+        ));
+        assert!(is_read_only_blocked_sql(
+            "WITH u AS (UPDATE users SET a = 1) SELECT 1"
+        ));
+        assert!(is_read_only_blocked_sql(
+            "SELECT * INTO backup_users FROM users"
+        ));
         assert!(is_read_only_blocked_sql("PRAGMA query_only = OFF;"));
-        assert!(is_read_only_blocked_sql("EXEC sp_executesql N'DROP TABLE users'"));
+        assert!(is_read_only_blocked_sql(
+            "EXEC sp_executesql N'DROP TABLE users'"
+        ));
         assert!(is_read_only_blocked_sql("CALL dangerous_proc()"));
         assert!(is_read_only_blocked_sql("COPY users TO '/tmp/out.csv'"));
-        assert!(is_read_only_blocked_sql("EXPLAIN ANALYZE DELETE FROM users"));
+        assert!(is_read_only_blocked_sql(
+            "EXPLAIN ANALYZE DELETE FROM users"
+        ));
 
         // Safe queries including keywords inside string literals or comments
-        assert!(!is_read_only_blocked_sql("SELECT 'DELETE FROM users; PRAGMA query_only = OFF' AS msg"));
+        assert!(!is_read_only_blocked_sql(
+            "SELECT 'DELETE FROM users; PRAGMA query_only = OFF' AS msg"
+        ));
         assert!(!is_read_only_blocked_sql("-- INSERT INTO users\n/* DROP TABLE x */ SELECT id, name FROM users WHERE note = 'INTO'"));
-        assert!(!is_read_only_blocked_sql("WITH cte AS (SELECT id FROM users) SELECT * FROM cte"));
+        assert!(!is_read_only_blocked_sql(
+            "WITH cte AS (SELECT id FROM users) SELECT * FROM cte"
+        ));
     }
 }

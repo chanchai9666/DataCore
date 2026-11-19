@@ -1,7 +1,6 @@
-use tauri::State;
 use crate::drivers::{
-    build_keyset_clause, build_safe_where_clause, quote_keyset_table_ref, Chunk, DatabaseConnection,
-    KeysetDirection, SchemaNode,
+    build_keyset_clause, build_safe_where_clause, quote_keyset_table_ref, Chunk,
+    DatabaseConnection, KeysetDirection, SchemaNode,
 };
 use crate::error::AppError;
 use crate::models::{
@@ -10,6 +9,7 @@ use crate::models::{
 };
 use crate::services::{AuditLogEntryInput, AuditLogger, ConnectionStore, WorkspaceStore};
 use crate::session::SessionManager;
+use tauri::State;
 
 pub const DEFAULT_QUERY_ROW_CAP: usize = 10_000;
 pub const DEFAULT_QUERY_BYTE_CAP: usize = 64 * 1024 * 1024;
@@ -116,7 +116,8 @@ pub async fn test_connection_impl(
         Some(p) if !p.is_empty() => Some(p.to_string()),
         _ => store.get_password(&config.id).ok().flatten(),
     };
-    let conn = SessionManager::create_connection(&resolved_config, resolved_password.as_deref()).await?;
+    let conn =
+        SessionManager::create_connection(&resolved_config, resolved_password.as_deref()).await?;
     conn.test_connection().await
 }
 
@@ -185,7 +186,9 @@ pub async fn set_session_password_impl(
     connection_id: &str,
     password: &str,
 ) -> Result<(), AppError> {
-    session_mgr.set_session_password(connection_id, password).await;
+    session_mgr
+        .set_session_password(connection_id, password)
+        .await;
     Ok(())
 }
 
@@ -221,7 +224,9 @@ pub async fn set_session_ssh_passphrase_impl(
     connection_id: &str,
     passphrase: &str,
 ) -> Result<(), AppError> {
-    session_mgr.set_session_ssh_passphrase(connection_id, passphrase).await;
+    session_mgr
+        .set_session_ssh_passphrase(connection_id, passphrase)
+        .await;
     Ok(())
 }
 
@@ -240,7 +245,11 @@ pub async fn close_session_impl(
     let res = session_mgr.close_session(tab_id).await;
     let _ = AuditLogger::global().log(AuditLogEntryInput {
         action: "DISCONNECT".to_string(),
-        status: if res.is_ok() { "SUCCESS".to_string() } else { "FAILURE".to_string() },
+        status: if res.is_ok() {
+            "SUCCESS".to_string()
+        } else {
+            "FAILURE".to_string()
+        },
         details: Some(format!("tab_id={}", tab_id)),
         ..Default::default()
     });
@@ -252,7 +261,9 @@ pub async fn disconnect_connection_impl(
     session_mgr: &SessionManager,
     connection_id: &str,
 ) -> Result<usize, AppError> {
-    let closed = session_mgr.close_sessions_for_connection(connection_id).await?;
+    let closed = session_mgr
+        .close_sessions_for_connection(connection_id)
+        .await?;
     store.vault().clear_cache();
     let _ = AuditLogger::global().log(AuditLogEntryInput {
         action: "DISCONNECT".to_string(),
@@ -285,13 +296,30 @@ pub async fn execute_query_impl(
     let elapsed = start.elapsed().as_millis() as u64;
 
     let trimmed = sql.trim().to_uppercase();
-    let action = if trimmed.starts_with("SELECT") || trimmed.starts_with("WITH") || trimmed.starts_with("EXPLAIN") {
+    let action = if trimmed.starts_with("SELECT")
+        || trimmed.starts_with("WITH")
+        || trimmed.starts_with("EXPLAIN")
+    {
         "QUERY"
-    } else if trimmed.starts_with("INSERT") || trimmed.starts_with("UPDATE") || trimmed.starts_with("DELETE") || trimmed.starts_with("REPLACE") {
+    } else if trimmed.starts_with("INSERT")
+        || trimmed.starts_with("UPDATE")
+        || trimmed.starts_with("DELETE")
+        || trimmed.starts_with("REPLACE")
+    {
         "DML"
-    } else if trimmed.starts_with("CREATE") || trimmed.starts_with("ALTER") || trimmed.starts_with("DROP") || trimmed.starts_with("TRUNCATE") || trimmed.starts_with("RENAME") {
+    } else if trimmed.starts_with("CREATE")
+        || trimmed.starts_with("ALTER")
+        || trimmed.starts_with("DROP")
+        || trimmed.starts_with("TRUNCATE")
+        || trimmed.starts_with("RENAME")
+    {
         "DDL"
-    } else if trimmed.starts_with("BEGIN") || trimmed.starts_with("COMMIT") || trimmed.starts_with("ROLLBACK") || trimmed.starts_with("SAVEPOINT") || trimmed.starts_with("RELEASE") {
+    } else if trimmed.starts_with("BEGIN")
+        || trimmed.starts_with("COMMIT")
+        || trimmed.starts_with("ROLLBACK")
+        || trimmed.starts_with("SAVEPOINT")
+        || trimmed.starts_with("RELEASE")
+    {
         "TRANSACTION"
     } else {
         "QUERY"
@@ -329,7 +357,8 @@ pub async fn fetch_table_data_impl(
     sort_dir: Option<&str>,
 ) -> Result<QueryResult, AppError> {
     let conn = session_mgr.get_session(tab_id).await?;
-    conn.fetch_table_data(schema, table, limit, offset, filter, sort_col, sort_dir).await
+    conn.fetch_table_data(schema, table, limit, offset, filter, sort_col, sort_dir)
+        .await
 }
 
 pub async fn count_table_rows_impl(
@@ -418,7 +447,10 @@ pub async fn fetch_table_data_keyset_impl(
 
     let mut res = conn.execute_query(&sql).await?;
     for col in &mut res.columns {
-        if key_columns.iter().any(|k| k.eq_ignore_ascii_case(&col.name)) {
+        if key_columns
+            .iter()
+            .any(|k| k.eq_ignore_ascii_case(&col.name))
+        {
             col.is_primary_key = Some(true);
         }
     }
@@ -453,7 +485,11 @@ pub async fn fetch_table_data_keyset_impl(
                 break;
             }
         }
-        if all_found { Some(vals) } else { None }
+        if all_found {
+            Some(vals)
+        } else {
+            None
+        }
     } else {
         None
     };
@@ -461,10 +497,7 @@ pub async fn fetch_table_data_keyset_impl(
     Ok(res.with_keyset_cursor(next_cursor, has_more_forward))
 }
 
-pub async fn cancel_query_impl(
-    session_mgr: &SessionManager,
-    tab_id: &str,
-) -> Result<(), AppError> {
+pub async fn cancel_query_impl(session_mgr: &SessionManager, tab_id: &str) -> Result<(), AppError> {
     let conn = session_mgr.get_session(tab_id).await?;
     conn.cancel().await
 }
@@ -499,7 +532,8 @@ pub async fn get_schema_tree_impl(
     session_mgr: &SessionManager,
     connection_id: &str,
 ) -> Result<Vec<SchemaNode>, AppError> {
-    let (config, password) = resolve_connection_credentials(store, session_mgr, connection_id).await?;
+    let (config, password) =
+        resolve_connection_credentials(store, session_mgr, connection_id).await?;
     let conn = SessionManager::create_connection(&config, password.as_deref()).await?;
     conn.fetch_schema_tree().await
 }
@@ -512,7 +546,8 @@ pub async fn get_object_ddl_impl(
     object_name: &str,
     object_type: &str,
 ) -> Result<String, AppError> {
-    let (config, password) = resolve_connection_credentials(store, session_mgr, connection_id).await?;
+    let (config, password) =
+        resolve_connection_credentials(store, session_mgr, connection_id).await?;
     let conn = SessionManager::create_connection(&config, password.as_deref()).await?;
     conn.get_object_ddl(schema, object_name, object_type).await
 }
@@ -616,7 +651,11 @@ pub fn parse_mutation_info(sql: &str) -> (bool, Option<String>, bool) {
         } else {
             rest
         };
-        let token = target.split_whitespace().next().unwrap_or("").trim_matches(';');
+        let token = target
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .trim_matches(';');
         if !token.is_empty() {
             let clean_table = token.trim_matches(|c| c == '`' || c == '"' || c == '\'');
             if !clean_table.is_empty() {
@@ -631,7 +670,11 @@ pub fn parse_mutation_info(sql: &str) -> (bool, Option<String>, bool) {
         } else {
             rest
         };
-        let token = target.split_whitespace().next().unwrap_or("").trim_matches(';');
+        let token = target
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .trim_matches(';');
         if !token.is_empty() {
             let clean_table = token.trim_matches(|c| c == '`' || c == '"' || c == '\'');
             if !clean_table.is_empty() {
@@ -653,7 +696,8 @@ pub async fn simulate_query_impact_impl(
     let statements = crate::drivers::sqlite::split_sql_statements(sql);
     if statements.len() != 1 {
         return Ok(ImpactSimulationResult::non_mutation(Some(
-            "Impact preview supports only a single DELETE or UPDATE statement at a time.".to_string(),
+            "Impact preview supports only a single DELETE or UPDATE statement at a time."
+                .to_string(),
         )));
     }
 
@@ -710,7 +754,10 @@ pub async fn simulate_query_impact_impl(
     } else if let Ok(sess) = session_mgr.get_session(connection_id).await {
         sess
     } else {
-        return Err(AppError::NotFound(format!("Connection '{}' not found", connection_id)));
+        return Err(AppError::NotFound(format!(
+            "Connection '{}' not found",
+            connection_id
+        )));
     };
 
     let started_tx = conn.execute_query("BEGIN;").await.is_ok();
@@ -724,8 +771,12 @@ pub async fn simulate_query_impact_impl(
     let exec_res = conn.execute_query(sql).await;
 
     if use_savepoint {
-        let _ = conn.execute_query("ROLLBACK TO SAVEPOINT _dc_impact_preview;").await;
-        let _ = conn.execute_query("RELEASE SAVEPOINT _dc_impact_preview;").await;
+        let _ = conn
+            .execute_query("ROLLBACK TO SAVEPOINT _dc_impact_preview;")
+            .await;
+        let _ = conn
+            .execute_query("RELEASE SAVEPOINT _dc_impact_preview;")
+            .await;
     } else {
         let _ = conn.execute_query("ROLLBACK;").await;
     }
@@ -814,14 +865,16 @@ pub async fn delete_stored_password(
     store: State<'_, ConnectionStore>,
     connection_id: String,
 ) -> Result<(), String> {
-    store.delete_password(&connection_id).map_err(|e| e.to_string())?;
-    store.delete_ssh_passphrase(&connection_id).map_err(|e| e.to_string())
+    store
+        .delete_password(&connection_id)
+        .map_err(|e| e.to_string())?;
+    store
+        .delete_ssh_passphrase(&connection_id)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn vault_is_keychain_enabled(
-    store: State<'_, ConnectionStore>,
-) -> Result<bool, String> {
+pub async fn vault_is_keychain_enabled(store: State<'_, ConnectionStore>) -> Result<bool, String> {
     Ok(store.vault().is_keychain_opt_in())
 }
 
@@ -830,14 +883,18 @@ pub async fn vault_set_keychain_enabled(
     store: State<'_, ConnectionStore>,
     enabled: bool,
 ) -> Result<(), String> {
-    store.vault().set_keychain_opt_in(enabled).map_err(|e| e.to_string())
+    store
+        .vault()
+        .set_keychain_opt_in(enabled)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn vault_has_master_password(
-    store: State<'_, ConnectionStore>,
-) -> Result<bool, String> {
-    store.vault().has_master_password().map_err(|e| e.to_string())
+pub async fn vault_has_master_password(store: State<'_, ConnectionStore>) -> Result<bool, String> {
+    store
+        .vault()
+        .has_master_password()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -874,23 +931,71 @@ pub async fn vault_remove_master_password(
         .map_err(|e| e.to_string())
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultStatus {
+    pub has_master_password: bool,
+    pub is_unlocked: bool,
+    pub keychain_opt_in: bool,
+}
+
+#[tauri::command]
+pub async fn vault_status(store: State<'_, ConnectionStore>) -> Result<VaultStatus, String> {
+    let vault = store.vault();
+    let has_master_password = vault.has_master_password().map_err(|e| e.to_string())?;
+    let keychain_opt_in = vault.is_keychain_opt_in();
+    let mut is_unlocked = vault.is_unlocked().map_err(|e| e.to_string())?;
+
+    if has_master_password && !is_unlocked && keychain_opt_in {
+        if let Ok(true) = vault.unlock_from_macos_keychain() {
+            is_unlocked = true;
+        }
+    }
+
+    Ok(VaultStatus {
+        has_master_password,
+        is_unlocked,
+        keychain_opt_in,
+    })
+}
+
 #[tauri::command]
 pub async fn vault_unlock(
     store: State<'_, ConnectionStore>,
     password: Option<String>,
 ) -> Result<bool, String> {
     if let Some(pwd) = password {
-        store.vault().unlock(&pwd).map_err(|e| e.to_string())?;
-        Ok(true)
+        match store.vault().unlock(&pwd) {
+            Ok(()) => {
+                let _ = AuditLogger::global().log(AuditLogEntryInput {
+                    action: "VAULT_UNLOCK".to_string(),
+                    status: "SUCCESS".to_string(),
+                    details: Some("Vault unlocked with master password".to_string()),
+                    ..Default::default()
+                });
+                Ok(true)
+            }
+            Err(e) => {
+                let _ = AuditLogger::global().log(AuditLogEntryInput {
+                    action: "VAULT_UNLOCK".to_string(),
+                    status: "FAILED".to_string(),
+                    error_message: Some(e.to_string()),
+                    details: Some("Vault unlock attempt failed".to_string()),
+                    ..Default::default()
+                });
+                Err(e.to_string())
+            }
+        }
     } else {
-        store.vault().unlock_from_macos_keychain().map_err(|e| e.to_string())
+        store
+            .vault()
+            .unlock_from_macos_keychain()
+            .map_err(|e| e.to_string())
     }
 }
 
 #[tauri::command]
-pub async fn vault_lock(
-    store: State<'_, ConnectionStore>,
-) -> Result<(), String> {
+pub async fn vault_lock(store: State<'_, ConnectionStore>) -> Result<(), String> {
     store.vault().lock();
     Ok(())
 }

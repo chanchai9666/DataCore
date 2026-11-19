@@ -1,17 +1,19 @@
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
-use std::sync::Arc;
 use async_trait::async_trait;
 use base64::Engine;
 use futures::TryStreamExt;
 use sqlx::{Column, Connection, Either, Row, TypeInfo, ValueRef};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use zeroize::{Zeroize, Zeroizing};
 
+use crate::drivers::traits::{
+    build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome,
+};
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
-use crate::drivers::traits::{build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome};
 use crate::services::ssh_tunnel::SshTunnelHandle;
 
 pub struct PostgresConnection {
@@ -29,7 +31,15 @@ impl PostgresConnection {
     async fn establish_raw(
         config: &ConnectionConfig,
         password: Option<&str>,
-    ) -> Result<(sqlx::PgConnection, sqlx::postgres::PgConnectOptions, i32, Option<SshTunnelHandle>), AppError> {
+    ) -> Result<
+        (
+            sqlx::PgConnection,
+            sqlx::postgres::PgConnectOptions,
+            i32,
+            Option<SshTunnelHandle>,
+        ),
+        AppError,
+    > {
         let timeout_secs = config.timeout_seconds.unwrap_or(15).max(1) as u64;
         let remote_host = config.host.as_deref().unwrap_or("localhost");
         let remote_port = config.port.unwrap_or(5432);
@@ -37,7 +47,8 @@ impl PostgresConnection {
         let mut tunnel_handle: Option<SshTunnelHandle> = None;
         let (target_host, target_port) = if let Some(ref ssh) = config.ssh_tunnel {
             if ssh.enabled {
-                let handle = SshTunnelHandle::establish(ssh, remote_host, remote_port, timeout_secs).await?;
+                let handle =
+                    SshTunnelHandle::establish(ssh, remote_host, remote_port, timeout_secs).await?;
                 let port = handle.local_port();
                 tunnel_handle = Some(handle);
                 ("127.0.0.1".to_string(), port)
@@ -61,18 +72,7 @@ impl PostgresConnection {
             options = options.password(pwd);
         }
 
-        if let Some(mode) = &config.ssl_mode {
-            let ssl_mode = match mode.to_lowercase().as_str() {
-                "disable" => sqlx::postgres::PgSslMode::Disable,
-                "allow" => sqlx::postgres::PgSslMode::Allow,
-                "prefer" => sqlx::postgres::PgSslMode::Prefer,
-                "require" => sqlx::postgres::PgSslMode::Require,
-                "verify-ca" => sqlx::postgres::PgSslMode::VerifyCa,
-                "verify-full" => sqlx::postgres::PgSslMode::VerifyFull,
-                _ => sqlx::postgres::PgSslMode::Prefer,
-            };
-            options = options.ssl_mode(ssl_mode);
-        }
+        options = options.ssl_mode(resolve_pg_ssl_mode(config.ssl_mode.as_deref()));
 
         if let Some(ref certs) = config.ssl_certs {
             if let Some(ref ca) = certs.ca_cert_path {
@@ -93,9 +93,15 @@ impl PostgresConnection {
         }
 
         let connect_fut = sqlx::PgConnection::connect_with(&options);
-        let mut conn = tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), connect_fut)
-            .await
-            .map_err(|_| AppError::Other(format!("Connection timed out after {} seconds", timeout_secs)))??;
+        let mut conn =
+            tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), connect_fut)
+                .await
+                .map_err(|_| {
+                    AppError::Other(format!(
+                        "Connection timed out after {} seconds",
+                        timeout_secs
+                    ))
+                })??;
         let backend_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid();")
             .fetch_one(&mut conn)
             .await
@@ -110,8 +116,12 @@ impl PostgresConnection {
         Ok((conn, options, backend_pid, tunnel_handle))
     }
 
-    pub async fn connect(config: &ConnectionConfig, password: Option<&str>) -> Result<Self, AppError> {
-        let (conn, options, backend_pid, tunnel_handle) = Self::establish_raw(config, password).await?;
+    pub async fn connect(
+        config: &ConnectionConfig,
+        password: Option<&str>,
+    ) -> Result<Self, AppError> {
+        let (conn, options, backend_pid, tunnel_handle) =
+            Self::establish_raw(config, password).await?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -155,13 +165,7 @@ impl PostgresConnection {
                         columns = row
                             .columns()
                             .iter()
-                            .map(|col| {
-                                ColumnMeta::new(
-                                    col.name(),
-                                    col.type_info().name(),
-                                    true,
-                                )
-                            })
+                            .map(|col| ColumnMeta::new(col.name(), col.type_info().name(), true))
                             .collect();
                     }
                     let col_len = row.columns().len();
@@ -200,13 +204,7 @@ impl PostgresConnection {
                         let cols: Vec<ColumnMeta> = row
                             .columns()
                             .iter()
-                            .map(|col| {
-                                ColumnMeta::new(
-                                    col.name(),
-                                    col.type_info().name(),
-                                    true,
-                                )
-                            })
+                            .map(|col| ColumnMeta::new(col.name(), col.type_info().name(), true))
                             .collect();
                         columns = Some(Arc::new(cols));
                     }
@@ -276,12 +274,30 @@ fn decode_pg_cell(row: &sqlx::postgres::PgRow, index: usize) -> CellValue {
     let type_name = col.type_info().name();
 
     match type_name {
-        "BOOL" => row.try_get::<bool, _>(index).map(CellValue::Boolean).unwrap_or(CellValue::Null),
-        "INT2" => row.try_get::<i16, _>(index).map(|v| CellValue::Integer(v as i64)).unwrap_or(CellValue::Null),
-        "INT4" => row.try_get::<i32, _>(index).map(|v| CellValue::Integer(v as i64)).unwrap_or(CellValue::Null),
-        "INT8" => row.try_get::<i64, _>(index).map(CellValue::Integer).unwrap_or(CellValue::Null),
-        "FLOAT4" => row.try_get::<f32, _>(index).map(|v| CellValue::Float(v as f64)).unwrap_or(CellValue::Null),
-        "FLOAT8" => row.try_get::<f64, _>(index).map(CellValue::Float).unwrap_or(CellValue::Null),
+        "BOOL" => row
+            .try_get::<bool, _>(index)
+            .map(CellValue::Boolean)
+            .unwrap_or(CellValue::Null),
+        "INT2" => row
+            .try_get::<i16, _>(index)
+            .map(|v| CellValue::Integer(v as i64))
+            .unwrap_or(CellValue::Null),
+        "INT4" => row
+            .try_get::<i32, _>(index)
+            .map(|v| CellValue::Integer(v as i64))
+            .unwrap_or(CellValue::Null),
+        "INT8" => row
+            .try_get::<i64, _>(index)
+            .map(CellValue::Integer)
+            .unwrap_or(CellValue::Null),
+        "FLOAT4" => row
+            .try_get::<f32, _>(index)
+            .map(|v| CellValue::Float(v as f64))
+            .unwrap_or(CellValue::Null),
+        "FLOAT8" => row
+            .try_get::<f64, _>(index)
+            .map(CellValue::Float)
+            .unwrap_or(CellValue::Null),
         "NUMERIC" => {
             if let Ok(s) = row.try_get::<String, _>(index) {
                 CellValue::Text(s)
@@ -291,12 +307,14 @@ fn decode_pg_cell(row: &sqlx::postgres::PgRow, index: usize) -> CellValue {
                 CellValue::Text("NUMERIC".to_string())
             }
         }
-        "JSON" | "JSONB" => row.try_get::<serde_json::Value, _>(index).map(CellValue::Json).unwrap_or(CellValue::Null),
-        "BYTEA" => {
-            row.try_get::<Vec<u8>, _>(index)
-                .map(|b| CellValue::Bytes(base64::engine::general_purpose::STANDARD.encode(b)))
-                .unwrap_or(CellValue::Null)
-        }
+        "JSON" | "JSONB" => row
+            .try_get::<serde_json::Value, _>(index)
+            .map(CellValue::Json)
+            .unwrap_or(CellValue::Null),
+        "BYTEA" => row
+            .try_get::<Vec<u8>, _>(index)
+            .map(|b| CellValue::Bytes(base64::engine::general_purpose::STANDARD.encode(b)))
+            .unwrap_or(CellValue::Null),
         "UUID" => {
             if let Ok(u) = row.try_get::<uuid::Uuid, _>(index) {
                 CellValue::Text(u.to_string())
@@ -342,9 +360,10 @@ fn decode_pg_cell(row: &sqlx::postgres::PgRow, index: usize) -> CellValue {
                 CellValue::Null
             }
         }
-        "VARCHAR" | "CHAR" | "TEXT" | "NAME" | "BPCHAR" => {
-            row.try_get::<String, _>(index).map(CellValue::Text).unwrap_or(CellValue::Null)
-        }
+        "VARCHAR" | "CHAR" | "TEXT" | "NAME" | "BPCHAR" => row
+            .try_get::<String, _>(index)
+            .map(CellValue::Text)
+            .unwrap_or(CellValue::Null),
         _ => {
             if let Ok(s) = row.try_get::<String, _>(index) {
                 CellValue::Text(s)
@@ -380,8 +399,11 @@ impl DatabaseConnection for PostgresConnection {
                 let auto_reconnect = self.config.auto_reconnect.unwrap_or(true);
                 let in_tx = self.in_manual_tx.load(Ordering::SeqCst);
                 if auto_reconnect && !in_tx && Self::is_disconnect_error(&err) {
-                    if let Ok((new_conn, new_opts, new_pid, new_tunnel)) =
-                        Self::establish_raw(&self.config, self.password.as_ref().map(|s| s.as_str())).await
+                    if let Ok((new_conn, new_opts, new_pid, new_tunnel)) = Self::establish_raw(
+                        &self.config,
+                        self.password.as_ref().map(|s| s.as_str()),
+                    )
+                    .await
                     {
                         *conn = new_conn;
                         *self.connect_options.lock().await = new_opts;
@@ -412,16 +434,25 @@ impl DatabaseConnection for PostgresConnection {
                 let auto_reconnect = self.config.auto_reconnect.unwrap_or(true);
                 let in_tx = self.in_manual_tx.load(Ordering::SeqCst);
                 if !any_sent && auto_reconnect && !in_tx && Self::is_disconnect_error(&err) {
-                    if let Ok((new_conn, new_opts, new_pid, new_tunnel)) =
-                        Self::establish_raw(&self.config, self.password.as_ref().map(|s| s.as_str())).await
+                    if let Ok((new_conn, new_opts, new_pid, new_tunnel)) = Self::establish_raw(
+                        &self.config,
+                        self.password.as_ref().map(|s| s.as_str()),
+                    )
+                    .await
                     {
                         *conn = new_conn;
                         *self.connect_options.lock().await = new_opts;
                         self.backend_pid.store(new_pid, Ordering::SeqCst);
                         *self.ssh_tunnel.lock().await = new_tunnel;
-                        return Self::stream_raw_sql(&mut conn, sql, chunk_rows, &tx, &mut any_sent)
-                            .await
-                            .map_err(AppError::from);
+                        return Self::stream_raw_sql(
+                            &mut conn,
+                            sql,
+                            chunk_rows,
+                            &tx,
+                            &mut any_sent,
+                        )
+                        .await
+                        .map_err(AppError::from);
                     }
                 }
                 Err(AppError::from(err))
@@ -429,7 +460,16 @@ impl DatabaseConnection for PostgresConnection {
         }
     }
 
-    async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>, sort_col: Option<&str>, sort_dir: Option<&str>) -> Result<QueryResult, AppError> {
+    async fn fetch_table_data(
+        &self,
+        schema: Option<&str>,
+        table: &str,
+        limit: u32,
+        offset: u32,
+        filter: Option<&str>,
+        sort_col: Option<&str>,
+        sort_dir: Option<&str>,
+    ) -> Result<QueryResult, AppError> {
         let escaped_table = table.replace('"', "\"\"");
         let from_clause = if let Some(sch) = schema {
             let escaped_schema = sch.replace('"', "\"\"");
@@ -443,7 +483,11 @@ impl DatabaseConnection for PostgresConnection {
         let order_clause = match sort_col {
             Some(col) if !col.trim().is_empty() => {
                 let escaped_col = col.trim().replace('"', "\"\"");
-                let dir = if sort_dir == Some("DESC") { "DESC" } else { "ASC" };
+                let dir = if sort_dir == Some("DESC") {
+                    "DESC"
+                } else {
+                    "ASC"
+                };
                 format!(" ORDER BY \"{}\" {}", escaped_col, dir)
             }
             _ => String::new(),
@@ -458,10 +502,14 @@ impl DatabaseConnection for PostgresConnection {
                 sch, tbl
             );
             match self.execute_query(&approx_sql).await {
-                Ok(r) => r.rows.first().and_then(|row| row.first()).and_then(|v| match v {
-                    CellValue::Integer(n) if *n >= 0 => Some(*n as u64),
-                    _ => None,
-                }),
+                Ok(r) => r
+                    .rows
+                    .first()
+                    .and_then(|row| row.first())
+                    .and_then(|v| match v {
+                        CellValue::Integer(n) if *n >= 0 => Some(*n as u64),
+                        _ => None,
+                    }),
                 Err(_) => None,
             }
         } else {
@@ -491,7 +539,10 @@ impl DatabaseConnection for PostgresConnection {
             }
         };
 
-        let sql = format!("SELECT * FROM {}{}{} LIMIT {} OFFSET {};", from_clause, where_clause, order_clause, limit, offset);
+        let sql = format!(
+            "SELECT * FROM {}{}{} LIMIT {} OFFSET {};",
+            from_clause, where_clause, order_clause, limit, offset
+        );
         let mut res = self.execute_query(&sql).await?;
         super::reconcile_page_row_count(&mut res, total_count, is_approx, limit, offset);
         if res.columns.is_empty() {
@@ -510,7 +561,11 @@ impl DatabaseConnection for PostgresConnection {
                     .filter_map(|r| {
                         let name = r.first()?.as_text()?.to_string();
                         let dtype = r.get(1)?.as_text()?.to_string();
-                        let nullable = r.get(2).and_then(|c| c.as_text()).map(|s| s == "YES").unwrap_or(true);
+                        let nullable = r
+                            .get(2)
+                            .and_then(|c| c.as_text())
+                            .map(|s| s == "YES")
+                            .unwrap_or(true);
                         Some(ColumnMeta::new(name, dtype, nullable))
                     })
                     .collect();
@@ -539,7 +594,8 @@ impl DatabaseConnection for PostgresConnection {
                 sch.replace('\'', "''")
             );
             if let Ok(meta_res) = self.execute_query(&meta_sql).await {
-                let mut flags: std::collections::HashMap<String, (bool, bool)> = std::collections::HashMap::new();
+                let mut flags: std::collections::HashMap<String, (bool, bool)> =
+                    std::collections::HashMap::new();
                 for r in &meta_res.rows {
                     if let Some(CellValue::Text(name)) = r.first() {
                         let is_pk = matches!(r.get(1), Some(CellValue::Boolean(true)));
@@ -582,8 +638,16 @@ impl DatabaseConnection for PostgresConnection {
         let query_res = self.execute_query(sql).await?;
 
         for row in query_res.rows {
-            let schema_name = row.first().and_then(|c| c.as_text()).unwrap_or("public").to_string();
-            let table_name = row.get(1).and_then(|c| c.as_text()).unwrap_or("").to_string();
+            let schema_name = row
+                .first()
+                .and_then(|c| c.as_text())
+                .unwrap_or("public")
+                .to_string();
+            let table_name = row
+                .get(1)
+                .and_then(|c| c.as_text())
+                .unwrap_or("")
+                .to_string();
             let table_type = row.get(2).and_then(|c| c.as_text()).unwrap_or("BASE TABLE");
 
             let node_type = if table_type.contains("VIEW") {
@@ -597,15 +661,24 @@ impl DatabaseConnection for PostgresConnection {
         }
 
         // Fetch routines (functions & procedures)
-        let routine_sql = "SELECT routine_schema, routine_name, routine_type FROM information_schema.routines \
+        let routine_sql =
+            "SELECT routine_schema, routine_name, routine_type FROM information_schema.routines \
             WHERE routine_schema NOT IN ('pg_catalog', 'information_schema') \
               AND routine_schema NOT LIKE 'pg_toast%' \
               AND routine_schema NOT LIKE 'pg_temp%' \
             ORDER BY routine_schema, routine_name;";
         if let Ok(routine_res) = self.execute_query(routine_sql).await {
             for row in routine_res.rows {
-                let schema_name = row.first().and_then(|c| c.as_text()).unwrap_or("public").to_string();
-                let routine_name = row.get(1).and_then(|c| c.as_text()).unwrap_or("").to_string();
+                let schema_name = row
+                    .first()
+                    .and_then(|c| c.as_text())
+                    .unwrap_or("public")
+                    .to_string();
+                let routine_name = row
+                    .get(1)
+                    .and_then(|c| c.as_text())
+                    .unwrap_or("")
+                    .to_string();
                 let r_type = row.get(2).and_then(|c| c.as_text()).unwrap_or("FUNCTION");
                 let node_type = if r_type.contains("PROCEDURE") {
                     SchemaNodeType::Procedure
@@ -623,10 +696,23 @@ impl DatabaseConnection for PostgresConnection {
             ORDER BY trigger_schema, trigger_name;";
         if let Ok(trigger_res) = self.execute_query(trigger_sql).await {
             for row in trigger_res.rows {
-                let schema_name = row.first().and_then(|c| c.as_text()).unwrap_or("public").to_string();
-                let trigger_name = row.get(1).and_then(|c| c.as_text()).unwrap_or("").to_string();
-                let table_name = row.get(2).and_then(|c| c.as_text()).unwrap_or("").to_string();
-                let mut node = SchemaNode::new(trigger_name, SchemaNodeType::Trigger).with_schema(&schema_name);
+                let schema_name = row
+                    .first()
+                    .and_then(|c| c.as_text())
+                    .unwrap_or("public")
+                    .to_string();
+                let trigger_name = row
+                    .get(1)
+                    .and_then(|c| c.as_text())
+                    .unwrap_or("")
+                    .to_string();
+                let table_name = row
+                    .get(2)
+                    .and_then(|c| c.as_text())
+                    .unwrap_or("")
+                    .to_string();
+                let mut node = SchemaNode::new(trigger_name, SchemaNodeType::Trigger)
+                    .with_schema(&schema_name);
                 if !table_name.is_empty() {
                     node = node.with_meta("table_name", table_name);
                 }
@@ -640,9 +726,18 @@ impl DatabaseConnection for PostgresConnection {
             ORDER BY sequence_schema, sequence_name;";
         if let Ok(seq_res) = self.execute_query(seq_sql).await {
             for row in seq_res.rows {
-                let schema_name = row.first().and_then(|c| c.as_text()).unwrap_or("public").to_string();
-                let seq_name = row.get(1).and_then(|c| c.as_text()).unwrap_or("").to_string();
-                let node = SchemaNode::new(seq_name, SchemaNodeType::Sequence).with_schema(&schema_name);
+                let schema_name = row
+                    .first()
+                    .and_then(|c| c.as_text())
+                    .unwrap_or("public")
+                    .to_string();
+                let seq_name = row
+                    .get(1)
+                    .and_then(|c| c.as_text())
+                    .unwrap_or("")
+                    .to_string();
+                let node =
+                    SchemaNode::new(seq_name, SchemaNodeType::Sequence).with_schema(&schema_name);
                 schema_map.entry(schema_name).or_default().push(node);
             }
         }
@@ -731,7 +826,12 @@ impl DatabaseConnection for PostgresConnection {
         Ok(())
     }
 
-    async fn get_object_ddl(&self, schema: Option<&str>, name: &str, object_type: &str) -> Result<String, AppError> {
+    async fn get_object_ddl(
+        &self,
+        schema: Option<&str>,
+        name: &str,
+        object_type: &str,
+    ) -> Result<String, AppError> {
         let sch = schema.unwrap_or("public");
         let safe_sch = sch.replace('\'', "''");
         let safe_name = name.replace('\'', "''");
@@ -745,7 +845,10 @@ impl DatabaseConnection for PostgresConnection {
             let res = self.execute_query(&sql).await?;
             if let Some(row) = res.rows.into_iter().next() {
                 if let Some(def) = row.first().and_then(|c| c.as_text()) {
-                    return Ok(format!("CREATE OR REPLACE VIEW \"{}\".\"{}\" AS\n{}", sch, name, def));
+                    return Ok(format!(
+                        "CREATE OR REPLACE VIEW \"{}\".\"{}\" AS\n{}",
+                        sch, name, def
+                    ));
                 }
             }
         } else if lower_type.contains("trigger") {
@@ -779,7 +882,10 @@ impl DatabaseConnection for PostgresConnection {
         );
         let res = self.execute_query(&ddl_sql).await?;
         if res.rows.is_empty() {
-            return Err(AppError::NotFound(format!("Object '{}'.'{}' not found", sch, name)));
+            return Err(AppError::NotFound(format!(
+                "Object '{}'.'{}' not found",
+                sch, name
+            )));
         }
 
         let mut lines = Vec::new();
@@ -789,11 +895,18 @@ impl DatabaseConnection for PostgresConnection {
             let nullable = r.get(2).and_then(|c| c.as_text()).unwrap_or("YES");
             let default_val = r.get(3).and_then(|c| c.as_text());
             let null_str = if nullable == "NO" { " NOT NULL" } else { "" };
-            let def_str = default_val.map(|d| format!(" DEFAULT {}", d)).unwrap_or_default();
+            let def_str = default_val
+                .map(|d| format!(" DEFAULT {}", d))
+                .unwrap_or_default();
             lines.push(format!("  \"{}\" {}{}{}", col, dtype, null_str, def_str));
         }
 
-        Ok(format!("CREATE TABLE \"{}\".\"{}\" (\n{}\n);", sch, name, lines.join(",\n")))
+        Ok(format!(
+            "CREATE TABLE \"{}\".\"{}\" (\n{}\n);",
+            sch,
+            name,
+            lines.join(",\n")
+        ))
     }
 
     async fn copy_out_csv(
@@ -870,5 +983,41 @@ impl Drop for PostgresConnection {
         if let Some(ref mut pwd) = self.password {
             pwd.zeroize();
         }
+    }
+}
+
+pub(crate) fn resolve_pg_ssl_mode(mode: Option<&str>) -> sqlx::postgres::PgSslMode {
+    match mode.map(|s| s.to_lowercase()).as_deref() {
+        Some("disable") => sqlx::postgres::PgSslMode::Disable,
+        Some("allow") => sqlx::postgres::PgSslMode::Allow,
+        Some("prefer") => sqlx::postgres::PgSslMode::Prefer,
+        Some("verify-ca") => sqlx::postgres::PgSslMode::VerifyCa,
+        Some("verify-full") => sqlx::postgres::PgSslMode::VerifyFull,
+        _ => sqlx::postgres::PgSslMode::Require,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_pg_ssl_mode_defaults_to_require() {
+        assert!(matches!(
+            resolve_pg_ssl_mode(None),
+            sqlx::postgres::PgSslMode::Require
+        ));
+        assert!(matches!(
+            resolve_pg_ssl_mode(Some("unknown")),
+            sqlx::postgres::PgSslMode::Require
+        ));
+        assert!(matches!(
+            resolve_pg_ssl_mode(Some("verify-full")),
+            sqlx::postgres::PgSslMode::VerifyFull
+        ));
+        assert!(matches!(
+            resolve_pg_ssl_mode(Some("prefer")),
+            sqlx::postgres::PgSslMode::Prefer
+        ));
     }
 }

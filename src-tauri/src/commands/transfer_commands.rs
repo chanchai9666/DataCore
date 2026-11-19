@@ -1,31 +1,33 @@
-use tauri::{AppHandle, Emitter, State};
-use crate::models::{
-    DatabaseDriver, ExportOptions, ExportResult, ImportOptions, ImportPreview, ImportResult,
-    TableMetadata,
-};
+use crate::commands::db::resolve_connection_credentials;
 use crate::models::transfer::{
     CrossDbCopyResult, CrossDbCopyTableOptions, DuplicateTableOptions, SqlExportOptions,
     SqlExportResult, SqlImportOptions, SqlImportResult,
 };
+use crate::models::{
+    DatabaseDriver, ExportOptions, ExportResult, ImportOptions, ImportPreview, ImportResult,
+    TableMetadata,
+};
 use crate::services::audit_logger::{AuditLogEntryInput, AuditLogger};
 use crate::services::connection_store::ConnectionStore;
+use crate::services::cross_db_transfer::copy_table_cross_db_impl;
 use crate::services::data_transfer::{
     cancel_transfer_job, export_data_with_progress_impl, import_data_impl,
     preview_import_file_impl, register_transfer_job, remove_cancellation_token,
 };
-use crate::services::table_list::get_table_list_metadata_impl;
 use crate::services::duplicate_table::duplicate_table_impl;
-use crate::services::sql_transfer::{export_sql_with_progress_impl, import_sql_impl};
-use crate::services::cross_db_transfer::copy_table_cross_db_impl;
 use crate::services::path_guard::validate_safe_transfer_path;
-use crate::commands::db::resolve_connection_credentials;
+use crate::services::sql_transfer::{export_sql_with_progress_impl, import_sql_impl};
+use crate::services::table_list::get_table_list_metadata_impl;
 use crate::session::SessionManager;
+use tauri::{AppHandle, Emitter, State};
 
 const ALLOWED_DATA_EXTS: &[&str] = &[
     "csv", "tsv", "json", "ndjson", "jsonl", "txt", "gz", "gzip", "zst", "zstd",
 ];
 const ALLOWED_SQL_EXTS: &[&str] = &["sql", "txt"];
-const ALLOWED_BACKUP_EXTS: &[&str] = &["sql", "dump", "backup", "tar", "db", "sqlite", "sqlite3", "bak", "txt"];
+const ALLOWED_BACKUP_EXTS: &[&str] = &[
+    "sql", "dump", "backup", "tar", "db", "sqlite", "sqlite3", "bak", "txt",
+];
 
 #[tauri::command]
 pub async fn get_table_list_metadata(
@@ -90,15 +92,10 @@ pub async fn export_data(
         let _ = app.emit("transfer://progress", progress);
     };
 
-    let res = export_data_with_progress_impl(
-        conn.as_ref(),
-        &sql,
-        &safe_str,
-        &options,
-        Some(on_progress),
-    )
-    .await
-    .map_err(|e| e.to_string());
+    let res =
+        export_data_with_progress_impl(conn.as_ref(), &sql, &safe_str, &options, Some(on_progress))
+            .await
+            .map_err(|e| e.to_string());
 
     let (status, rows, err) = match &res {
         Ok(r) => ("SUCCESS", Some(r.total_rows as u64), None),
@@ -156,15 +153,9 @@ pub async fn import_data(
     }
 
     let file_str = options.file_path.clone();
-    let res = import_data_impl(
-        conn.as_ref(),
-        &table,
-        &options,
-        dialect,
-        Some(on_progress),
-    )
-    .await
-    .map_err(|e| e.to_string());
+    let res = import_data_impl(conn.as_ref(), &table, &options, dialect, Some(on_progress))
+        .await
+        .map_err(|e| e.to_string());
 
     let (status, rows, err) = match &res {
         Ok(r) => ("SUCCESS", Some(r.imported_rows as u64), None),
@@ -191,9 +182,10 @@ pub async fn duplicate_table(
     session_mgr: State<'_, SessionManager>,
     options: DuplicateTableOptions,
 ) -> Result<(), String> {
-    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
-        .await
-        .map_err(|e| e.to_string())?;
+    let (config, password) =
+        resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
+            .await
+            .map_err(|e| e.to_string())?;
     let conn = SessionManager::create_connection(&config, password.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -233,9 +225,10 @@ pub async fn export_sql(
     let mut options = options;
     options.file_path = safe_path.to_string_lossy().to_string();
 
-    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
-        .await
-        .map_err(|e| e.to_string())?;
+    let (config, password) =
+        resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
+            .await
+            .map_err(|e| e.to_string())?;
     let conn = SessionManager::create_connection(&config, password.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -249,9 +242,10 @@ pub async fn export_sql(
     };
 
     let file_str = options.file_path.clone();
-    let res = export_sql_with_progress_impl(conn.as_ref(), config.driver, &options, Some(on_progress))
-        .await
-        .map_err(|e| e.to_string());
+    let res =
+        export_sql_with_progress_impl(conn.as_ref(), config.driver, &options, Some(on_progress))
+            .await
+            .map_err(|e| e.to_string());
 
     let (status, err) = match &res {
         Ok(_) => ("SUCCESS", None),
@@ -281,9 +275,10 @@ pub async fn import_sql(
     let mut options = options;
     options.file_path = safe_path.to_string_lossy().to_string();
 
-    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
-        .await
-        .map_err(|e| e.to_string())?;
+    let (config, password) =
+        resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
+            .await
+            .map_err(|e| e.to_string())?;
     let conn = SessionManager::create_connection(&config, password.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -331,9 +326,10 @@ pub async fn copy_table_cross_db(
     session_mgr: State<'_, SessionManager>,
     options: CrossDbCopyTableOptions,
 ) -> Result<CrossDbCopyResult, String> {
-    let (src_config, src_pass) = resolve_connection_credentials(&store, &session_mgr, &options.source_connection_id)
-        .await
-        .map_err(|e| e.to_string())?;
+    let (src_config, src_pass) =
+        resolve_connection_credentials(&store, &session_mgr, &options.source_connection_id)
+            .await
+            .map_err(|e| e.to_string())?;
     let src_conn = SessionManager::create_connection(&src_config, src_pass.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -342,9 +338,10 @@ pub async fn copy_table_cross_db(
         register_transfer_job(jid, src_conn.clone());
     }
 
-    let (tgt_config, tgt_pass) = resolve_connection_credentials(&store, &session_mgr, &options.target_connection_id)
-        .await
-        .map_err(|e| e.to_string())?;
+    let (tgt_config, tgt_pass) =
+        resolve_connection_credentials(&store, &session_mgr, &options.target_connection_id)
+            .await
+            .map_err(|e| e.to_string())?;
     let tgt_conn = SessionManager::create_connection(&tgt_config, tgt_pass.as_deref())
         .await
         .map_err(|e| e.to_string())?;
@@ -405,9 +402,10 @@ pub async fn start_native_backup(
     let mut options = options;
     options.output_file = safe_path.to_string_lossy().to_string();
 
-    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
-        .await
-        .map_err(|e| e.to_string())?;
+    let (config, password) =
+        resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
+            .await
+            .map_err(|e| e.to_string())?;
 
     let spec = crate::services::build_backup_command(&config, password.as_deref(), &options)
         .map_err(|e| e.to_string())?;
@@ -439,9 +437,10 @@ pub async fn start_native_restore(
     let mut options = options;
     options.input_file = safe_path.to_string_lossy().to_string();
 
-    let (config, password) = resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
-        .await
-        .map_err(|e| e.to_string())?;
+    let (config, password) =
+        resolve_connection_credentials(&store, &session_mgr, &options.connection_id)
+            .await
+            .map_err(|e| e.to_string())?;
 
     let spec = crate::services::build_restore_command(&config, password.as_deref(), &options)
         .map_err(|e| e.to_string())?;

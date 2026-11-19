@@ -8,8 +8,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_duplicate_table_sqlite_structure_and_data() {
-        let conn = SqliteConnection::open_in_memory()
-            .expect("Failed to open sqlite in memory");
+        let conn = SqliteConnection::open_in_memory().expect("Failed to open sqlite in memory");
 
         // Create sample table and insert rows
         conn.execute_query(
@@ -34,7 +33,11 @@ mod tests {
         };
 
         let result = duplicate_table_impl(&conn, DatabaseDriver::Sqlite, &options).await;
-        assert!(result.is_ok(), "Duplicate table should succeed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Duplicate table should succeed: {:?}",
+            result
+        );
 
         // Verify target table exists and has identical row count
         let count_res = conn
@@ -54,8 +57,12 @@ mod tests {
             copy_data: false,
         };
 
-        let empty_result = duplicate_table_impl(&conn, DatabaseDriver::Sqlite, &empty_options).await;
-        assert!(empty_result.is_ok(), "Duplicate structure only should succeed");
+        let empty_result =
+            duplicate_table_impl(&conn, DatabaseDriver::Sqlite, &empty_options).await;
+        assert!(
+            empty_result.is_ok(),
+            "Duplicate structure only should succeed"
+        );
 
         let empty_count_res = conn
             .execute_query("SELECT COUNT(*) FROM \"users_empty\";")
@@ -69,8 +76,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_duplicate_table_validation_errors() {
-        let conn = SqliteConnection::open_in_memory()
-            .expect("Failed to open sqlite in memory");
+        let conn = SqliteConnection::open_in_memory().expect("Failed to open sqlite in memory");
 
         // Target equals source
         let same_name_opts = DuplicateTableOptions {

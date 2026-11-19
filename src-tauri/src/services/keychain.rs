@@ -1,14 +1,15 @@
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock, RwLock};
+use crate::error::AppError;
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm,
 };
 use rand::RngExt;
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::time::{Duration, Instant};
 use zeroize::{Zeroize, Zeroizing};
-use crate::error::AppError;
 
 pub const NONCE_LEN: usize = 12;
 pub const KEY_LEN: usize = 32;
@@ -81,7 +82,10 @@ fn get_machine_identifier() -> String {
 }
 
 /// Derive a 256-bit Key Encryption Key (KEK) using Argon2id wrapped in Zeroizing for memory safety
-pub fn derive_kek_argon2(password: &str, salt: &[u8]) -> Result<Zeroizing<[u8; KEY_LEN]>, AppError> {
+pub fn derive_kek_argon2(
+    password: &str,
+    salt: &[u8],
+) -> Result<Zeroizing<[u8; KEY_LEN]>, AppError> {
     let argon2 = argon2::Argon2::default();
     let mut kek = Zeroizing::new([0u8; KEY_LEN]);
     argon2
@@ -149,7 +153,9 @@ pub fn decrypt_master_key_v2(
 
     if decrypted.len() != KEY_LEN {
         decrypted.zeroize();
-        return Err(AppError::Other("Corrupted decrypted key length".to_string()));
+        return Err(AppError::Other(
+            "Corrupted decrypted key length".to_string(),
+        ));
     }
     let mut key = Zeroizing::new([0u8; KEY_LEN]);
     key.copy_from_slice(&decrypted);
@@ -160,12 +166,16 @@ pub fn decrypt_master_key_v2(
 pub type MasterPasswordHolder = Arc<RwLock<Option<Zeroizing<String>>>>;
 pub type VaultCache = Arc<RwLock<Option<HashMap<String, Zeroizing<String>>>>>;
 
+const MAX_FAILED_UNLOCK_ATTEMPTS: u32 = 5;
+const UNLOCK_LOCKOUT_SECS: u64 = 30;
+
 #[derive(Debug, Clone)]
 pub struct Vault {
     vault_dir: PathBuf,
     machine_id: Option<String>,
     master_password: MasterPasswordHolder,
     cache: VaultCache,
+    unlock_attempts: Arc<Mutex<(u32, Option<Instant>)>>,
 }
 
 impl Vault {
@@ -186,6 +196,7 @@ impl Vault {
             machine_id: None,
             master_password: Arc::new(RwLock::new(None)),
             cache: Arc::new(RwLock::new(None)),
+            unlock_attempts: Arc::new(Mutex::new((0, None))),
         }
     }
 
@@ -195,6 +206,7 @@ impl Vault {
             machine_id: Some(machine_id),
             master_password: Arc::new(RwLock::new(None)),
             cache: Arc::new(RwLock::new(None)),
+            unlock_attempts: Arc::new(Mutex::new((0, None))),
         }
     }
 
@@ -202,8 +214,11 @@ impl Vault {
         Self {
             vault_dir: dir.as_ref().to_path_buf(),
             machine_id: None,
-            master_password: Arc::new(RwLock::new(Some(Zeroizing::new(master_password.to_string())))),
+            master_password: Arc::new(RwLock::new(Some(Zeroizing::new(
+                master_password.to_string(),
+            )))),
             cache: Arc::new(RwLock::new(None)),
+            unlock_attempts: Arc::new(Mutex::new((0, None))),
         }
     }
 
@@ -241,14 +256,61 @@ impl Vault {
         }
     }
 
+    pub fn is_unlocked(&self) -> Result<bool, AppError> {
+        if !self.has_master_password()? {
+            return Ok(true);
+        }
+        let guard = self
+            .master_password
+            .read()
+            .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
+        Ok(guard.is_some())
+    }
+
     pub fn unlock(&self, password: &str) -> Result<(), AppError> {
+        {
+            let mut attempts_guard = self
+                .unlock_attempts
+                .lock()
+                .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
+            if let Some(until) = attempts_guard.1 {
+                if Instant::now() < until {
+                    let remaining = until
+                        .saturating_duration_since(Instant::now())
+                        .as_secs()
+                        .max(1);
+                    return Err(AppError::Other(format!(
+                        "Too many failed unlock attempts. Please wait {} seconds before retrying.",
+                        remaining
+                    )));
+                }
+                attempts_guard.0 = 0;
+                attempts_guard.1 = None;
+            }
+        }
+
         let key_file = self.vault_dir.join(".vault.key");
         if key_file.exists() {
             let key_bytes = fs::read(&key_file)?;
             if key_bytes.len() >= 4 && &key_bytes[..4] == KEY_HEADER_V2 {
-                decrypt_master_key_v2(&key_bytes, password)?;
+                if let Err(err) = decrypt_master_key_v2(&key_bytes, password) {
+                    if let Ok(mut attempts_guard) = self.unlock_attempts.lock() {
+                        attempts_guard.0 += 1;
+                        if attempts_guard.0 >= MAX_FAILED_UNLOCK_ATTEMPTS {
+                            attempts_guard.1 =
+                                Some(Instant::now() + Duration::from_secs(UNLOCK_LOCKOUT_SECS));
+                        }
+                    }
+                    return Err(err);
+                }
             }
         }
+
+        if let Ok(mut attempts_guard) = self.unlock_attempts.lock() {
+            attempts_guard.0 = 0;
+            attempts_guard.1 = None;
+        }
+
         let mut guard = self
             .master_password
             .write()
@@ -274,25 +336,34 @@ impl Vault {
     pub fn set_keychain_opt_in(&self, enabled: bool) -> Result<(), AppError> {
         let flag_path = self.vault_dir.join(".vault.keychain_opt_in");
         if enabled {
+            if !self.has_master_password()? {
+                return Err(AppError::Other(
+                    "Master password must be configured before enabling macOS Keychain sync."
+                        .to_string(),
+                ));
+            }
+            let pwd_guard = self
+                .master_password
+                .read()
+                .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
+            let pwd = pwd_guard.as_ref().ok_or_else(|| {
+                AppError::Other(
+                    "Vault must be unlocked before enabling macOS Keychain sync.".to_string(),
+                )
+            })?;
+
+            crate::services::macos_keychain::save_to_macos_keychain(
+                crate::services::macos_keychain::KEYCHAIN_SERVICE_DEFAULT,
+                crate::services::macos_keychain::KEYCHAIN_ACCOUNT_MASTER_KEK,
+                pwd.as_str(),
+            )?;
+
             if !self.vault_dir.exists() {
                 fs::create_dir_all(&self.vault_dir)?;
                 set_secure_dir_permissions(&self.vault_dir)?;
             }
             fs::write(&flag_path, b"1")?;
             set_secure_permissions(&flag_path)?;
-
-            // If master password is currently unlocked in memory, save it to keychain
-            let pwd_guard = self
-                .master_password
-                .read()
-                .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
-            if let Some(pwd) = pwd_guard.as_ref() {
-                let _ = crate::services::macos_keychain::save_to_macos_keychain(
-                    crate::services::macos_keychain::KEYCHAIN_SERVICE_DEFAULT,
-                    crate::services::macos_keychain::KEYCHAIN_ACCOUNT_MASTER_KEK,
-                    pwd.as_str(),
-                );
-            }
         } else {
             if flag_path.exists() {
                 let _ = fs::remove_file(&flag_path);
@@ -437,6 +508,15 @@ impl Vault {
             .write()
             .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
         *guard = Some(Zeroizing::new(new_password.to_string()));
+        drop(guard);
+
+        if self.is_keychain_opt_in() {
+            crate::services::macos_keychain::save_to_macos_keychain(
+                crate::services::macos_keychain::KEYCHAIN_SERVICE_DEFAULT,
+                crate::services::macos_keychain::KEYCHAIN_ACCOUNT_MASTER_KEK,
+                new_password,
+            )?;
+        }
 
         Ok(())
     }
@@ -472,6 +552,12 @@ impl Vault {
             .write()
             .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
         *guard = None;
+        drop(guard);
+
+        let flag_path = self.vault_dir.join(".vault.keychain_opt_in");
+        if flag_path.exists() {
+            let _ = fs::remove_file(&flag_path);
+        }
 
         let _ = crate::services::macos_keychain::delete_from_macos_keychain(
             crate::services::macos_keychain::KEYCHAIN_SERVICE_DEFAULT,
@@ -483,7 +569,10 @@ impl Vault {
 
     fn derive_machine_key(&self) -> Zeroizing<[u8; KEY_LEN]> {
         use sha2::{Digest, Sha256};
-        let machine_id = self.machine_id.clone().unwrap_or_else(get_machine_identifier);
+        let machine_id = self
+            .machine_id
+            .clone()
+            .unwrap_or_else(get_machine_identifier);
         let mut hasher = Sha256::new();
         hasher.update(b"datacore-machine-secret-v1:");
         hasher.update(machine_id.as_bytes());
@@ -644,7 +733,8 @@ impl Vault {
         let cipher = Aes256Gcm::new_from_slice(key.as_ref())
             .map_err(|e| AppError::Other(format!("Failed to initialize cipher: {}", e)))?;
 
-        let plain_map: HashMap<&str, &str> = map.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let plain_map: HashMap<&str, &str> =
+            map.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let mut plaintext = serde_json::to_vec(&plain_map)?;
         let mut nonce_bytes = [0u8; NONCE_LEN];
         rand::rng().fill(&mut nonce_bytes);
@@ -683,7 +773,10 @@ impl Vault {
         }
 
         if let Some(ref mut map) = *guard {
-            map.insert(connection_id.to_string(), Zeroizing::new(password.to_string()));
+            map.insert(
+                connection_id.to_string(),
+                Zeroizing::new(password.to_string()),
+            );
             self.save_vault_to_disk(map)?;
         }
 
@@ -710,7 +803,9 @@ impl Vault {
             *guard = Some(self.load_vault_from_disk()?);
         }
 
-        Ok(guard.as_ref().and_then(|map| map.get(connection_id).map(|s| s.as_str().to_string())))
+        Ok(guard
+            .as_ref()
+            .and_then(|map| map.get(connection_id).map(|s| s.as_str().to_string())))
     }
 
     pub fn delete_password(&self, connection_id: &str) -> Result<(), AppError> {

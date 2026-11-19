@@ -97,8 +97,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_ssh_tunnel_safety_guard_blocks_unauthorized_direct_connection() {
-        use crate::drivers::postgres::PostgresConnection;
         use crate::drivers::mysql::MySqlConnection;
+        use crate::drivers::postgres::PostgresConnection;
         use crate::models::connection::SshTunnelConfig;
 
         let mut config = ConnectionConfig {
@@ -129,17 +129,25 @@ mod tests {
 
         // Attempting direct Postgres connection with ssh_tunnel enabled must fail with security bypass error
         let pg_res = PostgresConnection::connect(&config, Some("pass")).await;
-        assert!(pg_res.is_err(), "Postgres connection must be blocked when SSH tunnel is enabled but not forwarded");
+        assert!(
+            pg_res.is_err(),
+            "Postgres connection must be blocked when SSH tunnel is enabled but not forwarded"
+        );
         let pg_err = pg_res.err().unwrap().to_string();
         assert!(pg_err.contains("SSH Tunnel to 'jumpbox.corp.com'"));
-        assert!(pg_err.contains("Direct connection to database host blocked to prevent security bypass"));
+        assert!(pg_err
+            .contains("Direct connection to database host blocked to prevent security bypass"));
 
         // Switch to MySQL and verify the same security guard applies
         config.driver = DatabaseDriver::Mysql;
         let my_res = MySqlConnection::connect(&config, Some("pass")).await;
-        assert!(my_res.is_err(), "MySQL connection must be blocked when SSH tunnel is enabled but not forwarded");
+        assert!(
+            my_res.is_err(),
+            "MySQL connection must be blocked when SSH tunnel is enabled but not forwarded"
+        );
         let my_err = my_res.err().unwrap().to_string();
         assert!(my_err.contains("SSH Tunnel to 'jumpbox.corp.com'"));
-        assert!(my_err.contains("Direct connection to database host blocked to prevent security bypass"));
+        assert!(my_err
+            .contains("Direct connection to database host blocked to prevent security bypass"));
     }
 }

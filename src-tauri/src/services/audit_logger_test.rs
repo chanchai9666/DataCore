@@ -1,6 +1,6 @@
 use super::audit_logger::*;
-use tempfile::tempdir;
 use std::fs;
+use tempfile::tempdir;
 
 #[test]
 fn test_append_only_logging_and_hash_chain() {
@@ -135,7 +135,11 @@ fn test_tamper_detection_on_broken_hash_chain() {
     let content = fs::read_to_string(&log_path).unwrap();
     let fake_hash = "1111111111111111111111111111111111111111111111111111111111111111";
     let lines: Vec<&str> = content.lines().collect();
-    let line2_tampered = lines[1].replace(&lines[1][lines[1].find("\"prevHash\":\"").unwrap() + 12..lines[1].find("\"prevHash\":\"").unwrap() + 76], fake_hash);
+    let line2_tampered = lines[1].replace(
+        &lines[1][lines[1].find("\"prevHash\":\"").unwrap() + 12
+            ..lines[1].find("\"prevHash\":\"").unwrap() + 76],
+        fake_hash,
+    );
     let tampered = format!("{}\n{}\n", lines[0], line2_tampered);
     fs::write(&log_path, tampered).unwrap();
 
@@ -153,7 +157,9 @@ fn test_log_rotation_when_exceeding_threshold() {
     let e1 = logger
         .log(AuditLogEntryInput {
             action: "QUERY".to_string(),
-            query: Some("SELECT a, b, c FROM very_large_table_name_here_to_take_up_bytes;".to_string()),
+            query: Some(
+                "SELECT a, b, c FROM very_large_table_name_here_to_take_up_bytes;".to_string(),
+            ),
             status: "SUCCESS".to_string(),
             ..Default::default()
         })
@@ -162,7 +168,9 @@ fn test_log_rotation_when_exceeding_threshold() {
     let e2 = logger
         .log(AuditLogEntryInput {
             action: "QUERY".to_string(),
-            query: Some("SELECT second_large_query_to_push_file_size_over_limit_threshold;".to_string()),
+            query: Some(
+                "SELECT second_large_query_to_push_file_size_over_limit_threshold;".to_string(),
+            ),
             status: "SUCCESS".to_string(),
             ..Default::default()
         })
@@ -263,7 +271,9 @@ fn test_redact_sensitive_sql_patterns() {
         "SET PASSWORD = '[REDACTED]';"
     );
     assert_eq!(
-        redact_sensitive_sql("CREATE USER 'bob' IDENTIFIED WITH mysql_native_password BY 'pass456';"),
+        redact_sensitive_sql(
+            "CREATE USER 'bob' IDENTIFIED WITH mysql_native_password BY 'pass456';"
+        ),
         "CREATE USER 'bob' IDENTIFIED WITH mysql_native_password BY '[REDACTED]';"
     );
     assert_eq!(
@@ -290,7 +300,11 @@ fn test_audit_logger_redacts_passwords_automatically() {
         entry.query.as_deref(),
         Some("CREATE USER 'app'@'%' IDENTIFIED BY '[REDACTED]';")
     );
-    assert!(!entry.details.as_ref().unwrap().contains("SuperSecretPassword!"));
+    assert!(!entry
+        .details
+        .as_ref()
+        .unwrap()
+        .contains("SuperSecretPassword!"));
     assert!(entry.details.as_ref().unwrap().contains("[REDACTED]"));
 
     // Ensure raw file on disk also does not contain plaintext password
@@ -329,6 +343,111 @@ fn test_hmac_prevents_unkeyed_rehash_forgery() {
         format!("{}\n", serde_json::to_string(&forged).unwrap()),
     )
     .unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+    assert_eq!(check.tampered_entry_id.as_deref(), Some(e1.id.as_str()));
+}
+
+#[test]
+fn test_missing_hmac_key_fails_closed() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    let e1 = logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Key is stored outside log_dir
+    assert!(!logger.hmac_key_path().starts_with(dir.path()));
+    assert!(logger.hmac_key_path().exists());
+
+    // Delete HMAC key -> verification must fail-closed
+    fs::remove_file(logger.hmac_key_path()).unwrap();
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+    assert!(check.error.unwrap().contains("HMAC key missing"));
+    assert_eq!(check.tampered_entry_id.as_deref(), Some(e1.id.as_str()));
+}
+
+#[test]
+fn test_legacy_sha256_plus_new_hmac_entries_verify_passes() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    let legacy_ts = "2026-11-18T10:00:00Z".to_string();
+    let legacy_details = "query=SELECT 1;;status=SUCCESS".to_string();
+    let legacy_hash = compute_entry_hash(GENESIS_HASH, &legacy_ts, "QUERY", &legacy_details);
+    let legacy_entry = AuditLogEntry {
+        id: "audit-legacy-1".to_string(),
+        timestamp: legacy_ts,
+        action: "QUERY".to_string(),
+        user: None,
+        connection_id: None,
+        connection_name: None,
+        database: None,
+        query: Some("SELECT 1;".to_string()),
+        execution_time_ms: Some(2),
+        rows_affected: Some(1),
+        status: "SUCCESS".to_string(),
+        error_message: None,
+        details: Some(legacy_details),
+        prev_hash: Some(GENESIS_HASH.to_string()),
+        entry_hash: Some(legacy_hash),
+        hash_algo: None,
+    };
+
+    fs::write(
+        logger.main_log_path(),
+        format!("{}\n", serde_json::to_string(&legacy_entry).unwrap()),
+    )
+    .unwrap();
+
+    // Append new HMAC entry on top of legacy entry
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(
+        check.is_valid,
+        "Expected valid chain, got {:?}",
+        check.error
+    );
+    assert_eq!(check.total_entries, 2);
+}
+
+#[test]
+fn test_tampering_error_message_is_detected() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    let e1 = logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT * FROM secret;".to_string()),
+            status: "FAILED".to_string(),
+            error_message: Some("permission denied for table secret".to_string()),
+            details: Some("custom_details".to_string()),
+            ..Default::default()
+        })
+        .unwrap();
+
+    assert!(logger.verify_integrity().unwrap().is_valid);
+
+    let content = fs::read_to_string(logger.main_log_path()).unwrap();
+    let tampered = content.replace("permission denied for table secret", "syntax error");
+    fs::write(logger.main_log_path(), tampered).unwrap();
 
     let check = logger.verify_integrity().unwrap();
     assert!(!check.is_valid);

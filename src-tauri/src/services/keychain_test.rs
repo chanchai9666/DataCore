@@ -1,9 +1,9 @@
-use std::fs;
-use tempfile::tempdir;
 use crate::services::keychain::{
     decrypt_master_key_v2, derive_kek_argon2, encrypt_master_key_v2, Vault, KEY_HEADER_V1,
     KEY_HEADER_V2, KEY_LEN, NONCE_LEN, SALT_LEN,
 };
+use std::fs;
+use tempfile::tempdir;
 
 #[test]
 fn test_keychain_crud_lifecycle() {
@@ -17,14 +17,18 @@ fn test_keychain_crud_lifecycle() {
     assert_eq!(initial, None);
 
     // 2. Save password
-    vault.save_password(conn_id, "my-p@ssw0rd!").expect("save password");
+    vault
+        .save_password(conn_id, "my-p@ssw0rd!")
+        .expect("save password");
 
     // 3. Retrieve password
     let retrieved = vault.get_password(conn_id).expect("get password");
     assert_eq!(retrieved.as_deref(), Some("my-p@ssw0rd!"));
 
     // 4. Overwrite password
-    vault.save_password(conn_id, "new-p@ssw0rd!").expect("update password");
+    vault
+        .save_password(conn_id, "new-p@ssw0rd!")
+        .expect("update password");
     let updated = vault.get_password(conn_id).expect("get updated password");
     assert_eq!(updated.as_deref(), Some("new-p@ssw0rd!"));
 
@@ -34,7 +38,9 @@ fn test_keychain_crud_lifecycle() {
     assert_eq!(after_delete, None);
 
     // 6. Delete again is idempotent and does not fail
-    vault.delete_password(conn_id).expect("delete non-existent password");
+    vault
+        .delete_password(conn_id)
+        .expect("delete non-existent password");
 }
 
 #[test]
@@ -46,7 +52,9 @@ fn test_vault_persistence_across_sessions() {
     let password = "SecretDatabasePassword123!";
 
     // 1. Save password to vault
-    vault.save_password(conn_id, password).expect("save password");
+    vault
+        .save_password(conn_id, password)
+        .expect("save password");
 
     // 2. Verify vault files were created on disk
     let vault_file = dir.path().join("vault.enc");
@@ -66,7 +74,9 @@ fn test_vault_persistence_across_sessions() {
     let reloaded_vault = Vault::new(dir.path());
 
     // 5. Retrieve password again - should reload and decrypt from vault.enc
-    let retrieved = reloaded_vault.get_password(conn_id).expect("retrieve after restart");
+    let retrieved = reloaded_vault
+        .get_password(conn_id)
+        .expect("retrieve after restart");
     assert_eq!(
         retrieved.as_deref(),
         Some(password),
@@ -74,9 +84,13 @@ fn test_vault_persistence_across_sessions() {
     );
 
     // 6. Delete password and verify it persists as deleted
-    reloaded_vault.delete_password(conn_id).expect("delete password");
+    reloaded_vault
+        .delete_password(conn_id)
+        .expect("delete password");
     let third_vault = Vault::new(dir.path());
-    let after_clear = third_vault.get_password(conn_id).expect("retrieve after delete");
+    let after_clear = third_vault
+        .get_password(conn_id)
+        .expect("retrieve after delete");
     assert_eq!(after_clear, None);
 }
 
@@ -86,7 +100,10 @@ fn test_vault_key_is_machine_bound_and_not_raw_aes_key() {
     let vault_alpha = Vault::with_machine_id(dir.path(), "machine-alpha-1234".to_string());
 
     vault_alpha.save_password("c1", "SecretP@ss").expect("save");
-    assert_eq!(vault_alpha.get_password("c1").unwrap().as_deref(), Some("SecretP@ss"));
+    assert_eq!(
+        vault_alpha.get_password("c1").unwrap().as_deref(),
+        Some("SecretP@ss")
+    );
 
     // Verify .vault.key file exists and has 0o600 permissions on unix
     let key_file = dir.path().join(".vault.key");
@@ -102,7 +119,10 @@ fn test_vault_key_is_machine_bound_and_not_raw_aes_key() {
     let vault_beta = Vault::with_machine_id(dir.path(), "machine-beta-9999".to_string());
     let result = vault_beta.get_password("c1");
     // Due to machine key mismatch, decryption must fail
-    assert!(result.is_err(), "Vault must fail decryption when machine-derived key differs");
+    assert!(
+        result.is_err(),
+        "Vault must fail decryption when machine-derived key differs"
+    );
 }
 
 #[test]
@@ -122,7 +142,10 @@ fn test_vault_key_legacy_migration_from_raw_32byte_key() {
 
     // Encrypt legacy payload with this raw key into vault.enc
     let mut payload_map = HashMap::new();
-    payload_map.insert("legacy-conn-1".to_string(), "old-remembered-password-xyz".to_string());
+    payload_map.insert(
+        "legacy-conn-1".to_string(),
+        "old-remembered-password-xyz".to_string(),
+    );
     let plaintext = serde_json::to_vec(&payload_map).expect("serialize payload");
 
     let cipher = Aes256Gcm::new_from_slice(&raw_aes_key).unwrap();
@@ -140,18 +163,29 @@ fn test_vault_key_legacy_migration_from_raw_32byte_key() {
     let upgraded_vault = Vault::with_machine_id(dir.path(), machine_id.to_string());
 
     // 3. Must successfully read password from legacy encrypted vault
-    let retrieved = upgraded_vault.get_password("legacy-conn-1").expect("read legacy password");
+    let retrieved = upgraded_vault
+        .get_password("legacy-conn-1")
+        .expect("read legacy password");
     assert_eq!(retrieved.as_deref(), Some("old-remembered-password-xyz"));
 
     // 4. Verify that .vault.key was automatically migrated to DCV1 format (36 bytes: 4 magic + 32 key)
     let migrated_bytes = fs::read(&key_file).expect("read migrated key file");
-    assert_eq!(migrated_bytes.len(), 36, "Migrated key file must be 36 bytes (4 magic + 32 key)");
+    assert_eq!(
+        migrated_bytes.len(),
+        36,
+        "Migrated key file must be 36 bytes (4 magic + 32 key)"
+    );
     assert_eq!(&migrated_bytes[..4], KEY_HEADER_V1, "Header must be DCV1");
 
     // 5. Verify that in subsequent session, modern vault continues to read seamlessly from migrated key
     let next_session_vault = Vault::with_machine_id(dir.path(), machine_id.to_string());
-    let next_retrieved = next_session_vault.get_password("legacy-conn-1").expect("read after migration");
-    assert_eq!(next_retrieved.as_deref(), Some("old-remembered-password-xyz"));
+    let next_retrieved = next_session_vault
+        .get_password("legacy-conn-1")
+        .expect("read after migration");
+    assert_eq!(
+        next_retrieved.as_deref(),
+        Some("old-remembered-password-xyz")
+    );
 }
 
 #[test]
@@ -163,7 +197,10 @@ fn test_argon2id_kek_derivation_and_aes_gcm_direct() {
     // 1. KEK derivation produces deterministic 32-byte key for same salt
     let kek1_a = derive_kek_argon2(password, salt1).expect("derive kek1_a");
     let kek1_b = derive_kek_argon2(password, salt1).expect("derive kek1_b");
-    assert_eq!(kek1_a, kek1_b, "Argon2id must be deterministic for identical password and salt");
+    assert_eq!(
+        kek1_a, kek1_b,
+        "Argon2id must be deterministic for identical password and salt"
+    );
 
     // 2. Different salts must produce distinct KEKs
     let kek2 = derive_kek_argon2(password, salt2).expect("derive kek2");
@@ -171,7 +208,8 @@ fn test_argon2id_kek_derivation_and_aes_gcm_direct() {
 
     // 3. Encrypt and decrypt a 32-byte master key
     let original_master_key: [u8; KEY_LEN] = [99u8; KEY_LEN];
-    let payload = encrypt_master_key_v2(&original_master_key, password).expect("encrypt master key");
+    let payload =
+        encrypt_master_key_v2(&original_master_key, password).expect("encrypt master key");
     assert_eq!(
         payload.len(),
         4 + SALT_LEN + NONCE_LEN + KEY_LEN + 16,
@@ -184,14 +222,20 @@ fn test_argon2id_kek_derivation_and_aes_gcm_direct() {
 
     // 4. Decrypt with wrong password must return error
     let wrong_result = decrypt_master_key_v2(&payload, "WrongMasterPassword!");
-    assert!(wrong_result.is_err(), "Decryption with wrong password must fail");
+    assert!(
+        wrong_result.is_err(),
+        "Decryption with wrong password must fail"
+    );
 
     // 5. Tampered ciphertext must fail authentication
     let mut tampered = payload.clone();
     let last = tampered.len() - 1;
     tampered[last] ^= 0x01;
     let tamper_result = decrypt_master_key_v2(&tampered, password);
-    assert!(tamper_result.is_err(), "Tampered ciphertext must fail auth tag verification");
+    assert!(
+        tamper_result.is_err(),
+        "Tampered ciphertext must fail auth tag verification"
+    );
 }
 
 #[test]
@@ -205,7 +249,9 @@ fn test_master_password_set_and_verify_lifecycle() {
 
     // Set master password
     let master_pass = "VaultMasterKeyPass!99";
-    vault.set_master_password(master_pass).expect("set master password");
+    vault
+        .set_master_password(master_pass)
+        .expect("set master password");
 
     assert!(vault.has_master_password().unwrap());
     assert!(vault.verify_master_password(master_pass).unwrap());
@@ -219,7 +265,9 @@ fn test_master_password_set_and_verify_lifecycle() {
     assert_eq!(&key_bytes[..4], KEY_HEADER_V2);
 
     // Save and retrieve password using active master password
-    vault.save_password("conn-1", "db-pass-alpha").expect("save password");
+    vault
+        .save_password("conn-1", "db-pass-alpha")
+        .expect("save password");
     assert_eq!(
         vault.get_password("conn-1").unwrap().as_deref(),
         Some("db-pass-alpha")
@@ -232,8 +280,12 @@ fn test_locked_vault_requires_master_password_and_unlock_error_handling() {
     let vault = Vault::new(dir.path());
     let master_pass = "MasterLock123!@#";
 
-    vault.set_master_password(master_pass).expect("set master password");
-    vault.save_password("conn-locked", "secret_oracle_pwd").expect("save password");
+    vault
+        .set_master_password(master_pass)
+        .expect("set master password");
+    vault
+        .save_password("conn-locked", "secret_oracle_pwd")
+        .expect("save password");
 
     // Simulate brand new application session (new Vault instance without password)
     let locked_vault = Vault::new(dir.path());
@@ -254,15 +306,22 @@ fn test_locked_vault_requires_master_password_and_unlock_error_handling() {
     );
 
     // Unlocking with correct password must succeed
-    locked_vault.unlock(master_pass).expect("unlock with correct password");
+    locked_vault
+        .unlock(master_pass)
+        .expect("unlock with correct password");
 
     // Retrieving password now succeeds
-    let retrieved = locked_vault.get_password("conn-locked").expect("get password after unlock");
+    let retrieved = locked_vault
+        .get_password("conn-locked")
+        .expect("get password after unlock");
     assert_eq!(retrieved.as_deref(), Some("secret_oracle_pwd"));
 
     // Lock vault again
     locked_vault.lock();
-    assert!(locked_vault.get_password("conn-locked").is_err(), "Access after lock must fail");
+    assert!(
+        locked_vault.get_password("conn-locked").is_err(),
+        "Access after lock must fail"
+    );
 }
 
 #[test]
@@ -272,15 +331,24 @@ fn test_change_master_password() {
     let old_pass = "InitialMasterPass1";
     let new_pass = "UpdatedMasterPass2";
 
-    vault.set_master_password(old_pass).expect("set master pass");
-    vault.save_password("c1", "db_pass_123").expect("save password");
+    vault
+        .set_master_password(old_pass)
+        .expect("set master pass");
+    vault
+        .save_password("c1", "db_pass_123")
+        .expect("save password");
 
     // Changing with wrong old password must fail with error
     let bad_change = vault.change_master_password("WrongOldPass", new_pass);
-    assert!(bad_change.is_err(), "Change master password with wrong old password must fail");
+    assert!(
+        bad_change.is_err(),
+        "Change master password with wrong old password must fail"
+    );
 
     // Changing with correct old password must succeed
-    vault.change_master_password(old_pass, new_pass).expect("change master password");
+    vault
+        .change_master_password(old_pass, new_pass)
+        .expect("change master password");
 
     // Old password no longer verifies
     assert!(!vault.verify_master_password(old_pass).unwrap());
@@ -289,7 +357,9 @@ fn test_change_master_password() {
 
     // Reload in brand new session
     let session2 = Vault::with_master_password(dir.path(), new_pass);
-    let pass = session2.get_password("c1").expect("retrieve password with new master key");
+    let pass = session2
+        .get_password("c1")
+        .expect("retrieve password with new master key");
     assert_eq!(pass.as_deref(), Some("db_pass_123"));
 }
 
@@ -299,12 +369,16 @@ fn test_migration_from_machine_mode_to_master_password_mode() {
     let machine_vault = Vault::with_machine_id(dir.path(), "my-laptop-hwid".to_string());
 
     // Save passwords in default machine mode (DCV1)
-    machine_vault.save_password("mysql-prod", "MySQLP@ssword2026").expect("save in machine mode");
+    machine_vault
+        .save_password("mysql-prod", "MySQLP@ssword2026")
+        .expect("save in machine mode");
     assert!(!machine_vault.has_master_password().unwrap());
 
     // Enable master password on existing vault
     let master_pwd = "NewMasterGuardPassword!";
-    machine_vault.set_master_password(master_pwd).expect("upgrade to master password mode");
+    machine_vault
+        .set_master_password(master_pwd)
+        .expect("upgrade to master password mode");
     assert!(machine_vault.has_master_password().unwrap());
 
     // Check key file upgraded to DCV2
@@ -313,12 +387,16 @@ fn test_migration_from_machine_mode_to_master_password_mode() {
     assert_eq!(&key_bytes[..4], KEY_HEADER_V2);
 
     // Passwords saved before upgrade must still decrypt properly
-    let decrypted = machine_vault.get_password("mysql-prod").expect("get migrated password");
+    let decrypted = machine_vault
+        .get_password("mysql-prod")
+        .expect("get migrated password");
     assert_eq!(decrypted.as_deref(), Some("MySQLP@ssword2026"));
 
     // Reload in separate session with master password
     let session_reloaded = Vault::with_master_password(dir.path(), master_pwd);
-    let pass_after_reload = session_reloaded.get_password("mysql-prod").expect("read after reload");
+    let pass_after_reload = session_reloaded
+        .get_password("mysql-prod")
+        .expect("read after reload");
     assert_eq!(pass_after_reload.as_deref(), Some("MySQLP@ssword2026"));
 }
 
@@ -329,14 +407,20 @@ fn test_remove_master_password_reverts_to_machine_mode() {
     let vault = Vault::with_machine_id(dir.path(), machine_id.clone());
     let master_pwd = "TemporaryMasterPwd!";
 
-    vault.set_master_password(master_pwd).expect("set master pwd");
-    vault.save_password("c-revert", "super_secret_value").expect("save pass");
+    vault
+        .set_master_password(master_pwd)
+        .expect("set master pwd");
+    vault
+        .save_password("c-revert", "super_secret_value")
+        .expect("save pass");
 
     // Remove master password with wrong password fails
     assert!(vault.remove_master_password("WrongPassword").is_err());
 
     // Remove master password with correct password succeeds
-    vault.remove_master_password(master_pwd).expect("remove master password");
+    vault
+        .remove_master_password(master_pwd)
+        .expect("remove master password");
     assert!(!vault.has_master_password().unwrap());
 
     // Verify key file is DCV1
@@ -346,7 +430,9 @@ fn test_remove_master_password_reverts_to_machine_mode() {
 
     // Fresh session without master password now decrypts using machine key
     let machine_session = Vault::with_machine_id(dir.path(), machine_id);
-    let retrieved = machine_session.get_password("c-revert").expect("read in machine mode");
+    let retrieved = machine_session
+        .get_password("c-revert")
+        .expect("read in machine mode");
     assert_eq!(retrieved.as_deref(), Some("super_secret_value"));
 }
 
@@ -358,7 +444,9 @@ fn test_vault_creates_directory_with_0700_permissions() {
     assert!(!non_existent_vault_dir.exists());
 
     let vault = Vault::new(&non_existent_vault_dir);
-    vault.save_password("conn-test-fresh-dir", "pass123").expect("save in new dir");
+    vault
+        .save_password("conn-test-fresh-dir", "pass123")
+        .expect("save in new dir");
 
     assert!(non_existent_vault_dir.exists());
 
@@ -372,7 +460,9 @@ fn test_vault_creates_directory_with_0700_permissions() {
             "Vault directory must have 0o700 permissions"
         );
 
-        let vault_file_perms = fs::metadata(non_existent_vault_dir.join("vault.enc")).unwrap().permissions();
+        let vault_file_perms = fs::metadata(non_existent_vault_dir.join("vault.enc"))
+            .unwrap()
+            .permissions();
         assert_eq!(
             vault_file_perms.mode() & 0o777,
             0o600,
@@ -380,7 +470,9 @@ fn test_vault_creates_directory_with_0700_permissions() {
         );
     }
 
-    let pass = vault.get_password("conn-test-fresh-dir").expect("get password");
+    let pass = vault
+        .get_password("conn-test-fresh-dir")
+        .expect("get password");
     assert_eq!(pass.as_deref(), Some("pass123"));
 }
 
@@ -390,20 +482,32 @@ fn test_vault_lock_and_clear_cache_zeroizes_secrets_in_memory() {
     let vault = Vault::new(dir.path());
 
     let master_pass = "VaultMasterZeroizePass!456";
-    vault.set_master_password(master_pass).expect("set master password");
+    vault
+        .set_master_password(master_pass)
+        .expect("set master password");
 
     // Save secrets in vault
-    vault.save_password("conn-prod-1", "ProdSuperSecretPassword!").expect("save pass");
-    vault.save_password("conn-prod-2", "ProdSuperSecretPassword2!").expect("save pass 2");
+    vault
+        .save_password("conn-prod-1", "ProdSuperSecretPassword!")
+        .expect("save pass");
+    vault
+        .save_password("conn-prod-2", "ProdSuperSecretPassword2!")
+        .expect("save pass 2");
 
     // Read back to populate memory cache
-    assert_eq!(vault.get_password("conn-prod-1").unwrap().as_deref(), Some("ProdSuperSecretPassword!"));
+    assert_eq!(
+        vault.get_password("conn-prod-1").unwrap().as_deref(),
+        Some("ProdSuperSecretPassword!")
+    );
 
     // Clear cache only
     vault.clear_cache();
 
     // Since master password is still in memory, get_password should successfully reload from disk
-    assert_eq!(vault.get_password("conn-prod-1").unwrap().as_deref(), Some("ProdSuperSecretPassword!"));
+    assert_eq!(
+        vault.get_password("conn-prod-1").unwrap().as_deref(),
+        Some("ProdSuperSecretPassword!")
+    );
 
     // Now lock vault
     vault.lock();
@@ -416,7 +520,10 @@ fn test_vault_lock_and_clear_cache_zeroizes_secrets_in_memory() {
 
     // Unlock again with correct password
     vault.unlock(master_pass).expect("unlock vault");
-    assert_eq!(vault.get_password("conn-prod-1").unwrap().as_deref(), Some("ProdSuperSecretPassword!"));
+    assert_eq!(
+        vault.get_password("conn-prod-1").unwrap().as_deref(),
+        Some("ProdSuperSecretPassword!")
+    );
 }
 
 #[test]
@@ -427,13 +534,59 @@ fn test_vault_keychain_opt_in_lifecycle() {
     // By default, opt-in is false (isolated local vault)
     assert!(!vault.is_keychain_opt_in());
 
-    // Enable opt-in
-    vault.set_keychain_opt_in(true).expect("enable keychain opt-in");
+    // Cannot enable keychain opt-in without master password
+    assert!(vault.set_keychain_opt_in(true).is_err());
+    assert!(!dir.path().join(".vault.keychain_opt_in").exists());
+
+    // Configure master password first
+    vault
+        .set_master_password("OptInSecret!2026")
+        .expect("set master password");
+
+    // Cannot enable keychain opt-in while vault is locked
+    vault.lock();
+    assert!(vault.set_keychain_opt_in(true).is_err());
+
+    // Unlock and enable opt-in
+    vault.unlock("OptInSecret!2026").expect("unlock vault");
+    vault
+        .set_keychain_opt_in(true)
+        .expect("enable keychain opt-in");
     assert!(vault.is_keychain_opt_in());
     assert!(dir.path().join(".vault.keychain_opt_in").exists());
 
-    // Disable opt-in
-    vault.set_keychain_opt_in(false).expect("disable keychain opt-in");
-    assert!(!vault.is_keychain_opt_in());
+    // Changing master password syncs keychain and survives simulated restart
+    vault
+        .change_master_password("OptInSecret!2026", "NewOptInSecret!2026")
+        .expect("change master password");
+    let restarted_vault = Vault::new(dir.path());
+    assert!(restarted_vault
+        .unlock_from_macos_keychain()
+        .expect("unlock from keychain"));
+    assert!(restarted_vault.is_unlocked().unwrap());
+
+    // Removing master password clears keychain opt-in flag
+    restarted_vault
+        .remove_master_password("NewOptInSecret!2026")
+        .expect("remove master password");
+    assert!(!restarted_vault.is_keychain_opt_in());
     assert!(!dir.path().join(".vault.keychain_opt_in").exists());
+}
+
+#[test]
+fn test_unlock_rate_limit_lockout_after_five_failures() {
+    let dir = tempdir().expect("create temp dir");
+    let vault = Vault::new(dir.path());
+    vault
+        .set_master_password("CorrectPassword!")
+        .expect("set master password");
+    vault.lock();
+
+    for _ in 0..5 {
+        assert!(vault.unlock("WrongPassword").is_err());
+    }
+
+    // 6th attempt even with correct password must be rate-limited
+    let err = vault.unlock("CorrectPassword!").unwrap_err().to_string();
+    assert!(err.contains("Too many failed unlock attempts"));
 }

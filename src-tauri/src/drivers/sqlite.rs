@@ -1,10 +1,12 @@
-use std::sync::Arc;
-use async_trait::async_trait;
-use tokio::sync::Mutex;
+use crate::drivers::traits::{
+    build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome,
+};
 use crate::error::AppError;
 use crate::models::connection::ConnectionConfig;
 use crate::models::query::{CellValue, ColumnMeta, QueryResult};
-use crate::drivers::traits::{build_safe_where_clause, Chunk, DatabaseConnection, SchemaNode, SchemaNodeType, StreamOutcome};
+use async_trait::async_trait;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct SqliteConnection {
@@ -34,7 +36,11 @@ pub fn split_sql_statements(sql: &str) -> Vec<String> {
 
     while i < len {
         let ch = chars[i];
-        let next = if i + 1 < len { Some(chars[i + 1]) } else { None };
+        let next = if i + 1 < len {
+            Some(chars[i + 1])
+        } else {
+            None
+        };
 
         // 1. Single-line comment (-- ...)
         if in_line_comment {
@@ -199,15 +205,19 @@ impl SqliteConnection {
     }
 
     pub fn from_config(config: &ConnectionConfig) -> Result<Self, AppError> {
-        let mut instance = if config.database == ":memory:" || config.database.starts_with("sqlite::memory:") {
-            Self::open_in_memory()?
-        } else {
-            Self::open(&config.database)?
-        };
+        let mut instance =
+            if config.database == ":memory:" || config.database.starts_with("sqlite::memory:") {
+                Self::open_in_memory()?
+            } else {
+                Self::open(&config.database)?
+            };
         instance.auto_reconnect = config.auto_reconnect.unwrap_or(true);
         if config.read_only.unwrap_or(false) {
             instance.read_only = true;
-            let conn = instance.conn.try_lock().map_err(|e| AppError::Other(e.to_string()))?;
+            let conn = instance
+                .conn
+                .try_lock()
+                .map_err(|e| AppError::Other(e.to_string()))?;
             conn.execute_batch("PRAGMA query_only = ON;")?;
         }
         Ok(instance)
@@ -224,13 +234,7 @@ impl SqliteConnection {
             let columns: Vec<ColumnMeta> = stmt
                 .columns()
                 .into_iter()
-                .map(|col| {
-                    ColumnMeta::new(
-                        col.name(),
-                        col.decl_type().unwrap_or("TEXT"),
-                        true,
-                    )
-                })
+                .map(|col| ColumnMeta::new(col.name(), col.decl_type().unwrap_or("TEXT"), true))
                 .collect();
 
             let mut rows = stmt.query([])?;
@@ -260,7 +264,12 @@ impl SqliteConnection {
             Ok(QueryResult::new(columns, rows_out, 0, None))
         } else {
             let rows_affected = stmt.execute([])? as u64;
-            Ok(QueryResult::new(Vec::new(), Vec::new(), 0, Some(rows_affected)))
+            Ok(QueryResult::new(
+                Vec::new(),
+                Vec::new(),
+                0,
+                Some(rows_affected),
+            ))
         }
     }
 
@@ -334,13 +343,7 @@ impl SqliteConnection {
         let columns: Arc<Vec<ColumnMeta>> = Arc::new(
             stmt.columns()
                 .into_iter()
-                .map(|col| {
-                    ColumnMeta::new(
-                        col.name(),
-                        col.decl_type().unwrap_or("TEXT"),
-                        true,
-                    )
-                })
+                .map(|col| ColumnMeta::new(col.name(), col.decl_type().unwrap_or("TEXT"), true))
                 .collect(),
         );
 
@@ -474,14 +477,22 @@ impl DatabaseConnection for SqliteConnection {
         let sql_owned = sql.to_string();
 
         tokio::task::spawn_blocking(move || {
-            Self::stream_on_conn(&conn_guard, &sql_owned, chunk_rows, &tx)
-                .map_err(AppError::from)
+            Self::stream_on_conn(&conn_guard, &sql_owned, chunk_rows, &tx).map_err(AppError::from)
         })
         .await
         .map_err(|e| AppError::Other(format!("SQLite streaming task failed: {}", e)))?
     }
 
-    async fn fetch_table_data(&self, schema: Option<&str>, table: &str, limit: u32, offset: u32, filter: Option<&str>, sort_col: Option<&str>, sort_dir: Option<&str>) -> Result<QueryResult, AppError> {
+    async fn fetch_table_data(
+        &self,
+        schema: Option<&str>,
+        table: &str,
+        limit: u32,
+        offset: u32,
+        filter: Option<&str>,
+        sort_col: Option<&str>,
+        sort_dir: Option<&str>,
+    ) -> Result<QueryResult, AppError> {
         let escaped_table = table.replace('"', "\"\"");
         let from_clause = if let Some(sch) = schema {
             let escaped_schema = sch.replace('"', "\"\"");
@@ -495,7 +506,11 @@ impl DatabaseConnection for SqliteConnection {
         let order_clause = match sort_col {
             Some(col) if !col.trim().is_empty() => {
                 let escaped_col = col.trim().replace('"', "\"\"");
-                let dir = if sort_dir == Some("DESC") { "DESC" } else { "ASC" };
+                let dir = if sort_dir == Some("DESC") {
+                    "DESC"
+                } else {
+                    "ASC"
+                };
                 format!(" ORDER BY \"{}\" {}", escaped_col, dir)
             }
             _ => String::new(),
@@ -516,7 +531,10 @@ impl DatabaseConnection for SqliteConnection {
             Err(_) => None,
         };
 
-        let sql = format!("SELECT * FROM {}{}{} LIMIT {} OFFSET {};", from_clause, where_clause, order_clause, limit, offset);
+        let sql = format!(
+            "SELECT * FROM {}{}{} LIMIT {} OFFSET {};",
+            from_clause, where_clause, order_clause, limit, offset
+        );
         let mut res = self.execute_query(&sql).await?;
         if total_count.is_some() {
             res.rows_affected = total_count;
@@ -524,16 +542,24 @@ impl DatabaseConnection for SqliteConnection {
 
         // Populate is_primary_key and is_auto_increment from PRAGMA table_info
         let pragma_sql = if let Some(sch) = schema {
-            format!("PRAGMA \"{}\".table_info(\"{}\");", sch.replace('"', "\"\""), escaped_table)
+            format!(
+                "PRAGMA \"{}\".table_info(\"{}\");",
+                sch.replace('"', "\"\""),
+                escaped_table
+            )
         } else {
             format!("PRAGMA table_info(\"{}\");", escaped_table)
         };
         if let Ok(info_res) = self.execute_query(&pragma_sql).await {
             let mut pk_count = 0usize;
-            let mut col_flags: std::collections::HashMap<String, (bool, bool)> = std::collections::HashMap::new();
+            let mut col_flags: std::collections::HashMap<String, (bool, bool)> =
+                std::collections::HashMap::new();
             for row in &info_res.rows {
-                if let (Some(CellValue::Text(name)), Some(CellValue::Text(col_type)), Some(CellValue::Integer(pk))) =
-                    (row.get(1), row.get(2), row.get(5))
+                if let (
+                    Some(CellValue::Text(name)),
+                    Some(CellValue::Text(col_type)),
+                    Some(CellValue::Integer(pk)),
+                ) = (row.get(1), row.get(2), row.get(5))
                 {
                     let is_pk = *pk > 0;
                     if is_pk {
@@ -582,8 +608,8 @@ impl DatabaseConnection for SqliteConnection {
             }
             children.push(node);
         }
-        let db_node = SchemaNode::new(&self.database_name, SchemaNodeType::Database)
-            .with_children(children);
+        let db_node =
+            SchemaNode::new(&self.database_name, SchemaNodeType::Database).with_children(children);
         Ok(vec![db_node])
     }
 
@@ -630,7 +656,12 @@ impl DatabaseConnection for SqliteConnection {
         Ok(())
     }
 
-    async fn get_object_ddl(&self, _schema: Option<&str>, name: &str, _object_type: &str) -> Result<String, AppError> {
+    async fn get_object_ddl(
+        &self,
+        _schema: Option<&str>,
+        name: &str,
+        _object_type: &str,
+    ) -> Result<String, AppError> {
         let conn = self.conn.lock().await;
         let mut stmt = conn.prepare("SELECT sql FROM sqlite_master WHERE name = ?;")?;
         let mut rows = stmt.query([name])?;
@@ -640,6 +671,9 @@ impl DatabaseConnection for SqliteConnection {
                 return Ok(s);
             }
         }
-        Err(AppError::NotFound(format!("Object '{}' not found in schema", name)))
+        Err(AppError::NotFound(format!(
+            "Object '{}' not found in schema",
+            name
+        )))
     }
 }

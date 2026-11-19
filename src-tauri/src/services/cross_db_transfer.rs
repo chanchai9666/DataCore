@@ -1,4 +1,3 @@
-use std::time::Instant;
 use crate::drivers::{Chunk, DatabaseConnection};
 use crate::error::AppError;
 use crate::models::query::ColumnMeta;
@@ -7,6 +6,7 @@ use crate::models::{CellValue, DatabaseDriver};
 use crate::services::data_transfer::{
     generate_batch_insert_cells_sql, is_transfer_cancelled, remove_cancellation_token,
 };
+use std::time::Instant;
 
 /// Maps a column data type from source dialect to target dialect.
 pub fn map_data_type(src_type: &str, _src_dialect: &str, target_dialect: &str) -> String {
@@ -23,9 +23,7 @@ pub fn map_data_type(src_type: &str, _src_dialect: &str, target_dialect: &str) -
                 || upper.contains("NUMERIC")
             {
                 "REAL".to_string()
-            } else if upper.contains("BLOB")
-                || upper.contains("BYTEA")
-                || upper.contains("BINARY")
+            } else if upper.contains("BLOB") || upper.contains("BYTEA") || upper.contains("BINARY")
             {
                 "BLOB".to_string()
             } else {
@@ -105,17 +103,35 @@ pub fn generate_create_table_ddl(
 
     let full_table_name = match target_schema {
         Some(s) if !s.is_empty() => match target_dialect {
-            "mysql" => format!("`{}`.`{}`", s.replace('`', "``"), target_table.replace('`', "``")),
-            _ => format!("\"{}\".\"{}\"", s.replace('"', "\"\""), target_table.replace('"', "\"\"")),
+            "mysql" => format!(
+                "`{}`.`{}`",
+                s.replace('`', "``"),
+                target_table.replace('`', "``")
+            ),
+            _ => format!(
+                "\"{}\".\"{}\"",
+                s.replace('"', "\"\""),
+                target_table.replace('"', "\"\"")
+            ),
         },
-        _ => format!("{}{}{}", left_q, target_table.replace(left_q, &format!("{left_q}{left_q}")), right_q),
+        _ => format!(
+            "{}{}{}",
+            left_q,
+            target_table.replace(left_q, &format!("{left_q}{left_q}")),
+            right_q
+        ),
     };
 
     let mut col_defs = Vec::new();
     let mut pk_cols = Vec::new();
 
     for col in columns {
-        let q_name = format!("{}{}{}", left_q, col.name.replace(left_q, &format!("{left_q}{left_q}")), right_q);
+        let q_name = format!(
+            "{}{}{}",
+            left_q,
+            col.name.replace(left_q, &format!("{left_q}{left_q}")),
+            right_q
+        );
         let mapped_type = map_data_type(&col.data_type, src_dialect, target_dialect);
 
         let mut def = format!("{} {}", q_name, mapped_type);
@@ -161,7 +177,9 @@ where
         if let Some(jid) = job_id {
             if is_transfer_cancelled(jid) {
                 remove_cancellation_token(jid);
-                return Err(AppError::Cancelled("Cross-DB transfer cancelled by user".to_string()));
+                return Err(AppError::Cancelled(
+                    "Cross-DB transfer cancelled by user".to_string(),
+                ));
             }
         }
         Ok(())
@@ -187,8 +205,16 @@ where
 
     let src_qualified_table = match options.source_schema.as_deref() {
         Some(s) if !s.is_empty() => match src_driver {
-            DatabaseDriver::Mysql => format!("`{}`.`{}`", s.replace('`', "``"), options.source_table.replace('`', "``")),
-            _ => format!("\"{}\".\"{}\"", s.replace('"', "\"\""), options.source_table.replace('"', "\"\"")),
+            DatabaseDriver::Mysql => format!(
+                "`{}`.`{}`",
+                s.replace('`', "``"),
+                options.source_table.replace('`', "``")
+            ),
+            _ => format!(
+                "\"{}\".\"{}\"",
+                s.replace('"', "\"\""),
+                options.source_table.replace('"', "\"\"")
+            ),
         },
         _ => match src_driver {
             DatabaseDriver::Mysql => format!("`{}`", options.source_table.replace('`', "``")),
@@ -241,8 +267,16 @@ where
 
     let tgt_qualified_table = match options.target_schema.as_deref() {
         Some(s) if !s.is_empty() => match tgt_driver {
-            DatabaseDriver::Mysql => format!("`{}`.`{}`", s.replace('`', "``"), options.target_table.replace('`', "``")),
-            _ => format!("\"{}\".\"{}\"", s.replace('"', "\"\""), options.target_table.replace('"', "\"\"")),
+            DatabaseDriver::Mysql => format!(
+                "`{}`.`{}`",
+                s.replace('`', "``"),
+                options.target_table.replace('`', "``")
+            ),
+            _ => format!(
+                "\"{}\".\"{}\"",
+                s.replace('"', "\"\""),
+                options.target_table.replace('"', "\"\"")
+            ),
         },
         _ => match tgt_driver {
             DatabaseDriver::Mysql => format!("`{}`", options.target_table.replace('`', "``")),
@@ -261,7 +295,9 @@ where
             });
         }
         let drop_sql = match tgt_driver {
-            DatabaseDriver::Postgres => format!("DROP TABLE IF EXISTS {} CASCADE;", tgt_qualified_table),
+            DatabaseDriver::Postgres => {
+                format!("DROP TABLE IF EXISTS {} CASCADE;", tgt_qualified_table)
+            }
             _ => format!("DROP TABLE IF EXISTS {};", tgt_qualified_table),
         };
         tgt_conn.execute_query(&drop_sql).await?;
@@ -353,7 +389,9 @@ where
                             "Transferring rows: {} / {} ({}%)",
                             rows_transferred,
                             tot,
-                            ((rows_transferred as f64 / tot as f64) * 100.0).round().min(100.0) as u64
+                            ((rows_transferred as f64 / tot as f64) * 100.0)
+                                .round()
+                                .min(100.0) as u64
                         ),
                         Some(tot) => format!("Transferring rows: {} / {}", rows_transferred, tot),
                         None => format!("Transferring rows: {}", rows_transferred),

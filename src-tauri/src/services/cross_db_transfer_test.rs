@@ -14,7 +14,10 @@ mod tests {
         assert_eq!(map_data_type("VARCHAR(100)", "mysql", "sqlite"), "TEXT");
         assert_eq!(map_data_type("INT", "mysql", "sqlite"), "INTEGER");
         assert_eq!(map_data_type("BIGINT", "postgres", "sqlite"), "INTEGER");
-        assert_eq!(map_data_type("SERIAL", "postgres", "mysql"), "BIGINT AUTO_INCREMENT PRIMARY KEY");
+        assert_eq!(
+            map_data_type("SERIAL", "postgres", "mysql"),
+            "BIGINT AUTO_INCREMENT PRIMARY KEY"
+        );
         assert_eq!(map_data_type("INT", "sqlite", "postgres"), "INTEGER");
         assert_eq!(map_data_type("TINYINT(1)", "mysql", "postgres"), "BOOLEAN");
     }
@@ -180,7 +183,8 @@ mod tests {
             "copyData": true,
             "jobId": "job-camel-123"
         }"#;
-        let opts: CrossDbCopyTableOptions = serde_json::from_str(json_camel).expect("deserialize camelCase");
+        let opts: CrossDbCopyTableOptions =
+            serde_json::from_str(json_camel).expect("deserialize camelCase");
         assert_eq!(opts.source_connection_id, "c1");
         assert_eq!(opts.source_table, "t1");
         assert_eq!(opts.target_connection_id, "c2");
@@ -198,14 +202,15 @@ mod tests {
             "copy_data": true,
             "job_id": "job-snake-456"
         }"#;
-        let opts_snake: CrossDbCopyTableOptions = serde_json::from_str(json_snake).expect("deserialize snake_case");
+        let opts_snake: CrossDbCopyTableOptions =
+            serde_json::from_str(json_snake).expect("deserialize snake_case");
         assert_eq!(opts_snake.job_id, Some("job-snake-456".to_string()));
     }
 
     #[tokio::test]
     async fn test_copy_table_cross_db_emits_progress_with_accurate_counts() {
-        use std::sync::{Arc, Mutex};
         use crate::models::transfer::TransferProgress;
+        use std::sync::{Arc, Mutex};
 
         let src_conn = SqliteConnection::open_in_memory().expect("open src");
         let tgt_conn = SqliteConnection::open_in_memory().expect("open tgt");
@@ -217,7 +222,10 @@ mod tests {
 
         for i in 1..=5 {
             src_conn
-                .execute_query(&format!("INSERT INTO \"items\" VALUES ({}, 'item-{}');", i, i))
+                .execute_query(&format!(
+                    "INSERT INTO \"items\" VALUES ({}, 'item-{}');",
+                    i, i
+                ))
                 .await
                 .unwrap();
         }

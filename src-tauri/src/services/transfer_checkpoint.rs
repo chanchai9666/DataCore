@@ -12,7 +12,11 @@ use crate::error::AppError;
 pub fn rejects_file_path_for(import_file_path: &str) -> PathBuf {
     let p = Path::new(import_file_path);
     let lower = import_file_path.to_lowercase();
-    if lower.ends_with(".gz") || lower.ends_with(".gzip") || lower.ends_with(".zst") || lower.ends_with(".zstd") {
+    if lower.ends_with(".gz")
+        || lower.ends_with(".gzip")
+        || lower.ends_with(".zst")
+        || lower.ends_with(".zstd")
+    {
         PathBuf::from(format!("{}.rejects.csv", import_file_path))
     } else {
         p.with_extension("rejects.csv")

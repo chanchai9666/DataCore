@@ -1,18 +1,18 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
 use crate::models::{ConnectionConfig, DatabaseDriver};
 use crate::services::native_backup::{
-    build_backup_command, build_restore_command, check_cli_availability_for_driver,
-    run_native_cli_streaming, cancel_running_native_task,
-    NativeBackupOptions, NativeRestoreOptions, NativeCommandSpec,
+    build_backup_command, build_restore_command, cancel_running_native_task,
+    check_cli_availability_for_driver, run_native_cli_streaming, NativeBackupOptions,
+    NativeCommandSpec, NativeRestoreOptions,
 };
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[test]
 fn test_find_cli_binary_and_availability() {
     // sqlite3 is universally installed on macOS & linux dev environments
-    let status = tokio::runtime::Runtime::new().unwrap().block_on(async {
-        check_cli_availability_for_driver(DatabaseDriver::Sqlite).await
-    });
+    let status = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(async { check_cli_availability_for_driver(DatabaseDriver::Sqlite).await });
 
     assert_eq!(status.cli_name, "sqlite3");
     if status.available {
@@ -76,7 +76,10 @@ fn test_build_backup_command_postgres_arguments() {
         assert!(args.contains(&"-f".to_string()));
         assert!(args.contains(&"/tmp/backup.dump".to_string()));
         assert!(args.contains(&"mydb".to_string()));
-        assert_eq!(spec.envs.get("PGPASSWORD").map(|s| s.as_str()), Some("secret_pwd"));
+        assert_eq!(
+            spec.envs.get("PGPASSWORD").map(|s| s.as_str()),
+            Some("secret_pwd")
+        );
     }
 }
 
@@ -116,8 +119,14 @@ fn test_build_backup_command_mysql_arguments() {
     let res = build_backup_command(&config, Some("mypass"), &opts);
     if let Ok(spec) = res {
         let args = &spec.args;
-        assert!(args[0].starts_with("--defaults-extra-file="), "First arg must be --defaults-extra-file");
-        assert!(!args.iter().any(|a| a.contains("--password=")), "Must not expose plaintext password in argv");
+        assert!(
+            args[0].starts_with("--defaults-extra-file="),
+            "First arg must be --defaults-extra-file"
+        );
+        assert!(
+            !args.iter().any(|a| a.contains("--password=")),
+            "Must not expose plaintext password in argv"
+        );
         assert!(args.contains(&"--single-transaction".to_string()));
         assert!(args.contains(&"--host=localhost".to_string()));
         assert!(args.contains(&"--port=3306".to_string()));
@@ -134,7 +143,11 @@ fn test_build_backup_command_mysql_arguments() {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(spec.temp_files[0].path()).unwrap().permissions().mode() & 0o777;
+            let mode = std::fs::metadata(spec.temp_files[0].path())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777;
             assert_eq!(mode, 0o600);
         }
     }
@@ -183,7 +196,8 @@ fn test_build_backup_command_sqlite_arguments() {
         schema_only: Some(true),
         ..opts
     };
-    let schema_spec = build_backup_command(&config, None, &schema_opts).expect("build sqlite schema backup");
+    let schema_spec =
+        build_backup_command(&config, None, &schema_opts).expect("build sqlite schema backup");
     assert_eq!(schema_spec.args[1], ".output '/tmp/backup.db'");
     assert_eq!(schema_spec.args[2], ".schema");
 }
@@ -229,7 +243,10 @@ fn test_build_restore_command_postgres_arguments() {
         assert!(args.contains(&"-d".to_string()));
         assert!(args.contains(&"mydb_restored".to_string()));
         assert!(args.contains(&"/tmp/backup.dump".to_string()));
-        assert_eq!(spec.envs.get("PGPASSWORD").map(|s| s.as_str()), Some("mypassword"));
+        assert_eq!(
+            spec.envs.get("PGPASSWORD").map(|s| s.as_str()),
+            Some("mypassword")
+        );
     }
 
     // Parallel restore (-j 4) must drop --single-transaction
@@ -316,7 +333,10 @@ async fn test_run_native_cli_streaming_and_cancellation() {
     assert!(final_res.is_err());
     let err_msg = final_res.unwrap_err().to_string();
     assert!(err_msg.contains("cancelled"));
-    assert!(!incomplete_file.exists(), "Incomplete output file must be cleaned up on cancel");
+    assert!(
+        !incomplete_file.exists(),
+        "Incomplete output file must be cleaned up on cancel"
+    );
 }
 
 #[test]
@@ -352,6 +372,8 @@ fn test_cli_option_injection_blocked() {
         parallel_jobs: None,
     };
 
-    let err = build_backup_command(&config, None, &opts).err().expect("must reject leading dash host");
+    let err = build_backup_command(&config, None, &opts)
+        .err()
+        .expect("must reject leading dash host");
     assert!(err.to_string().contains("option injection"));
 }

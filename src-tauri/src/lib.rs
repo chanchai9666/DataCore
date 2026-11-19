@@ -44,6 +44,7 @@ pub fn run() {
             vault_is_keychain_enabled,
             vault_set_keychain_enabled,
             vault_has_master_password,
+            vault_status,
             vault_set_master_password,
             vault_change_master_password,
             vault_remove_master_password,

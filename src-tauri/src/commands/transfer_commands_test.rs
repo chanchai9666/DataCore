@@ -1,6 +1,6 @@
-use tempfile::tempdir;
 use crate::commands::transfer_commands::preview_import_file;
 use crate::services::path_guard::validate_safe_transfer_path;
+use tempfile::tempdir;
 
 #[tokio::test]
 async fn test_preview_import_file_blocks_directory_traversal() {
@@ -31,11 +31,7 @@ async fn test_preview_import_file_blocks_invalid_extension() {
     let res = preview_import_file("/tmp/payload.sh".to_string(), None).await;
     assert!(res.is_err());
     let err = res.err().unwrap();
-    assert!(
-        err.contains("not allowed"),
-        "Unexpected error: {}",
-        err
-    );
+    assert!(err.contains("not allowed"), "Unexpected error: {}", err);
 }
 
 #[tokio::test]
@@ -101,7 +97,11 @@ fn test_validate_safe_transfer_path_blocked_system_locations() {
 
     for path in blocked {
         let res = validate_safe_transfer_path(path, &["csv", "tsv", "json", "sql", "txt"]);
-        assert!(res.is_err(), "System path '{}' should have been blocked", path);
+        assert!(
+            res.is_err(),
+            "System path '{}' should have been blocked",
+            path
+        );
         let err = res.err().unwrap();
         assert!(
             err.contains("dangerous system location"),
@@ -122,8 +122,13 @@ fn test_validate_safe_transfer_path_sensitive_user_locations() {
     ];
 
     for path in sensitive {
-        let res = validate_safe_transfer_path(path, &["csv", "tsv", "json", "sql", "txt", "enc", "key"]);
-        assert!(res.is_err(), "Sensitive path '{}' should have been blocked", path);
+        let res =
+            validate_safe_transfer_path(path, &["csv", "tsv", "json", "sql", "txt", "enc", "key"]);
+        assert!(
+            res.is_err(),
+            "Sensitive path '{}' should have been blocked",
+            path
+        );
         let err = res.err().unwrap();
         assert!(
             err.contains("sensitive") || err.contains("denied"),

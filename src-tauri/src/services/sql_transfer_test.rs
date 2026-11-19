@@ -122,10 +122,18 @@ SELECT * FROM users WHERE name = 'ทดสอบ'; -- ปิดท้าย
     async fn test_export_sql_empty_tables_exports_all_tables() {
         let conn = SqliteConnection::open_in_memory().expect("open sqlite");
 
-        conn.execute_query("CREATE TABLE t1 (id INT);").await.expect("create t1");
-        conn.execute_query("CREATE TABLE t2 (id INT);").await.expect("create t2");
-        conn.execute_query("INSERT INTO t1 VALUES (1), (2);").await.expect("insert t1");
-        conn.execute_query("INSERT INTO t2 VALUES (10);").await.expect("insert t2");
+        conn.execute_query("CREATE TABLE t1 (id INT);")
+            .await
+            .expect("create t1");
+        conn.execute_query("CREATE TABLE t2 (id INT);")
+            .await
+            .expect("create t2");
+        conn.execute_query("INSERT INTO t1 VALUES (1), (2);")
+            .await
+            .expect("insert t1");
+        conn.execute_query("INSERT INTO t2 VALUES (10);")
+            .await
+            .expect("insert t2");
 
         let temp_dir = std::env::temp_dir();
         let dump_path = temp_dir.join(format!("datacore_dump_all_{}.sql", uuid::Uuid::new_v4()));
@@ -165,7 +173,10 @@ SELECT * FROM users WHERE name = 'ทดสอบ'; -- ปิดท้าย
             .expect("create table");
 
         let temp_dir = std::env::temp_dir();
-        let sql_path = temp_dir.join(format!("datacore_cancel_import_{}.sql", uuid::Uuid::new_v4()));
+        let sql_path = temp_dir.join(format!(
+            "datacore_cancel_import_{}.sql",
+            uuid::Uuid::new_v4()
+        ));
         std::fs::write(
             &sql_path,
             "INSERT INTO tx_test VALUES (1);\nINSERT INTO tx_test VALUES (2);\n",
@@ -187,7 +198,10 @@ SELECT * FROM users WHERE name = 'ทดสอบ'; -- ปิดท้าย
         let res = import_sql_impl(&conn, &import_opts, None::<fn(_)>).await;
         assert!(res.is_err());
 
-        let count_res = conn.execute_query("SELECT COUNT(*) FROM tx_test;").await.unwrap();
+        let count_res = conn
+            .execute_query("SELECT COUNT(*) FROM tx_test;")
+            .await
+            .unwrap();
         assert_eq!(count_res.rows[0][0], CellValue::Integer(0));
 
         let _ = std::fs::remove_file(sql_path);

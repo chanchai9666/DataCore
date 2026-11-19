@@ -269,7 +269,11 @@ impl QueryResult {
         self
     }
 
-    pub fn with_keyset_cursor(mut self, next_cursor: Option<Vec<CellValue>>, has_more: bool) -> Self {
+    pub fn with_keyset_cursor(
+        mut self,
+        next_cursor: Option<Vec<CellValue>>,
+        has_more: bool,
+    ) -> Self {
         self.next_cursor = next_cursor;
         self.has_more = Some(has_more);
         self
@@ -345,4 +349,3 @@ pub struct TableFilterState {
     #[serde(default)]
     pub conditions: Vec<FilterCondition>,
 }
-
