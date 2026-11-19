@@ -987,6 +987,9 @@
     - **Zustand State & Persistence:** สร้าง `privacyStore.ts` เก็บสถานะ `screenProtectionEnabled` ใน `localStorage` (`datacore-screen-protection`) และ sync สถานะกับหน้าต่าง Tauri อัตโนมัติเมื่อเปิดแอป (`syncScreenProtection`)
     - **Multi-Surface Toggle UI:** เพิ่มสวิตช์เปิด-ปิดใน `ConnectionSecurityModal`, เมนูสลับด่วนพร้อมสถานะใน `MainToolbar` (Tools -> Security & Administration), คำสั่งใน `CommandPaletteModal` (`⌘K`), และรายการเมนู `Toggle Screen Sharing Protection` ใน macOS Native Menu Bar (`View`) พร้อมรองรับภาษาไทย/อังกฤษ (`en.json`, `th.json`)
 
+54. **Issue #195: Query Tab Dropdown Padding Fix (`EditorToolbar.tsx`)**
+    - **Chevron Overlap Fix:** ปรับ inline padding ของ `<select>` สำหรับ `Isolation Level` และ `Safe Limit` ใน `src/components/editor/EditorToolbar.tsx` จาก `0 6px` เป็น `0 28px 0 8px` เพื่อเว้นพื้นที่ให้ custom SVG chevron ใน `src/index.css` ไม่ทับข้อความตัวเลือก (เช่น `1,000 (Safe Default)` และ `Read Committed`)
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)

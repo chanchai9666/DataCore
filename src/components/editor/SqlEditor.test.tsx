@@ -120,10 +120,14 @@ describe('EditorToolbar', () => {
     const isolationSelect = screen.getByLabelText('Isolation Level');
     expect(isolationSelect.style.height).toBe('28px');
     expect(isolationSelect.style.minHeight).toBe('28px');
+    expect(isolationSelect.style.paddingRight).toBe('28px');
+    expect(isolationSelect.style.paddingLeft).toBe('8px');
 
     const limitSelect = screen.getByLabelText('Safe Limit');
     expect(limitSelect.style.height).toBe('28px');
     expect(limitSelect.style.minHeight).toBe('28px');
+    expect(limitSelect.style.paddingRight).toBe('28px');
+    expect(limitSelect.style.paddingLeft).toBe('8px');
 
     const runBtn = screen.getByRole('button', { name: /run/i });
     expect(runBtn.style.height).toBe('28px');
