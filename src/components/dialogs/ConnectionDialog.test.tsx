@@ -726,10 +726,10 @@ describe('ConnectionDialog', () => {
       expect(onClose).toHaveBeenCalled();
     });
 
-    it('shows locked vault notice when hasStoredPassword fails because vault is locked', async () => {
-      vi.mocked(dbApi.hasStoredPassword).mockRejectedValueOnce(
-        new Error('Vault is locked: Master password required')
-      );
+    it('shows locked vault notice when hasStoredPassword fails because vault is locked and clears after unlock event', async () => {
+      vi.mocked(dbApi.hasStoredPassword)
+        .mockRejectedValueOnce(new Error('Vault is locked: Master password required'))
+        .mockResolvedValueOnce(true);
 
       render(
         <ConnectionDialog
@@ -752,6 +752,14 @@ describe('ConnectionDialog', () => {
         expect(
           screen.getByText(/Credential Vault is locked\. Unlock Vault to verify or update saved password status\./i)
         ).toBeInTheDocument();
+      });
+
+      window.dispatchEvent(new CustomEvent('datacore:vault-unlocked'));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText(/Credential Vault is locked\. Unlock Vault to verify or update saved password status\./i)
+        ).toBeNull();
       });
     });
   });

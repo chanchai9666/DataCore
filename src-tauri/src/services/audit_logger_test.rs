@@ -554,6 +554,228 @@ fn test_legacy_hmac_key_migrates_to_external_key_path() {
 
     assert!(!legacy_key_path.exists());
     assert!(logger.hmac_key_path().exists());
-    assert_eq!(fs::read(logger.hmac_key_path()).unwrap(), expected_key);
+    let migrated = fs::read(logger.hmac_key_path()).unwrap();
+    assert_eq!(migrated.len(), 44);
+    assert_eq!(&migrated[..4], b"DCK2");
+    assert_eq!(&migrated[4..36], &expected_key);
     assert!(logger.verify_integrity().unwrap().is_valid);
+}
+
+#[test]
+fn test_initialized_key_without_anchor_fails_closed() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    assert!(logger.verify_integrity().unwrap().is_valid);
+
+    // Delete only the anchor file (leaving DCK2 key and audit.jsonl intact)
+    fs::remove_file(logger.hmac_anchor_path()).unwrap();
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+    assert!(check.error.unwrap().contains("Audit anchor missing"));
+}
+
+#[test]
+fn test_legacy_dck1_key_bootstraps_anchor_once_and_is_idempotent() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    // Simulate DCK1 (raw 32-byte key) + existing log without anchor
+    let raw_key = [7u8; 32];
+    if let Some(p) = logger.hmac_key_path().parent() {
+        fs::create_dir_all(p).unwrap();
+    }
+    fs::write(logger.hmac_key_path(), raw_key).unwrap();
+
+    let legacy_ts = "2026-11-18T10:00:00Z".to_string();
+    let legacy_details = "query=SELECT 1;;status=SUCCESS".to_string();
+    let legacy_hash = compute_entry_hash(GENESIS_HASH, &legacy_ts, "QUERY", &legacy_details);
+    let legacy_entry = AuditLogEntry {
+        id: "audit-dck1-1".to_string(),
+        timestamp: legacy_ts,
+        action: "QUERY".to_string(),
+        user: None,
+        connection_id: None,
+        connection_name: None,
+        database: None,
+        query: Some("SELECT 1;".to_string()),
+        execution_time_ms: None,
+        rows_affected: None,
+        status: "SUCCESS".to_string(),
+        error_message: None,
+        details: Some(legacy_details),
+        prev_hash: Some(GENESIS_HASH.to_string()),
+        entry_hash: Some(legacy_hash),
+        hash_algo: None,
+    };
+    fs::write(
+        logger.main_log_path(),
+        format!("{}\n", serde_json::to_string(&legacy_entry).unwrap()),
+    )
+    .unwrap();
+
+    // First verify bootstraps anchor and promotes key to DCK2
+    assert!(logger.verify_integrity().unwrap().is_valid);
+    assert!(logger.hmac_anchor_path().exists());
+    let key_bytes = fs::read(logger.hmac_key_path()).unwrap();
+    assert_eq!(&key_bytes[..4], b"DCK2");
+
+    // Second verify is idempotent and remains valid
+    let anchor_before = fs::read_to_string(logger.hmac_anchor_path()).unwrap();
+    assert!(logger.verify_integrity().unwrap().is_valid);
+    let anchor_after = fs::read_to_string(logger.hmac_anchor_path()).unwrap();
+    assert_eq!(anchor_before, anchor_after);
+}
+
+#[test]
+fn test_corrupted_key_file_fails_closed() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+    if let Some(p) = logger.hmac_key_path().parent() {
+        fs::create_dir_all(p).unwrap();
+    }
+    fs::write(logger.hmac_key_path(), b"corrupted-short-key").unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+    assert!(check.error.unwrap().contains("corrupted"));
+}
+
+#[test]
+fn test_archive_tamper_and_missing_archive_detected() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::with_max_size(dir.path(), 200);
+
+    for i in 0..4 {
+        logger
+            .log(AuditLogEntryInput {
+                action: "QUERY".to_string(),
+                query: Some(format!("SELECT * FROM large_audit_table_row_{};", i)),
+                status: "SUCCESS".to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+
+    let rotated = logger.list_rotated_files().unwrap();
+    assert!(!rotated.is_empty());
+    assert!(logger.verify_integrity().unwrap().is_valid);
+
+    // Tamper with first rotated archive
+    let first_arc = &rotated[0];
+    let original = fs::read_to_string(first_arc).unwrap();
+    let tampered = original.replace("large_audit_table_row_0", "tampered_table_row_0");
+    fs::write(first_arc, tampered).unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+
+    // Restore and test missing archive detection
+    fs::write(first_arc, original).unwrap();
+    assert!(logger.verify_integrity().unwrap().is_valid);
+    fs::remove_file(first_arc).unwrap();
+
+    let missing_check = logger.verify_integrity().unwrap();
+    assert!(!missing_check.is_valid);
+    assert!(missing_check.error.unwrap().contains("missing"));
+}
+
+#[test]
+fn test_anchor_write_failure_does_not_break_chain_and_self_heals() {
+    let dir = tempdir().unwrap();
+    // Point anchor override inside a non-existent directory where parent is a regular file so write fails
+    let blocker_file = dir.path().join("blocker");
+    fs::write(&blocker_file, b"not a dir").unwrap();
+    let bad_anchor = blocker_file.join("anchor.json");
+
+    let logger_bad = AuditLogger::with_anchor_override(dir.path(), &bad_anchor);
+    let e1 = logger_bad
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Now switch to valid anchor path (keeping same key and cache) and write 2nd entry
+    let good_anchor = dir.path().join("good_anchor.json");
+    let logger_good = AuditLogger::with_anchor_override(dir.path(), &good_anchor);
+    let e2 = logger_good
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    assert_eq!(e2.prev_hash.as_deref(), e1.entry_hash.as_deref());
+    let check = logger_good.verify_integrity().unwrap();
+    assert!(
+        check.is_valid,
+        "Expected self-healed chain, got {:?}",
+        check.error
+    );
+    assert_eq!(check.total_entries, 2);
+}
+
+#[test]
+fn test_timestamp_comparison_across_timezone_offsets_and_fractions() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    // Legacy entry at 2026-11-18T10:00:00.500+07:00 (= 2026-11-18T03:00:00.500Z)
+    let legacy_ts = "2026-11-18T10:00:00.500+07:00".to_string();
+    let legacy_details = "query=SELECT 1;;status=SUCCESS".to_string();
+    let legacy_hash = compute_entry_hash(GENESIS_HASH, &legacy_ts, "QUERY", &legacy_details);
+    let legacy_entry = AuditLogEntry {
+        id: "audit-tz-1".to_string(),
+        timestamp: legacy_ts,
+        action: "QUERY".to_string(),
+        user: None,
+        connection_id: None,
+        connection_name: None,
+        database: None,
+        query: Some("SELECT 1;".to_string()),
+        execution_time_ms: None,
+        rows_affected: None,
+        status: "SUCCESS".to_string(),
+        error_message: None,
+        details: Some(legacy_details),
+        prev_hash: Some(GENESIS_HASH.to_string()),
+        entry_hash: Some(legacy_hash),
+        hash_algo: None,
+    };
+    fs::write(
+        logger.main_log_path(),
+        format!("{}\n", serde_json::to_string(&legacy_entry).unwrap()),
+    )
+    .unwrap();
+
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(
+        check.is_valid,
+        "Timezone offset comparison failed: {:?}",
+        check.error
+    );
+    assert_eq!(check.total_entries, 2);
 }

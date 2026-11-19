@@ -13,6 +13,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
 import { usePrivacyStore } from '../../stores/privacyStore';
 import {
@@ -359,7 +360,9 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                     <div className="font-medium text-slate-800 dark:text-slate-200 flex items-center gap-2 flex-wrap">
                       {t('security.localVaultTitle', 'Local Credential Vault (AES-256-GCM)')}
                       <span className="rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 px-1.5 py-0.2">
-                        {hasMasterPassword ? 'Master Password (DCV2 Argon2id)' : 'Machine-Bound (DCV1)'}
+                        {hasMasterPassword
+                          ? t('security.vaultModeMasterPassword', 'Master Password (DCV2 Argon2id)')
+                          : t('security.vaultModeMachineBound', 'Machine-Bound (DCV1)')}
                       </span>
                       <span className="rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 px-1.5 py-0.2">
                         POSIX 0600
@@ -367,8 +370,14 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       {hasMasterPassword
-                        ? 'Credentials in ~/.datacore/vault.enc are protected with your Master Password (Argon2id + AES-256-GCM).'
-                        : 'Credentials in ~/.datacore/vault.enc use machine-bound obfuscation (DCV1). Set a Master Password for full Argon2id encryption.'}
+                        ? t(
+                            'security.vaultDescriptionV2',
+                            'Credentials in ~/.datacore/vault.enc are protected with your Master Password (Argon2id + AES-256-GCM).'
+                          )
+                        : t(
+                            'security.vaultDescriptionV1',
+                            'Credentials in ~/.datacore/vault.enc use machine-bound obfuscation (DCV1). Set a Master Password for full Argon2id encryption.'
+                          )}
                     </p>
                     <div className="pt-1 flex items-center gap-2 flex-wrap">
                       {!hasMasterPassword ? (
@@ -380,7 +389,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                           }}
                           className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
                         >
-                          Set Master Password
+                          {t('security.setMasterPassword', 'Set Master Password')}
                         </button>
                       ) : (
                         <>
@@ -392,7 +401,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                             }}
                             className="rounded border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                           >
-                            Change Master Password
+                            {t('security.changeMasterPassword', 'Change Master Password')}
                           </button>
                           <button
                             type="button"
@@ -402,13 +411,18 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                             }}
                             className="rounded border border-rose-300 bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
                           >
-                            Remove Master Password
+                            {t('security.removeMasterPassword', 'Remove Master Password')}
                           </button>
                           <button
                             type="button"
                             onClick={async () => {
-                              await dbApi.lockVault?.();
-                              onClose();
+                              try {
+                                await dbApi.lockVault?.();
+                                toast.info(t('security.vaultLockedToast', 'Credential Vault locked'));
+                                onClose();
+                              } catch {
+                                toast.error(t('security.lockVaultFailed', 'Failed to lock vault'));
+                              }
                             }}
                             className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                           >
@@ -426,10 +440,10 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                           onChange={(e) => setPwdInput1(e.target.value)}
                           placeholder={
                             masterPwdMode === 'set'
-                              ? 'Enter new Master Password'
+                              ? t('security.newMasterPasswordPlaceholder', 'Enter new Master Password')
                               : masterPwdMode === 'change'
-                              ? 'Current Master Password'
-                              : 'Confirm current Master Password'
+                              ? t('security.currentMasterPasswordPlaceholder', 'Current Master Password')
+                              : t('security.confirmCurrentMasterPasswordPlaceholder', 'Confirm current Master Password')
                           }
                           className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
                         />
@@ -438,7 +452,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                             type="password"
                             value={pwdInput2}
                             onChange={(e) => setPwdInput2(e.target.value)}
-                            placeholder="New Master Password"
+                            placeholder={t('security.newMasterPasswordPlaceholder', 'New Master Password')}
                             className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
                           />
                         )}
@@ -449,7 +463,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                             disabled={isSavingPwd}
                             className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                           >
-                            {isSavingPwd ? 'Saving...' : 'Confirm'}
+                            {isSavingPwd ? t('security.saving', 'Saving...') : t('security.confirm', 'Confirm')}
                           </button>
                           <button
                             type="button"
@@ -461,7 +475,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                             }}
                             className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-600 dark:border-slate-700 dark:text-slate-300"
                           >
-                            Cancel
+                            {t('security.cancel', 'Cancel')}
                           </button>
                         </div>
                       </form>
@@ -489,7 +503,7 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                       </button>
                       <span className="text-[10px] text-slate-400">
                         {!hasMasterPassword
-                          ? 'Requires Master Password'
+                          ? t('security.requiresMasterPassword', 'Requires Master Password')
                           : isKeychainOptIn
                           ? t('security.enabledKeychain', 'Enabled (Keychain Synced)')
                           : t('security.disabledIsolated', 'Disabled (Isolated Vault)')}

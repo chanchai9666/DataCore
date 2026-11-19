@@ -1323,6 +1323,20 @@
   - Wrap `hasStoredPassword` ด้วย `dispatchVaultLockedIfNeeded` และแสดงแบนเนอร์แจ้งเตือนเมื่อแก้ไข connection ขณะ Vault ล็อกอยู่ (R7)
   - เพิ่มปุ่ม `Lock Vault` ใน `ConnectionSecurityModal` และเมนู `Lock Credential Vault` ใน macOS Menu Bar (R8)
 
+### Phase 57: ปิดข้อสังเกตจากการตรวจความปลอดภัยรอบที่ 4 (N1–N5, 8.9, R9 — Issue #201) [Completed]
+
+- **DCK2 Key Format & Anti-Anchor-Deletion (`audit_logger.rs`, `audit_logger_test.rs`):**
+  - อัปเกรดไฟล์คีย์เป็นรูปแบบ `DCK2` (44 bytes: `magic + key + epoch`) พร้อม one-time bootstrap จาก `DCK1` (32 bytes) และบังคับ fail-closed เมื่อคีย์ถูก initialize แล้วแต่ไฟล์ anchor หาย (N1)
+- **Rotated Archive Integrity, Self-Heal & Timestamp Parsing (`audit_logger.rs`, `audit_logger_test.rs`):**
+  - ขยาย `AuditAnchorState` ให้เก็บ `archives: Vec<ArchiveState>` และ `archives_adopted` พร้อมแยก `verify_file_chain()` ใช้ร่วมกันทั้งไฟล์ archive และ active log รวมถึง adopt-once สำหรับ anchor เก่า (N2)
+  - อัปเดต `last_hash_cache` ทันทีหลังเขียน entry แล้วบันทึก anchor แบบ best-effort เพื่อ self-heal ใน write ถัดไป (N3)
+  - เปลี่ยนการเทียบเวลา downgrade เป็น `chrono::DateTime<Utc>` และ normalize `hmac_enabled_since` เป็น UTC RFC3339 (N4)
+- **Complete i18n, Stale Closure Fix & UI Polish (`th.json`, `en.json`, `ConnectionSecurityModal.tsx`, `VaultUnlockModal.tsx`, `App.tsx`, `ConnectionDialog.tsx`):**
+  - แปลสตริงทั้งหมดใน `ConnectionSecurityModal` และ `VaultUnlockModal` ครบทั้งไทย/อังกฤษ, ใช้ `i18n.t` แก้ stale closure ใน `App.tsx` (N5)
+  - ครอบปุ่ม `Lock Vault` ด้วย `try/catch` + `toast.error` และล้าง `vaultLockedNotice` ใน `ConnectionDialog` เมื่อได้รับ event `datacore:vault-unlocked` (8.9)
+- **Dependency Policy (`dependabot.yml`, `ci.yml`):**
+  - เพิ่ม `.github/dependabot.yml` (npm/cargo weekly, github-actions monthly) และระบุวันที่/owner/เงื่อนไขถอน allowlist ใน `ci.yml` (R9)
+
 
 
 

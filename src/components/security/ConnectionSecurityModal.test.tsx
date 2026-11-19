@@ -275,6 +275,68 @@ describe('ConnectionSecurityModal', () => {
     });
   });
 
+  it('keeps modal open when Lock Vault fails', async () => {
+    vi.mocked(dbApi.executeDirectQuery).mockResolvedValue({
+      columns: [],
+      rows: [],
+      execution_time_ms: 1,
+    });
+    vi.mocked(dbApi.isVaultKeychainEnabled).mockResolvedValue(false);
+    vi.mocked(dbApi.hasVaultMasterPassword).mockResolvedValue(true);
+    vi.mocked(dbApi.lockVault).mockRejectedValue(new Error('IPC error'));
+
+    render(
+      <ConnectionSecurityModal
+        isOpen={true}
+        connectionId="conn-1"
+        driver="sqlite"
+        onClose={onClose}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /lock vault/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /lock vault/i }));
+
+    await waitFor(() => {
+      expect(dbApi.lockVault).toHaveBeenCalled();
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('renders Thai translations when language is switched to th', async () => {
+    const i18n = (await import('../../i18n')).default;
+    await i18n.changeLanguage('th');
+
+    vi.mocked(dbApi.executeDirectQuery).mockResolvedValue({
+      columns: [],
+      rows: [],
+      execution_time_ms: 1,
+    });
+    vi.mocked(dbApi.isVaultKeychainEnabled).mockResolvedValue(false);
+    vi.mocked(dbApi.hasVaultMasterPassword).mockResolvedValue(true);
+
+    try {
+      render(
+        <ConnectionSecurityModal
+          isOpen={true}
+          connectionId="conn-1"
+          driver="sqlite"
+          onClose={onClose}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('ลบ Master Password')).toBeInTheDocument();
+        expect(screen.getByText('ล็อก Vault')).toBeInTheDocument();
+      });
+    } finally {
+      await i18n.changeLanguage('en');
+    }
+  });
+
   it('toggles Screen Sharing Protection switch and updates privacyStore', async () => {
     const { setScreenProtection } = await import('../../api/db');
     vi.mocked(setScreenProtection).mockResolvedValue(undefined);

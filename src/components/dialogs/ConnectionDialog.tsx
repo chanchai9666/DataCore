@@ -186,18 +186,29 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       setVaultLockedNotice(false);
 
       if (initialConnection?.id) {
-        dbApi.hasStoredPassword(initialConnection.id).then((hasStored) => {
-          setFormData((prev) => ({
-            ...prev,
-            rememberPassword: Boolean(hasStored),
-          }));
-        }).catch((e) => {
-          const msg = e instanceof Error ? e.message : String(e);
-          if (/vault is locked/i.test(msg)) {
-            setVaultLockedNotice(true);
-          }
-          console.debug('Failed to check stored password:', e);
-        });
+        const checkStored = () => {
+          dbApi.hasStoredPassword(initialConnection.id).then((hasStored) => {
+            setVaultLockedNotice(false);
+            setFormData((prev) => ({
+              ...prev,
+              rememberPassword: Boolean(hasStored),
+            }));
+          }).catch((e) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (/vault is locked/i.test(msg)) {
+              setVaultLockedNotice(true);
+            }
+            console.debug('Failed to check stored password:', e);
+          });
+        };
+        checkStored();
+
+        const handleVaultUnlocked = () => {
+          setVaultLockedNotice(false);
+          checkStored();
+        };
+        window.addEventListener('datacore:vault-unlocked', handleVaultUnlocked);
+        return () => window.removeEventListener('datacore:vault-unlocked', handleVaultUnlocked);
       }
     }
   }, [isOpen, initialConnection]);

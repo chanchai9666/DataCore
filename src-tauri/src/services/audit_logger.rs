@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
@@ -8,6 +9,35 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 pub const GENESIS_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 pub const DEFAULT_MAX_FILE_SIZE_BYTES: u64 = 10 * 1024 * 1024; // 10MB
+const AUDIT_KEY_MAGIC: &[u8; 4] = b"DCK2";
+const AUDIT_KEY_RAW_LEN: usize = 32;
+const AUDIT_KEY_RECORD_LEN: usize = 4 + 32 + 8;
+
+#[derive(Debug, Clone)]
+struct AuditKeyMaterial {
+    key: [u8; 32],
+    initialized: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct ArchiveState {
+    file_name: String,
+    entries: usize,
+    last_entry_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AuditAnchorPayload {
+    hmac_enabled_since: String,
+    active_entries: usize,
+    last_entry_hash: String,
+    #[serde(default)]
+    archives: Vec<ArchiveState>,
+    #[serde(default)]
+    archives_adopted: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,20 +45,26 @@ struct AuditAnchorState {
     hmac_enabled_since: String,
     active_entries: usize,
     last_entry_hash: String,
+    #[serde(default)]
+    archives: Vec<ArchiveState>,
+    #[serde(default)]
+    archives_adopted: bool,
     anchor_hmac: String,
 }
 
-fn compute_anchor_hmac(
-    key: &[u8],
-    hmac_enabled_since: &str,
-    active_entries: usize,
-    last_entry_hash: &str,
-) -> String {
-    let payload = format!(
-        "anchor|{}|{}|{}",
-        hmac_enabled_since, active_entries, last_entry_hash
-    );
-    compute_hmac_sha256(key, payload.as_bytes())
+fn compute_anchor_hmac(key: &[u8], payload: &AuditAnchorPayload) -> String {
+    let serialized = serde_json::to_string(payload).unwrap_or_default();
+    compute_hmac_sha256(key, serialized.as_bytes())
+}
+
+fn parse_ts(value: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|d| d.with_timezone(&Utc))
+}
+
+fn normalize_utc_rfc3339(ts: DateTime<Utc>) -> String {
+    ts.to_rfc3339_opts(SecondsFormat::Nanos, true)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -241,12 +277,33 @@ pub fn redact_sensitive_sql(sql: &str) -> String {
     out
 }
 
+struct FileSummary {
+    count: usize,
+    last_hash: Option<String>,
+    first_hmac_ts: Option<DateTime<Utc>>,
+    last_legacy_ts: Option<DateTime<Utc>>,
+}
+
+enum ChainVerifyOutcome {
+    Valid {
+        count: usize,
+        last_hash: String,
+        seen_hmac: bool,
+    },
+    Invalid {
+        count: usize,
+        error: String,
+        tampered_entry_id: Option<String>,
+    },
+}
+
 #[derive(Clone)]
 pub struct AuditLogger {
     log_dir: PathBuf,
     max_file_size: u64,
     last_hash_cache: Arc<Mutex<Option<String>>>,
     write_lock: Arc<Mutex<()>>,
+    anchor_path_override: Option<PathBuf>,
 }
 
 impl AuditLogger {
@@ -260,6 +317,21 @@ impl AuditLogger {
             max_file_size,
             last_hash_cache: Arc::new(Mutex::new(None)),
             write_lock: Arc::new(Mutex::new(())),
+            anchor_path_override: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn with_anchor_override<P: AsRef<Path>, Q: AsRef<Path>>(
+        log_dir: P,
+        anchor_path: Q,
+    ) -> Self {
+        Self {
+            log_dir: log_dir.as_ref().to_path_buf(),
+            max_file_size: DEFAULT_MAX_FILE_SIZE_BYTES,
+            last_hash_cache: Arc::new(Mutex::new(None)),
+            write_lock: Arc::new(Mutex::new(())),
+            anchor_path_override: Some(anchor_path.as_ref().to_path_buf()),
         }
     }
 
@@ -307,6 +379,12 @@ impl AuditLogger {
     }
 
     pub fn hmac_anchor_path(&self) -> PathBuf {
+        if let Some(ref p) = self.anchor_path_override {
+            return p.clone();
+        }
+        if let Ok(p) = std::env::var("DATACORE_AUDIT_ANCHOR_PATH") {
+            return PathBuf::from(p);
+        }
         self.hmac_key_path().with_extension("anchor.json")
     }
 
@@ -327,46 +405,63 @@ impl AuditLogger {
         }
     }
 
-    fn get_or_create_hmac_key(&self) -> Result<[u8; 32], AppError> {
-        ensure_dir_0700(&self.log_dir)?;
+    fn read_key_material(&self) -> Result<Option<AuditKeyMaterial>, AppError> {
         self.migrate_legacy_key_if_needed();
+        let key_path = self.hmac_key_path();
+        if !key_path.exists() {
+            return Ok(None);
+        }
+        let bytes = fs::read(&key_path)?;
+        match bytes.len() {
+            AUDIT_KEY_RAW_LEN => {
+                let mut key = [0u8; 32];
+                key.copy_from_slice(&bytes);
+                Ok(Some(AuditKeyMaterial {
+                    key,
+                    initialized: false,
+                }))
+            }
+            AUDIT_KEY_RECORD_LEN if &bytes[..4] == AUDIT_KEY_MAGIC => {
+                let mut key = [0u8; 32];
+                key.copy_from_slice(&bytes[4..36]);
+                Ok(Some(AuditKeyMaterial {
+                    key,
+                    initialized: true,
+                }))
+            }
+            _ => Err(AppError::Other(
+                "Audit HMAC key file is corrupted".to_string(),
+            )),
+        }
+    }
+
+    fn write_dck2_key(&self, key: &[u8; 32]) -> Result<(), AppError> {
         let key_path = self.hmac_key_path();
         if let Some(key_dir) = key_path.parent() {
             ensure_dir_0700(key_dir)?;
         }
-        if key_path.exists() {
-            let bytes = fs::read(&key_path)?;
-            if bytes.len() == 32 {
-                let mut key = [0u8; 32];
-                key.copy_from_slice(&bytes);
-                return Ok(key);
-            }
+        let mut buf = Vec::with_capacity(AUDIT_KEY_RECORD_LEN);
+        buf.extend_from_slice(AUDIT_KEY_MAGIC);
+        buf.extend_from_slice(key);
+        buf.extend_from_slice(&(Utc::now().timestamp() as u64).to_be_bytes());
+        let tmp_path = key_path.with_extension("key.tmp");
+        fs::write(&tmp_path, &buf)?;
+        set_file_permissions_0600(&tmp_path)?;
+        fs::rename(&tmp_path, &key_path)?;
+        set_file_permissions_0600(&key_path)?;
+        Ok(())
+    }
+
+    fn get_or_create_hmac_key(&self) -> Result<[u8; 32], AppError> {
+        ensure_dir_0700(&self.log_dir)?;
+        if let Some(material) = self.read_key_material()? {
+            return Ok(material.key);
         }
         use rand::RngExt;
         let mut key = [0u8; 32];
         rand::rng().fill(&mut key);
-        let tmp_path = key_path.with_extension("key.tmp");
-        fs::write(&tmp_path, key)?;
-        set_file_permissions_0600(&tmp_path)?;
-        fs::rename(&tmp_path, &key_path)?;
-        set_file_permissions_0600(&key_path)?;
+        self.write_dck2_key(&key)?;
         Ok(key)
-    }
-
-    fn read_hmac_key_if_exists(&self) -> Option<[u8; 32]> {
-        self.migrate_legacy_key_if_needed();
-        let key_path = self.hmac_key_path();
-        if !key_path.exists() {
-            return None;
-        }
-        let bytes = fs::read(&key_path).ok()?;
-        if bytes.len() == 32 {
-            let mut key = [0u8; 32];
-            key.copy_from_slice(&bytes);
-            Some(key)
-        } else {
-            None
-        }
     }
 
     fn read_anchor_if_exists(&self) -> Option<AuditAnchorState> {
@@ -384,17 +479,27 @@ impl AuditLogger {
         hmac_enabled_since: String,
         active_entries: usize,
         last_entry_hash: String,
+        archives: Vec<ArchiveState>,
+        archives_adopted: bool,
     ) -> Result<(), AppError> {
         let anchor_path = self.hmac_anchor_path();
         if let Some(dir) = anchor_path.parent() {
             ensure_dir_0700(dir)?;
         }
-        let anchor_hmac =
-            compute_anchor_hmac(key, &hmac_enabled_since, active_entries, &last_entry_hash);
+        let payload = AuditAnchorPayload {
+            hmac_enabled_since: hmac_enabled_since.clone(),
+            active_entries,
+            last_entry_hash: last_entry_hash.clone(),
+            archives: archives.clone(),
+            archives_adopted,
+        };
+        let anchor_hmac = compute_anchor_hmac(key, &payload);
         let state = AuditAnchorState {
             hmac_enabled_since,
             active_entries,
             last_entry_hash,
+            archives,
+            archives_adopted,
             anchor_hmac,
         };
         let serialized = serde_json::to_string(&state)?;
@@ -403,6 +508,135 @@ impl AuditLogger {
         set_file_permissions_0600(&tmp_path)?;
         fs::rename(&tmp_path, &anchor_path)?;
         set_file_permissions_0600(&anchor_path)?;
+        Ok(())
+    }
+
+    fn scan_file_summary(path: &Path) -> FileSummary {
+        let Ok(file) = File::open(path) else {
+            return FileSummary {
+                count: 0,
+                last_hash: None,
+                first_hmac_ts: None,
+                last_legacy_ts: None,
+            };
+        };
+        let mut count = 0usize;
+        let mut last_hash = None;
+        let mut first_hmac_ts: Option<DateTime<Utc>> = None;
+        let mut last_legacy_ts: Option<DateTime<Utc>> = None;
+
+        for line in BufReader::new(file).lines().map_while(Result::ok) {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            count += 1;
+            if let Ok(entry) = serde_json::from_str::<AuditLogEntry>(trimmed) {
+                if let Some(h) = entry.entry_hash {
+                    last_hash = Some(h);
+                }
+                let algo = entry.hash_algo.as_deref().unwrap_or("sha256");
+                if let Some(ts) = parse_ts(&entry.timestamp) {
+                    if algo == "hmac-sha256" {
+                        if first_hmac_ts.is_none() {
+                            first_hmac_ts = Some(ts);
+                        }
+                    } else {
+                        last_legacy_ts = Some(match last_legacy_ts {
+                            Some(prev) => prev.max(ts),
+                            None => ts,
+                        });
+                    }
+                }
+            }
+        }
+        FileSummary {
+            count,
+            last_hash,
+            first_hmac_ts,
+            last_legacy_ts,
+        }
+    }
+
+    /// One-time bootstrap for legacy DCK1 (32-byte) keys upgraded from older builds.
+    /// Does nothing if anchor exists or if key is already DCK2 (fail-closed when anchor missing).
+    fn bootstrap_anchor_if_needed(&self) -> Result<(), AppError> {
+        if self.hmac_anchor_path().exists() {
+            return Ok(());
+        }
+        let Some(material) = self.read_key_material()? else {
+            return Ok(());
+        };
+        if material.initialized {
+            // DCK2 without anchor: fail-closed, do not re-bootstrap
+            return Ok(());
+        }
+
+        let mut archives = Vec::new();
+        let mut last_hash = GENESIS_HASH.to_string();
+        let mut first_hmac_ts: Option<DateTime<Utc>> = None;
+        let mut last_legacy_ts: Option<DateTime<Utc>> = None;
+
+        if let Ok(rotated) = self.list_rotated_files() {
+            for path in rotated {
+                let Some(fname) = path.file_name().and_then(|n| n.to_str()) else {
+                    continue;
+                };
+                let summary = Self::scan_file_summary(&path);
+                if let Some(h) = summary.last_hash {
+                    last_hash = h;
+                }
+                if first_hmac_ts.is_none() {
+                    first_hmac_ts = summary.first_hmac_ts;
+                }
+                if let Some(ts) = summary.last_legacy_ts {
+                    last_legacy_ts = Some(last_legacy_ts.map_or(ts, |p| p.max(ts)));
+                }
+                archives.push(ArchiveState {
+                    file_name: fname.to_string(),
+                    entries: summary.count,
+                    last_entry_hash: last_hash.clone(),
+                });
+            }
+        }
+
+        let main_path = self.main_log_path();
+        let main_summary = if main_path.exists() {
+            Self::scan_file_summary(&main_path)
+        } else {
+            FileSummary {
+                count: 0,
+                last_hash: None,
+                first_hmac_ts: None,
+                last_legacy_ts: None,
+            }
+        };
+        let active_entries = main_summary.count;
+        if let Some(h) = main_summary.last_hash {
+            last_hash = h;
+        }
+        if first_hmac_ts.is_none() {
+            first_hmac_ts = main_summary.first_hmac_ts;
+        }
+        if let Some(ts) = main_summary.last_legacy_ts {
+            last_legacy_ts = Some(last_legacy_ts.map_or(ts, |p| p.max(ts)));
+        }
+
+        let enabled_since = match (first_hmac_ts, last_legacy_ts) {
+            (Some(t), _) => t,
+            (None, Some(t)) => t + chrono::Duration::nanoseconds(1),
+            (None, None) => Utc::now(),
+        };
+
+        self.write_anchor(
+            &material.key,
+            normalize_utc_rfc3339(enabled_since),
+            active_entries,
+            last_hash,
+            archives,
+            true,
+        )?;
+        self.write_dck2_key(&material.key)?;
         Ok(())
     }
 
@@ -545,11 +779,14 @@ impl AuditLogger {
             parts.join(";")
         });
 
+        let _ = self.bootstrap_anchor_if_needed();
         let hmac_key = self.get_or_create_hmac_key()?;
 
         let mut entry = AuditLogEntry {
             id,
-            timestamp,
+            timestamp: parse_ts(&timestamp)
+                .map(normalize_utc_rfc3339)
+                .unwrap_or(timestamp),
             action: input.action,
             user: input.user,
             connection_id: input.connection_id,
@@ -585,6 +822,14 @@ impl AuditLogger {
             .as_ref()
             .map(|a| a.hmac_enabled_since.clone())
             .unwrap_or_else(|| entry.timestamp.clone());
+        let existing_archives = existing_anchor
+            .as_ref()
+            .map(|a| a.archives.clone())
+            .unwrap_or_default();
+        let archives_adopted = existing_anchor
+            .as_ref()
+            .map(|a| a.archives_adopted)
+            .unwrap_or(true);
         let prior_active_count = Self::count_existing_non_empty_lines(&log_path);
 
         // Open or create log file with mode 0600 on Unix
@@ -598,17 +843,23 @@ impl AuditLogger {
 
         set_file_permissions_0600(&log_path)?;
 
-        // Update signed anchor state outside log directory
-        self.write_anchor(
+        // 1) Update cached last hash immediately so subsequent logs never break the chain
+        {
+            let mut cache = self.last_hash_cache.lock().unwrap();
+            *cache = Some(entry_hash.clone());
+        }
+
+        // 2) Best-effort signed anchor update (self-heals on subsequent write if transient error occurs)
+        if let Err(err) = self.write_anchor(
             &hmac_key,
             enabled_since,
             prior_active_count + 1,
-            entry_hash.clone(),
-        )?;
-
-        // Update cached last hash
-        let mut cache = self.last_hash_cache.lock().unwrap();
-        *cache = Some(entry_hash);
+            entry_hash,
+            existing_archives,
+            archives_adopted,
+        ) {
+            eprintln!("[audit] anchor update failed (will self-heal): {err}");
+        }
 
         Ok(entry)
     }
@@ -630,13 +881,32 @@ impl AuditLogger {
             counter += 1;
         }
 
+        let main_summary = Self::scan_file_summary(&main_path);
+
         fs::rename(&main_path, &target)?;
         set_file_permissions_0600(&target)?;
 
-        if let (Some(key), Some(anchor)) =
-            (self.read_hmac_key_if_exists(), self.read_anchor_if_exists())
+        if let (Ok(Some(material)), Some(anchor)) =
+            (self.read_key_material(), self.read_anchor_if_exists())
         {
-            let _ = self.write_anchor(&key, anchor.hmac_enabled_since, 0, anchor.last_entry_hash);
+            let mut archives = anchor.archives;
+            if let Some(fname) = target.file_name().and_then(|n| n.to_str()) {
+                archives.push(ArchiveState {
+                    file_name: fname.to_string(),
+                    entries: main_summary.count,
+                    last_entry_hash: main_summary
+                        .last_hash
+                        .unwrap_or_else(|| anchor.last_entry_hash.clone()),
+                });
+            }
+            let _ = self.write_anchor(
+                &material.key,
+                anchor.hmac_enabled_since,
+                0,
+                anchor.last_entry_hash,
+                archives,
+                true,
+            );
         }
 
         Ok(target)
@@ -692,85 +962,18 @@ impl AuditLogger {
         Ok(())
     }
 
-    /// Verify cryptographic hash chain integrity across all records in active audit log
-    pub fn verify_integrity(&self) -> Result<AuditIntegrityResult, AppError> {
-        let _guard = self.write_lock.lock().unwrap();
-        let main_path = self.main_log_path();
-        let verified_at = chrono::Utc::now().to_rfc3339();
-
-        let hmac_key = self.read_hmac_key_if_exists();
-        let anchor = self.read_anchor_if_exists();
-        let anchor_file_exists = self.hmac_anchor_path().exists();
-
-        if anchor_file_exists && anchor.is_none() {
-            return Ok(AuditIntegrityResult {
-                is_valid: false,
-                total_entries: 0,
-                verified_at,
-                error: Some("Audit anchor file is corrupted (fail-closed)".to_string()),
-                tampered_entry_id: None,
-            });
-        }
-
-        if let Some(ref anc) = anchor {
-            let Some(ref key) = hmac_key else {
-                return Ok(AuditIntegrityResult {
-                    is_valid: false,
-                    total_entries: 0,
-                    verified_at,
-                    error: Some(
-                        "HMAC key missing while audit anchor exists (fail-closed)".to_string(),
-                    ),
-                    tampered_entry_id: None,
-                });
-            };
-            let expected_anchor_hmac = compute_anchor_hmac(
-                key,
-                &anc.hmac_enabled_since,
-                anc.active_entries,
-                &anc.last_entry_hash,
-            );
-            if anc.anchor_hmac != expected_anchor_hmac {
-                return Ok(AuditIntegrityResult {
-                    is_valid: false,
-                    total_entries: 0,
-                    verified_at,
-                    error: Some("Audit anchor signature verification failed".to_string()),
-                    tampered_entry_id: None,
-                });
-            }
-        }
-
-        if !main_path.exists() {
-            if let Some(ref anc) = anchor {
-                if anc.active_entries > 0 {
-                    return Ok(AuditIntegrityResult {
-                        is_valid: false,
-                        total_entries: 0,
-                        verified_at,
-                        error: Some(format!(
-                            "Audit log file missing while anchor expects {} active entries",
-                            anc.active_entries
-                        )),
-                        tampered_entry_id: None,
-                    });
-                }
-            }
-            return Ok(AuditIntegrityResult {
-                is_valid: true,
-                total_entries: 0,
-                verified_at,
-                error: None,
-                tampered_entry_id: None,
-            });
-        }
-
-        let file = File::open(&main_path)?;
+    fn verify_file_chain(
+        path: &Path,
+        hmac_key: Option<&[u8; 32]>,
+        initial_prev_hash: &str,
+        hmac_enabled_since: Option<&str>,
+        mut seen_hmac: bool,
+    ) -> Result<ChainVerifyOutcome, AppError> {
+        let file = File::open(path)?;
         let reader = BufReader::new(file);
 
-        let mut expected_prev_hash: Option<String> = None;
-        let mut count = 0;
-        let mut seen_hmac = false;
+        let mut expected_prev_hash = initial_prev_hash.to_string();
+        let mut count = 0usize;
 
         for (idx, line) in reader.lines().enumerate() {
             let line = line?;
@@ -782,120 +985,81 @@ impl AuditLogger {
             let entry: AuditLogEntry = match serde_json::from_str(trimmed) {
                 Ok(e) => e,
                 Err(err) => {
-                    return Ok(AuditIntegrityResult {
-                        is_valid: false,
-                        total_entries: count,
-                        verified_at,
-                        error: Some(format!("Invalid JSON format at line {}: {}", idx + 1, err)),
+                    return Ok(ChainVerifyOutcome::Invalid {
+                        count,
+                        error: format!("Invalid JSON format at line {}: {}", idx + 1, err),
                         tampered_entry_id: None,
                     });
                 }
             };
 
             let entry_prev = entry.prev_hash.as_deref().unwrap_or(GENESIS_HASH);
-
-            match expected_prev_hash {
-                None => {
-                    // First entry in current file:
-                    // Either GENESIS_HASH or matches last entry of newest rotated file
-                    if entry_prev != GENESIS_HASH {
-                        if let Ok(Some(rotated_hash)) = self.find_latest_rotated_hash() {
-                            if entry_prev != rotated_hash {
-                                return Ok(AuditIntegrityResult {
-                                    is_valid: false,
-                                    total_entries: count,
-                                    verified_at,
-                                    error: Some(format!(
-                                        "Chain broken at entry {}: prev_hash '{}' does not link to rotated file hash '{}'",
-                                        entry.id, entry_prev, rotated_hash
-                                    )),
-                                    tampered_entry_id: Some(entry.id),
-                                });
-                            }
-                        } else {
-                            return Ok(AuditIntegrityResult {
-                                is_valid: false,
-                                total_entries: count,
-                                verified_at,
-                                error: Some(format!(
-                                    "Chain broken at initial entry {}: unexpected prev_hash '{}'",
-                                    entry.id, entry_prev
-                                )),
-                                tampered_entry_id: Some(entry.id),
-                            });
-                        }
-                    }
-                }
-                Some(ref expected) => {
-                    if entry_prev != expected {
-                        return Ok(AuditIntegrityResult {
-                            is_valid: false,
-                            total_entries: count,
-                            verified_at,
-                            error: Some(format!(
-                                "Chain broken at entry {}: prev_hash '{}' does not match expected '{}'",
-                                entry.id, entry_prev, expected
-                            )),
-                            tampered_entry_id: Some(entry.id),
-                        });
-                    }
-                }
+            if entry_prev != expected_prev_hash {
+                return Ok(ChainVerifyOutcome::Invalid {
+                    count,
+                    error: format!(
+                        "Chain broken at entry {}: prev_hash '{}' does not match expected '{}'",
+                        entry.id, entry_prev, expected_prev_hash
+                    ),
+                    tampered_entry_id: Some(entry.id),
+                });
             }
 
-            // Verify entry hash computation according to entry's hash_algo (fail-closed for HMAC)
             let details = entry.details.as_deref().unwrap_or("");
             let algo = entry.hash_algo.as_deref().unwrap_or("sha256");
 
             if algo == "hmac-sha256" {
                 seen_hmac = true;
-                let Some(ref key) = hmac_key else {
-                    return Ok(AuditIntegrityResult {
-                        is_valid: false,
-                        total_entries: count,
-                        verified_at,
-                        error: Some(format!(
+                let Some(key) = hmac_key else {
+                    return Ok(ChainVerifyOutcome::Invalid {
+                        count,
+                        error: format!(
                             "HMAC key missing for entry {} (fail-closed integrity check)",
                             entry.id
-                        )),
+                        ),
                         tampered_entry_id: Some(entry.id),
                     });
                 };
                 let expected_hash = compute_entry_hmac(key, entry_prev, &entry);
                 if entry.entry_hash.as_deref() != Some(expected_hash.as_str()) {
-                    return Ok(AuditIntegrityResult {
-                        is_valid: false,
-                        total_entries: count,
-                        verified_at,
-                        error: Some(format!(
+                    return Ok(ChainVerifyOutcome::Invalid {
+                        count,
+                        error: format!(
                             "Tamper detected at entry {}: entry_hash '{:?}' does not match computed '{:?}'",
                             entry.id, entry.entry_hash, expected_hash
-                        )),
+                        ),
                         tampered_entry_id: Some(entry.id),
                     });
                 }
             } else {
                 if seen_hmac {
-                    return Ok(AuditIntegrityResult {
-                        is_valid: false,
-                        total_entries: count,
-                        verified_at,
-                        error: Some(format!(
+                    return Ok(ChainVerifyOutcome::Invalid {
+                        count,
+                        error: format!(
                             "Hash algorithm downgrade detected at entry {}: legacy '{}' after hmac-sha256",
                             entry.id, algo
-                        )),
+                        ),
                         tampered_entry_id: Some(entry.id),
                     });
                 }
-                if let Some(ref anc) = anchor {
-                    if entry.timestamp >= anc.hmac_enabled_since {
-                        return Ok(AuditIntegrityResult {
-                            is_valid: false,
-                            total_entries: count,
-                            verified_at,
-                            error: Some(format!(
+                if let Some(since_str) = hmac_enabled_since {
+                    let is_downgrade = match (parse_ts(&entry.timestamp), parse_ts(since_str)) {
+                        (Some(entry_ts), Some(since_ts)) => entry_ts >= since_ts,
+                        _ => {
+                            eprintln!(
+                                "[audit] warning: non-RFC3339 timestamp fallback comparison for entry {}",
+                                entry.id
+                            );
+                            entry.timestamp.as_str() >= since_str
+                        }
+                    };
+                    if is_downgrade {
+                        return Ok(ChainVerifyOutcome::Invalid {
+                            count,
+                            error: format!(
                                 "Hash algorithm downgrade detected at entry {}: legacy '{}' entry at '{}' is not older than HMAC activation '{}'",
-                                entry.id, algo, entry.timestamp, anc.hmac_enabled_since
-                            )),
+                                entry.id, algo, entry.timestamp, since_str
+                            ),
                             tampered_entry_id: Some(entry.id),
                         });
                     }
@@ -903,59 +1067,259 @@ impl AuditLogger {
                 let expected_hash =
                     compute_entry_hash(entry_prev, &entry.timestamp, &entry.action, details);
                 if entry.entry_hash.as_deref() != Some(expected_hash.as_str()) {
-                    return Ok(AuditIntegrityResult {
-                        is_valid: false,
-                        total_entries: count,
-                        verified_at,
-                        error: Some(format!(
+                    return Ok(ChainVerifyOutcome::Invalid {
+                        count,
+                        error: format!(
                             "Tamper detected at entry {}: entry_hash '{:?}' does not match computed '{:?}'",
                             entry.id, entry.entry_hash, expected_hash
-                        )),
+                        ),
                         tampered_entry_id: Some(entry.id),
                     });
                 }
             }
 
-            expected_prev_hash = entry.entry_hash;
+            expected_prev_hash = entry.entry_hash.unwrap_or_default();
             count += 1;
         }
 
-        if let Some(ref anc) = anchor {
-            if anc.active_entries > 0 && !seen_hmac {
-                return Ok(AuditIntegrityResult {
-                    is_valid: false,
-                    total_entries: count,
-                    verified_at,
-                    error: Some(
-                        "Hash algorithm downgrade detected: no hmac-sha256 entries found after HMAC activation"
-                            .to_string(),
-                    ),
-                    tampered_entry_id: None,
-                });
+        Ok(ChainVerifyOutcome::Valid {
+            count,
+            last_hash: expected_prev_hash,
+            seen_hmac,
+        })
+    }
+
+    /// Verify cryptographic hash chain integrity across archives and active audit log
+    pub fn verify_integrity(&self) -> Result<AuditIntegrityResult, AppError> {
+        let _guard = self.write_lock.lock().unwrap();
+        let main_path = self.main_log_path();
+        let verified_at = chrono::Utc::now().to_rfc3339();
+
+        let invalid = |total_entries: usize, error: String, tampered_entry_id: Option<String>| {
+            AuditIntegrityResult {
+                is_valid: false,
+                total_entries,
+                verified_at: verified_at.clone(),
+                error: Some(error),
+                tampered_entry_id,
             }
+        };
+
+        if let Err(err) = self.bootstrap_anchor_if_needed() {
+            return Ok(invalid(0, err.to_string(), None));
+        }
+
+        let key_material = match self.read_key_material() {
+            Ok(m) => m,
+            Err(err) => return Ok(invalid(0, err.to_string(), None)),
+        };
+        let hmac_key = key_material.as_ref().map(|m| m.key);
+        let mut anchor = self.read_anchor_if_exists();
+        let anchor_file_exists = self.hmac_anchor_path().exists();
+
+        if anchor_file_exists && anchor.is_none() {
+            return Ok(invalid(
+                0,
+                "Audit anchor file is corrupted (fail-closed)".to_string(),
+                None,
+            ));
+        }
+
+        if key_material.as_ref().is_some_and(|m| m.initialized) && anchor.is_none() {
+            return Ok(invalid(
+                0,
+                "Audit anchor missing for initialized key (fail-closed)".to_string(),
+                None,
+            ));
+        }
+
+        if let Some(ref anc) = anchor {
+            let Some(ref key) = hmac_key else {
+                return Ok(invalid(
+                    0,
+                    "HMAC key missing while audit anchor exists (fail-closed)".to_string(),
+                    None,
+                ));
+            };
+            let payload = AuditAnchorPayload {
+                hmac_enabled_since: anc.hmac_enabled_since.clone(),
+                active_entries: anc.active_entries,
+                last_entry_hash: anc.last_entry_hash.clone(),
+                archives: anc.archives.clone(),
+                archives_adopted: anc.archives_adopted,
+            };
+            let expected_anchor_hmac = compute_anchor_hmac(key, &payload);
+            if anc.anchor_hmac != expected_anchor_hmac {
+                return Ok(invalid(
+                    0,
+                    "Audit anchor signature verification failed".to_string(),
+                    None,
+                ));
+            }
+        }
+
+        // Verify rotated archives tracked in anchor (or adopt-once for legacy anchors)
+        let mut chain_prev = GENESIS_HASH.to_string();
+        let mut seen_hmac_across_chain = false;
+        let enabled_since_ref = anchor.as_ref().map(|a| a.hmac_enabled_since.clone());
+
+        if let Some(ref mut anc) = anchor {
+            if !anc.archives.is_empty() {
+                for arc in &anc.archives {
+                    let Some(safe_name) = Path::new(&arc.file_name).file_name() else {
+                        return Ok(invalid(
+                            0,
+                            "Invalid archive filename in anchor".to_string(),
+                            None,
+                        ));
+                    };
+                    let arc_path = self.log_dir.join(safe_name);
+                    if !arc_path.exists() {
+                        return Ok(invalid(
+                            0,
+                            format!("Archived audit log missing: {}", arc.file_name),
+                            None,
+                        ));
+                    }
+                    match Self::verify_file_chain(
+                        &arc_path,
+                        hmac_key.as_ref(),
+                        &chain_prev,
+                        enabled_since_ref.as_deref(),
+                        seen_hmac_across_chain,
+                    )? {
+                        ChainVerifyOutcome::Valid {
+                            count: arc_count,
+                            last_hash: arc_last_hash,
+                            seen_hmac: arc_seen_hmac,
+                        } => {
+                            if arc_count != arc.entries || arc_last_hash != arc.last_entry_hash {
+                                return Ok(invalid(
+                                    0,
+                                    format!("Archived audit log tampered: {}", arc.file_name),
+                                    None,
+                                ));
+                            }
+                            chain_prev = arc_last_hash;
+                            seen_hmac_across_chain = arc_seen_hmac;
+                        }
+                        ChainVerifyOutcome::Invalid {
+                            error,
+                            tampered_entry_id,
+                            ..
+                        } => {
+                            return Ok(invalid(0, error, tampered_entry_id));
+                        }
+                    }
+                }
+            } else if !anc.archives_adopted {
+                let rotated = self.list_rotated_files()?;
+                let mut adopted = Vec::new();
+                for arc_path in rotated {
+                    let Some(fname) = arc_path.file_name().and_then(|n| n.to_str()) else {
+                        continue;
+                    };
+                    match Self::verify_file_chain(
+                        &arc_path,
+                        hmac_key.as_ref(),
+                        &chain_prev,
+                        enabled_since_ref.as_deref(),
+                        seen_hmac_across_chain,
+                    )? {
+                        ChainVerifyOutcome::Valid {
+                            count: arc_count,
+                            last_hash: arc_last_hash,
+                            seen_hmac: arc_seen_hmac,
+                        } => {
+                            adopted.push(ArchiveState {
+                                file_name: fname.to_string(),
+                                entries: arc_count,
+                                last_entry_hash: arc_last_hash.clone(),
+                            });
+                            chain_prev = arc_last_hash;
+                            seen_hmac_across_chain = arc_seen_hmac;
+                        }
+                        ChainVerifyOutcome::Invalid {
+                            error,
+                            tampered_entry_id,
+                            ..
+                        } => {
+                            return Ok(invalid(0, error, tampered_entry_id));
+                        }
+                    }
+                }
+                if let Some(ref key) = hmac_key {
+                    anc.archives = adopted;
+                    anc.archives_adopted = true;
+                    let _ = self.write_anchor(
+                        key,
+                        anc.hmac_enabled_since.clone(),
+                        anc.active_entries,
+                        anc.last_entry_hash.clone(),
+                        anc.archives.clone(),
+                        true,
+                    );
+                }
+            }
+        }
+
+        if !main_path.exists() {
+            if let Some(ref anc) = anchor {
+                if anc.active_entries > 0 {
+                    return Ok(invalid(
+                        0,
+                        format!(
+                            "Audit log file missing while anchor expects {} active entries",
+                            anc.active_entries
+                        ),
+                        None,
+                    ));
+                }
+            }
+            return Ok(AuditIntegrityResult {
+                is_valid: true,
+                total_entries: 0,
+                verified_at,
+                error: None,
+                tampered_entry_id: None,
+            });
+        }
+
+        let (count, last_hash) = match Self::verify_file_chain(
+            &main_path,
+            hmac_key.as_ref(),
+            &chain_prev,
+            enabled_since_ref.as_deref(),
+            seen_hmac_across_chain,
+        )? {
+            ChainVerifyOutcome::Valid {
+                count, last_hash, ..
+            } => (count, last_hash),
+            ChainVerifyOutcome::Invalid {
+                count,
+                error,
+                tampered_entry_id,
+            } => return Ok(invalid(count, error, tampered_entry_id)),
+        };
+
+        if let Some(ref anc) = anchor {
             if count != anc.active_entries {
-                return Ok(AuditIntegrityResult {
-                    is_valid: false,
-                    total_entries: count,
-                    verified_at,
-                    error: Some(format!(
+                return Ok(invalid(
+                    count,
+                    format!(
                         "Audit log truncation or external rewrite detected: found {} entries, anchor expects {}",
                         count, anc.active_entries
-                    )),
-                    tampered_entry_id: None,
-                });
-            }
-            if count > 0 && expected_prev_hash.as_deref() != Some(anc.last_entry_hash.as_str()) {
-                return Ok(AuditIntegrityResult {
-                    is_valid: false,
-                    total_entries: count,
-                    verified_at,
-                    error: Some(
-                        "Audit log head hash mismatch against anchor (external rewrite detected)"
-                            .to_string(),
                     ),
-                    tampered_entry_id: None,
-                });
+                    None,
+                ));
+            }
+            if count > 0 && last_hash != anc.last_entry_hash {
+                return Ok(invalid(
+                    count,
+                    "Audit log head hash mismatch against anchor (external rewrite detected)"
+                        .to_string(),
+                    None,
+                ));
             }
         }
 
@@ -982,10 +1346,17 @@ impl AuditLogger {
             }
         }
 
-        if let (Some(key), Some(anchor)) =
-            (self.read_hmac_key_if_exists(), self.read_anchor_if_exists())
+        if let (Ok(Some(material)), Some(anchor)) =
+            (self.read_key_material(), self.read_anchor_if_exists())
         {
-            let _ = self.write_anchor(&key, anchor.hmac_enabled_since, 0, GENESIS_HASH.to_string());
+            let _ = self.write_anchor(
+                &material.key,
+                anchor.hmac_enabled_since,
+                0,
+                GENESIS_HASH.to_string(),
+                Vec::new(),
+                true,
+            );
         }
 
         let mut cache = self.last_hash_cache.lock().unwrap();

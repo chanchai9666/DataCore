@@ -44,7 +44,7 @@ import type { ConnectionConfig } from './types/db';
 import { restoreWorkspaceState, saveWorkspaceDebounced } from './utils/workspacePersistence';
 
 export function App() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { loadConnections, setActiveConnection, activeConnectionId, connectedConnectionIds, connections } = useConnectionStore();
   const { tabs, activeTabId } = useTabStore();
   const {
@@ -162,9 +162,13 @@ export function App() {
           break;
         case 'lock-vault':
           if (typeof lockVault === 'function') {
-            void Promise.resolve(lockVault()).then(() => {
-              toast.info(t('security.vaultLockedToast', 'Credential Vault locked'));
-            });
+            void Promise.resolve(lockVault())
+              .then(() => {
+                toast.info(i18n.t('security.vaultLockedToast', 'Credential Vault locked'));
+              })
+              .catch(() => {
+                toast.error(i18n.t('security.lockVaultFailed', 'Failed to lock vault'));
+              });
           }
           break;
         case 'about':
@@ -591,6 +595,9 @@ export function App() {
         isOpen={isVaultUnlockOpen}
         onUnlocked={() => {
           setIsVaultUnlockOpen(false);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('datacore:vault-unlocked'));
+          }
           toast.success(t('security.vaultUnlockedToast', 'Credential Vault unlocked'));
         }}
         onClose={() => setIsVaultUnlockOpen(false)}
