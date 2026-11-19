@@ -1158,7 +1158,7 @@ describe('DockLayout', () => {
   it('shows approximate row count in table tab and fetches exact count on click (Issue #173)', async () => {
     vi.mocked(dbApi.fetchTableData).mockResolvedValueOnce({
       columns: [{ name: 'id', data_type: 'INTEGER', nullable: false, is_primary_key: true }],
-      rows: [[{ Integer: 1 }]],
+      rows: Array.from({ length: 100 }, (_, i) => [{ Integer: i + 1 }]),
       execution_time_ms: 4,
       rows_affected: 12500000,
       is_approximate_count: true,
@@ -1201,6 +1201,47 @@ describe('DockLayout', () => {
     await waitFor(() => {
       expect(dbApi.countTableRows).toHaveBeenCalledWith('tab-approx', 'huge_table', 'public', undefined, 'sqlite');
       expect(screen.getByTestId('grid-row-count').textContent).toContain('12,500,123 rows');
+      expect(useStatusStore.getState().tabStatusMap['tab-approx']?.rowCount).toBe(12500123);
+    });
+  });
+
+  it('reconciles stale approximate row count when fetched page has fewer rows than pageSize (Issue #185)', async () => {
+    vi.mocked(dbApi.fetchTableData).mockResolvedValueOnce({
+      columns: [{ name: 'id', data_type: 'INTEGER', nullable: false, is_primary_key: true }],
+      rows: Array.from({ length: 76 }, (_, i) => [{ Integer: i + 1 }]),
+      execution_time_ms: 4,
+      rows_affected: 45,
+      is_approximate_count: true,
+    } as QueryResult);
+
+    useConnectionStore.setState({
+      connections: [mockConn],
+      activeConnectionId: 'conn-1',
+      connectedConnectionIds: ['conn-1'],
+    });
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'tab-small-stale',
+          connectionId: 'conn-1',
+          type: 'table',
+          title: 'sales',
+          tableName: 'sales',
+          schemaName: 'public',
+          autoCommit: true,
+          queryContent: '',
+          isLoaded: true,
+        },
+      ],
+      activeTabId: 'tab-small-stale',
+    });
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('grid-row-count').textContent).toContain('76 rows');
+      expect(screen.queryByTestId('exact-count-btn')).not.toBeInTheDocument();
+      expect(useStatusStore.getState().tabStatusMap['tab-small-stale']?.rowCount).toBe(76);
     });
   });
 });

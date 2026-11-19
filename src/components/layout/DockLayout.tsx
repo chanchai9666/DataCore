@@ -321,7 +321,13 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
             );
 
         const rowCount = result.rows ? result.rows.length : 0;
-        const total = result.rows_affected ?? rowCount;
+        const isExactFromPage = rowCount < pageSize && (offset === 0 || rowCount > 0);
+        const isApproxCount = !isExactFromPage && Boolean(result.is_approximate_count);
+        const total = isExactFromPage
+          ? offset + rowCount
+          : isApproxCount
+          ? Math.max(result.rows_affected ?? 0, offset + rowCount)
+          : (result.rows_affected ?? rowCount);
 
         // If table is empty, columns might be empty from driver query stream.
         // Fallback to fetching column definitions from database schema metadata!
@@ -369,7 +375,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
             pageSize,
             totalRows: total,
             error: null,
-            isApproximateCount: Boolean(result.is_approximate_count),
+            isApproximateCount: isApproxCount,
             isCountingExact: false,
             paginationMode: prev[tabId]?.paginationMode ?? 'offset',
             keyColumns: detectedKeys.length > 0 ? detectedKeys : prev[tabId]?.keyColumns,
@@ -421,6 +427,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
     try {
       await dbApi.openSession(tab.connectionId, tabId);
       const exactCount = await dbApi.countTableRows(tabId, tableName, tab.schemaName, sqlFilter, driver);
+      useStatusStore.getState().setTabStatus(tabId, { rowCount: exactCount });
       setTableStates((prev) => ({
         ...prev,
         [tabId]: {

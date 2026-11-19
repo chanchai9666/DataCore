@@ -933,6 +933,11 @@
     - **Clean Light Mode Scrollbars:** ปรับ `src/index.css` ให้ใช้ `var(--scrollbar-thumb)` / `var(--scrollbar-thumb-hover)` พร้อมเพิ่ม `::-webkit-scrollbar-corner { background: transparent; }` และเปลี่ยนพื้นหลังของ `DataGrid` container (`data-grid-container`) จาก `var(--bg-primary, #181818)` เป็น `var(--bg-grid)` เพื่อไม่ให้พื้นหลังสีดำทะลุขึ้นมาใต้ track ของ scrollbar ใน Light Mode
     - **CellDetailDrawer & JsonTreeView Light Mode Support:** ปรับสีพื้นหลัง, แถบ meta, ปุ่ม View/Edit, Staged Diff Banner, Foreign Key Banner, Date & Time Intelligence Banner, Image Preview Box, Edit Textarea และ `JsonTreeView` ให้ใช้ CSS variables จาก `tokens.css` ทั้งหมด แทนที่สี dark-only ที่เคยฮาร์ดโค้ดไว้
 
+44. **Issue #185: Accurate Row Count for Small/Unanalyzed Tables & StatusBar Sync (`drivers/mod.rs`, `postgres.rs`, `mysql.rs`, `mssql.rs`, `DockLayout.tsx`)**
+    - **Approximate Count Threshold (`APPROX_COUNT_THRESHOLD = 10_000`):** ปรับ drivers ของ PostgreSQL, MySQL และ MSSQL ให้ใช้ค่าประมาณจาก metadata (`reltuples`, `TABLE_ROWS`, `sys.partitions`) เฉพาะตารางที่มีค่าประมาณตั้งแต่ `10,000` แถวขึ้นไป หากน้อยกว่านี้ให้รัน `SELECT COUNT(*)` จริงโดยอัตโนมัติ แก้ปัญหาตารางขนาดเล็กที่ยังไม่ได้ `ANALYZE` แสดงยอดคลาดเคลื่อน
+    - **Page-Level Row Count Reconciliation (`reconcile_page_row_count`):** หากจำนวนแถวที่ดึงได้ในหน้าปัจจุบันน้อยกว่า `limit` (และอยู่ที่ `offset = 0` หรือได้ข้อมูล > 0 แถว) ระบบจะปรับ `rows_affected` เป็น `offset + rows.len()` และล้าง `is_approximate_count` ทันทีทั้งฝั่ง Rust และ Frontend (`DockLayout.tsx`)
+    - **Exact Count StatusBar Sync:** อัปเดต `useStatusStore` (`rowCount: exactCount`) ใน `handleExactCount` ของ `DockLayout.tsx` ให้ `StatusBar` ด้านล่างสุดแสดงจำนวนแถวจริงตรงกับ `GridBottomBar` ทันทีหลังกดปุ่ม "นับจริง"
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)

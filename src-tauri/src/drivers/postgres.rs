@@ -468,34 +468,32 @@ impl DatabaseConnection for PostgresConnection {
             None
         };
 
-        let total_count = if let Some(n) = approx_count {
-            is_approx = true;
-            Some(n)
-        } else {
-            let count_sql = format!("SELECT COUNT(*) FROM {}{};", from_clause, where_clause);
-            match self.execute_query(&count_sql).await {
-                Ok(count_res) => {
-                    if let Some(first_row) = count_res.rows.first() {
-                        match first_row.first() {
-                            Some(CellValue::Integer(n)) => Some(*n as u64),
-                            _ => None,
+        let total_count = match approx_count {
+            Some(n) if n >= super::APPROX_COUNT_THRESHOLD => {
+                is_approx = true;
+                Some(n)
+            }
+            _ => {
+                let count_sql = format!("SELECT COUNT(*) FROM {}{};", from_clause, where_clause);
+                match self.execute_query(&count_sql).await {
+                    Ok(count_res) => {
+                        if let Some(first_row) = count_res.rows.first() {
+                            match first_row.first() {
+                                Some(CellValue::Integer(n)) => Some(*n as u64),
+                                _ => None,
+                            }
+                        } else {
+                            None
                         }
-                    } else {
-                        None
                     }
+                    Err(_) => None,
                 }
-                Err(_) => None,
             }
         };
 
         let sql = format!("SELECT * FROM {}{}{} LIMIT {} OFFSET {};", from_clause, where_clause, order_clause, limit, offset);
         let mut res = self.execute_query(&sql).await?;
-        if total_count.is_some() {
-            res.rows_affected = total_count;
-            if is_approx {
-                res.is_approximate_count = Some(true);
-            }
-        }
+        super::reconcile_page_row_count(&mut res, total_count, is_approx, limit, offset);
         if res.columns.is_empty() {
             let sch = schema.unwrap_or("public");
             let col_sql = format!(
