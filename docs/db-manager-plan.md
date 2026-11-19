@@ -1301,7 +1301,7 @@
 ### Phase 55: แก้ไขผลตรวจความปลอดภัยรอบ 2 — CI Pipeline, Vault Unlock, Keychain Consistency, Audit HMAC Fail-Closed & TLS Fallback (Issue #199) [Completed]
 
 - **CI Pipeline & Dependency Cleanup (`pnpm-workspace.yaml`, `package.json`, `.github/workflows/ci.yml`):**
-  - เพิ่ม `packages: ['.']` ใน `pnpm-workspace.yaml`, pin `packageManager: "pnpm@12.14.0"` ให้ตรงกับ CI, ถอด `@tauri-apps/plugin-opener` ที่ไม่ได้ใช้, จัดรูปแบบ Rust ด้วย `cargo fmt`, และเพิ่ม `audit` job (`pnpm audit --prod --audit-level=high` + `rustsec/audit-check@v2`)
+  - เพิ่ม `packages: ['.']` ใน `pnpm-workspace.yaml`, pin `packageManager: "pnpm@12.14.0"` ให้ตรงกับ CI, ถอด `@tauri-apps/plugin-opener` ที่ไม่ได้ใช้, จัดรูปแบบ Rust ด้วย `cargo fmt`, และเพิ่ม `audit` job (`pnpm audit --prod --audit-level=high` + `cargo audit` ผ่าน `taiki-e/install-action@cargo-audit`)
 - **Vault Unlock Flow & Rate Limiting (`keychain.rs`, `commands/db.rs`, `lib.rs`, `VaultUnlockModal.tsx`, `App.tsx`):**
   - เพิ่ม `vault_status` Tauri command และ `VaultUnlockModal` สำหรับปลดล็อก Vault เมื่อเปิดแอปหรือเมื่อเกิด error `"Vault is locked"`, พร้อม rate limiting (ล็อก 30 วินาทีเมื่อผิด 5 ครั้ง) และบันทึก `VAULT_UNLOCK` ลง Audit Log
 - **macOS Keychain Consistency (`keychain.rs`, `ConnectionSecurityModal.tsx`):**
