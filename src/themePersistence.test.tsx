@@ -10,6 +10,7 @@ vi.mock('./api/db', () => ({
     isUnlocked: true,
     keychainOptIn: false,
   }),
+  lockVault: vi.fn().mockResolvedValue(undefined),
   dbApi: {
     getConnections: vi.fn().mockResolvedValue([]),
     getSchemaTree: vi.fn().mockResolvedValue([]),

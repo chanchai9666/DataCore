@@ -24,7 +24,8 @@ We aim to acknowledge reports within 48 hours and provide a remediation timeline
   - **DCV2 (Master Password Mode):** AES-256-GCM with an Argon2id-derived Key Encryption Key (KEK). Recommended for production credentials. Configurable in **Connection Security**.
   - **macOS Keychain Sync (Opt-In):** Stores the Master Password (used to derive the KEK via Argon2id) in macOS Keychain via `security -i` stdin when Master Password mode is enabled and unlocked.
 - **Audit Logs (`~/.datacore/audit.jsonl`)**:
-  - Append-only JSONL with keyed HMAC-SHA256 chaining (key stored outside the log directory with `0600` permissions, fail-closed verification) and automatic credential redaction.
+  - Append-only JSONL with keyed HMAC-SHA256 chaining (key and signed anti-truncation/anti-downgrade anchor stored outside the log directory in `~/.datacore_audit_keys/` with `0600` permissions, fail-closed verification) and automatic credential redaction.
+  - **Threat Model Boundary:** Protects against tampering by other OS users and unkeyed whole-file rewrites/truncation; because the HMAC key resides in the same local user's home directory (to avoid OS Keychain popups), an attacker already running with full write access as the same OS user could delete or modify both the log and key directory. For high-assurance compliance, export or forward audit logs to an external SIEM.
 - **Read-Only Mode**:
   - Enforces server/driver read-only sessions where supported and blocks multi-statement writes, CTE writes, `SELECT ... INTO`, and mode-altering administrative statements (`PRAGMA`, `EXEC`, `CALL`, `COPY`, `ATTACH`, `DETACH`).
 - **In-Transit TLS**:

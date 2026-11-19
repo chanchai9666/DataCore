@@ -1311,6 +1311,18 @@
 - **Backend SSL Fallback & Legacy Warning (`postgres.rs`, `mysql.rs`, `ConnectionSecurityModal.tsx`):**
   - เปลี่ยน fallback SSL mode ใน `postgres.rs` และ `mysql.rs` เป็น `Require` / `Required` และแสดงแบนเนอร์เตือนเมื่อ connection เดิมใช้ `prefer` / `allow` / `disable`
 
+### Phase 56: ปิด Residual Risks จากการตรวจความปลอดภัยรอบที่ 3 (R1–R8 — Issue #200) [Completed]
+
+- **Audit Log Anti-Downgrade, Anti-Truncation & Key Migration (`audit_logger.rs`, `audit_logger_test.rs`):**
+  - เพิ่มไฟล์ signed anchor (`AuditAnchorState`) เก็บ `hmac_enabled_since`, `active_entries`, `last_entry_hash`, และ `anchor_hmac` นอก `log_dir` เพื่อตรวจจับทั้งการลบ/rewrite ทั้งไฟล์เป็น SHA-256 (R1) และการลบ log ส่วนท้าย (R2) แบบ fail-closed
+  - เพิ่มการ migrate คีย์ HMAC จากตำแหน่งเดิม (`<log_dir>/.audit.hmac.key`) ไปยังตำแหน่งใหม่ภายนอกอัตโนมัติ (R5) และระบุขอบเขต threat model ใน `SECURITY.md` (R4)
+- **Shared Master Password Rate Limiter (`keychain.rs`, `keychain_test.rs`):**
+  - รวมศูนย์ `verify_master_password_with_backoff` ให้ใช้ร่วมกันทั้ง `unlock`, `change_master_password`, `remove_master_password`, และ `verify_master_password` (R3)
+- **i18n Parity, Locked-Vault UX & Manual Lock (`th.json`, `en.json`, `db.ts`, `ConnectionDialog.tsx`, `ConnectionSecurityModal.tsx`, `menu.rs`, `App.tsx`):**
+  - เพิ่มคีย์แปลภาษาไทย/อังกฤษสำหรับ `VaultUnlockModal`, แบนเนอร์ `legacySslWarning`, และปุ่ม/ข้อความล็อก Vault ครบถ้วน (R6)
+  - Wrap `hasStoredPassword` ด้วย `dispatchVaultLockedIfNeeded` และแสดงแบนเนอร์แจ้งเตือนเมื่อแก้ไข connection ขณะ Vault ล็อกอยู่ (R7)
+  - เพิ่มปุ่ม `Lock Vault` ใน `ConnectionSecurityModal` และเมนู `Lock Credential Vault` ใน macOS Menu Bar (R8)
+
 
 
 

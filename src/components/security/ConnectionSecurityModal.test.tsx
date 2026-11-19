@@ -13,6 +13,7 @@ vi.mock('../../api/db', () => ({
     setVaultMasterPassword: vi.fn(),
     changeVaultMasterPassword: vi.fn(),
     removeVaultMasterPassword: vi.fn(),
+    lockVault: vi.fn(),
     setScreenProtection: vi.fn(),
   },
   setScreenProtection: vi.fn(),
@@ -240,6 +241,37 @@ describe('ConnectionSecurityModal', () => {
         'aria-checked',
         'false'
       );
+    });
+  });
+
+  it('allows locking vault manually when Master Password is active', async () => {
+    vi.mocked(dbApi.executeDirectQuery).mockResolvedValue({
+      columns: [],
+      rows: [],
+      execution_time_ms: 1,
+    });
+    vi.mocked(dbApi.isVaultKeychainEnabled).mockResolvedValue(false);
+    vi.mocked(dbApi.hasVaultMasterPassword).mockResolvedValue(true);
+    vi.mocked(dbApi.lockVault).mockResolvedValue(undefined);
+
+    render(
+      <ConnectionSecurityModal
+        isOpen={true}
+        connectionId="conn-1"
+        driver="sqlite"
+        onClose={onClose}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /lock vault/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /lock vault/i }));
+
+    await waitFor(() => {
+      expect(dbApi.lockVault).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
     });
   });
 

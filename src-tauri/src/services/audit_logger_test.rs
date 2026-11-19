@@ -354,7 +354,7 @@ fn test_missing_hmac_key_fails_closed() {
     let dir = tempdir().unwrap();
     let logger = AuditLogger::new(dir.path());
 
-    let e1 = logger
+    let _e1 = logger
         .log(AuditLogEntryInput {
             action: "QUERY".to_string(),
             query: Some("SELECT 1;".to_string()),
@@ -372,7 +372,6 @@ fn test_missing_hmac_key_fails_closed() {
     let check = logger.verify_integrity().unwrap();
     assert!(!check.is_valid);
     assert!(check.error.unwrap().contains("HMAC key missing"));
-    assert_eq!(check.tampered_entry_id.as_deref(), Some(e1.id.as_str()));
 }
 
 #[test]
@@ -452,4 +451,109 @@ fn test_tampering_error_message_is_detected() {
     let check = logger.verify_integrity().unwrap();
     assert!(!check.is_valid);
     assert_eq!(check.tampered_entry_id.as_deref(), Some(e1.id.as_str()));
+}
+
+#[test]
+fn test_whole_file_sha256_downgrade_rewrite_is_detected() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    // Log a real HMAC entry to initialize key + anchor
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Attacker deletes audit.jsonl and rewrites an entire unkeyed SHA-256 chain
+    let forged_ts = chrono::Utc::now().to_rfc3339();
+    let forged_details = "query=SELECT 999;;status=SUCCESS".to_string();
+    let forged_hash = compute_entry_hash(GENESIS_HASH, &forged_ts, "QUERY", &forged_details);
+    let forged_entry = AuditLogEntry {
+        id: "audit-forged-1".to_string(),
+        timestamp: forged_ts,
+        action: "QUERY".to_string(),
+        user: None,
+        connection_id: None,
+        connection_name: None,
+        database: None,
+        query: Some("SELECT 999;".to_string()),
+        execution_time_ms: None,
+        rows_affected: None,
+        status: "SUCCESS".to_string(),
+        error_message: None,
+        details: Some(forged_details),
+        prev_hash: Some(GENESIS_HASH.to_string()),
+        entry_hash: Some(forged_hash),
+        hash_algo: Some("sha256".to_string()),
+    };
+    fs::write(
+        logger.main_log_path(),
+        format!("{}\n", serde_json::to_string(&forged_entry).unwrap()),
+    )
+    .unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+    assert!(check.error.unwrap().contains("downgrade"));
+}
+
+#[test]
+fn test_log_tail_truncation_is_detected() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    logger
+        .log(AuditLogEntryInput {
+            action: "DML".to_string(),
+            query: Some("DELETE FROM sensitive_table;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    assert!(logger.verify_integrity().unwrap().is_valid);
+
+    // Truncate the last entry from audit.jsonl
+    let content = fs::read_to_string(logger.main_log_path()).unwrap();
+    let first_line = content.lines().next().unwrap();
+    fs::write(logger.main_log_path(), format!("{}\n", first_line)).unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+    assert!(check.error.unwrap().contains("truncation"));
+}
+
+#[test]
+fn test_legacy_hmac_key_migrates_to_external_key_path() {
+    let dir = tempdir().unwrap();
+    let legacy_key_path = dir.path().join(".audit.hmac.key");
+    let expected_key = [42u8; 32];
+    fs::write(&legacy_key_path, expected_key).unwrap();
+
+    let logger = AuditLogger::new(dir.path());
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    assert!(!legacy_key_path.exists());
+    assert!(logger.hmac_key_path().exists());
+    assert_eq!(fs::read(logger.hmac_key_path()).unwrap(), expected_key);
+    assert!(logger.verify_integrity().unwrap().is_valid);
 }

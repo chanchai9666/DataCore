@@ -983,7 +983,9 @@
     "subtitle": "In-transit (TLS/SSL) and at-rest cryptographic status",
     "inTransitTitle": "In-Transit Encryption (TLS / SSL)",
     "tlsEncrypted": "TLS Encrypted",
+    "tlsUnverified": "Unknown / Unverified",
     "unencryptedPlaintext": "Unencrypted / Plaintext",
+    "legacySslWarning": "SSL mode is \"{{mode}}\" (does not enforce TLS or certificate verification). Upgrade to \"require\" or \"verify-full\" in Connection Settings.",
     "protocolVersion": "Protocol Version",
     "keyStrength": "Key Strength",
     "cipherSuite": "Cipher Suite",
@@ -999,7 +1001,17 @@
     "screenProtectionDesc": "Hides the DataCore window from screen-sharing and recording apps (such as Zoom, Teams, OBS, or QuickTime).",
     "screenProtectionLabel": "Prevent Screen Capture:",
     "screenProtectionEnabled": "Protected (Hidden from Screen Share)",
-    "screenProtectionDisabled": "Disabled (Visible to Screen Share)"
+    "screenProtectionDisabled": "Disabled (Visible to Screen Share)",
+    "unlockVaultTitle": "Unlock Credential Vault",
+    "unlockVaultSubtitle": "Enter your Master Password to access saved connection credentials.",
+    "masterPasswordLabel": "Master Password",
+    "masterPasswordRequired": "Please enter your Master Password.",
+    "unlocking": "Unlocking...",
+    "unlockButton": "Unlock Vault",
+    "vaultUnlockedToast": "Credential Vault unlocked",
+    "vaultLockedToast": "Credential Vault locked",
+    "vaultLockedConnectionNotice": "Credential Vault is locked. Unlock Vault to verify or update saved password status.",
+    "lockVault": "Lock Vault"
   },
   "transactions": {
     "savepointsTitle": "Transaction Savepoints",

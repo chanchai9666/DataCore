@@ -318,10 +318,10 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
               <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-2.5 text-[11px] text-amber-800 dark:text-amber-300">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <span>
-                  {t(
-                    'security.legacySslWarning',
-                    `SSL mode is "${sslMode || 'prefer'}" (does not enforce TLS or certificate verification). Upgrade to "require" or "verify-full" in Connection Settings.`
-                  )}
+                  {t('security.legacySslWarning', {
+                    mode: sslMode || 'prefer',
+                    defaultValue: `SSL mode is "${sslMode || 'prefer'}" (does not enforce TLS or certificate verification). Upgrade to "require" or "verify-full" in Connection Settings.`,
+                  })}
                 </span>
               </div>
             )}
@@ -403,6 +403,17 @@ export const ConnectionSecurityModal: React.FC<ConnectionSecurityModalProps> = (
                             className="rounded border border-rose-300 bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
                           >
                             Remove Master Password
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await dbApi.lockVault?.();
+                              onClose();
+                            }}
+                            className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                          >
+                            <Lock className="h-3 w-3" />
+                            {t('security.lockVault', 'Lock Vault')}
                           </button>
                         </>
                       )}

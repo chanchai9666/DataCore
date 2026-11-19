@@ -590,3 +590,40 @@ fn test_unlock_rate_limit_lockout_after_five_failures() {
     let err = vault.unlock("CorrectPassword!").unwrap_err().to_string();
     assert!(err.contains("Too many failed unlock attempts"));
 }
+
+#[test]
+fn test_change_and_remove_master_password_share_rate_limiter() {
+    let dir = tempdir().expect("create temp dir");
+    let vault = Vault::new(dir.path());
+    vault
+        .set_master_password("CorrectPassword!")
+        .expect("set master password");
+
+    // 3 failed attempts via change_master_password + 2 via remove_master_password = 5 failures
+    for _ in 0..3 {
+        assert!(vault
+            .change_master_password("WrongOld", "NewPass123!")
+            .is_err());
+    }
+    for _ in 0..2 {
+        assert!(vault.remove_master_password("WrongCur").is_err());
+    }
+
+    // Subsequent attempts across unlock, change, and remove must all be locked out
+    assert!(vault
+        .change_master_password("CorrectPassword!", "NewPass123!")
+        .unwrap_err()
+        .to_string()
+        .contains("Too many failed unlock attempts"));
+    assert!(vault
+        .remove_master_password("CorrectPassword!")
+        .unwrap_err()
+        .to_string()
+        .contains("Too many failed unlock attempts"));
+    vault.lock();
+    assert!(vault
+        .unlock("CorrectPassword!")
+        .unwrap_err()
+        .to_string()
+        .contains("Too many failed unlock attempts"));
+}

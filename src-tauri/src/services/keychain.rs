@@ -241,33 +241,11 @@ impl Vault {
         Ok(key_bytes.len() >= 4 && &key_bytes[..4] == KEY_HEADER_V2)
     }
 
-    pub fn verify_master_password(&self, password: &str) -> Result<bool, AppError> {
-        let key_file = self.vault_dir.join(".vault.key");
-        if !key_file.exists() {
-            return Ok(false);
-        }
-        let key_bytes = fs::read(&key_file)?;
-        if key_bytes.len() < 4 || &key_bytes[..4] != KEY_HEADER_V2 {
-            return Ok(false);
-        }
-        match decrypt_master_key_v2(&key_bytes, password) {
-            Ok(_) => Ok(true),
-            Err(_) => Ok(false),
-        }
-    }
-
-    pub fn is_unlocked(&self) -> Result<bool, AppError> {
-        if !self.has_master_password()? {
-            return Ok(true);
-        }
-        let guard = self
-            .master_password
-            .read()
-            .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
-        Ok(guard.is_some())
-    }
-
-    pub fn unlock(&self, password: &str) -> Result<(), AppError> {
+    fn verify_master_password_with_backoff(
+        &self,
+        key_bytes: &[u8],
+        password: &str,
+    ) -> Result<Zeroizing<[u8; KEY_LEN]>, AppError> {
         {
             let mut attempts_guard = self
                 .unlock_attempts
@@ -289,26 +267,61 @@ impl Vault {
             }
         }
 
+        match decrypt_master_key_v2(key_bytes, password) {
+            Ok(master_key) => {
+                if let Ok(mut attempts_guard) = self.unlock_attempts.lock() {
+                    attempts_guard.0 = 0;
+                    attempts_guard.1 = None;
+                }
+                Ok(master_key)
+            }
+            Err(err) => {
+                if let Ok(mut attempts_guard) = self.unlock_attempts.lock() {
+                    attempts_guard.0 += 1;
+                    if attempts_guard.0 >= MAX_FAILED_UNLOCK_ATTEMPTS {
+                        attempts_guard.1 =
+                            Some(Instant::now() + Duration::from_secs(UNLOCK_LOCKOUT_SECS));
+                    }
+                }
+                Err(err)
+            }
+        }
+    }
+
+    pub fn verify_master_password(&self, password: &str) -> Result<bool, AppError> {
+        let key_file = self.vault_dir.join(".vault.key");
+        if !key_file.exists() {
+            return Ok(false);
+        }
+        let key_bytes = fs::read(&key_file)?;
+        if key_bytes.len() < 4 || &key_bytes[..4] != KEY_HEADER_V2 {
+            return Ok(false);
+        }
+        match self.verify_master_password_with_backoff(&key_bytes, password) {
+            Ok(_) => Ok(true),
+            Err(e) if e.to_string().contains("Too many failed") => Err(e),
+            Err(_) => Ok(false),
+        }
+    }
+
+    pub fn is_unlocked(&self) -> Result<bool, AppError> {
+        if !self.has_master_password()? {
+            return Ok(true);
+        }
+        let guard = self
+            .master_password
+            .read()
+            .map_err(|e| AppError::Other(format!("Lock error: {}", e)))?;
+        Ok(guard.is_some())
+    }
+
+    pub fn unlock(&self, password: &str) -> Result<(), AppError> {
         let key_file = self.vault_dir.join(".vault.key");
         if key_file.exists() {
             let key_bytes = fs::read(&key_file)?;
             if key_bytes.len() >= 4 && &key_bytes[..4] == KEY_HEADER_V2 {
-                if let Err(err) = decrypt_master_key_v2(&key_bytes, password) {
-                    if let Ok(mut attempts_guard) = self.unlock_attempts.lock() {
-                        attempts_guard.0 += 1;
-                        if attempts_guard.0 >= MAX_FAILED_UNLOCK_ATTEMPTS {
-                            attempts_guard.1 =
-                                Some(Instant::now() + Duration::from_secs(UNLOCK_LOCKOUT_SECS));
-                        }
-                    }
-                    return Err(err);
-                }
+                self.verify_master_password_with_backoff(&key_bytes, password)?;
             }
-        }
-
-        if let Ok(mut attempts_guard) = self.unlock_attempts.lock() {
-            attempts_guard.0 = 0;
-            attempts_guard.1 = None;
         }
 
         let mut guard = self
@@ -491,8 +504,8 @@ impl Vault {
             ));
         }
 
-        // Decrypt master key using old password (fails on incorrect password)
-        let master_key = decrypt_master_key_v2(&key_bytes, old_password)?;
+        // Decrypt master key using old password with shared rate limiter
+        let master_key = self.verify_master_password_with_backoff(&key_bytes, old_password)?;
 
         // Re-encrypt master key using new password (new salt and nonce)
         let payload = encrypt_master_key_v2(&master_key, new_password)?;
@@ -532,7 +545,7 @@ impl Vault {
             return Ok(());
         }
 
-        let master_key = decrypt_master_key_v2(&key_bytes, current_password)?;
+        let master_key = self.verify_master_password_with_backoff(&key_bytes, current_password)?;
 
         let mdk = self.derive_machine_key();
         let mut payload = Vec::with_capacity(4 + KEY_LEN);

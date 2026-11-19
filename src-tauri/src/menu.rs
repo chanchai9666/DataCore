@@ -11,6 +11,7 @@ pub const MENU_COMMAND_PALETTE: &str = "command-palette";
 pub const MENU_KEYBOARD_SHORTCUTS: &str = "keyboard-shortcuts";
 pub const MENU_CHECK_UPDATES: &str = "check-updates";
 pub const MENU_EXPORT_DIAGNOSTICS: &str = "export-diagnostics";
+pub const MENU_LOCK_VAULT: &str = "lock-vault";
 pub const MENU_ABOUT: &str = "about";
 
 pub const KNOWN_MENU_ACTIONS: &[&str] = &[
@@ -25,6 +26,7 @@ pub const KNOWN_MENU_ACTIONS: &[&str] = &[
     MENU_KEYBOARD_SHORTCUTS,
     MENU_CHECK_UPDATES,
     MENU_EXPORT_DIAGNOSTICS,
+    MENU_LOCK_VAULT,
 ];
 
 pub fn is_known_menu_action(id: &str) -> bool {
@@ -40,6 +42,7 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> 
             &MenuItemBuilder::with_id(MENU_EXPORT_DIAGNOSTICS, "Export Diagnostic Bundle...")
                 .build(app)?,
         )
+        .item(&MenuItemBuilder::with_id(MENU_LOCK_VAULT, "Lock Credential Vault").build(app)?)
         .separator()
         .item(&PredefinedMenuItem::hide(app, None)?)
         .item(&PredefinedMenuItem::hide_others(app, None)?)
@@ -131,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_known_menu_actions_contains_all_expected_ids() {
-        assert_eq!(KNOWN_MENU_ACTIONS.len(), 11);
+        assert_eq!(KNOWN_MENU_ACTIONS.len(), 12);
         assert!(is_known_menu_action("about"));
         assert!(is_known_menu_action("new-connection"));
         assert!(is_known_menu_action("new-query"));
@@ -143,6 +146,7 @@ mod tests {
         assert!(is_known_menu_action("keyboard-shortcuts"));
         assert!(is_known_menu_action("check-updates"));
         assert!(is_known_menu_action("export-diagnostics"));
+        assert!(is_known_menu_action("lock-vault"));
         assert!(!is_known_menu_action("unknown-action"));
     }
 }

@@ -725,5 +725,34 @@ describe('ConnectionDialog', () => {
       fireEvent.click(backdrop);
       expect(onClose).toHaveBeenCalled();
     });
+
+    it('shows locked vault notice when hasStoredPassword fails because vault is locked', async () => {
+      vi.mocked(dbApi.hasStoredPassword).mockRejectedValueOnce(
+        new Error('Vault is locked: Master password required')
+      );
+
+      render(
+        <ConnectionDialog
+          isOpen={true}
+          onClose={onClose}
+          initialConnection={{
+            id: 'conn-locked',
+            name: 'Locked Conn',
+            driver: 'postgres',
+            host: '127.0.0.1',
+            port: 5432,
+            database: 'db',
+            user: 'postgres',
+            ssl_mode: 'require',
+          }}
+        />
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Credential Vault is locked\. Unlock Vault to verify or update saved password status\./i)
+        ).toBeInTheDocument();
+      });
+    });
   });
 });

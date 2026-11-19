@@ -983,7 +983,9 @@
     "subtitle": "สถานะการเข้ารหัสข้อมูลระหว่างส่ง (TLS/SSL) และขณะจัดเก็บ",
     "inTransitTitle": "การเข้ารหัสระหว่างส่งข้อมูล (TLS / SSL)",
     "tlsEncrypted": "เข้ารหัส TLS แล้ว",
+    "tlsUnverified": "ไม่ทราบ / ไม่สามารถยืนยันได้",
     "unencryptedPlaintext": "ไม่ได้เข้ารหัส (Plaintext)",
+    "legacySslWarning": "โหมด SSL คือ \"{{mode}}\" (ไม่ได้บังคับใช้ TLS หรือตรวจสอบใบรับรอง) แนะนำให้อัปเกรดเป็น \"require\" หรือ \"verify-full\" ในตั้งค่าการเชื่อมต่อ",
     "protocolVersion": "เวอร์ชันโปรโตคอล",
     "keyStrength": "ความยาวคีย์เข้ารหัส",
     "cipherSuite": "ชุดการเข้ารหัส (Cipher Suite)",
@@ -999,7 +1001,17 @@
     "screenProtectionDesc": "ซ่อนหน้าต่าง DataCore จากโปรแกรมแชร์หน้าจอและบันทึกหน้าจอ (เช่น Zoom, Teams, OBS, QuickTime)",
     "screenProtectionLabel": "ป้องกันการจับภาพหน้าจอ:",
     "screenProtectionEnabled": "เปิดป้องกันอยู่ (ซ่อนจากการแชร์หน้าจอ)",
-    "screenProtectionDisabled": "ปิดใช้งาน (แชร์หน้าจอได้ปกติ)"
+    "screenProtectionDisabled": "ปิดใช้งาน (แชร์หน้าจอได้ปกติ)",
+    "unlockVaultTitle": "ปลดล็อกคลังรหัสผ่าน",
+    "unlockVaultSubtitle": "กรอก Master Password เพื่อเข้าถึงรหัสผ่านการเชื่อมต่อที่บันทึกไว้",
+    "masterPasswordLabel": "Master Password",
+    "masterPasswordRequired": "กรุณากรอก Master Password",
+    "unlocking": "กำลังปลดล็อก...",
+    "unlockButton": "ปลดล็อก Vault",
+    "vaultUnlockedToast": "ปลดล็อกคลังรหัสผ่านแล้ว",
+    "vaultLockedToast": "ล็อกคลังรหัสผ่านแล้ว",
+    "vaultLockedConnectionNotice": "คลังรหัสผ่านถูกล็อกอยู่ กรุณาปลดล็อก Vault เพื่อตรวจสอบหรือแก้ไขสถานะรหัสผ่านที่บันทึกไว้",
+    "lockVault": "ล็อก Vault"
   },
   "transactions": {
     "savepointsTitle": "Transaction Savepoints",

@@ -288,9 +288,13 @@ export const getObjectDdl = async (
 export const hasStoredPassword = async (
   connectionId: string
 ): Promise<boolean> => {
-  return invoke<boolean>('has_stored_password', {
-    connectionId,
-  });
+  try {
+    return await invoke<boolean>('has_stored_password', {
+      connectionId,
+    });
+  } catch (err) {
+    return dispatchVaultLockedIfNeeded(err);
+  }
 };
 
 export const deleteStoredPassword = async (

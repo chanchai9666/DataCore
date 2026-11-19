@@ -173,6 +173,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
   const [testStatus, setTestStatus] = useState<TestStatus>({ type: 'idle' });
   const [isSaving, setIsSaving] = useState(false);
   const [connectImmediately, setConnectImmediately] = useState(!initialConnection);
+  const [vaultLockedNotice, setVaultLockedNotice] = useState(false);
 
   // Reset form when dialog opens or initialConnection changes
   useEffect(() => {
@@ -182,6 +183,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       setTestStatus({ type: 'idle' });
       setIsSaving(false);
       setConnectImmediately(!initialConnection);
+      setVaultLockedNotice(false);
 
       if (initialConnection?.id) {
         dbApi.hasStoredPassword(initialConnection.id).then((hasStored) => {
@@ -190,6 +192,10 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
             rememberPassword: Boolean(hasStored),
           }));
         }).catch((e) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (/vault is locked/i.test(msg)) {
+            setVaultLockedNotice(true);
+          }
           console.debug('Failed to check stored password:', e);
         });
       }
@@ -518,7 +524,21 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
         </div>
 
         {/* Body / Driver Form */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          {vaultLockedNotice && (
+            <div
+              role="status"
+              className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>
+                {t(
+                  'security.vaultLockedConnectionNotice',
+                  'Credential Vault is locked. Unlock Vault to verify or update saved password status.'
+                )}
+              </span>
+            </div>
+          )}
           <DriverForm
             driver={formData.driver}
             formData={formData}

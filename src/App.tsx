@@ -10,9 +10,10 @@ import { ImportSqlModal } from './components/transfer/ImportSqlModal';
 import { DatabaseMetricsModal } from './components/performance/DatabaseMetricsModal';
 import { LockInspectorModal } from './components/transactions/LockInspectorModal';
 import { AuditLogDrawer } from './components/security/AuditLogDrawer';
+import { useTranslation } from 'react-i18next';
 import { ConnectionSecurityModal } from './components/security/ConnectionSecurityModal';
 import { VaultUnlockModal } from './components/security/VaultUnlockModal';
-import { getVaultStatus } from './api/db';
+import { getVaultStatus, lockVault } from './api/db';
 import { HistorySnippetsDrawer } from './components/editor/HistorySnippetsDrawer';
 import { SchemaDiffModal } from './components/diff/SchemaDiffModal';
 import { ActivityMonitorModal } from './components/monitor/ActivityMonitorModal';
@@ -43,6 +44,7 @@ import type { ConnectionConfig } from './types/db';
 import { restoreWorkspaceState, saveWorkspaceDebounced } from './utils/workspacePersistence';
 
 export function App() {
+  const { t } = useTranslation();
   const { loadConnections, setActiveConnection, activeConnectionId, connectedConnectionIds, connections } = useConnectionStore();
   const { tabs, activeTabId } = useTabStore();
   const {
@@ -157,6 +159,13 @@ export function App() {
           break;
         case 'export-diagnostics':
           setIsDiagnosticBundleOpen(true);
+          break;
+        case 'lock-vault':
+          if (typeof lockVault === 'function') {
+            void Promise.resolve(lockVault()).then(() => {
+              toast.info(t('security.vaultLockedToast', 'Credential Vault locked'));
+            });
+          }
           break;
         case 'about':
           setIsAboutModalOpen(true);
@@ -582,7 +591,7 @@ export function App() {
         isOpen={isVaultUnlockOpen}
         onUnlocked={() => {
           setIsVaultUnlockOpen(false);
-          toast.success('Credential Vault unlocked');
+          toast.success(t('security.vaultUnlockedToast', 'Credential Vault unlocked'));
         }}
         onClose={() => setIsVaultUnlockOpen(false)}
       />
