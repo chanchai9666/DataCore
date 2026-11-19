@@ -990,6 +990,9 @@
 54. **Issue #195: Query Tab Dropdown Padding Fix (`EditorToolbar.tsx`)**
     - **Chevron Overlap Fix:** ปรับ inline padding ของ `<select>` สำหรับ `Isolation Level` และ `Safe Limit` ใน `src/components/editor/EditorToolbar.tsx` จาก `0 6px` เป็น `0 28px 0 8px` เพื่อเว้นพื้นที่ให้ custom SVG chevron ใน `src/index.css` ไม่ทับข้อความตัวเลือก (เช่น `1,000 (Safe Default)` และ `Read Committed`)
 
+55. **Issue #196: Refresh All Only Refreshes Connected Databases (`ObjectBrowser.tsx`)**
+    - **Selective Schema Refresh:** ปรับปุ่ม `Refresh All` ใน `src/components/sidebar/ObjectBrowser.tsx` ให้เรียก `handleRefreshAll` ซึ่งโหลดรายการ connection ล่าสุดผ่าน `loadConnections()` และเรียก `fetchSchema(c.id)` เฉพาะฐานข้อมูลที่อยู่ใน `connectedConnectionIds` เท่านั้น ป้องกันการเชื่อมต่อฐานข้อมูลที่ยังไม่ได้เชื่อมต่อโดยอัตโนมัติ
+
 ---
 
 ## 6. แผนงานระยะถัดไป: Enterprise Hardening & Ecosystem Expansion (Phase 34 - 38)

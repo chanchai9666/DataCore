@@ -905,4 +905,68 @@ describe('ObjectBrowser', () => {
       expect(menu).toHaveClass('overflow-y-auto');
     });
   });
+
+  describe('Refresh All (Issue #196)', () => {
+    const secondConnection: ConnectionConfig = {
+      id: 'conn-2',
+      name: 'Disconnected Postgres',
+      driver: 'postgres',
+      host: 'localhost',
+      port: 5432,
+      database: 'pos_v1',
+    };
+
+    it('only refreshes schemas for already-connected databases and does not connect disconnected ones', async () => {
+      vi.mocked(dbApi.getConnections).mockResolvedValue([mockConnection, secondConnection]);
+      vi.mocked(dbApi.getSchemaTree).mockResolvedValue(mockSchema);
+
+      useConnectionStore.setState({
+        connections: [mockConnection, secondConnection],
+        connectedConnectionIds: ['conn-1'],
+        activeConnectionId: 'conn-1',
+      });
+
+      render(<ObjectBrowser />);
+
+      // Wait for initial auto-fetch of already-connected conn-1 to settle
+      await waitFor(() => {
+        expect(dbApi.getSchemaTree).toHaveBeenCalledWith('conn-1');
+      });
+      vi.mocked(dbApi.getSchemaTree).mockClear();
+      vi.mocked(dbApi.getConnections).mockClear();
+
+      const refreshAllBtn = screen.getByTestId('sidebar-refresh-all-btn');
+      fireEvent.click(refreshAllBtn);
+
+      await waitFor(() => {
+        expect(dbApi.getConnections).toHaveBeenCalledTimes(1);
+        expect(dbApi.getSchemaTree).toHaveBeenCalledTimes(1);
+        expect(dbApi.getSchemaTree).toHaveBeenCalledWith('conn-1');
+      });
+      expect(dbApi.getSchemaTree).not.toHaveBeenCalledWith('conn-2');
+      expect(useConnectionStore.getState().connectedConnectionIds).toEqual(['conn-1']);
+    });
+
+    it('reloads connection list without calling getSchemaTree when no databases are connected', async () => {
+      vi.mocked(dbApi.getConnections).mockResolvedValue([mockConnection, secondConnection]);
+      vi.mocked(dbApi.getSchemaTree).mockResolvedValue(mockSchema);
+
+      useConnectionStore.setState({
+        connections: [mockConnection, secondConnection],
+        connectedConnectionIds: [],
+        activeConnectionId: null,
+      });
+
+      render(<ObjectBrowser />);
+
+      const refreshAllBtn = screen.getByTestId('sidebar-refresh-all-btn');
+      fireEvent.click(refreshAllBtn);
+
+      await waitFor(() => {
+        expect(dbApi.getConnections).toHaveBeenCalledTimes(1);
+      });
+      expect(dbApi.getSchemaTree).not.toHaveBeenCalled();
+      expect(useConnectionStore.getState().connectedConnectionIds).toEqual([]);
+    });
+  });
 });

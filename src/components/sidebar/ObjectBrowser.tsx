@@ -822,6 +822,17 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     }
   }, [markConnected, markDisconnected]);
 
+  const handleRefreshAll = useCallback(async () => {
+    await loadConnections();
+    const latestState = useConnectionStore.getState();
+    const connectedSet = new Set(latestState.connectedConnectionIds);
+    (latestState.connections || [])
+      .filter((c) => connectedSet.has(c.id))
+      .forEach((c) => {
+        void fetchSchema(c.id);
+      });
+  }, [loadConnections, fetchSchema]);
+
   const lastProcessedSavedConnRef = useRef<string | null>(null);
   // Auto-connect and load schema when a connection is saved
   useEffect(() => {
@@ -1610,8 +1621,9 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             type="button"
             title="Refresh All"
             aria-label="Refresh All"
+            data-testid="sidebar-refresh-all-btn"
             className="p-1 rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-            onClick={() => (connections || []).forEach((c) => fetchSchema(c.id))}
+            onClick={() => void handleRefreshAll()}
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
