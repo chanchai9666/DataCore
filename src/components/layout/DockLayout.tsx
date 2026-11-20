@@ -1879,12 +1879,12 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                           : 'bg-gray-100 border-gray-200'
                       }`}
                     >
-                      <div className={`flex items-center space-x-1 p-0.5 ${
+                      <div className={`flex items-center space-x-1 p-0.5 border ${
                         theme === 'warm-paper'
-                          ? 'rounded-full bg-[#e6decb] border border-[#c8beab]'
+                          ? 'rounded-lg bg-[#faf6ef] border-[#c8beab]'
                           : theme === 'dark'
-                          ? 'rounded border bg-black/20 border-gray-700/40'
-                          : 'rounded border bg-gray-200/60 border-gray-300'
+                          ? 'rounded bg-black/20 border-gray-700/40'
+                          : 'rounded bg-gray-200/60 border-gray-300'
                       }`}>
                         <button
                           type="button"
@@ -1897,11 +1897,11 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                           }
                           className={`inline-flex items-center space-x-1.5 px-3 py-1 text-xs font-medium transition-colors ${
                             theme === 'warm-paper'
-                              ? 'rounded-full bg-[#c8e4b8] text-[#1f1e1b] border border-[#2c2a26] font-semibold'
+                              ? 'rounded-md bg-[#ede6d8] text-[#1f1e1b] font-semibold'
                               : 'rounded bg-blue-600 text-white shadow-sm'
                           }`}
                         >
-                          <Table className="w-3.5 h-3.5" />
+                          <Table className={`w-3.5 h-3.5 ${theme === 'warm-paper' ? 'text-blue-500' : ''}`} />
                           <span>Data</span>
                         </button>
 
@@ -1916,7 +1916,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                           }
                           className={`inline-flex items-center space-x-1.5 px-3 py-1 text-xs font-medium transition-colors ${
                             theme === 'warm-paper'
-                              ? 'rounded-full text-[#6b655b] hover:text-[#1f1e1b] hover:bg-[#ede6d8]'
+                              ? 'rounded-md text-[#6b655b] hover:text-[#1f1e1b] hover:bg-[#f3ede2]'
                               : theme === 'dark'
                               ? 'rounded text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
                               : 'rounded text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
