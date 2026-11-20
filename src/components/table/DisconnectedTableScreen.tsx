@@ -38,7 +38,8 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
   onClose,
 }) => {
   const { t } = useTranslation();
-  const isLight = theme === 'light';
+  const isLight = theme !== 'dark';
+  const isWarmPaper = theme === 'warm-paper';
 
   // Environment badge colors
   const envKey = (environment || '').toLowerCase();
@@ -56,12 +57,18 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
     <div
       data-testid="disconnected-table-screen"
       className={`flex-1 flex flex-col items-center justify-center p-6 h-full select-none transition-colors ${
-        isLight ? 'bg-slate-50 text-slate-800' : 'bg-[#18181b] text-slate-200'
+        isWarmPaper
+          ? 'bg-[#f3ede2] text-[#1f1e1b]'
+          : isLight
+          ? 'bg-slate-50 text-slate-800'
+          : 'bg-[#18181b] text-slate-200'
       }`}
     >
       <div
         className={`max-w-md w-full rounded-2xl border p-6 shadow-xl flex flex-col items-center text-center transition-colors ${
-          isLight
+          isWarmPaper
+            ? 'bg-[#faf6ef] border-[#2c2a26] shadow-stone-300/40'
+            : isLight
             ? 'bg-white border-slate-200 shadow-slate-200/50'
             : 'bg-[#202023] border-[#2e2e32] shadow-black/40'
         }`}
@@ -69,7 +76,11 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
         {/* Visual Icon Badge */}
         <div
           className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-transform hover:scale-105 ${
-            isConnectionActive
+            isWarmPaper
+              ? isConnectionActive
+                ? 'bg-[#dcebd2] text-[#3c7043] border border-[#2c2a26]'
+                : 'bg-[#f5e3c1] text-[#8c5a18] border border-[#2c2a26]'
+              : isConnectionActive
               ? isLight
                 ? 'bg-blue-50 text-blue-600 ring-8 ring-blue-50/50'
                 : 'bg-blue-500/10 text-blue-400 ring-8 ring-blue-500/5'
@@ -94,7 +105,11 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
         {/* Target Context Summary Card */}
         <div
           className={`w-full rounded-xl border p-3.5 mb-6 text-left text-xs space-y-2 ${
-            isLight ? 'bg-slate-50/80 border-slate-200/80' : 'bg-[#18181a] border-[#2a2a2e]'
+            isWarmPaper
+              ? 'bg-[#f6f1e7] border-[#c8beab]'
+              : isLight
+              ? 'bg-slate-50/80 border-slate-200/80'
+              : 'bg-[#18181a] border-[#2a2a2e]'
           }`}
         >
           {/* Table */}
@@ -152,10 +167,12 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
             type="button"
             onClick={onClose}
             disabled={isConnecting}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium rounded-lg border transition-colors ${
-              isLight
-                ? 'border-slate-200 hover:bg-slate-100 text-slate-700 disabled:opacity-50'
-                : 'border-[#333338] hover:bg-[#2c2c31] text-slate-300 disabled:opacity-50'
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium border transition-colors ${
+              isWarmPaper
+                ? 'rounded-full border-[#2c2a26] bg-[#faf6ef] hover:bg-[#ede6d8] text-[#1f1e1b] disabled:opacity-50'
+                : isLight
+                ? 'rounded-lg border-slate-200 hover:bg-slate-100 text-slate-700 disabled:opacity-50'
+                : 'rounded-lg border-[#333338] hover:bg-[#2c2c31] text-slate-300 disabled:opacity-50'
             }`}
           >
             <X className="w-3.5 h-3.5" />
@@ -167,7 +184,11 @@ export const DisconnectedTableScreen: React.FC<DisconnectedTableScreenProps> = (
             data-testid="btn-connect-and-load"
             onClick={onConnect}
             disabled={isConnecting}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 shadow-md shadow-blue-500/20 disabled:opacity-70 transition-all cursor-pointer"
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold disabled:opacity-70 transition-all cursor-pointer ${
+              isWarmPaper
+                ? 'rounded-full bg-[#c8e4b8] hover:bg-[#b8dcb8] text-[#1f1e1b] border border-[#2c2a26]'
+                : 'rounded-lg text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 shadow-md shadow-blue-500/20'
+            }`}
           >
             {isConnecting ? (
               <>

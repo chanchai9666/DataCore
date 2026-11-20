@@ -43,7 +43,8 @@ describe('Design Tokens & CSS Variables (Phase 1)', () => {
     expect(tokensContent).toContain('--bg-panel: #f3ede2');
     expect(tokensContent).toContain('--bg-grid: #faf6ef');
     expect(tokensContent).toContain('--row-alt: #f0e9dc');
-    expect(tokensContent).toContain('--border: #2c2a26');
+    expect(tokensContent).toContain('--border: #c8beab');
+    expect(tokensContent).toContain('--pill-active-border: #2c2a26');
     expect(tokensContent).toContain('--grid-header-bg: #dce5d5');
   });
 

@@ -485,7 +485,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         className={`group flex items-center h-6 mx-1 px-2 w-full cursor-pointer select-none text-xs transition-colors ${
           context.theme === 'warm-paper'
             ? isTargetActiveTable
-              ? 'rounded-full bg-[#c8e4b8] text-[#1f1e1b] border-[1.5px] border-[#2c2a26] font-semibold'
+              ? 'rounded-full bg-[#c8e4b8] text-[#1f1e1b] border border-[#2c2a26] font-semibold'
               : node.isSelected
               ? 'rounded-full bg-[#dcebd2] text-[#1f1e1b] font-medium'
               : 'rounded-full text-[#1f1e1b] hover:bg-[#ede6d8]'
@@ -497,7 +497,7 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         } ${
           isTargetActiveConnection
             ? context.theme === 'warm-paper'
-              ? 'rounded-full bg-[#dcebd2] text-[#1f1e1b] font-bold border-[1.5px] border-[#2c2a26]'
+              ? 'rounded-full bg-[#dcebd2] text-[#1f1e1b] font-bold border border-[#2c2a26]'
               : 'bg-blue-500/15 dark:bg-blue-600/25 text-blue-900 dark:text-blue-100 font-bold border border-blue-500/50 dark:border-blue-400/50 shadow-xs'
             : ''
         }`}

@@ -1873,7 +1873,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                     <div
                       className={`flex items-center justify-between px-3 py-1.5 border-b text-xs flex-shrink-0 select-none ${
                         theme === 'warm-paper'
-                          ? 'bg-[#f3ede2] border-[#2c2a26]'
+                          ? 'bg-[#f3ede2] border-[#c8beab]'
                           : theme === 'dark'
                           ? 'bg-gray-900 border-gray-800'
                           : 'bg-gray-100 border-gray-200'
