@@ -47,12 +47,12 @@ export const darkGridTheme: Partial<Theme> = {
 
 export const warmPaperGridTheme: Partial<Theme> = {
   bgCell: '#faf6ef',
-  bgCellMedium: '#f0e9dc',
+  bgCellMedium: '#f5efe4',
   bgHeader: '#dce5d5',
   bgHeaderHovered: '#cfe0c5',
   bgHeaderHasFocus: '#c8e4b8',
-  borderColor: '#9c9486',
-  horizontalBorderColor: '#b8b0a2',
+  borderColor: '#8f8779',
+  horizontalBorderColor: '#cfc6b5',
   textDark: '#1f1e1b',
   textMedium: '#6b655b',
   textHeader: '#1f1e1b',

@@ -514,7 +514,11 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
       className="h-toolbar bg-toolbar border-b border-line flex items-center justify-between pl-[78px] pr-3 select-none flex-shrink-0 transition-colors relative"
     >
       {/* Left: Branding & Primary Desktop Action Icons */}
-      <div className="flex items-center gap-1.5 h-full py-1" data-tauri-drag-region ref={dropdownRef}>
+      <div
+        className={`flex items-center h-full py-1 ${theme === 'warm-paper' ? 'gap-1.5' : 'gap-1.5'}`}
+        data-tauri-drag-region
+        ref={dropdownRef}
+      >
         <div className="flex items-center text-accent font-bold tracking-wide mr-2 select-none" data-tauri-drag-region>
           <Database className="w-4 h-4 mr-1.5 shrink-0" />
           <span className="text-xs font-semibold text-text">DataCore</span>
@@ -524,8 +528,13 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
 
         {items.map(({ id, label, ariaLabel, icon: Icon, onClick, disabled, title, testId, group, hasDropdown }, idx) => {
           const showDivider = Boolean(
-            idx > 0 && group && items[idx - 1]?.group && group !== items[idx - 1]?.group
+            theme !== 'warm-paper' &&
+              idx > 0 &&
+              group &&
+              items[idx - 1]?.group &&
+              group !== items[idx - 1]?.group
           );
+          const isWarmPaper = theme === 'warm-paper';
           return (
             <React.Fragment key={id}>
               {showDivider && (
@@ -542,12 +551,24 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
                   title={title ?? label}
                   aria-label={ariaLabel ?? label}
                   data-testid={testId}
-                  className={`flex flex-col items-center justify-center gap-0.5 px-2.5 h-full rounded hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10 dark:active:bg-white/15 disabled:opacity-40 disabled:pointer-events-none transition-colors text-text ${
-                    activeDropdown === id ? 'bg-black/10 dark:bg-white/15' : ''
-                  }`}
+                  className={
+                    isWarmPaper
+                      ? `flex items-center gap-1.5 px-2.5 h-7 rounded-full border border-[#2c2a26] bg-[#faf6ef] hover:bg-[#dcebd2] active:bg-[#c8e4b8] disabled:opacity-40 disabled:pointer-events-none transition-colors text-[#1f1e1b] text-xs font-medium whitespace-nowrap ${
+                          activeDropdown === id ? 'bg-[#c8e4b8]' : ''
+                        }`
+                      : `flex flex-col items-center justify-center gap-0.5 px-2.5 h-full rounded hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10 dark:active:bg-white/15 disabled:opacity-40 disabled:pointer-events-none transition-colors text-text ${
+                          activeDropdown === id ? 'bg-black/10 dark:bg-white/15' : ''
+                        }`
+                  }
                 >
-                  <Icon size={19} strokeWidth={1.5} className="shrink-0" />
-                  <span className="text-[10px] text-muted leading-tight whitespace-nowrap flex items-center gap-0.5">
+                  <Icon size={isWarmPaper ? 14 : 19} strokeWidth={1.6} className="shrink-0" />
+                  <span
+                    className={
+                      isWarmPaper
+                        ? 'text-[11px] leading-none whitespace-nowrap flex items-center gap-0.5'
+                        : 'text-[10px] text-muted leading-tight whitespace-nowrap flex items-center gap-0.5'
+                    }
+                  >
                     <span>{label}</span>
                     {hasDropdown && <ChevronDown size={10} className="opacity-70 shrink-0" />}
                   </span>

@@ -27,6 +27,32 @@ import { DbBadge } from './DbBadge';
 import type { AppTheme } from '../../types/theme';
 
 const SKETCH_TABLE_HEADER_COLORS = ['#b8dcb8', '#eed49f', '#a8cbe8', '#d6c8eb'] as const;
+const SKETCH_FOLDER_COLORS = ['#f2c49b', '#b8dcb8', '#d6c8eb', '#a8cbe8', '#f2b8c6'] as const;
+
+const SketchFolderIcon: React.FC<{ name: string; color?: string; testId?: string }> = ({
+  name,
+  color,
+  testId,
+}) => {
+  const hash = name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const fillColor = color || SKETCH_FOLDER_COLORS[hash % SKETCH_FOLDER_COLORS.length];
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      className="w-4 h-4 shrink-0"
+      fill="none"
+      aria-hidden="true"
+      data-testid={testId}
+    >
+      <path
+        d="M1.5 4.2A1.2 1.2 0 0 1 2.7 3h3.4l1.2 1.4h6a1.2 1.2 0 0 1 1.2 1.2v6.7a1.2 1.2 0 0 1-1.2 1.2H2.7a1.2 1.2 0 0 1-1.2-1.2V4.2Z"
+        fill={fillColor}
+        stroke="#2c2a26"
+        strokeWidth="1.3"
+      />
+    </svg>
+  );
+};
 
 const SketchTableIcon: React.FC<{ name: string; testId?: string }> = ({ name, testId }) => {
   const hash = name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
@@ -237,9 +263,19 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
       case 'database':
         return <Database className="w-4 h-4 text-amber-400 shrink-0" data-testid="icon-database" />;
       case 'schema':
-        return <Folder className="w-4 h-4 text-yellow-500 shrink-0" data-testid="icon-folder" />;
+        return context.theme === 'warm-paper' ? (
+          <SketchFolderIcon name={data.name} color="#d6c8eb" testId="icon-folder" />
+        ) : (
+          <Folder className="w-4 h-4 text-yellow-500 shrink-0" data-testid="icon-folder" />
+        );
       case 'connection-folder':
       case 'folder': {
+        if (context.theme === 'warm-paper') {
+          if (data.name.startsWith('Tables')) {
+            return <SketchTableIcon name="tables" testId="icon-folder" />;
+          }
+          return <SketchFolderIcon name={data.name} color={data.folderColor} testId="icon-folder" />;
+        }
         if (data.folderColor) {
           return (
             <Folder
@@ -446,22 +482,22 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
             e.dataTransfer.setData('application/datacore-column', dragText);
           }
         }}
-        className={`group flex items-center h-6 mx-1 px-1.5 w-full rounded-md cursor-pointer select-none text-xs transition-colors ${
+        className={`group flex items-center h-6 mx-1 px-2 w-full cursor-pointer select-none text-xs transition-colors ${
           context.theme === 'warm-paper'
             ? isTargetActiveTable
-              ? 'bg-[#c8e4b8] text-[#1f1e1b] border border-[#2c2a26] font-semibold'
+              ? 'rounded-full bg-[#c8e4b8] text-[#1f1e1b] border-[1.5px] border-[#2c2a26] font-semibold'
               : node.isSelected
-              ? 'bg-[#dcebd2] text-[#1f1e1b] font-medium'
-              : 'text-[#1f1e1b] hover:bg-[#ede6d8]'
+              ? 'rounded-full bg-[#dcebd2] text-[#1f1e1b] font-medium'
+              : 'rounded-full text-[#1f1e1b] hover:bg-[#ede6d8]'
             : isTargetActiveTable
-            ? 'bg-blue-600/20 text-blue-900 dark:text-blue-100 border border-blue-500 ring-1 ring-blue-500/30 font-semibold shadow-xs'
+            ? 'rounded-md bg-blue-600/20 text-blue-900 dark:text-blue-100 border border-blue-500 ring-1 ring-blue-500/30 font-semibold shadow-xs'
             : node.isSelected
-            ? 'bg-blue-600/20 text-blue-800 dark:bg-blue-600/30 dark:text-white font-medium'
-            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-gray-800'
+            ? 'rounded-md bg-blue-600/20 text-blue-800 dark:bg-blue-600/30 dark:text-white font-medium'
+            : 'rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-gray-800'
         } ${
           isTargetActiveConnection
             ? context.theme === 'warm-paper'
-              ? 'bg-[#dcebd2] text-[#1f1e1b] font-bold border border-[#2c2a26]'
+              ? 'rounded-full bg-[#dcebd2] text-[#1f1e1b] font-bold border-[1.5px] border-[#2c2a26]'
               : 'bg-blue-500/15 dark:bg-blue-600/25 text-blue-900 dark:text-blue-100 font-bold border border-blue-500/50 dark:border-blue-400/50 shadow-xs'
             : ''
         }`}
@@ -508,8 +544,8 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
           {data.name}
         </span>
 
-        {/* Active Indicator Symbol for Table/View or Connection (Luminous Green Dot) */}
-        {isTargetActiveTable && (
+        {/* Active Indicator Symbol for Table/View or Connection */}
+        {isTargetActiveTable && context.theme !== 'warm-paper' && (
           <span
             className="ml-auto mr-1.5 flex h-2 w-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.85)] ring-2 ring-emerald-500/20"
             title="Active tab"

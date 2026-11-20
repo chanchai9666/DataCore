@@ -1639,7 +1639,11 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder={t('sidebar.filterPlaceholder', 'Filter objects...')}
-            className="w-full pl-7 pr-2 py-1 text-xs bg-white dark:bg-gray-800/80 text-text placeholder-muted rounded border border-line focus:outline-none focus:border-accent"
+            className={`w-full pl-7 pr-2 py-1 text-xs text-text placeholder-muted border focus:outline-none focus:border-accent ${
+              _theme === 'warm-paper'
+                ? 'bg-[#faf6ef] border-[#2c2a26] rounded-full'
+                : 'bg-white dark:bg-gray-800/80 border-line rounded'
+            }`}
           />
         </div>
       </div>

@@ -21,6 +21,7 @@ export const ExplorerBreadcrumb: React.FC<ExplorerBreadcrumbProps> = ({
   tableName,
   onSelectNode,
   onLocateActive,
+  theme,
 }) => {
   if (!connectionName) {
     return null;
@@ -30,11 +31,16 @@ export const ExplorerBreadcrumb: React.FC<ExplorerBreadcrumbProps> = ({
   const showDb = Boolean(databaseName && databaseName !== connectionName);
   // Display schema segment if defined and not default/empty
   const showSchema = Boolean(schemaName && schemaName !== databaseName);
+  const isWarmPaper = theme === 'warm-paper';
 
   return (
     <div
       data-testid="explorer-breadcrumb"
-      className="flex items-center justify-between px-2 py-1 text-[11px] bg-slate-50/95 dark:bg-gray-900/90 backdrop-blur-xs border-b border-line text-muted select-none min-h-[26px] z-10 transition-colors"
+      className={`flex items-center justify-between px-2 py-1 text-[11px] border-b select-none min-h-[26px] z-10 transition-colors ${
+        isWarmPaper
+          ? 'bg-[#f3ede2] border-[#c8beab] text-[#6b655b]'
+          : 'bg-slate-50/95 dark:bg-gray-900/90 backdrop-blur-xs border-line text-muted'
+      }`}
     >
       {/* Scrollable Breadcrumbs Path */}
       <div className="flex items-center space-x-1 overflow-x-auto no-scrollbar min-w-0 pr-1">
@@ -97,7 +103,9 @@ export const ExplorerBreadcrumb: React.FC<ExplorerBreadcrumbProps> = ({
               data-testid="breadcrumb-table"
               title={`Active Table: ${tableName}`}
               onClick={() => onSelectNode?.('table')}
-              className="font-semibold text-blue-600 dark:text-blue-400 hover:underline truncate max-w-[100px] shrink-0 transition-colors"
+              className={`font-semibold hover:underline truncate max-w-[100px] shrink-0 transition-colors ${
+                isWarmPaper ? 'text-[#3c7043]' : 'text-blue-600 dark:text-blue-400'
+              }`}
             >
               {tableName}
             </button>

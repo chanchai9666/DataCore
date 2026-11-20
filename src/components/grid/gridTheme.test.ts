@@ -24,9 +24,9 @@ describe('gridTheme', () => {
 
   it('defines warmPaperGridTheme with warm-sage header and crisp borders', () => {
     expect(warmPaperGridTheme.bgCell).toBe('#faf6ef');
-    expect(warmPaperGridTheme.bgCellMedium).toBe('#f0e9dc');
+    expect(warmPaperGridTheme.bgCellMedium).toBe('#f5efe4');
     expect(warmPaperGridTheme.bgHeader).toBe('#dce5d5');
-    expect(warmPaperGridTheme.borderColor).toBe('#9c9486');
+    expect(warmPaperGridTheme.borderColor).toBe('#8f8779');
     expect(warmPaperGridTheme.accentColor).toBe('#4d8b55');
     expect(warmPaperGridTheme.accentLight).toBe('#dcebd2');
     expect(getGridTheme('warm-paper')).toBe(warmPaperGridTheme);
