@@ -15,6 +15,9 @@ updates:
           - minor
           - patch
     ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
       - dependency-name: "tailwindcss"
         update-types:
           - "version-update:semver-major"
@@ -33,6 +36,9 @@ updates:
           - minor
           - patch
     ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
       - dependency-name: "sqlx"
         update-types:
           - "version-update:semver-major"
