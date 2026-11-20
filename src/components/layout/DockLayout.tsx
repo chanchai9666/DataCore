@@ -1237,12 +1237,12 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         >
           {/* Sidebar Header with collapse button */}
           <div
-            className={`flex items-center justify-between px-3 py-1.5 border-b text-xs font-semibold ${
+            className={`flex items-center justify-between px-3 border-b text-xs font-semibold ${
               theme === 'warm-paper'
-                ? 'border-line text-muted'
+                ? 'h-9 bg-toolbar border-line text-text'
                 : theme === 'dark'
-                ? 'border-gray-800 text-gray-400'
-                : 'border-gray-200 text-gray-600'
+                ? 'py-1.5 border-gray-800 text-gray-400'
+                : 'py-1.5 border-gray-200 text-gray-600'
             }`}
           >
             <span className="font-semibold text-gray-700 dark:text-gray-300">Explorer</span>
@@ -1297,7 +1297,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
               }
             }}
             onMouseDown={handleMouseDownResize}
-            className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors z-20"
+            className="absolute top-0 -right-0.5 w-1 h-full cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors z-20"
           />
         </aside>
       )}
@@ -1309,7 +1309,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           role="tablist"
           className={`flex items-center border-b overflow-x-auto select-none ${
             theme === 'warm-paper'
-              ? 'bg-toolbar border-line'
+              ? 'h-9 bg-toolbar border-line'
               : theme === 'dark'
               ? 'bg-gray-900 border-gray-800'
               : 'bg-gray-100 border-gray-200'
@@ -1332,7 +1332,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           )}
 
           {/* Tabs */}
-          <div className={`flex items-center flex-1 overflow-x-auto min-w-0 ${theme === 'warm-paper' ? 'gap-1.5 px-2 pt-1.5' : ''}`}>
+          <div className={`flex items-center flex-1 overflow-x-auto min-w-0 ${theme === 'warm-paper' ? 'gap-1.5 px-2.5' : ''}`}>
             {tabs.map((tab) => {
               const isActive = tab.id === activeTabId;
               const tabConn = connections.find((c) => c.id === tab.connectionId);
@@ -1351,8 +1351,8 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                   className={`group flex items-center space-x-2 px-3 cursor-pointer max-w-[200px] min-w-[120px] transition-colors text-xs ${
                     theme === 'warm-paper'
                       ? isActive
-                        ? 'py-1.5 rounded-t-lg bg-[#c8e4b8] text-[#1f1e1b] border border-b-0 border-[#2c2a26] font-semibold'
-                        : 'py-1.5 rounded-t-lg bg-[#f6f1e7] text-[#6b655b] border border-b-0 border-[#c8beab] hover:bg-[#faf6ef] hover:text-[#1f1e1b]'
+                        ? 'h-6 rounded-full bg-[#c8e4b8] text-[#1f1e1b] border border-[#2c2a26] font-semibold'
+                        : 'h-6 rounded-full bg-transparent text-[#6b655b] border border-transparent hover:bg-[#f6f1e7] hover:text-[#1f1e1b]'
                       : isActive
                       ? theme === 'dark'
                         ? 'py-2 border-r bg-gray-950 text-blue-400 border-r-gray-800 font-medium border-t-2 border-t-blue-500'
@@ -1879,12 +1879,12 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                           : 'bg-gray-100 border-gray-200'
                       }`}
                     >
-                      <div className={`flex items-center space-x-1 p-0.5 border ${
+                      <div className={`flex items-center space-x-1 p-0.5 ${
                         theme === 'warm-paper'
-                          ? 'rounded-full bg-[#faf6ef] border-[#2c2a26]'
+                          ? 'rounded-full bg-[#e6decb] border border-[#c8beab]'
                           : theme === 'dark'
-                          ? 'rounded bg-black/20 border-gray-700/40'
-                          : 'rounded bg-gray-200/60 border-gray-300'
+                          ? 'rounded border bg-black/20 border-gray-700/40'
+                          : 'rounded border bg-gray-200/60 border-gray-300'
                       }`}>
                         <button
                           type="button"

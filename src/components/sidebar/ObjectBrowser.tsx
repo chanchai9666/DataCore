@@ -1641,7 +1641,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             placeholder={t('sidebar.filterPlaceholder', 'Filter objects...')}
             className={`w-full pl-7 pr-2 py-1 text-xs text-text placeholder-muted border focus:outline-none focus:border-accent ${
               _theme === 'warm-paper'
-                ? 'bg-[#faf6ef] border-[#2c2a26] rounded-full'
+                ? 'bg-[#faf6ef] border-[#b8ae9c] rounded-full focus:border-[#2c2a26]'
                 : 'bg-white dark:bg-gray-800/80 border-line rounded'
             }`}
           />
