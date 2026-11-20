@@ -103,6 +103,67 @@
   --json-null: #94a3b8;
 }
 
+/* Warm Paper / Sketch Theme (Option 2) */
+[data-theme='warm-paper'] {
+  color-scheme: light;
+
+  /* Colors - Warm Cream Paper & Crisp Sketch Borders */
+  --bg-toolbar: #ede6d8;
+  --bg-sidebar: #f6f1e7;
+  --bg-panel: #f3ede2;
+  --bg-grid: #faf6ef;
+  --row-alt: #f0e9dc;
+  --border: #2c2a26;
+  --border-subtle: #c8beab;
+  --text: #1f1e1b;
+  --text-muted: #6b655b;
+  --accent: #4d8b55;
+  --accent-hover: #3c7043;
+  --sel: #dcebd2;
+  --danger: #c73e3a;
+  --success: #3e8e52;
+  --warn: #b87a14;
+
+  /* Warm Paper Grid & Pill Accents */
+  --grid-header-bg: #dce5d5;
+  --pill-active-bg: #c8e4b8;
+  --pill-active-text: #1f1e1b;
+  --pill-active-border: #2c2a26;
+
+  /* Aliases for UI components */
+  --bg-primary: var(--bg-grid);
+  --bg-secondary: var(--bg-toolbar);
+  --bg-tertiary: var(--bg-sidebar);
+  --bg-editor: var(--bg-grid);
+  --bg-card: #f6f1e7;
+  --bg-input: #faf6ef;
+  --btn-bg: #ede6d8;
+  --border-color: var(--border);
+  --text-primary: var(--text);
+  --text-secondary: var(--text-muted);
+  --text-disabled: #9c9486;
+  --badge-bg: #e4d8f2;
+  --badge-text: #3d2c5e;
+  --code-bg: rgba(44, 42, 38, 0.06);
+  --drawer-shadow: -4px 0 24px rgba(44, 42, 38, 0.16);
+  --fk-text: #2e5a88;
+  --scrollbar-thumb: rgba(44, 42, 38, 0.25);
+  --scrollbar-thumb-hover: rgba(44, 42, 38, 0.45);
+
+  /* JSON Tree syntax colors - Warm Paper */
+  --json-key: #2e5a88;
+  --json-string: #3c7043;
+  --json-number: #8c5a18;
+  --json-bool: #9a3f3a;
+  --json-null: #6b655b;
+}
+
+/* Sketch polish for Warm Paper theme */
+[data-theme='warm-paper'] button.sketch-btn,
+[data-theme='warm-paper'] .sketch-card {
+  border-color: var(--border);
+}
+
 /* WCAG 2.1 AA / AAA High-Contrast Enhancements */
 .high-contrast {
   --text: #000000;

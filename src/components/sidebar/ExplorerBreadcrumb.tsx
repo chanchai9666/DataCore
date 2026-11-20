@@ -10,7 +10,7 @@ export interface ExplorerBreadcrumbProps {
   tableName?: string;
   onSelectNode?: (target: 'connection' | 'database' | 'schema' | 'table') => void;
   onLocateActive?: () => void;
-  theme?: 'dark' | 'light';
+  theme?: import('../../types/theme').AppTheme;
 }
 
 export const ExplorerBreadcrumb: React.FC<ExplorerBreadcrumbProps> = ({

@@ -35,7 +35,7 @@ export interface ERDiagramTabProps {
   connectionId: string;
   driver?: string;
   schemaName?: string;
-  theme?: 'dark' | 'light';
+  theme?: import('../../types/theme').AppTheme;
 }
 
 export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
@@ -361,7 +361,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
   // Export handlers
   const handleExportSvg = async () => {
     if (!data) return;
-    const svgStr = exportERDiagramAsSvg(data, theme);
+    const svgStr = exportERDiagramAsSvg(data, theme === 'dark' ? 'dark' : 'light');
     const defaultFilename = `${schemaName || 'database'}_er_diagram.svg`;
 
     try {

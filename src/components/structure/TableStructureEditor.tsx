@@ -42,7 +42,7 @@ export interface TableStructureEditorProps {
   tableName: string;
   schemaName?: string;
   driver?: string;
-  theme?: 'dark' | 'light';
+  theme?: import('../../types/theme').AppTheme;
   onStructureChanged?: () => void;
   currentMode?: 'data' | 'structure';
   onModeChange?: (mode: 'data' | 'structure') => void;

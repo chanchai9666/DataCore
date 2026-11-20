@@ -16,7 +16,8 @@ import { CellDetailDrawer } from './CellDetailDrawer';
 import { FilterBar } from './FilterBar';
 import { GridBottomBar } from './GridBottomBar';
 import { RecordFormView } from './RecordFormView';
-import { lightGridTheme, darkGridTheme } from './gridTheme';
+import { getGridTheme } from './gridTheme';
+import type { AppTheme } from '../../types/theme';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { useFastEditStore } from '../../stores/fastEditStore';
 import { useStatusStore } from '../../stores/statusStore';
@@ -67,7 +68,7 @@ export interface DataGridProps {
   isEditable?: boolean;
   isReadOnly?: boolean;
   statusMessage?: { type: 'success' | 'error'; text: string } | null;
-  theme?: 'dark' | 'light';
+  theme?: AppTheme;
   filterState?: TableFilterState;
   onFilterChange?: (state: TableFilterState) => void;
   onApplyFilter?: () => void;
@@ -648,7 +649,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
     [selectedCell, handleCellEditedWithStaging]
   );
 
-  const gridTheme = theme === 'dark' ? darkGridTheme : lightGridTheme;
+  const gridTheme = getGridTheme(theme);
 
   const handleDeleteSelected = useCallback(async () => {
     if (hasSelectedRows) {
@@ -1016,19 +1017,19 @@ export const DataGrid: React.FC<DataGridProps> = ({
               padding: '3px 10px',
               fontSize: '12px',
               backgroundColor: isFilterActive
-                ? theme === 'light' ? '#2563eb' : '#1e40af'
+                ? theme === 'warm-paper' ? '#4d8b55' : theme === 'light' ? '#2563eb' : '#1e40af'
                 : isFilterVisible
-                ? theme === 'light' ? '#dbeafe' : '#1e3a8a'
+                ? theme === 'warm-paper' ? '#dcebd2' : theme === 'light' ? '#dbeafe' : '#1e3a8a'
                 : 'var(--btn-bg, #2b2b2b)',
               color: isFilterActive
                 ? '#ffffff'
                 : isFilterVisible
-                ? theme === 'light' ? '#1d4ed8' : '#ffffff'
+                ? theme === 'warm-paper' ? '#1f1e1b' : theme === 'light' ? '#1d4ed8' : '#ffffff'
                 : 'var(--text-primary, #ffffff)',
               border: isFilterActive
-                ? '1px solid #3b82f6'
+                ? theme === 'warm-paper' ? '1px solid #2c2a26' : '1px solid #3b82f6'
                 : isFilterVisible
-                ? theme === 'light' ? '1px solid #93c5fd' : '1px solid #3b82f6'
+                ? theme === 'warm-paper' ? '1px solid #2c2a26' : theme === 'light' ? '1px solid #93c5fd' : '1px solid #3b82f6'
                 : '1px solid var(--border-color, #444444)',
               borderRadius: '4px',
               cursor: 'pointer',

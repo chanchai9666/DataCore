@@ -49,11 +49,12 @@ import { detectErrorType } from '../../utils/sqlErrorParser';
 import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
 import { GridCellKind, EditableGridCell, Item } from '@glideapps/glide-data-grid';
 import type { CellValue, ConnectionConfig, QueryResult, Tab, TableFilterState, TableSortState } from '../../types/db';
+import type { AppTheme } from '../../types/theme';
 import { saveWorkspaceDebounced } from '../../utils/workspacePersistence';
 import { formatBytes } from '../../stores/transferMonitorStore';
 
 export interface DockLayoutProps {
-  theme?: 'dark' | 'light';
+  theme?: AppTheme;
   onNewConnection?: () => void;
   onEditConnection?: (connection: ConnectionConfig) => void;
   lastSavedConnectionId?: string | null;
@@ -1215,7 +1216,11 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
   return (
     <div
       className={`flex-1 flex overflow-hidden ${
-        theme === 'dark' ? 'bg-gray-950 text-gray-100' : 'bg-gray-100 text-gray-900'
+        theme === 'warm-paper'
+          ? 'bg-panel text-text'
+          : theme === 'dark'
+          ? 'bg-gray-950 text-gray-100'
+          : 'bg-gray-100 text-gray-900'
       }`}
     >
       {/* Sidebar: Object Browser */}
@@ -1223,13 +1228,19 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         <aside
           style={{ width: `${sidebarWidth}px` }}
           className={`relative flex-shrink-0 flex flex-col h-full border-r ${
-            theme === 'dark' ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200'
+            theme === 'warm-paper'
+              ? 'bg-sidebar border-line'
+              : theme === 'dark'
+              ? 'bg-gray-900 border-gray-800'
+              : 'bg-gray-50 border-gray-200'
           }`}
         >
           {/* Sidebar Header with collapse button */}
           <div
             className={`flex items-center justify-between px-3 py-1.5 border-b text-xs font-semibold ${
-              theme === 'dark'
+              theme === 'warm-paper'
+                ? 'border-line text-muted'
+                : theme === 'dark'
                 ? 'border-gray-800 text-gray-400'
                 : 'border-gray-200 text-gray-600'
             }`}
@@ -1297,7 +1308,9 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         <div
           role="tablist"
           className={`flex items-center border-b overflow-x-auto select-none ${
-            theme === 'dark'
+            theme === 'warm-paper'
+              ? 'bg-toolbar border-line'
+              : theme === 'dark'
               ? 'bg-gray-900 border-gray-800'
               : 'bg-gray-100 border-gray-200'
           }`}
@@ -1337,9 +1350,13 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                   onClick={() => setActiveTab(tab.id)}
                   className={`group flex items-center space-x-2 px-3 py-2 border-r text-xs cursor-pointer max-w-[200px] min-w-[120px] transition-colors ${
                     isActive
-                      ? theme === 'dark'
+                      ? theme === 'warm-paper'
+                        ? 'bg-[#c8e4b8] text-[#1f1e1b] border-r-[#2c2a26] font-semibold border-t-2 border-t-[#2c2a26]'
+                        : theme === 'dark'
                         ? 'bg-gray-950 text-blue-400 border-r-gray-800 font-medium border-t-2 border-t-blue-500'
                         : 'bg-white text-blue-600 border-r-gray-200 font-medium border-t-2 border-t-blue-600 shadow-sm'
+                      : theme === 'warm-paper'
+                      ? 'text-[#6b655b] hover:bg-[#f6f1e7] hover:text-[#1f1e1b] border-r-[#c8beab]'
                       : theme === 'dark'
                       ? 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 border-r-gray-800'
                       : 'text-gray-600 hover:bg-gray-200/60 hover:text-gray-900 border-r-gray-200'

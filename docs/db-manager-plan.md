@@ -1369,6 +1369,21 @@
 - **Dependabot Security Updates & Advisory Alignment (S6 — `.github/dependabot.yml`, `.github/workflows/ci.yml`):**
   - เปิดใช้งาน Dependabot security updates (`automated-security-fixes`) และบันทึกกำหนดการทบทวน major dependencies รายไตรมาส (Quarterly Major Review) พร้อมสถานะ moderate alerts 2 รายการ (`glib 0.18.5`, `minimatch`) ใน `.github/workflows/ci.yml` และ `.github/dependabot.yml`
 
+### Phase 60: ระบบ Multi-Theme และธีม Warm Paper / Sketch (Issue #225) [Completed]
+
+- **Design Tokens & Zero-Overhead CSS Switching (`src/styles/tokens.css`, `tailwind.config.js`, `src/types/theme.ts`):**
+  - รองรับ `AppTheme = 'light' | 'dark' | 'warm-paper'` โดยใช้ `Default` (`light` / `dark`) เป็นค่าเริ่มต้นและเพิ่ม `[data-theme="warm-paper"]` เป็นตัวเลือกที่ 2
+  - กำหนดชุดสี Warm Paper / Cream Pastel (`--bg-toolbar: #ede6d8`, `--bg-sidebar: #f6f1e7`, `--bg-panel: #f3ede2`, `--bg-grid: #faf6ef`, `--row-alt: #f0e9dc`, `--border: #2c2a26`, `--accent: #4d8b55`) พร้อม `--grid-header-bg` (Warm Sage `#dce5d5`) และสไตล์เส้นขอบคมชัดแบบ Sketch
+  - การสลับธีมทำงานผ่าน CSS attribute (`data-theme`) และคลาส `.dark` บน `document.documentElement` โดยไม่ unmount component หรือ re-fetch ข้อมูล
+- **Theme State & Toolbar Picker (`src/App.tsx`, `src/components/chrome/MainToolbar.tsx`, `src/locales/en.json`, `src/locales/th.json`):**
+  - บันทึกและกู้คืนค่า `datacore-theme` จาก `localStorage` อย่างเข้ากันได้ย้อนหลังกับ `'light'` / `'dark'` เดิม
+  - เพิ่ม Theme Picker Popover ใน `MainToolbar` ให้เลือก `Default Light`, `Default Dark`, และ `Warm Paper` พร้อมจุดสีตัวอย่าง (color swatch) และรองรับคีย์ลัดสลับธีมเดิม
+- **Static Memoized Themes & Semantic Token Refactor (`DataGrid.tsx`, `SqlEditor.tsx`, `ObjectBrowser.tsx`, `DockLayout.tsx`, `ERDiagramTab.tsx`, `TableListTab.tsx`, `VisualQueryBuilderTab.tsx`, `DisconnectedTableScreen.tsx`, `InsertRowModal.tsx`):**
+  - เพิ่ม `warmPaperGridTheme` แบบ module-level constant ใน `DataGrid.tsx` (หัวตาราง Warm Sage คมชัด, cell selection สีเขียวพาสเทล) และ `warmPaperEditorTheme` แบบ static extension ใน `SqlEditor.tsx`
+  - เพิ่มไอคอนตารางเวกเตอร์แบบแถบหัวตารางสีพาสเทล (เขียว, อำพัน, ฟ้า) และ active pill styling สำหรับ `warm-paper` ใน `ObjectBrowser.tsx` และ `DockLayout.tsx`
+  - ปรับคอมโพเนนต์ที่ยังฮาร์ดโค้ดสี `theme === 'dark'` ให้ใช้ semantic tokens เพื่อให้เปลี่ยนตามทุกธีมได้อย่างสอดคล้อง
+
+
 
 
 

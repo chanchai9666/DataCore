@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { EditorView, Decoration, keymap, type DecorationSet } from '@codemirror/view';
+import type { AppTheme } from '../../types/theme';
 import { Prec, StateField, StateEffect } from '@codemirror/state';
 import { toggleComment } from '@codemirror/commands';
 import { sql, SQLite, PostgreSQL, MySQL, StandardSQL } from '@codemirror/lang-sql';
@@ -115,9 +116,37 @@ export const errorLineField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+export const warmPaperEditorTheme = EditorView.theme(
+  {
+    '&': {
+      backgroundColor: '#faf6ef',
+      color: '#1f1e1b',
+    },
+    '.cm-gutters': {
+      backgroundColor: '#f3ede2',
+      color: '#6b655b',
+      borderRight: '1px solid #c8beab',
+    },
+    '.cm-activeLine': {
+      backgroundColor: 'rgba(200, 228, 184, 0.28)',
+    },
+    '.cm-activeLineGutter': {
+      backgroundColor: '#dce5d5',
+      color: '#1f1e1b',
+    },
+    '&.cm-focused .cm-selectionBackground, ::selection': {
+      backgroundColor: '#dcebd2',
+    },
+    '.cm-cursor': {
+      borderLeftColor: '#1f1e1b',
+    },
+  },
+  { dark: false }
+);
+
 export interface SqlErrorCalloutProps {
   error: ParsedSqlError;
-  theme: 'light' | 'dark';
+  theme: AppTheme;
   onDismiss: () => void;
   onJumpToLine?: (line: number, column?: number) => void;
 }
@@ -366,7 +395,7 @@ export interface SqlEditorProps {
   tabId?: string;
   onQueryResult?: (result: QueryResult, allResults?: QueryResult[]) => void;
   onError?: (error: unknown) => void;
-  theme?: 'light' | 'dark';
+  theme?: AppTheme;
   onEditorCreated?: (view: EditorView) => void;
   isReadOnly?: boolean;
   splitDirection?: 'vertical' | 'horizontal';
@@ -1059,7 +1088,12 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         flexDirection: 'column',
         height: '100%',
         width: '100%',
-        backgroundColor: activeTheme === 'dark' ? '#1e1e1e' : '#ffffff',
+        backgroundColor:
+          activeTheme === 'dark'
+            ? '#1e1e1e'
+            : activeTheme === 'warm-paper'
+            ? '#faf6ef'
+            : '#ffffff',
       }}
       onKeyDown={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
@@ -1180,7 +1214,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         <CodeMirror
           ref={editorRef}
           value={tab.queryContent}
-          theme={activeTheme}
+          theme={activeTheme === 'warm-paper' ? warmPaperEditorTheme : activeTheme}
           height="100%"
           extensions={[sqlExtension, runKeymap, errorLineField, errorLineTheme, editorFullHeightTheme]}
           onChange={handleEditorChange}

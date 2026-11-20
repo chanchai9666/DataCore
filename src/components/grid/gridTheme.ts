@@ -1,4 +1,5 @@
 import type { Theme } from '@glideapps/glide-data-grid';
+import type { AppTheme } from '../../types/theme';
 
 export const lightGridTheme: Partial<Theme> = {
   bgCell: '#ffffff',
@@ -44,4 +45,32 @@ export const darkGridTheme: Partial<Theme> = {
   cellVerticalPadding: 3,
 };
 
-export default { lightGridTheme, darkGridTheme };
+export const warmPaperGridTheme: Partial<Theme> = {
+  bgCell: '#faf6ef',
+  bgCellMedium: '#f0e9dc',
+  bgHeader: '#dce5d5',
+  bgHeaderHovered: '#cfe0c5',
+  bgHeaderHasFocus: '#c8e4b8',
+  borderColor: '#9c9486',
+  horizontalBorderColor: '#b8b0a2',
+  textDark: '#1f1e1b',
+  textMedium: '#6b655b',
+  textHeader: '#1f1e1b',
+  textHeaderSelected: '#1f1e1b',
+  accentColor: '#4d8b55',
+  accentLight: '#dcebd2',
+  fontFamily: '-apple-system, "Sukhumvit Set", system-ui, sans-serif',
+  baseFontStyle: '12px',
+  headerFontStyle: '600 12px',
+  editorFontSize: '12px',
+  cellHorizontalPadding: 8,
+  cellVerticalPadding: 3,
+};
+
+export function getGridTheme(theme: AppTheme): Partial<Theme> {
+  if (theme === 'dark') return darkGridTheme;
+  if (theme === 'warm-paper') return warmPaperGridTheme;
+  return lightGridTheme;
+}
+
+export default { lightGridTheme, darkGridTheme, warmPaperGridTheme, getGridTheme };

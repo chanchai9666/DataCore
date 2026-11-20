@@ -26,6 +26,7 @@ import { CommandPaletteModal } from './components/palette/CommandPaletteModal';
 import { UpdateCheckerModal } from './components/dialogs/UpdateCheckerModal';
 import { DiagnosticBundleModal } from './components/dialogs/DiagnosticBundleModal';
 import { AboutModal } from './components/dialogs/AboutModal';
+import { type AppTheme, normalizeTheme, THEME_STORAGE_KEY } from './types/theme';
 import { useConnectionStore } from './stores/connectionStore';
 import { useTabStore } from './stores/tabStore';
 import { useSchemaStore } from './stores/schemaStore';
@@ -195,10 +196,10 @@ export function App() {
   }, []);
 
   // Theme initialization: restore from localStorage or system preference
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+  const [theme, setTheme] = useState<AppTheme>(() => {
     if (typeof localStorage !== 'undefined') {
-      const savedTheme = localStorage.getItem('datacore-theme');
-      if (savedTheme === 'light' || savedTheme === 'dark') {
+      const savedTheme = normalizeTheme(localStorage.getItem(THEME_STORAGE_KEY));
+      if (savedTheme) {
         return savedTheme;
       }
     }
@@ -256,7 +257,7 @@ export function App() {
     });
   }, [tabs, activeTabId, activeConnectionId]);
 
-  // Sync dark class on document root / body
+  // Sync dark class and data-theme attribute on document root / body
   useEffect(() => {
     if (typeof document !== 'undefined') {
       if (theme === 'dark') {
@@ -265,6 +266,14 @@ export function App() {
       } else {
         document.documentElement.classList.remove('dark');
         document.body.classList.remove('dark');
+      }
+
+      if (theme === 'warm-paper') {
+        document.documentElement.setAttribute('data-theme', 'warm-paper');
+        document.body.setAttribute('data-theme', 'warm-paper');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        document.body.removeAttribute('data-theme');
       }
     }
   }, [theme]);
@@ -296,11 +305,19 @@ export function App() {
     };
   }, []);
 
+  const handleSelectTheme = (next: AppTheme) => {
+    setTheme(next);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    }
+  };
+
   const handleToggleTheme = () => {
     setTheme((prev) => {
-      const next = prev === 'dark' ? 'light' : 'dark';
+      const next: AppTheme =
+        prev === 'dark' ? 'light' : prev === 'light' ? 'warm-paper' : 'dark';
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('datacore-theme', next);
+        localStorage.setItem(THEME_STORAGE_KEY, next);
       }
       return next;
     });
@@ -398,6 +415,7 @@ export function App() {
       <MainToolbar
         theme={theme}
         onToggleTheme={handleToggleTheme}
+        onSelectTheme={handleSelectTheme}
         onNewConnection={handleOpenNewConnection}
         onConnect={handleOpenNewConnection}
         onNewQuery={handleNewQuery}
@@ -769,7 +787,7 @@ export function App() {
       />
 
       {/* Global Toast Notifications */}
-      <Toaster richColors theme={theme} position="bottom-right" />
+      <Toaster richColors theme={theme === 'dark' ? 'dark' : 'light'} position="bottom-right" />
     </div>
   );
 }

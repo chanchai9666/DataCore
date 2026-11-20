@@ -26,6 +26,8 @@ describe('Theme Persistence in App', () => {
     localStorage.clear();
     document.documentElement.className = '';
     document.body.className = '';
+    document.documentElement.removeAttribute('data-theme');
+    document.body.removeAttribute('data-theme');
     useConnectionStore.setState({
       connections: [],
       activeConnectionId: null,
@@ -50,27 +52,55 @@ describe('Theme Persistence in App', () => {
 
     expect(document.documentElement.classList.contains('dark')).toBe(false);
     expect(document.body.classList.contains('dark')).toBe(false);
-    expect(screen.getByRole('button', { name: /switch to dark mode/i })).toBeInTheDocument();
+    expect(document.documentElement.getAttribute('data-theme')).toBeNull();
+    expect(screen.getByTestId('toolbar-theme-btn')).toBeInTheDocument();
   });
 
-  it('persists theme toggle to localStorage and updates classes', () => {
+  it('persists theme selection to localStorage and updates classes', () => {
     localStorage.setItem('datacore-theme', 'dark');
 
     render(<App />);
 
-    const themeToggleBtn = screen.getByRole('button', { name: /switch to light mode/i });
-    fireEvent.click(themeToggleBtn);
+    fireEvent.click(screen.getByTestId('toolbar-theme-btn'));
+    fireEvent.click(screen.getByTestId('theme-option-light'));
 
     expect(localStorage.getItem('datacore-theme')).toBe('light');
     expect(document.documentElement.classList.contains('dark')).toBe(false);
     expect(document.body.classList.contains('dark')).toBe(false);
 
-    // Toggle back to dark
-    const toDarkBtn = screen.getByRole('button', { name: /switch to dark mode/i });
-    fireEvent.click(toDarkBtn);
+    // Switch back to dark
+    fireEvent.click(screen.getByTestId('toolbar-theme-btn'));
+    fireEvent.click(screen.getByTestId('theme-option-dark'));
 
     expect(localStorage.getItem('datacore-theme')).toBe('dark');
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(document.body.classList.contains('dark')).toBe(true);
+  });
+
+  it('initializes warm-paper theme from localStorage and sets data-theme attribute', () => {
+    localStorage.setItem('datacore-theme', 'warm-paper');
+
+    render(<App />);
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('warm-paper');
+    expect(document.body.getAttribute('data-theme')).toBe('warm-paper');
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+  });
+
+  it('selects warm-paper theme from toolbar theme picker and persists to localStorage', () => {
+    localStorage.setItem('datacore-theme', 'dark');
+
+    render(<App />);
+
+    const themePickerBtn = screen.getByTestId('toolbar-theme-btn');
+    fireEvent.click(themePickerBtn);
+
+    const warmPaperOption = screen.getByTestId('theme-option-warm-paper');
+    fireEvent.click(warmPaperOption);
+
+    expect(localStorage.getItem('datacore-theme')).toBe('warm-paper');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('warm-paper');
+    expect(document.body.getAttribute('data-theme')).toBe('warm-paper');
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
 });

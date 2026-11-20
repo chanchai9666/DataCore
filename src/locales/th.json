@@ -1106,5 +1106,15 @@
     "history": "ประวัติ",
     "snippets": "Snippets",
     "limit": "จำกัด:"
+  },
+  "theme": {
+    "label": "ธีม",
+    "chooseTheme": "เลือกธีม",
+    "defaultLight": "ค่าเริ่มต้น (สว่าง)",
+    "defaultLightDesc": "โทนสว่างสไตล์ macOS",
+    "defaultDark": "ค่าเริ่มต้น (มืด)",
+    "defaultDarkDesc": "โทนมืด Charcoal สบายตา",
+    "warmPaper": "Warm Paper",
+    "warmPaperDesc": "กระดาษครีมอุ่น ขอบเส้นคมชัด"
   }
 }

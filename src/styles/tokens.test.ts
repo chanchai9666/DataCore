@@ -36,6 +36,17 @@ describe('Design Tokens & CSS Variables (Phase 1)', () => {
     expect(tokensContent).toContain('--btn-bg: #3e3e42;');
   });
 
+  it('defines Warm Paper / Sketch theme CSS variables in [data-theme="warm-paper"]', () => {
+    expect(tokensContent).toContain('[data-theme=\'warm-paper\']');
+    expect(tokensContent).toContain('--bg-toolbar: #ede6d8');
+    expect(tokensContent).toContain('--bg-sidebar: #f6f1e7');
+    expect(tokensContent).toContain('--bg-panel: #f3ede2');
+    expect(tokensContent).toContain('--bg-grid: #faf6ef');
+    expect(tokensContent).toContain('--row-alt: #f0e9dc');
+    expect(tokensContent).toContain('--border: #2c2a26');
+    expect(tokensContent).toContain('--grid-header-bg: #dce5d5');
+  });
+
   it('is imported by src/index.css', () => {
     const indexPath = path.resolve(__dirname, '../index.css');
     const indexContent = fs.readFileSync(indexPath, 'utf-8');

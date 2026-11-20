@@ -41,7 +41,7 @@ export interface VisualQueryBuilderTabProps {
   driver?: string;
   schemaName?: string;
   tableName?: string;
-  theme?: 'dark' | 'light';
+  theme?: import('../../types/theme').AppTheme;
 }
 
 interface ColumnSelectionState {

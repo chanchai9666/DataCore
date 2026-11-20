@@ -110,6 +110,16 @@ describe('MainToolbar Component', () => {
     expect(onToggleTheme).toHaveBeenCalledTimes(1);
   });
 
+  it('opens theme picker and calls onSelectTheme with warm-paper', () => {
+    const onSelectTheme = vi.fn();
+    render(<MainToolbar theme="dark" onSelectTheme={onSelectTheme} />);
+    fireEvent.click(screen.getByTestId('toolbar-theme-btn'));
+    const warmPaperBtn = screen.getByTestId('theme-option-warm-paper');
+    expect(warmPaperBtn).toBeInTheDocument();
+    fireEvent.click(warmPaperBtn);
+    expect(onSelectTheme).toHaveBeenCalledWith('warm-paper');
+  });
+
   it('triggers onOpenTable when Table button is clicked', () => {
     useConnectionStore.setState({ activeConnectionId: 'c1', connectedConnectionIds: ['c1'] });
     const onOpenTable = vi.fn();

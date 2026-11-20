@@ -565,7 +565,7 @@ export function getAncestorNodeIds(
 }
 
 export interface ObjectBrowserProps {
-  theme?: 'dark' | 'light';
+  theme?: import('../../types/theme').AppTheme;
   onEditConnection?: (connection: ConnectionConfig) => void;
   onNewConnection?: () => void;
   lastSavedConnectionId?: string | null;
@@ -1691,6 +1691,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
               activeConnectionId: activeTab?.connectionId,
               activeTableName: activeTab?.tableName,
               activeSchemaName: activeTab?.schemaName,
+              theme: _theme,
             }}
           >
             <Tree

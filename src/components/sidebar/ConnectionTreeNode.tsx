@@ -24,6 +24,28 @@ import {
 import { useConnectionStore } from '../../stores/connectionStore';
 import { openTableTab, openQueryTab, openTableListTab } from './tabHelpers';
 import { DbBadge } from './DbBadge';
+import type { AppTheme } from '../../types/theme';
+
+const SKETCH_TABLE_HEADER_COLORS = ['#b8dcb8', '#eed49f', '#a8cbe8', '#d6c8eb'] as const;
+
+const SketchTableIcon: React.FC<{ name: string; testId?: string }> = ({ name, testId }) => {
+  const hash = name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const headerColor = SKETCH_TABLE_HEADER_COLORS[hash % SKETCH_TABLE_HEADER_COLORS.length];
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      className="w-4 h-4 shrink-0"
+      fill="none"
+      aria-hidden="true"
+      data-testid={testId}
+    >
+      <rect x="1.5" y="2" width="13" height="12" rx="2" fill="#faf6ef" stroke="#2c2a26" strokeWidth="1.4" />
+      <path d="M1.5 4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v2h-13V4Z" fill={headerColor} stroke="#2c2a26" strokeWidth="1.4" />
+      <line x1="8" y1="6" x2="8" y2="14" stroke="#2c2a26" strokeWidth="1.2" />
+      <line x1="1.5" y1="10" x2="14.5" y2="10" stroke="#2c2a26" strokeWidth="1.2" />
+    </svg>
+  );
+};
 
 export type BrowserNodeType =
   | 'connection'
@@ -103,6 +125,7 @@ export interface ObjectBrowserContextType {
   activeConnectionId?: string | null;
   activeTableName?: string | null;
   activeSchemaName?: string | null;
+  theme?: AppTheme;
 }
 
 export const ObjectBrowserContext = createContext<ObjectBrowserContextType>({});
@@ -250,7 +273,11 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
         return <Folder className="w-4 h-4 text-yellow-500 shrink-0" data-testid="icon-folder" />;
       }
       case 'table':
-        return <TableIcon className="w-4 h-4 text-emerald-400 shrink-0" data-testid="icon-table" />;
+        return context.theme === 'warm-paper' ? (
+          <SketchTableIcon name={data.name} testId="icon-table" />
+        ) : (
+          <TableIcon className="w-4 h-4 text-emerald-400 shrink-0" data-testid="icon-table" />
+        );
       case 'view':
       case 'materialized_view':
         return <Eye className="w-4 h-4 text-purple-400 shrink-0" data-testid="icon-view" />;
@@ -420,14 +447,22 @@ export const ConnectionTreeNode: React.FC<NodeRendererProps<BrowserTreeNode>> = 
           }
         }}
         className={`group flex items-center h-6 mx-1 px-1.5 w-full rounded-md cursor-pointer select-none text-xs transition-colors ${
-          isTargetActiveTable
+          context.theme === 'warm-paper'
+            ? isTargetActiveTable
+              ? 'bg-[#c8e4b8] text-[#1f1e1b] border border-[#2c2a26] font-semibold'
+              : node.isSelected
+              ? 'bg-[#dcebd2] text-[#1f1e1b] font-medium'
+              : 'text-[#1f1e1b] hover:bg-[#ede6d8]'
+            : isTargetActiveTable
             ? 'bg-blue-600/20 text-blue-900 dark:text-blue-100 border border-blue-500 ring-1 ring-blue-500/30 font-semibold shadow-xs'
             : node.isSelected
             ? 'bg-blue-600/20 text-blue-800 dark:bg-blue-600/30 dark:text-white font-medium'
             : 'text-gray-700 dark:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-gray-800'
         } ${
           isTargetActiveConnection
-            ? 'bg-blue-500/15 dark:bg-blue-600/25 text-blue-900 dark:text-blue-100 font-bold border border-blue-500/50 dark:border-blue-400/50 shadow-xs'
+            ? context.theme === 'warm-paper'
+              ? 'bg-[#dcebd2] text-[#1f1e1b] font-bold border border-[#2c2a26]'
+              : 'bg-blue-500/15 dark:bg-blue-600/25 text-blue-900 dark:text-blue-100 font-bold border border-blue-500/50 dark:border-blue-400/50 shadow-xs'
             : ''
         }`}
         onClick={handleClick}

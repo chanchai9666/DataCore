@@ -1106,5 +1106,15 @@
     "history": "History",
     "snippets": "Snippets",
     "limit": "Limit:"
+  },
+  "theme": {
+    "label": "Theme",
+    "chooseTheme": "Choose Theme",
+    "defaultLight": "Default Light",
+    "defaultLightDesc": "Clean macOS light appearance",
+    "defaultDark": "Default Dark",
+    "defaultDarkDesc": "Charcoal dark appearance",
+    "warmPaper": "Warm Paper",
+    "warmPaperDesc": "Cream paper with crisp sketch borders"
   }
 }

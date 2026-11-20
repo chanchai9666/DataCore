@@ -54,7 +54,7 @@ export interface TableListTabProps {
   connectionId: string;
   schemaName?: string;
   driver?: string;
-  theme?: 'dark' | 'light';
+  theme?: import('../../types/theme').AppTheme;
   onOpenTable?: (tableName: string) => void;
   onOpenStructure?: (tableName: string) => void;
   onDuplicateTable?: (tableName: string) => void;

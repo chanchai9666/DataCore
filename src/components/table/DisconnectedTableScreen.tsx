@@ -13,7 +13,7 @@ export interface DisconnectedTableScreenProps {
   port?: number;
   filepath?: string;
   database?: string;
-  theme?: 'dark' | 'light';
+  theme?: import('../../types/theme').AppTheme;
   isConnecting?: boolean;
   isConnectionActive?: boolean;
   onConnect: () => void;

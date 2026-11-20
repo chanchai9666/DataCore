@@ -31,6 +31,8 @@ import {
   ChevronDown,
   EyeOff,
   Eye,
+  Palette,
+  Check,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -40,6 +42,7 @@ import { usePrivacyStore } from '../../stores/privacyStore';
 import { DbBadge } from '../sidebar/DbBadge';
 import { changeLanguage } from '../../i18n';
 import type { ConnectionConfig } from '../../types/db';
+import { type AppTheme, THEME_OPTIONS } from '../../types/theme';
 
 export type ToolbarGroup = 'connection' | 'workspace' | 'transfer' | 'tools';
 
@@ -96,8 +99,9 @@ export interface MainToolbarProps {
   onCheckUpdates?: () => void;
   onExportDiagnosticBundle?: () => void;
   onOpenAbout?: () => void;
-  theme?: 'dark' | 'light';
+  theme?: AppTheme;
   onToggleTheme?: () => void;
+  onSelectTheme?: (theme: AppTheme) => void;
   customItems?: ToolbarActionItem[];
 }
 
@@ -132,6 +136,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenAbout,
   theme = 'dark',
   onToggleTheme,
+  onSelectTheme,
   customItems,
 }) => {
   const { t, i18n } = useTranslation();
@@ -143,8 +148,9 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
     isUpdating: isUpdatingScreenProtection,
     toggleScreenProtection,
   } = usePrivacyStore();
-  const [activeDropdown, setActiveDropdown] = useState<'import' | 'export' | 'tools' | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<'import' | 'export' | 'tools' | 'theme' | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const themeDropdownRef = useRef<HTMLDivElement>(null);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const resolvedConnectionId = activeTab?.connectionId ?? activeConnectionId;
@@ -158,7 +164,10 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
     if (!activeDropdown) return;
 
     const handleOutsideClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideMain = dropdownRef.current?.contains(target) ?? false;
+      const insideTheme = themeDropdownRef.current?.contains(target) ?? false;
+      if (!insideMain && !insideTheme) {
         setActiveDropdown(null);
       }
     };
@@ -769,16 +778,93 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
           </button>
         )}
 
-        {onToggleTheme && (
-          <button
-            type="button"
-            onClick={onToggleTheme}
-            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="h-7 w-7 flex items-center justify-center rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          >
-            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
+        {onSelectTheme ? (
+          <div className="relative" ref={themeDropdownRef}>
+            <button
+              type="button"
+              data-testid="toolbar-theme-btn"
+              onClick={() => setActiveDropdown((prev) => (prev === 'theme' ? null : 'theme'))}
+              aria-label={t('theme.chooseTheme', 'Choose Theme')}
+              aria-expanded={activeDropdown === 'theme'}
+              title={t('theme.chooseTheme', 'Choose Theme')}
+              className={`h-7 px-1.5 flex items-center gap-1 rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${
+                theme === 'warm-paper' ? 'border border-border bg-panel text-text' : ''
+              }`}
+            >
+              {theme === 'warm-paper' ? (
+                <Palette size={15} />
+              ) : theme === 'dark' ? (
+                <Moon size={15} />
+              ) : (
+                <Sun size={15} />
+              )}
+              <ChevronDown size={11} className="opacity-70" />
+            </button>
+
+            {activeDropdown === 'theme' && (
+              <div
+                role="menu"
+                aria-label={t('theme.chooseTheme', 'Choose Theme')}
+                className="absolute right-0 top-full mt-1.5 w-60 rounded-lg border border-line bg-panel shadow-xl py-1.5 z-50"
+              >
+                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                  {t('theme.chooseTheme', 'Choose Theme')}
+                </div>
+                {THEME_OPTIONS.map((option) => {
+                  const isActive = theme === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={isActive}
+                      data-testid={`theme-option-${option.id}`}
+                      onClick={() => {
+                        onSelectTheme(option.id);
+                        setActiveDropdown(null);
+                      }}
+                      className={`w-full px-3 py-2 flex items-center gap-2.5 text-left transition-colors ${
+                        isActive
+                          ? 'bg-sel/70 text-text font-medium'
+                          : 'text-text hover:bg-black/5 dark:hover:bg-white/10'
+                      }`}
+                    >
+                      <span className="flex items-center -space-x-1 shrink-0" aria-hidden="true">
+                        {option.swatches.map((color, idx) => (
+                          <span
+                            key={idx}
+                            className="w-3.5 h-3.5 rounded-full border border-black/25 dark:border-white/25"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-xs leading-tight truncate">
+                          {t(option.labelKey, option.fallbackLabel)}
+                        </span>
+                        <span className="block text-[10px] text-muted leading-tight truncate mt-0.5">
+                          {t(option.descriptionKey, option.fallbackDescription)}
+                        </span>
+                      </span>
+                      {isActive && <Check size={14} className="text-accent shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          onToggleTheme && (
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="h-7 w-7 flex items-center justify-center rounded text-muted hover:text-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            >
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
+          )
         )}
       </div>
     </header>

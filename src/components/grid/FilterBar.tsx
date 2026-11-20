@@ -11,7 +11,7 @@ export interface FilterBarProps {
   onApply: () => void;
   onClear: () => void;
   onClose?: () => void;
-  theme?: 'dark' | 'light';
+  theme?: import('../../types/theme').AppTheme;
   driver?: string;
 }
 

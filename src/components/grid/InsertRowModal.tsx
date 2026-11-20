@@ -10,7 +10,7 @@ export interface InsertRowModalProps {
   schemaName?: string;
   columns: ColumnMeta[];
   onSubmit: (values: Record<string, unknown>) => Promise<void>;
-  theme?: 'dark' | 'light';
+  theme?: import('../../types/theme').AppTheme;
 }
 
 /**
