@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { TableModeSwitcher } from '../table/TableModeSwitcher';
 import {
   Table as TableIcon,
   Plus,
@@ -142,34 +143,10 @@ export const TableStructureEditor: React.FC<TableStructureEditorProps> = ({
         {/* Left: Mode Switcher + Table Identity */}
         <div className="flex items-center space-x-3">
           {/* Mode Switcher (Data / Structure) */}
-          <div className="flex items-center p-0.5 rounded-lg border border-line bg-sidebar">
-            <button
-              type="button"
-              data-testid="table-mode-data-btn"
-              onClick={() => onModeChange?.('data')}
-              className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                currentMode === 'data'
-                  ? 'bg-panel text-text shadow-xs'
-                  : 'text-muted hover:text-text'
-              }`}
-            >
-              <TableIcon className="w-3.5 h-3.5 text-blue-500" />
-              <span>{t('structure.dataMode', 'Data')}</span>
-            </button>
-            <button
-              type="button"
-              data-testid="table-mode-structure-btn"
-              onClick={() => onModeChange?.('structure')}
-              className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                currentMode === 'structure'
-                  ? 'bg-panel text-text shadow-xs'
-                  : 'text-muted hover:text-text'
-              }`}
-            >
-              <Wrench className="w-3.5 h-3.5 text-amber-500" />
-              <span>{t('structure.structureMode', 'Structure')}</span>
-            </button>
-          </div>
+          <TableModeSwitcher
+            currentMode={currentMode}
+            onModeChange={(mode) => onModeChange?.(mode)}
+          />
 
           <div className="h-4 w-px bg-line" />
 

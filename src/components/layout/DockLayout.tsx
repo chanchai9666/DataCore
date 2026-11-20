@@ -8,7 +8,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Layers,
-  Wrench,
   Network,
   Wand2,
   AlertTriangle,
@@ -41,6 +40,7 @@ import { sortInMemoryRows } from '../grid/sortUtils';
 import { InsertRowModal } from '../grid/InsertRowModal';
 import { TableStructureEditor } from '../structure/TableStructureEditor';
 import { DisconnectedTableScreen } from '../table/DisconnectedTableScreen';
+import { TableModeSwitcher } from '../table/TableModeSwitcher';
 import { TableListTab } from '../tablelist/TableListTab';
 import { ERDiagramTab } from '../diagram/ERDiagramTab';
 import { VisualQueryBuilderTab } from '../querybuilder/VisualQueryBuilderTab';
@@ -1870,62 +1870,16 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                   {/* Table Sub-header: Rendered in Data view; in Structure view, TableStructureEditor renders its unified Tier 1 bar */}
                   {currentMode === 'data' && (
-                    <div
-                      className={`flex items-center justify-between px-3 py-1.5 border-b text-xs flex-shrink-0 select-none ${
-                        theme === 'warm-paper'
-                          ? 'bg-[#f3ede2] border-[#c8beab]'
-                          : theme === 'dark'
-                          ? 'bg-gray-900 border-gray-800'
-                          : 'bg-gray-100 border-gray-200'
-                      }`}
-                    >
-                      <div className={`flex items-center space-x-1 p-0.5 border ${
-                        theme === 'warm-paper'
-                          ? 'rounded-lg bg-[#faf6ef] border-[#c8beab]'
-                          : theme === 'dark'
-                          ? 'rounded bg-black/20 border-gray-700/40'
-                          : 'rounded bg-gray-200/60 border-gray-300'
-                      }`}>
-                        <button
-                          type="button"
-                          data-testid="table-mode-data-btn"
-                          onClick={() =>
-                            setTableTabModes((prev) => ({
-                              ...prev,
-                              [activeTab.id]: 'data',
-                            }))
-                          }
-                          className={`inline-flex items-center space-x-1.5 px-3 py-1 text-xs font-medium transition-colors ${
-                            theme === 'warm-paper'
-                              ? 'rounded-md bg-[#ede6d8] text-[#1f1e1b] font-semibold'
-                              : 'rounded bg-blue-600 text-white shadow-sm'
-                          }`}
-                        >
-                          <Table className={`w-3.5 h-3.5 ${theme === 'warm-paper' ? 'text-blue-500' : ''}`} />
-                          <span>Data</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          data-testid="table-mode-structure-btn"
-                          onClick={() =>
-                            setTableTabModes((prev) => ({
-                              ...prev,
-                              [activeTab.id]: 'structure',
-                            }))
-                          }
-                          className={`inline-flex items-center space-x-1.5 px-3 py-1 text-xs font-medium transition-colors ${
-                            theme === 'warm-paper'
-                              ? 'rounded-md text-[#6b655b] hover:text-[#1f1e1b] hover:bg-[#f3ede2]'
-                              : theme === 'dark'
-                              ? 'rounded text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
-                              : 'rounded text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
-                          }`}
-                        >
-                          <Wrench className="w-3.5 h-3.5 text-amber-500" />
-                          <span>Structure</span>
-                        </button>
-                      </div>
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-line bg-panel text-xs flex-shrink-0 select-none">
+                      <TableModeSwitcher
+                        currentMode={currentMode}
+                        onModeChange={(mode) =>
+                          setTableTabModes((prev) => ({
+                            ...prev,
+                            [activeTab.id]: mode,
+                          }))
+                        }
+                      />
 
                       <div className="flex items-center gap-1.5 text-[11px] font-mono">
                         <Database className={`w-3.5 h-3.5 shrink-0 ${theme === 'warm-paper' ? 'text-[#4d8b55]' : 'text-blue-500'}`} />
