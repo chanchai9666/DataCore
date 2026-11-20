@@ -1076,7 +1076,9 @@
     "errorPrefix": "Error:",
     "prevHashLabel": "Prev:",
     "entryHashLabel": "Hash:",
-    "auditRecoveryHint": "If the audit anchor or log file was unexpectedly corrupted, export existing records for investigation before clearing logs or restoring from backup."
+    "auditRecoveryHint": "If the audit anchor or log file was unexpectedly corrupted, export existing records for investigation before clearing logs or restoring from backup.",
+    "auditClearFailed": "Failed to clear audit logs: {{error}}",
+    "auditDegradedTitle": "Audit log write failure detected"
   },
   "transactions": {
     "savepointsTitle": "Transaction Savepoints",

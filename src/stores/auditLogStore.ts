@@ -6,7 +6,11 @@ import {
   verifyAuditLogIntegrity,
   clearAuditLogs as clearBackendAuditLogs,
   recordAuditLog,
+  getAuditHealth,
+  type AuditHealth,
 } from '../api/auditApi';
+
+export type { AuditHealth };
 
 export type AuditActionType =
   | 'QUERY'
@@ -59,13 +63,15 @@ interface AuditLogState {
   logs: AuditLogEntry[];
   isLoading: boolean;
   integrity: AuditIntegrityResult | null;
+  health: AuditHealth;
   loadLogs: (limit?: number, offset?: number) => Promise<AuditLogEntry[]>;
   verifyIntegrity: () => Promise<AuditIntegrityResult>;
+  checkHealth: () => Promise<AuditHealth>;
   addLog: (
     entry: Omit<AuditLogEntry, 'id' | 'timestamp'>,
     options?: { skipBackendSync?: boolean }
   ) => void;
-  clearLogs: () => void;
+  clearLogs: () => Promise<void>;
   filterLogs: (options: AuditFilterOptions) => AuditLogEntry[];
   exportToCsv: (entries?: AuditLogEntry[]) => string;
   exportToJson: (entries?: AuditLogEntry[]) => string;
@@ -84,6 +90,7 @@ export const useAuditLogStore = create<AuditLogState>()(
       logs: [],
       isLoading: false,
       integrity: null,
+      health: { ok: true, lastError: null },
 
       loadLogs: async (limit = 1000, offset = 0) => {
         if (!isTauri()) {
@@ -110,12 +117,16 @@ export const useAuditLogStore = create<AuditLogState>()(
             totalEntries: get().logs.length,
             verifiedAt: new Date().toISOString(),
           };
-          set({ integrity: fallback });
+          set({ integrity: fallback, health: { ok: true, lastError: null } });
           return fallback;
         }
         try {
           const res = await verifyAuditLogIntegrity();
-          set({ integrity: res });
+          if (res.isValid) {
+            set({ integrity: res, health: { ok: true, lastError: null } });
+          } else {
+            set({ integrity: res });
+          }
           return res;
         } catch (err) {
           const fallback: AuditIntegrityResult = {
@@ -126,6 +137,20 @@ export const useAuditLogStore = create<AuditLogState>()(
           };
           set({ integrity: fallback });
           return fallback;
+        }
+      },
+
+      checkHealth: async () => {
+        if (!isTauri()) {
+          return get().health;
+        }
+        try {
+          const health = await getAuditHealth();
+          set({ health });
+          return health;
+        } catch (err) {
+          console.debug('Failed to check audit health via backend IPC:', err);
+          return get().health;
         }
       },
 
@@ -168,18 +193,26 @@ export const useAuditLogStore = create<AuditLogState>()(
               }
             })
             .catch((err) => {
+              const wasOk = get().health.ok;
+              const errorMsg = String(err);
+              set({ health: { ok: false, lastError: errorMsg } });
+              if (wasOk && typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('datacore:audit-degraded', { detail: { error: errorMsg } })
+                );
+              }
               console.debug('Failed to sync audit log to backend IPC:', err);
             });
         }
       },
 
-      clearLogs: () => {
-        set({ logs: [], integrity: null });
-        if (isTauri()) {
-          clearBackendAuditLogs().catch((err) => {
-            console.debug('Failed to clear audit logs on backend IPC:', err);
-          });
+      clearLogs: async () => {
+        if (!isTauri()) {
+          set({ logs: [], integrity: null, health: { ok: true, lastError: null } });
+          return;
         }
+        await clearBackendAuditLogs();
+        set({ logs: [], integrity: null, health: { ok: true, lastError: null } });
       },
 
       filterLogs: (options) => {

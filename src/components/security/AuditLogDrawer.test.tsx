@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { toast } from 'sonner';
 import i18n from '../../i18n';
+import * as dialogUtils from '../../utils/dialog';
 import { AuditLogDrawer } from './AuditLogDrawer';
 import { useAuditLogStore } from '../../stores/auditLogStore';
 
@@ -13,7 +14,7 @@ describe('AuditLogDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAuditLogStore.getState().clearLogs();
-    useAuditLogStore.setState({ integrity: null });
+    useAuditLogStore.setState({ integrity: null, health: { ok: true, lastError: null } });
     useAuditLogStore.getState().addLog({
       action: 'QUERY',
       user: 'root',
@@ -36,6 +37,7 @@ describe('AuditLogDrawer', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await i18n.changeLanguage('en');
   });
 
@@ -142,5 +144,47 @@ describe('AuditLogDrawer', () => {
       expect(source, `${fileName} has hardcoded placeholder/aria-label`).not.toMatch(literalAttr);
       expect(source, `${fileName} has hardcoded JSX text outside t()`).not.toMatch(literalJsxText);
     }
+  });
+
+  it('shows error toast and preserves logs when clearLogs fails', async () => {
+    vi.spyOn(dialogUtils, 'showConfirmDialog').mockResolvedValue(true);
+    const errorSpy = vi.spyOn(toast, 'error');
+    const infoSpy = vi.spyOn(toast, 'info');
+    const originalClearLogs = useAuditLogStore.getState().clearLogs;
+
+    useAuditLogStore.setState({
+      clearLogs: vi.fn().mockRejectedValue(new Error('Anchor write failed')),
+    });
+
+    try {
+      render(<AuditLogDrawer isOpen={true} onClose={onClose} />);
+      fireEvent.click(screen.getByText('Clear All Logs'));
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to clear audit logs: Anchor write failed'));
+      expect(infoSpy).not.toHaveBeenCalled();
+      expect(screen.getByText('QUERY')).toBeDefined();
+      expect(screen.getByText('DDL')).toBeDefined();
+    } finally {
+      useAuditLogStore.setState({ clearLogs: originalClearLogs });
+    }
+  });
+
+  it('renders degraded audit health banner when write failure occurs', () => {
+    useAuditLogStore.setState({
+      health: {
+        ok: false,
+        lastError: 'Audit anchor file is corrupted (fail-closed)',
+      },
+    });
+
+    render(<AuditLogDrawer isOpen={true} onClose={onClose} />);
+    expect(screen.getByText('Audit log write failure detected')).toBeDefined();
+    expect(screen.getByText('Audit anchor file is corrupted (fail-closed)')).toBeDefined();
+    expect(screen.getByText(/export existing records for investigation/)).toBeDefined();
   });
 });

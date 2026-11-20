@@ -40,6 +40,8 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
     loadLogs,
     verifyIntegrity,
     integrity,
+    health,
+    checkHealth,
   } = useAuditLogStore();
   const [search, setSearch] = useState('');
   const [selectedAction, setSelectedAction] = useState<AuditActionType | 'ALL'>('ALL');
@@ -50,8 +52,19 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
   useEffect(() => {
     if (isOpen) {
       loadLogs();
+      checkHealth();
     }
-  }, [isOpen, loadLogs]);
+  }, [isOpen, loadLogs, checkHealth]);
+
+  useEffect(() => {
+    const handleDegraded = () => {
+      checkHealth();
+    };
+    window.addEventListener('datacore:audit-degraded', handleDegraded);
+    return () => {
+      window.removeEventListener('datacore:audit-degraded', handleDegraded);
+    };
+  }, [checkHealth]);
 
   const filteredLogs = useMemo(() => {
     return filterLogs({
@@ -132,8 +145,18 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
       }
     );
     if (confirmed) {
-      clearLogs();
-      toast.info(t('security.auditClearedToast', 'Audit logs cleared'));
+      try {
+        await clearLogs();
+        toast.info(t('security.auditClearedToast', 'Audit logs cleared'));
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        toast.error(
+          t('security.auditClearFailed', {
+            error: errorMsg,
+            defaultValue: `Failed to clear audit logs: ${errorMsg}`,
+          })
+        );
+      }
     }
   };
 
@@ -300,6 +323,31 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
               </button>
             </div>
           </div>
+
+          {health && !health.ok && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+              <div className="space-y-0.5">
+                <div className="font-medium">
+                  {t('security.auditDegradedTitle', 'Audit log write failure detected')}
+                </div>
+                {health.lastError && (
+                  <div className="font-mono text-[10px] text-amber-800 dark:text-amber-300">
+                    {health.lastError}
+                  </div>
+                )}
+                <div className="text-amber-800/90 dark:text-amber-300/90">
+                  {t(
+                    'security.auditRecoveryHint',
+                    'If the audit anchor or log file was unexpectedly corrupted, export existing records for investigation before clearing logs or restoring from backup.'
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {integrity && !integrity.isValid && (
             <div

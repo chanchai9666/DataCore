@@ -52,6 +52,8 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - name: Audit Node dependencies (high/critical gate)
+        # Tracked moderate GitHub Dependabot alert (Reviewed: 2026-11-20, Owner: @chanchai9666, Next review: 2027-02-20):
+        # - GHSA-g3hv-75wg-m249: minimatch pulled transitively by @glideapps/glide-data-grid -> @linaria/*
         run: pnpm audit --prod --audit-level=high
       - name: Install cargo-audit
         uses: taiki-e/install-action@cargo-audit
@@ -59,4 +61,6 @@ jobs:
         # Allowlisted transitive medium advisories (Reviewed: 2026-11-19, Owner: @chanchai9666, Next review: 2027-02-19):
         # - RUSTSEC-2023-0071: rsa 0.9.x pulled by sqlx-mysql 0.8 (remove once sqlx >= 0.9 drops rsa 0.9)
         # - RUSTSEC-2026-0459: libsqlite3-sys 0.30.x pulled by rusqlite 0.32 (remove once upgraded to rusqlite >= 0.39)
+        # Tracked moderate GitHub Dependabot alert / unsound notice (Reviewed: 2026-11-20, Owner: @chanchai9666, Next review: 2027-02-20):
+        # - GHSA-wrw7-89jp-8q8g (RUSTSEC-2024-0429): glib 0.18.5 pulled via Tauri Linux GTK bindings (fixed in 0.20.0; not used in macOS target)
         run: cargo audit --file src-tauri/Cargo.lock --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0459

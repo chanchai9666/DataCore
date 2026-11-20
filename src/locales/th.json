@@ -1076,7 +1076,9 @@
     "errorPrefix": "ข้อผิดพลาด:",
     "prevHashLabel": "ก่อนหน้า:",
     "entryHashLabel": "แฮช:",
-    "auditRecoveryHint": "หากไฟล์ anchor หรือบันทึกเกิดความเสียหาย กรุณาส่งออกบันทึกที่เหลือเพื่อตรวจสอบก่อนล้างบันทึกหรือกู้คืนจากข้อมูลสำรอง"
+    "auditRecoveryHint": "หากไฟล์ anchor หรือบันทึกเกิดความเสียหาย กรุณาส่งออกบันทึกที่เหลือเพื่อตรวจสอบก่อนล้างบันทึกหรือกู้คืนจากข้อมูลสำรอง",
+    "auditClearFailed": "ล้าง Audit Log ไม่สำเร็จ: {{error}}",
+    "auditDegradedTitle": "ตรวจพบความล้มเหลวในการบันทึก Audit Log"
   },
   "transactions": {
     "savepointsTitle": "Transaction Savepoints",

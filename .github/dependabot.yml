@@ -1,3 +1,6 @@
+# Policy: Dependabot automated version updates are limited to grouped minor/patch bumps.
+# Semver-major updates are reviewed manually on a quarterly milestone (Owner: @chanchai9666, Next review: 2027-02-20)
+# while Dependabot security updates remain enabled on the repository for vulnerability fixes.
 version: 2
 updates:
   - package-ecosystem: npm

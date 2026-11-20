@@ -6,7 +6,7 @@
 [![Rust](https://img.shields.io/badge/Rust-1.85+-orange?logo=rust)](https://www.rust-lang.org/)
 [![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/Tests-Passing%20(1%2C321%2F1%2C321)-brightgreen)](https://github.com/)
+[![Tests](https://img.shields.io/badge/Tests-Passing%20(1%2C328%2F1%2C328)-brightgreen)](https://github.com/)
 
 ---
 
@@ -194,9 +194,9 @@ make dev-web
 | `make install` | ติดตั้ง Dependencies ของ Frontend ทั้งหมดผ่าน `pnpm` |
 | `make dev` | รันแอปพลิเคชัน Desktop ในโหมด Development (Tauri 2) |
 | `make dev-web` | รันเฉพาะ Vite Web Dev Server สำหรับทดสอบ UI บน Browser |
-| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 192 tests และ Vitest 1,129 tests รวม **1,321 tests ผ่าน 100%**) |
-| `make test-backend` | รันเฉพาะ Unit & Integration Tests ฝั่ง Rust Backend (192 tests) |
-| `make test-frontend`| รันเฉพาะ Unit & Component Tests ฝั่ง React Frontend (1,129 tests) |
+| `make test` | รันชุดการทดสอบทั้งหมด (ทั้ง Rust Backend 197 tests และ Vitest 1,131 tests รวม **1,328 tests ผ่าน 100%**) |
+| `make test-backend` | รันเฉพาะ Unit & Integration Tests ฝั่ง Rust Backend (197 tests) |
+| `make test-frontend`| รันเฉพาะ Unit & Component Tests ฝั่ง React Frontend (1,131 tests) |
 | `make check` | ตรวจสอบ Compilation (`cargo check`) และ TypeScript Type Checking (`tsc`) ทั้งระบบ |
 | `make lint` | ตรวจสอบ Code Quality และคำเตือนด้วย Cargo Clippy |
 | `make build` | Build เป็น Production Desktop Application สำหรับ macOS (.app / .dmg) |
@@ -207,14 +207,14 @@ make dev-web
 
 ## 🧪 การทดสอบ (Testing)
 
-โปรเจกต์นี้ได้รับการพัฒนาด้วยแนวทาง **Test-Driven Development (TDD)** โดยมีชุดการทดสอบรวม **1,321 tests (ผ่าน 100%)**:
+โปรเจกต์นี้ได้รับการพัฒนาด้วยแนวทาง **Test-Driven Development (TDD)** โดยมีชุดการทดสอบรวม **1,328 tests (ผ่าน 100%)**:
 
 ```bash
 # รันเทสต์ทั้งหมด
 make test
 ```
 
-* **Rust Backend (192 tests):**
+* **Rust Backend (197 tests):**
   - Data Contract Serialization & Roundtrip
   - Local Encrypted Vault (AES-256-GCM) Persistence, File Permissions (0600) & Argon2id Master Password KEK Derivation
   - Connection Store Atomic Persistence & Isolation
@@ -230,7 +230,7 @@ make test
   - Path Traversal Guard: ป้องกัน Directory Traversal (`../`), System Paths และ Sensitive User Directory Exposure
   - Tamper-Evident Cryptographic Hash Chain Audit Logger (Append-only, Keyed HMAC-SHA256, Signed Anchor `DCK2`, Rotation & Fail-Closed Verification)
   - Mutation Impact Preview Simulation Engine (Guaranteed 100% Rollback)
-* **React Frontend (1,129 tests):**
+* **React Frontend (1,131 tests):**
   - Zustand Stores (`tabStore`, `connectionStore`, `auditLogStore`, `snippetStore`, `folderStore`, `queryHistoryStore`, `schemaStore`, `pendingChangesStore`)
   - Object Browser Tree Component, Deep Tree Columns Drill-down (Lazy-loading, Types, PK/FK Badges, Drag & Drop), Node Navigation, Context Menu, Connection Color Folders
   - CodeMirror 6 SQL Editor, Dialects, Schema-Aware Autocomplete, Keymap (`⌘+Enter`, `⌘⇧F`), Toolbar Actions
@@ -288,6 +288,7 @@ make test
 - [x] **Phase 56: ปิด Residual Risks รอบที่ 3 — Signed Anchor & Rate Limiter (Issue #200)**
 - [x] **Phase 57: ปิดข้อสังเกตรอบที่ 4 — DCK2 Format, Archive Integrity, i18n & Dependabot (Issue #201)**
 - [x] **Phase 58: ปิดข้อสังเกตรอบที่ 5 — Write-Path Anchor Verification, Legacy Migration, Self-Heal, AuditLogDrawer i18n & Key-Anchor Binding (Issue #216)**
+- [x] **Phase 59: ปิดข้อสังเกตรอบที่ 6 — Transactional Log Rotation, Untracked Archive Recovery, Safe Clear Logs & Write-Path Health Observability (Issue #224)**
 
 ---
 

@@ -1182,3 +1182,266 @@ fn test_dck2_key_fingerprint_mismatch_fails_closed() {
     assert!(!fp_check.is_valid);
     assert!(fp_check.error.unwrap().contains("fingerprint"));
 }
+
+#[test]
+fn test_rotation_anchor_write_failure_rolls_back_and_stays_valid() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::with_max_size(dir.path(), 150);
+
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some(
+                "SELECT * FROM a_very_long_table_name_to_exceed_150_bytes_limit;".to_string(),
+            ),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    assert!(logger.list_rotated_files().unwrap().is_empty());
+
+    // Block anchor updates during the rotation triggered by entry 2
+    let tmp_blocker = logger.hmac_anchor_path().with_extension("anchor.tmp");
+    fs::create_dir_all(&tmp_blocker).unwrap();
+
+    let res = logger.log(AuditLogEntryInput {
+        action: "QUERY".to_string(),
+        query: Some("SELECT 2;".to_string()),
+        status: "SUCCESS".to_string(),
+        ..Default::default()
+    });
+    assert!(
+        res.is_err(),
+        "Rotation must fail-closed when anchor write fails"
+    );
+    assert!(
+        logger.main_log_path().exists(),
+        "Main log file must be rolled back on anchor write failure"
+    );
+    assert!(
+        logger.list_rotated_files().unwrap().is_empty(),
+        "No orphaned rotated file should remain after rollback"
+    );
+
+    fs::remove_dir_all(&tmp_blocker).unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(
+        check.is_valid,
+        "Expected valid state after rollback, got {:?}",
+        check.error
+    );
+    assert_eq!(check.total_entries, 1);
+
+    // Retrying log() once transient blocker clears should succeed and rotate cleanly
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    let check_after = logger.verify_integrity().unwrap();
+    assert!(check_after.is_valid, "{:?}", check_after.error);
+    assert_eq!(check_after.total_entries, 2);
+}
+
+#[test]
+fn test_verify_adopts_untracked_rotated_archive_after_crash() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Simulate crash right after renaming audit.jsonl before updating anchor
+    let archive_1 = dir.path().join("audit.20261120_110000.jsonl");
+    fs::rename(logger.main_log_path(), &archive_1).unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(
+        check.is_valid,
+        "Expected verify_integrity to adopt untracked archive, got {:?}",
+        check.error
+    );
+    assert_eq!(check.total_entries, 2);
+
+    let anchor_after: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(logger.hmac_anchor_path()).unwrap()).unwrap();
+    assert_eq!(
+        anchor_after["archives"].as_array().map(|a| a.len()),
+        Some(1)
+    );
+    assert_eq!(anchor_after["activeEntries"].as_u64(), Some(0));
+
+    // Also simulate crash where a subsequent log() occurs before verify_integrity()
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 3;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    let archive_2 = dir.path().join("audit.20261120_110500.jsonl");
+    fs::rename(logger.main_log_path(), &archive_2).unwrap();
+
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 4;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    let check_final = logger.verify_integrity().unwrap();
+    assert!(check_final.is_valid, "{:?}", check_final.error);
+    assert_eq!(check_final.total_entries, 4);
+}
+
+#[test]
+fn test_clear_logs_preserves_logs_when_anchor_write_fails() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    let tmp_blocker = logger.hmac_anchor_path().with_extension("anchor.tmp");
+    fs::create_dir_all(&tmp_blocker).unwrap();
+
+    let clear_res = logger.clear_logs();
+    assert!(
+        clear_res.is_err(),
+        "clear_logs must fail when anchor update fails"
+    );
+
+    fs::remove_dir_all(&tmp_blocker).unwrap();
+
+    assert!(
+        logger.main_log_path().exists(),
+        "Log file must remain intact when clear_logs fails to update anchor"
+    );
+    assert_eq!(logger.get_logs(None, None).unwrap().len(), 2);
+    assert!(logger.verify_integrity().unwrap().is_valid);
+}
+
+#[test]
+fn test_verify_total_entries_includes_rotated_archives() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::with_max_size(dir.path(), 200);
+
+    for i in 1..=4 {
+        logger
+            .log(AuditLogEntryInput {
+                action: "QUERY".to_string(),
+                query: Some(format!("SELECT * FROM rotated_count_table_row_{};", i)),
+                status: "SUCCESS".to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+
+    assert!(!logger.list_rotated_files().unwrap().is_empty());
+    let check = logger.verify_integrity().unwrap();
+    assert!(check.is_valid, "{:?}", check.error);
+    assert_eq!(check.total_entries, 4);
+
+    // Rotate active log so main_log_path is absent (0 active entries)
+    logger.rotate_log_file().unwrap();
+    let check_empty_main = logger.verify_integrity().unwrap();
+    assert!(check_empty_main.is_valid, "{:?}", check_empty_main.error);
+    assert_eq!(check_empty_main.total_entries, 4);
+}
+
+#[test]
+fn test_audit_health_tracks_write_failure_and_recovery() {
+    use crate::commands::audit_commands::{get_audit_health_impl, record_audit_log_impl};
+
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    assert!(get_audit_health_impl(&logger).ok);
+    assert!(get_audit_health_impl(&logger).last_error.is_none());
+
+    record_audit_log_impl(
+        &logger,
+        AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(get_audit_health_impl(&logger).ok);
+
+    // Corrupt anchor -> command returns Err and health reports degraded
+    let valid_anchor = fs::read_to_string(logger.hmac_anchor_path()).unwrap();
+    fs::write(logger.hmac_anchor_path(), "{corrupt").unwrap();
+
+    let err_res = record_audit_log_impl(
+        &logger,
+        AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        },
+    );
+    assert!(err_res.is_err());
+
+    let degraded = get_audit_health_impl(&logger);
+    assert!(!degraded.ok);
+    assert!(degraded
+        .last_error
+        .as_deref()
+        .unwrap_or("")
+        .contains("corrupted"));
+
+    // Restore valid anchor and write -> health recovers to ok=true
+    fs::write(logger.hmac_anchor_path(), valid_anchor).unwrap();
+    record_audit_log_impl(
+        &logger,
+        AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 3;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let recovered = get_audit_health_impl(&logger);
+    assert!(recovered.ok);
+    assert!(recovered.last_error.is_none());
+}

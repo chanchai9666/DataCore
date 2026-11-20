@@ -1352,6 +1352,24 @@
 - **Dependabot Grouping Policy & Stale PR Cleanup (M5 — `.github/dependabot.yml`):**
   - เพิ่ม `groups` (`npm-minor-patch`, `cargo-minor-patch`, `actions-all`), `open-pull-requests-limit: 5`, `labels: ["dependencies"]` และ `ignore` สำหรับ `version-update:semver-major` (`tailwindcss`, `sqlx`, `sha2`, `base64`, `zstd`) พร้อมเปิด Dependabot vulnerability alerts และปิด PR ค้างรุ่นเก่า (`#202`–`#215`)
 
+### Phase 59: แก้ไขผลตรวจความปลอดภัยรอบที่ 6 — Transactional Log Rotation, Untracked Archive Recovery, Safe Clear Logs, Write-Path Health Observability & Threat Model Alignment (S1–S6 — Issue #224) [Completed]
+
+- **Transactional Rotation & Untracked Archive Reconciliation (S1 — `audit_logger.rs`, `audit_logger_test.rs`):**
+  - ปรับ `rotate_log_file_with_state()` ให้ทำงานแบบ transactional โดย rollback `fs::rename` และคืนค่า `AuditAnchorState` ในหน่วยความจำหาก `write_anchor()` ล้มเหลว เพื่อไม่ให้สถานะบนดิสก์ขัดแย้งกัน
+  - เพิ่มการตรวจจับและรับเข้า rotated archives ที่ตกหล่นหลัง crash (`verify_integrity_locked()` และ pre-append check ใน `log_inner()`) เฉพาะไฟล์ที่ผ่านการตรวจ HMAC chain ครบและยังคง `last_entry_hash` เดิมของ anchor โดยไม่ต่ำกว่าจำนวนรายการเดิม
+- **Safe `clear_logs()` Ordering & UI Error Propagation (S2 — `audit_logger.rs`, `auditLogStore.ts`, `AuditLogDrawer.tsx`):**
+  - ปรับ `clear_logs()` ให้เขียน anchor สถานะว่างลงดิสก์ก่อนลบไฟล์ `audit.jsonl` และ rotated archives (พร้อมคืน anchor เดิมหากลบไฟล์ล้มเหลว)
+  - ปรับ `useAuditLogStore.clearLogs()` เป็น `async` ที่ propagate error จาก Tauri IPC และให้ `AuditLogDrawer.handleClearLogs()` `await` พร้อมแสดง error toast เมื่อ backend ปฏิเสธ
+- **Write-Path Health Observability (S3 — `audit_logger.rs`, `audit_commands.rs`, `lib.rs`, `auditApi.ts`, `auditLogStore.ts`, `AuditLogDrawer.tsx`, `en.json`, `th.json`):**
+  - เพิ่ม `AuditHealth`, `AuditLogger::health()`, และ Tauri command `get_audit_health` เพื่อติดตาม `last_write_error` เมื่อ `log()` fail-closed และล้างค่าเมื่อเขียน/ตรวจสอบ/ล้างบันทึกสำเร็จ
+  - เพิ่ม `checkHealth()`, event `datacore:audit-degraded` ใน `auditLogStore.ts` และแบนเนอร์เตือน write failure พร้อมคำแนะนำการกู้คืนใน `AuditLogDrawer.tsx`
+- **Total Entries Accounting & Threat Model Clarity (S4, S5 — `audit_logger.rs`, `SECURITY.md`):**
+  - ปรับ `AuditIntegrityResult.total_entries` ให้รวมจำนวนรายการใน rotated archives (`archived_entries + count`) เพื่อให้ตรงกับการตรวจจริงหลัง rotation
+  - เพิ่มคำอธิบายข้อจำกัดกรณี anchor rollback ร่วมกับ log truncation ใน `SECURITY.md`
+- **Dependabot Security Updates & Advisory Alignment (S6 — `.github/dependabot.yml`, `.github/workflows/ci.yml`):**
+  - เปิดใช้งาน Dependabot security updates (`automated-security-fixes`) และบันทึกกำหนดการทบทวน major dependencies รายไตรมาส (Quarterly Major Review) พร้อมสถานะ moderate alerts 2 รายการ (`glib 0.18.5`, `minimatch`) ใน `.github/workflows/ci.yml` และ `.github/dependabot.yml`
+
+
 
 
 
