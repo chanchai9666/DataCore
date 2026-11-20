@@ -144,14 +144,15 @@ export function createCellContent(
   const extracted = extractCellValue(val);
   const isSensitive = Boolean(isMasked && column && isSensitiveColumn(column.name));
   const lockInline = fastEditMode && (isSensitive || extracted.type === 'bytes');
+  const canInlineEdit = fastEditMode && !lockInline;
 
   if (extracted.type === 'null') {
     return {
       kind: GridCellKind.Text,
       data: '',
       displayData: 'NULL',
-      allowOverlay: !lockInline,
-      readonly: lockInline,
+      allowOverlay: canInlineEdit,
+      readonly: !canInlineEdit,
       themeOverride: {
         textDark: '#888888',
         textMedium: '#888888',
@@ -172,8 +173,8 @@ export function createCellContent(
         kind: GridCellKind.Text,
         data: finalDisplay,
         displayData: finalDisplay,
-        allowOverlay: !lockInline,
-        readonly: lockInline,
+        allowOverlay: canInlineEdit,
+        readonly: !canInlineEdit,
         themeOverride: {
           textDark: '#9ca3af',
           textMedium: '#9ca3af',
@@ -184,8 +185,8 @@ export function createCellContent(
       kind: GridCellKind.Number,
       data: isNaN(num) ? 0 : num,
       displayData: extracted.displayString,
-      allowOverlay: true,
-      readonly: false,
+      allowOverlay: canInlineEdit,
+      readonly: !canInlineEdit,
     };
   }
 
@@ -195,8 +196,8 @@ export function createCellContent(
       kind: GridCellKind.Text,
       data: finalDisplay,
       displayData: finalDisplay,
-      allowOverlay: fastEditMode && !lockInline,
-      readonly: lockInline,
+      allowOverlay: canInlineEdit,
+      readonly: !canInlineEdit,
       themeOverride: isSensitive
         ? { textDark: '#9ca3af', textMedium: '#9ca3af' }
         : {
@@ -210,8 +211,8 @@ export function createCellContent(
     kind: GridCellKind.Text,
     data: finalDisplay,
     displayData: finalDisplay,
-    allowOverlay: !lockInline,
-    readonly: lockInline,
+    allowOverlay: canInlineEdit,
+    readonly: !canInlineEdit,
     ...(isSensitive && {
       themeOverride: {
         textDark: '#9ca3af',

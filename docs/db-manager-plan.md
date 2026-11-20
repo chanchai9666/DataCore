@@ -1383,6 +1383,13 @@
   - เพิ่มไอคอนตารางเวกเตอร์แบบแถบหัวตารางสีพาสเทล (เขียว, อำพัน, ฟ้า) และ active pill styling สำหรับ `warm-paper` ใน `ObjectBrowser.tsx` และ `DockLayout.tsx`
   - ปรับคอมโพเนนต์ที่ยังฮาร์ดโค้ดสี `theme === 'dark'` ให้ใช้ semantic tokens เพื่อให้เปลี่ยนตามทุกธีมได้อย่างสอดคล้อง
 
+### Phase 61: ป้องกันการแก้ไขข้อมูลในเซลล์แบบ Inline เมื่อโหมดแก้ไขเร็วปิดอยู่ (Issue #226) [Completed]
+
+- **Strict Fast Edit Guard (`gridUtils.ts`, `DataGrid.tsx`):**
+  - ปรับ `createCellContent` ให้เปิด `allowOverlay` และปลด `readonly` เฉพาะเมื่อ `fastEditMode === true` (และไม่ติด `lockInline`) สำหรับทุกชนิดข้อมูล (`null`, `number`, `boolean`, `text`)
+  - จำกัด `<DataEditor onCellEdited={...} />` ใน `DataGrid.tsx` ให้ทำงานเฉพาะเมื่อ `activeIsFastEdit && !effectiveReadOnly` โดยยังคงให้ผู้ใช้แก้ไขผ่าน `CellDetailDrawer` ด้านขวาได้ตามปกติเมื่อ `isEditable === true`
+
+
 
 
 

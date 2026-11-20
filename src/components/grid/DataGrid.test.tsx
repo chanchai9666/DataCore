@@ -1259,6 +1259,7 @@ describe('DataGrid', () => {
       // Default is OFF
       expect(latestDataEditorProps.editOnType).toBeFalsy();
       expect(latestDataEditorProps.onPaste).toBeUndefined();
+      expect(latestDataEditorProps.onCellEdited).toBeUndefined();
 
       vi.mocked(tauriDialog.confirm).mockResolvedValue(true);
       const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);

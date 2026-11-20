@@ -148,4 +148,26 @@ describe('GridBottomBar Component', () => {
     expect((bytesCell as { readonly?: boolean }).readonly).toBe(true);
     expect(bytesCell.allowOverlay).toBe(false);
   });
+
+  it('disables inline cell overlay and marks all cell types readonly when fastEditMode is false', () => {
+    const textCol = { name: 'name', data_type: 'VARCHAR', nullable: true, is_primary_key: false };
+    const numCol = { name: 'price', data_type: 'NUMERIC', nullable: true, is_primary_key: false };
+    const boolCol = { name: 'active', data_type: 'BOOLEAN', nullable: true, is_primary_key: false };
+
+    const textCell = createCellContent({ Text: 'Alice' }, textCol, false, false);
+    expect(textCell.allowOverlay).toBe(false);
+    expect((textCell as { readonly?: boolean }).readonly).toBe(true);
+
+    const numCell = createCellContent({ Integer: 42 }, numCol, false, false);
+    expect(numCell.allowOverlay).toBe(false);
+    expect((numCell as { readonly?: boolean }).readonly).toBe(true);
+
+    const nullCell = createCellContent(null, textCol, false, false);
+    expect(nullCell.allowOverlay).toBe(false);
+    expect((nullCell as { readonly?: boolean }).readonly).toBe(true);
+
+    const boolCell = createCellContent({ Boolean: true }, boolCol, false, false);
+    expect(boolCell.allowOverlay).toBe(false);
+    expect((boolCell as { readonly?: boolean }).readonly).toBe(true);
+  });
 });

@@ -1214,7 +1214,11 @@ export const DataGrid: React.FC<DataGridProps> = ({
                   onGridSelectionChange={setGridSelection}
                   onCellActivated={handleCellActivated}
                   onCellClicked={handleCellClicked}
-                  onCellEdited={effectiveReadOnly ? undefined : handleCellEditedWithStaging}
+                  onCellEdited={
+                    activeIsFastEdit && !effectiveReadOnly
+                      ? handleCellEditedWithStaging
+                      : undefined
+                  }
                   editOnType={activeIsFastEdit}
                   onPaste={activeIsFastEdit ? handleGridPaste : undefined}
                   onHeaderClicked={handleHeaderClicked}
