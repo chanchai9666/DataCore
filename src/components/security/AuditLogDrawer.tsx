@@ -68,12 +68,22 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
     try {
       const res = await verifyIntegrity();
       if (res.isValid) {
-        toast.success(`Audit log chain verified (${res.totalEntries} entries checked)`);
+        toast.success(
+          t('security.auditVerified', {
+            count: res.totalEntries,
+            defaultValue: `Audit log chain verified (${res.totalEntries} entries checked)`,
+          })
+        );
       } else {
-        toast.error(`Integrity check failed: ${res.error || 'Tampered log entries detected'}`);
+        toast.error(
+          t('security.auditVerifyFailed', {
+            error: res.error || t('security.auditTamperedDefault', 'Tampered log entries detected'),
+            defaultValue: `Integrity check failed: ${res.error || 'Tampered log entries detected'}`,
+          })
+        );
       }
     } catch {
-      toast.error('Failed to verify audit log integrity');
+      toast.error(t('security.auditVerifyError', 'Failed to verify audit log integrity'));
     } finally {
       setVerifying(false);
     }
@@ -90,9 +100,9 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      toast.success('Audit log exported as CSV');
+      toast.success(t('security.auditExportCsvSuccess', 'Audit log exported as CSV'));
     } catch {
-      toast.error('Failed to export CSV');
+      toast.error(t('security.auditExportCsvFailed', 'Failed to export CSV'));
     }
   };
 
@@ -107,20 +117,23 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      toast.success('Audit log exported as JSON');
+      toast.success(t('security.auditExportJsonSuccess', 'Audit log exported as JSON'));
     } catch {
-      toast.error('Failed to export JSON');
+      toast.error(t('security.auditExportJsonFailed', 'Failed to export JSON'));
     }
   };
 
   const handleClearLogs = async () => {
-    const confirmed = await showConfirmDialog('Are you sure you want to clear all audit logs?', {
-      title: 'Clear Audit Logs',
-      kind: 'warning',
-    });
+    const confirmed = await showConfirmDialog(
+      t('security.auditClearConfirm', 'Are you sure you want to clear all audit logs?'),
+      {
+        title: t('security.auditClearTitle', 'Clear Audit Logs'),
+        kind: 'warning',
+      }
+    );
     if (confirmed) {
       clearLogs();
-      toast.info('Audit logs cleared');
+      toast.info(t('security.auditClearedToast', 'Audit logs cleared'));
     }
   };
 
@@ -137,7 +150,7 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Security Audit Log"
+      aria-label={t('security.auditDialogAriaLabel', 'Security Audit Log')}
       className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in"
     >
       <div
@@ -154,11 +167,17 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 {t('tools.auditLogTitle', 'Security & Audit Log')}
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                  {filteredLogs.length} entries
+                  {t('security.auditEntriesCount', {
+                    count: filteredLogs.length,
+                    defaultValue: `${filteredLogs.length} entries`,
+                  })}
                 </span>
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Track who executed queries, DDL modifications, and transactions
+                {t(
+                  'security.auditSubtitle',
+                  'Track who executed queries, DDL modifications, and transactions'
+                )}
               </p>
             </div>
           </div>
@@ -191,15 +210,15 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
               onChange={(e) => setSelectedAction(e.target.value as AuditActionType | 'ALL')}
               className="h-[34px] rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-700 shadow-2xs focus:border-blue-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
-              <option value="ALL">All Actions</option>
-              <option value="QUERY">Query</option>
-              <option value="DDL">DDL (Schema)</option>
-              <option value="DML">DML (Data)</option>
-              <option value="TRANSACTION">Transaction</option>
-              <option value="CONNECT">Connect</option>
-              <option value="MAINTENANCE">Maintenance</option>
-              <option value="IMPORT">Import</option>
-              <option value="EXPORT">Export</option>
+              <option value="ALL">{t('security.actionAll', 'All Actions')}</option>
+              <option value="QUERY">{t('security.actionQuery', 'Query')}</option>
+              <option value="DDL">{t('security.actionDdl', 'DDL (Schema)')}</option>
+              <option value="DML">{t('security.actionDml', 'DML (Data)')}</option>
+              <option value="TRANSACTION">{t('security.actionTransaction', 'Transaction')}</option>
+              <option value="CONNECT">{t('security.actionConnect', 'Connect')}</option>
+              <option value="MAINTENANCE">{t('security.actionMaintenance', 'Maintenance')}</option>
+              <option value="IMPORT">{t('security.actionImport', 'Import')}</option>
+              <option value="EXPORT">{t('security.actionExport', 'Export')}</option>
             </select>
 
             <select
@@ -207,10 +226,10 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
               onChange={(e) => setSelectedStatus(e.target.value as AuditStatus | 'ALL')}
               className="h-[34px] rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-700 shadow-2xs focus:border-blue-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
-              <option value="ALL">All Status</option>
-              <option value="SUCCESS">Success</option>
-              <option value="FAILURE">Failure</option>
-              <option value="CANCELLED">Cancelled</option>
+              <option value="ALL">{t('security.statusAll', 'All Status')}</option>
+              <option value="SUCCESS">{t('security.statusSuccess', 'Success')}</option>
+              <option value="FAILURE">{t('security.statusFailure', 'Failure')}</option>
+              <option value="CANCELLED">{t('security.statusCancelled', 'Cancelled')}</option>
             </select>
           </div>
 
@@ -223,7 +242,7 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                 className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-slate-700 shadow-2xs hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <Download className="h-3.5 w-3.5 text-slate-500" />
-                Export CSV
+                {t('security.exportCsv', 'Export CSV')}
               </button>
               <button
                 type="button"
@@ -232,17 +251,19 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                 className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-slate-700 shadow-2xs hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <Download className="h-3.5 w-3.5 text-slate-500" />
-                Export JSON
+                {t('security.exportJson', 'Export JSON')}
               </button>
               <button
                 type="button"
                 onClick={handleVerifyIntegrity}
                 disabled={verifying}
-                aria-label="Verify Chain Integrity"
+                aria-label={t('security.verifyChainAriaLabel', 'Verify Chain Integrity')}
                 className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50/50 px-2.5 py-1 text-emerald-700 shadow-2xs hover:bg-emerald-100/60 disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
               >
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                {verifying ? 'Verifying...' : 'Verify Chain'}
+                {verifying
+                  ? t('security.verifyingChain', 'Verifying...')
+                  : t('security.verifyChain', 'Verify Chain')}
               </button>
             </div>
 
@@ -258,12 +279,12 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                   {integrity.isValid ? (
                     <>
                       <CheckCircle2 className="h-3 w-3" />
-                      Tamper-evident chain verified
+                      {t('security.chainVerifiedBadge', 'Tamper-evident chain verified')}
                     </>
                   ) : (
                     <>
                       <ShieldAlert className="h-3 w-3" />
-                      Tamper detected
+                      {t('security.tamperDetectedBadge', 'Tamper detected')}
                     </>
                   )}
                 </span>
@@ -275,10 +296,31 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                 className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 disabled:opacity-40 dark:text-rose-400"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Clear All Logs
+                {t('security.clearAllLogs', 'Clear All Logs')}
               </button>
             </div>
           </div>
+
+          {integrity && !integrity.isValid && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
+            >
+              <ShieldAlert className="h-3.5 w-3.5 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+              <div className="space-y-0.5">
+                <div className="font-medium">
+                  {integrity.error ||
+                    t('security.auditTamperedDefault', 'Tampered log entries detected')}
+                </div>
+                <div className="text-rose-700/90 dark:text-rose-300/90">
+                  {t(
+                    'security.auditRecoveryHint',
+                    'If the audit anchor or log file was unexpectedly corrupted, export existing records for investigation before clearing logs or restoring from backup.'
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Logs List */}
@@ -286,8 +328,15 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
           {filteredLogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-slate-400 dark:text-slate-500">
               <ShieldCheck className="h-10 w-10 mb-2 stroke-1 opacity-50" />
-              <p className="text-sm font-medium">No audit log records found</p>
-              <p className="text-xs">Database operations will be automatically recorded here.</p>
+              <p className="text-sm font-medium">
+                {t('security.noAuditRecords', 'No audit log records found')}
+              </p>
+              <p className="text-xs">
+                {t(
+                  'security.noAuditRecordsHint',
+                  'Database operations will be automatically recorded here.'
+                )}
+              </p>
             </div>
           ) : (
             filteredLogs.map((log) => {
@@ -331,7 +380,7 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
 
                       {/* User & Database Context */}
                       <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
-                        {log.connectionName || 'Default Connection'}
+                        {log.connectionName || t('security.defaultConnection', 'Default Connection')}
                         {log.database ? ` / ${log.database}` : ''}
                       </span>
                     </div>
@@ -341,7 +390,12 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                         <span className="font-mono text-[11px]">{log.executionTimeMs}ms</span>
                       )}
                       {log.rowsAffected !== undefined && (
-                        <span>{log.rowsAffected} rows</span>
+                        <span>
+                          {t('security.rowsCount', {
+                            count: log.rowsAffected,
+                            defaultValue: `${log.rowsAffected} rows`,
+                          })}
+                        </span>
                       )}
                       <span className="text-[11px]">{formatTimestamp(log.timestamp)}</span>
                     </div>
@@ -353,17 +407,35 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                       <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                         <div className="flex items-center gap-1.5">
                           <User className="h-3 w-3 text-slate-400" />
-                          <span>User: <strong className="text-slate-700 dark:text-slate-200">{log.user || 'anonymous'}</strong></span>
+                          <span>
+                            {t('security.userLabel', 'User:')}{' '}
+                            <strong className="text-slate-700 dark:text-slate-200">
+                              {log.user || t('security.anonymousUser', 'anonymous')}
+                            </strong>
+                          </span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <Database className="h-3 w-3 text-slate-400" />
-                          <span>Status: <strong className={isSuccess ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>{log.status}</strong></span>
+                          <span>
+                            {t('security.statusLabel', 'Status:')}{' '}
+                            <strong
+                              className={
+                                isSuccess
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : 'text-rose-600 dark:text-rose-400'
+                              }
+                            >
+                              {log.status}
+                            </strong>
+                          </span>
                         </div>
                       </div>
 
                       {log.query && (
                         <div>
-                          <div className="mb-1 text-[11px] font-medium text-slate-600 dark:text-slate-300">Statement:</div>
+                          <div className="mb-1 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                            {t('security.statementLabel', 'Statement:')}
+                          </div>
                           <pre className="max-h-40 overflow-x-auto rounded bg-slate-900 p-2.5 font-mono text-[11px] text-emerald-400 dark:bg-black/80 whitespace-pre-wrap select-all">
                             {log.query}
                           </pre>
@@ -372,7 +444,7 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
 
                       {log.errorMessage && (
                         <div className="rounded bg-rose-100/70 p-2 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300 text-[11px] font-mono">
-                          Error: {log.errorMessage}
+                          {t('security.errorPrefix', 'Error:')} {log.errorMessage}
                         </div>
                       )}
 
@@ -381,14 +453,18 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                           {log.prevHash && (
                             <div className="flex items-center gap-1.5 truncate">
                               <Hash className="h-3 w-3 shrink-0 text-slate-400" />
-                              <span className="text-slate-400">Prev:</span>
+                              <span className="text-slate-400">
+                                {t('security.prevHashLabel', 'Prev:')}
+                              </span>
                               <span className="truncate">{log.prevHash}</span>
                             </div>
                           )}
                           {log.entryHash && (
                             <div className="flex items-center gap-1.5 truncate">
                               <Hash className="h-3 w-3 shrink-0 text-emerald-500" />
-                              <span className="text-slate-400">Hash:</span>
+                              <span className="text-slate-400">
+                                {t('security.entryHashLabel', 'Hash:')}
+                              </span>
                               <span className="truncate text-emerald-600 dark:text-emerald-400 font-semibold">
                                 {log.entryHash}
                               </span>

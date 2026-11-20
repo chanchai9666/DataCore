@@ -692,13 +692,8 @@ fn test_archive_tamper_and_missing_archive_detected() {
 #[test]
 fn test_anchor_write_failure_does_not_break_chain_and_self_heals() {
     let dir = tempdir().unwrap();
-    // Point anchor override inside a non-existent directory where parent is a regular file so write fails
-    let blocker_file = dir.path().join("blocker");
-    fs::write(&blocker_file, b"not a dir").unwrap();
-    let bad_anchor = blocker_file.join("anchor.json");
-
-    let logger_bad = AuditLogger::with_anchor_override(dir.path(), &bad_anchor);
-    let e1 = logger_bad
+    let logger = AuditLogger::new(dir.path());
+    let e1 = logger
         .log(AuditLogEntryInput {
             action: "QUERY".to_string(),
             query: Some("SELECT 1;".to_string()),
@@ -707,10 +702,11 @@ fn test_anchor_write_failure_does_not_break_chain_and_self_heals() {
         })
         .unwrap();
 
-    // Now switch to valid anchor path (keeping same key and cache) and write 2nd entry
-    let good_anchor = dir.path().join("good_anchor.json");
-    let logger_good = AuditLogger::with_anchor_override(dir.path(), &good_anchor);
-    let e2 = logger_good
+    // Block anchor updates on the SAME anchor path using a directory at the temp write path
+    let tmp_blocker = logger.hmac_anchor_path().with_extension("anchor.tmp");
+    fs::create_dir_all(&tmp_blocker).unwrap();
+
+    let e2 = logger
         .log(AuditLogEntryInput {
             action: "QUERY".to_string(),
             query: Some("SELECT 2;".to_string()),
@@ -720,13 +716,26 @@ fn test_anchor_write_failure_does_not_break_chain_and_self_heals() {
         .unwrap();
 
     assert_eq!(e2.prev_hash.as_deref(), e1.entry_hash.as_deref());
-    let check = logger_good.verify_integrity().unwrap();
+
+    // Clear transient write blocker, then verify self-heals anchor on next write
+    fs::remove_dir_all(&tmp_blocker).unwrap();
+    let e3 = logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 3;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(e3.prev_hash.as_deref(), e2.entry_hash.as_deref());
+
+    let check = logger.verify_integrity().unwrap();
     assert!(
         check.is_valid,
         "Expected self-healed chain, got {:?}",
         check.error
     );
-    assert_eq!(check.total_entries, 2);
+    assert_eq!(check.total_entries, 3);
 }
 
 #[test]
@@ -778,4 +787,398 @@ fn test_timestamp_comparison_across_timezone_offsets_and_fractions() {
         check.error
     );
     assert_eq!(check.total_entries, 2);
+}
+
+#[test]
+fn test_corrupt_anchor_blocks_log_write_fail_closed() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Corrupt anchor JSON on disk
+    fs::write(logger.hmac_anchor_path(), "{corrupted-json").unwrap();
+
+    // verify_integrity must fail-closed
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+    assert!(check.error.unwrap().contains("corrupted"));
+
+    // log() must also fail-closed and NOT silently re-baseline the corrupt anchor
+    let write_res = logger.log(AuditLogEntryInput {
+        action: "QUERY".to_string(),
+        query: Some("SELECT 3;".to_string()),
+        status: "SUCCESS".to_string(),
+        ..Default::default()
+    });
+    assert!(write_res.is_err());
+    assert_eq!(
+        fs::read_to_string(logger.hmac_anchor_path()).unwrap(),
+        "{corrupted-json"
+    );
+    assert_eq!(logger.get_logs(None, None).unwrap().len(), 2);
+}
+
+#[test]
+fn test_tampered_anchor_fields_are_not_resigned() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    let e1 = logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Write forged anchor with future hmacEnabledSince and invalid anchorHmac
+    let forged_anchor = serde_json::json!({
+        "hmacEnabledSince": "2099-01-01T00:00:00+00:00",
+        "activeEntries": 1,
+        "lastEntryHash": e1.entry_hash.unwrap(),
+        "archives": [],
+        "archivesAdopted": true,
+        "anchorHmac": "deadbeef"
+    })
+    .to_string();
+    fs::write(logger.hmac_anchor_path(), &forged_anchor).unwrap();
+
+    // Calling log() must NOT launder/re-sign the forged anchor
+    let write_res = logger.log(AuditLogEntryInput {
+        action: "QUERY".to_string(),
+        query: Some("SELECT 2;".to_string()),
+        status: "SUCCESS".to_string(),
+        ..Default::default()
+    });
+    assert!(write_res.is_err());
+    assert_eq!(
+        fs::read_to_string(logger.hmac_anchor_path()).unwrap(),
+        forged_anchor
+    );
+    assert!(!logger.verify_integrity().unwrap().is_valid);
+}
+
+#[test]
+fn test_legacy_v2_anchor_verifies_and_migrates_without_false_positive() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    // Simulate legacy DCK1 (32-byte key) + legacy anchor format (anchor|since|entries|last)
+    let raw_key = [9u8; 32];
+    if let Some(p) = logger.hmac_key_path().parent() {
+        fs::create_dir_all(p).unwrap();
+    }
+    fs::write(logger.hmac_key_path(), raw_key).unwrap();
+
+    let ts = "2026-11-18T10:00:00Z".to_string();
+    let details = "query=SELECT 1;;status=SUCCESS".to_string();
+    let mut entry = AuditLogEntry {
+        id: "audit-legacy-v2-1".to_string(),
+        timestamp: ts.clone(),
+        action: "QUERY".to_string(),
+        user: None,
+        connection_id: None,
+        connection_name: None,
+        database: None,
+        query: Some("SELECT 1;".to_string()),
+        execution_time_ms: None,
+        rows_affected: None,
+        status: "SUCCESS".to_string(),
+        error_message: None,
+        details: Some(details),
+        prev_hash: Some(GENESIS_HASH.to_string()),
+        entry_hash: None,
+        hash_algo: Some("hmac-sha256".to_string()),
+    };
+    let entry_hash = compute_entry_hmac(&raw_key, GENESIS_HASH, &entry);
+    entry.entry_hash = Some(entry_hash.clone());
+    fs::write(
+        logger.main_log_path(),
+        format!("{}\n", serde_json::to_string(&entry).unwrap()),
+    )
+    .unwrap();
+
+    let legacy_anchor_hmac = compute_hmac_sha256(
+        &raw_key,
+        format!("anchor|{}|{}|{}", ts, 1, entry_hash).as_bytes(),
+    );
+    fs::write(
+        logger.hmac_anchor_path(),
+        serde_json::json!({
+            "hmacEnabledSince": ts,
+            "activeEntries": 1,
+            "lastEntryHash": entry_hash,
+            "anchorHmac": legacy_anchor_hmac,
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    // First verify_integrity must pass without false positive and promote key + anchor
+    let check = logger.verify_integrity().unwrap();
+    assert!(
+        check.is_valid,
+        "Expected valid legacy upgrade, got {:?}",
+        check.error
+    );
+    assert_eq!(check.total_entries, 1);
+
+    let promoted_key = fs::read(logger.hmac_key_path()).unwrap();
+    assert_eq!(promoted_key.len(), 44);
+    assert_eq!(&promoted_key[..4], b"DCK2");
+
+    let migrated_anchor: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(logger.hmac_anchor_path()).unwrap()).unwrap();
+    assert!(migrated_anchor["keyEpoch"].as_u64().unwrap_or(0) > 0);
+    assert!(!migrated_anchor["keyFingerprint"]
+        .as_str()
+        .unwrap_or("")
+        .is_empty());
+}
+
+#[test]
+fn test_legacy_key_is_promoted_to_dck2_after_first_verified_write() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    let raw_key = [11u8; 32];
+    if let Some(p) = logger.hmac_key_path().parent() {
+        fs::create_dir_all(p).unwrap();
+    }
+    fs::write(logger.hmac_key_path(), raw_key).unwrap();
+
+    let since = "2026-11-18T10:00:00Z";
+    let legacy_anchor_hmac = compute_hmac_sha256(
+        &raw_key,
+        format!("anchor|{}|0|{}", since, GENESIS_HASH).as_bytes(),
+    );
+    fs::write(
+        logger.hmac_anchor_path(),
+        serde_json::json!({
+            "hmacEnabledSince": since,
+            "activeEntries": 0,
+            "lastEntryHash": GENESIS_HASH,
+            "anchorHmac": legacy_anchor_hmac,
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    // First verified write promotes DCK1 -> DCK2
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    let key_bytes = fs::read(logger.hmac_key_path()).unwrap();
+    assert_eq!(key_bytes.len(), 44);
+    assert_eq!(&key_bytes[..4], b"DCK2");
+
+    // Deleting anchor now must fail-closed on verify and log
+    fs::remove_file(logger.hmac_anchor_path()).unwrap();
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+    assert!(check.error.unwrap().contains("Audit anchor missing"));
+}
+
+#[test]
+fn test_legacy_wipe_plus_anchor_delete_detected_after_migration() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    let raw_key = [13u8; 32];
+    if let Some(p) = logger.hmac_key_path().parent() {
+        fs::create_dir_all(p).unwrap();
+    }
+    fs::write(logger.hmac_key_path(), raw_key).unwrap();
+
+    let since = "2026-11-18T10:00:00Z";
+    let legacy_anchor_hmac = compute_hmac_sha256(
+        &raw_key,
+        format!("anchor|{}|0|{}", since, GENESIS_HASH).as_bytes(),
+    );
+    fs::write(
+        logger.hmac_anchor_path(),
+        serde_json::json!({
+            "hmacEnabledSince": since,
+            "activeEntries": 0,
+            "lastEntryHash": GENESIS_HASH,
+            "anchorHmac": legacy_anchor_hmac,
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    // Migrate and write 3 entries
+    for i in 1..=3 {
+        logger
+            .log(AuditLogEntryInput {
+                action: "QUERY".to_string(),
+                query: Some(format!("SELECT {};", i)),
+                status: "SUCCESS".to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+    assert_eq!(fs::read(logger.hmac_key_path()).unwrap().len(), 44);
+
+    // Wipe both log and anchor -> must fail-closed (N1 active on upgraded install)
+    fs::remove_file(logger.main_log_path()).unwrap();
+    fs::remove_file(logger.hmac_anchor_path()).unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+    assert!(check.error.unwrap().contains("Audit anchor missing"));
+}
+
+#[test]
+fn test_anchor_one_entry_behind_self_heals_on_verify() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Make anchor update fail on entry 2 using the same anchor path
+    let tmp_blocker = logger.hmac_anchor_path().with_extension("anchor.tmp");
+    fs::create_dir_all(&tmp_blocker).unwrap();
+    let e2 = logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    fs::remove_dir_all(&tmp_blocker).unwrap();
+
+    let anchor_before: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(logger.hmac_anchor_path()).unwrap()).unwrap();
+    assert_eq!(anchor_before["activeEntries"].as_u64(), Some(1));
+
+    // verify_integrity before any new log() must tolerate bounded forward lag and self-heal
+    let check = logger.verify_integrity().unwrap();
+    assert!(
+        check.is_valid,
+        "Expected forward-lag self-heal on verify, got {:?}",
+        check.error
+    );
+    assert_eq!(check.total_entries, 2);
+
+    let anchor_after: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(logger.hmac_anchor_path()).unwrap()).unwrap();
+    assert_eq!(anchor_after["activeEntries"].as_u64(), Some(2));
+    assert_eq!(
+        anchor_after["lastEntryHash"].as_str(),
+        e2.entry_hash.as_deref()
+    );
+}
+
+#[test]
+fn test_anchor_ahead_of_log_is_still_truncation() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    for i in 1..=5 {
+        logger
+            .log(AuditLogEntryInput {
+                action: "QUERY".to_string(),
+                query: Some(format!("SELECT {};", i)),
+                status: "SUCCESS".to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+
+    // Truncate log to 2 entries while valid signed anchor expects 5
+    let lines: Vec<String> = fs::read_to_string(logger.main_log_path())
+        .unwrap()
+        .lines()
+        .take(2)
+        .map(str::to_string)
+        .collect();
+    fs::write(logger.main_log_path(), format!("{}\n", lines.join("\n"))).unwrap();
+
+    let check = logger.verify_integrity().unwrap();
+    assert!(!check.is_valid);
+    assert!(check.error.unwrap().contains("truncation"));
+}
+
+#[test]
+fn test_dck2_key_fingerprint_mismatch_fails_closed() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    let original_key = fs::read(logger.hmac_key_path()).unwrap();
+    assert_eq!(original_key.len(), 44);
+    let original_anchor = fs::read_to_string(logger.hmac_anchor_path()).unwrap();
+
+    // 1) Mutate epoch in DCK2 key while keeping raw 32-byte key identical
+    let mut altered_epoch_key = original_key.clone();
+    let old_epoch = u64::from_be_bytes(original_key[36..44].try_into().unwrap());
+    altered_epoch_key[36..44].copy_from_slice(&(old_epoch + 1).to_be_bytes());
+    fs::write(logger.hmac_key_path(), &altered_epoch_key).unwrap();
+
+    let epoch_check = logger.verify_integrity().unwrap();
+    assert!(!epoch_check.is_valid);
+    assert!(epoch_check.error.unwrap().contains("epoch"));
+    assert!(logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .is_err());
+
+    // 2) Downgrade DCK2 key file to raw 32-byte DCK1 while DCK2-bound anchor remains
+    fs::write(logger.hmac_key_path(), &original_key[4..36]).unwrap();
+    let downgrade_check = logger.verify_integrity().unwrap();
+    assert!(!downgrade_check.is_valid);
+    assert!(downgrade_check.error.unwrap().contains("downgrade"));
+
+    // 3) Restore DCK2 key and tamper with keyFingerprint in anchor
+    fs::write(logger.hmac_key_path(), &original_key).unwrap();
+    let mut parsed_anchor: serde_json::Value = serde_json::from_str(&original_anchor).unwrap();
+    parsed_anchor["keyFingerprint"] = serde_json::Value::String("0000".to_string());
+    fs::write(logger.hmac_anchor_path(), parsed_anchor.to_string()).unwrap();
+
+    let fp_check = logger.verify_integrity().unwrap();
+    assert!(!fp_check.is_valid);
+    assert!(fp_check.error.unwrap().contains("fingerprint"));
 }

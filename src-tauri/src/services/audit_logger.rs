@@ -17,6 +17,7 @@ const AUDIT_KEY_RECORD_LEN: usize = 4 + 32 + 8;
 struct AuditKeyMaterial {
     key: [u8; 32],
     initialized: bool,
+    epoch: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -25,6 +26,14 @@ struct ArchiveState {
     file_name: String,
     entries: usize,
     last_entry_hash: String,
+}
+
+fn is_zero_u64(v: &u64) -> bool {
+    *v == 0
+}
+
+fn key_fingerprint(key: &[u8; 32], epoch: u64) -> String {
+    compute_hmac_sha256(key, format!("dc-key-binding|{epoch}").as_bytes())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +46,10 @@ struct AuditAnchorPayload {
     archives: Vec<ArchiveState>,
     #[serde(default)]
     archives_adopted: bool,
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    key_epoch: u64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    key_fingerprint: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,12 +62,41 @@ struct AuditAnchorState {
     archives: Vec<ArchiveState>,
     #[serde(default)]
     archives_adopted: bool,
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    key_epoch: u64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    key_fingerprint: String,
     anchor_hmac: String,
+}
+
+impl AuditAnchorState {
+    fn payload(&self) -> AuditAnchorPayload {
+        AuditAnchorPayload {
+            hmac_enabled_since: self.hmac_enabled_since.clone(),
+            active_entries: self.active_entries,
+            last_entry_hash: self.last_entry_hash.clone(),
+            archives: self.archives.clone(),
+            archives_adopted: self.archives_adopted,
+            key_epoch: self.key_epoch,
+            key_fingerprint: self.key_fingerprint.clone(),
+        }
+    }
 }
 
 fn compute_anchor_hmac(key: &[u8], payload: &AuditAnchorPayload) -> String {
     let serialized = serde_json::to_string(payload).unwrap_or_default();
     compute_hmac_sha256(key, serialized.as_bytes())
+}
+
+fn compute_legacy_anchor_hmac(key: &[u8], a: &AuditAnchorState) -> String {
+    compute_hmac_sha256(
+        key,
+        format!(
+            "anchor|{}|{}|{}",
+            a.hmac_enabled_since, a.active_entries, a.last_entry_hash
+        )
+        .as_bytes(),
+    )
 }
 
 fn parse_ts(value: &str) -> Option<DateTime<Utc>> {
@@ -303,7 +345,6 @@ pub struct AuditLogger {
     max_file_size: u64,
     last_hash_cache: Arc<Mutex<Option<String>>>,
     write_lock: Arc<Mutex<()>>,
-    anchor_path_override: Option<PathBuf>,
 }
 
 impl AuditLogger {
@@ -317,21 +358,6 @@ impl AuditLogger {
             max_file_size,
             last_hash_cache: Arc::new(Mutex::new(None)),
             write_lock: Arc::new(Mutex::new(())),
-            anchor_path_override: None,
-        }
-    }
-
-    #[cfg(test)]
-    pub fn with_anchor_override<P: AsRef<Path>, Q: AsRef<Path>>(
-        log_dir: P,
-        anchor_path: Q,
-    ) -> Self {
-        Self {
-            log_dir: log_dir.as_ref().to_path_buf(),
-            max_file_size: DEFAULT_MAX_FILE_SIZE_BYTES,
-            last_hash_cache: Arc::new(Mutex::new(None)),
-            write_lock: Arc::new(Mutex::new(())),
-            anchor_path_override: Some(anchor_path.as_ref().to_path_buf()),
         }
     }
 
@@ -379,9 +405,6 @@ impl AuditLogger {
     }
 
     pub fn hmac_anchor_path(&self) -> PathBuf {
-        if let Some(ref p) = self.anchor_path_override {
-            return p.clone();
-        }
         if let Ok(p) = std::env::var("DATACORE_AUDIT_ANCHOR_PATH") {
             return PathBuf::from(p);
         }
@@ -419,14 +442,19 @@ impl AuditLogger {
                 Ok(Some(AuditKeyMaterial {
                     key,
                     initialized: false,
+                    epoch: 0,
                 }))
             }
             AUDIT_KEY_RECORD_LEN if &bytes[..4] == AUDIT_KEY_MAGIC => {
                 let mut key = [0u8; 32];
                 key.copy_from_slice(&bytes[4..36]);
+                let mut epoch_bytes = [0u8; 8];
+                epoch_bytes.copy_from_slice(&bytes[36..44]);
+                let epoch = u64::from_be_bytes(epoch_bytes);
                 Ok(Some(AuditKeyMaterial {
                     key,
                     initialized: true,
+                    epoch,
                 }))
             }
             _ => Err(AppError::Other(
@@ -435,33 +463,61 @@ impl AuditLogger {
         }
     }
 
-    fn write_dck2_key(&self, key: &[u8; 32]) -> Result<(), AppError> {
+    fn write_dck2_key(&self, key: &[u8; 32]) -> Result<u64, AppError> {
         let key_path = self.hmac_key_path();
         if let Some(key_dir) = key_path.parent() {
             ensure_dir_0700(key_dir)?;
         }
+        let epoch = Utc::now().timestamp().max(1) as u64;
         let mut buf = Vec::with_capacity(AUDIT_KEY_RECORD_LEN);
         buf.extend_from_slice(AUDIT_KEY_MAGIC);
         buf.extend_from_slice(key);
-        buf.extend_from_slice(&(Utc::now().timestamp() as u64).to_be_bytes());
+        buf.extend_from_slice(&epoch.to_be_bytes());
         let tmp_path = key_path.with_extension("key.tmp");
         fs::write(&tmp_path, &buf)?;
-        set_file_permissions_0600(&tmp_path)?;
-        fs::rename(&tmp_path, &key_path)?;
+        if let Err(err) = set_file_permissions_0600(&tmp_path) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(err);
+        }
+        if let Err(err) = fs::rename(&tmp_path, &key_path) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(err.into());
+        }
         set_file_permissions_0600(&key_path)?;
+        Ok(epoch)
+    }
+
+    fn ensure_key_initialized(&self, material: &mut AuditKeyMaterial) -> Result<(), AppError> {
+        if !material.initialized || material.epoch == 0 {
+            let epoch = self.write_dck2_key(&material.key)?;
+            material.initialized = true;
+            material.epoch = epoch;
+        }
         Ok(())
     }
 
-    fn get_or_create_hmac_key(&self) -> Result<[u8; 32], AppError> {
+    fn get_or_create_key_material(&self) -> Result<(AuditKeyMaterial, bool), AppError> {
         ensure_dir_0700(&self.log_dir)?;
         if let Some(material) = self.read_key_material()? {
-            return Ok(material.key);
+            return Ok((material, false));
+        }
+        if self.hmac_anchor_path().exists() {
+            return Err(AppError::Other(
+                "HMAC key missing while audit anchor exists (fail-closed)".to_string(),
+            ));
         }
         use rand::RngExt;
         let mut key = [0u8; 32];
         rand::rng().fill(&mut key);
-        self.write_dck2_key(&key)?;
-        Ok(key)
+        let epoch = self.write_dck2_key(&key)?;
+        Ok((
+            AuditKeyMaterial {
+                key,
+                initialized: true,
+                epoch,
+            },
+            true,
+        ))
     }
 
     fn read_anchor_if_exists(&self) -> Option<AuditAnchorState> {
@@ -473,9 +529,102 @@ impl AuditLogger {
         serde_json::from_str::<AuditAnchorState>(&raw).ok()
     }
 
+    /// Read the anchor file and verify its HMAC (and key epoch/fingerprint binding) before returning it.
+    /// - Missing file: `Err` if key is initialized DCK2 (fail-closed), `Ok(None)` otherwise.
+    /// - Unparseable/corrupt JSON or invalid signature: `Err` (fail-closed, refusing to re-sign).
+    /// - Legacy anchor (`anchor|since|entries|last`): verifies, promotes DCK1->DCK2, rewrites anchor in current format.
+    fn read_verified_anchor(
+        &self,
+        material: &mut AuditKeyMaterial,
+    ) -> Result<Option<AuditAnchorState>, AppError> {
+        let path = self.hmac_anchor_path();
+        match fs::metadata(&path) {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                if material.initialized {
+                    return Err(AppError::Other(
+                        "Audit anchor missing for initialized key (fail-closed)".to_string(),
+                    ));
+                }
+                return Ok(None);
+            }
+            Err(err) => return Err(err.into()),
+            Ok(_) => {}
+        }
+
+        let Some(mut anchor) = self.read_anchor_if_exists() else {
+            return Err(AppError::Other(
+                "Audit anchor file is corrupted (fail-closed, refusing to re-sign)".to_string(),
+            ));
+        };
+
+        if anchor.key_epoch > 0 || !anchor.key_fingerprint.is_empty() {
+            if !material.initialized {
+                return Err(AppError::Other(
+                    "Audit key downgrade detected: DCK1 key found for DCK2-bound anchor (fail-closed)"
+                        .to_string(),
+                ));
+            }
+            if material.epoch != anchor.key_epoch {
+                return Err(AppError::Other(
+                    "Audit key epoch mismatch against anchor (fail-closed)".to_string(),
+                ));
+            }
+            if anchor.key_fingerprint != key_fingerprint(&material.key, material.epoch) {
+                return Err(AppError::Other(
+                    "Audit key fingerprint mismatch against anchor (fail-closed)".to_string(),
+                ));
+            }
+        }
+
+        if anchor.anchor_hmac == compute_anchor_hmac(&material.key, &anchor.payload()) {
+            if !material.initialized || anchor.key_epoch == 0 || anchor.key_fingerprint.is_empty() {
+                self.ensure_key_initialized(material)?;
+                let fp = key_fingerprint(&material.key, material.epoch);
+                let _ = self.write_anchor(
+                    &material.key,
+                    material.epoch,
+                    anchor.hmac_enabled_since.clone(),
+                    anchor.active_entries,
+                    anchor.last_entry_hash.clone(),
+                    anchor.archives.clone(),
+                    anchor.archives_adopted,
+                );
+                anchor.key_epoch = material.epoch;
+                anchor.key_fingerprint = fp;
+            }
+            return Ok(Some(anchor));
+        }
+
+        // Compatibility: legacy anchor written before AuditAnchorPayload JSON signing (<= 5f2f313)
+        if anchor.archives.is_empty()
+            && anchor.key_epoch == 0
+            && anchor.key_fingerprint.is_empty()
+            && anchor.anchor_hmac == compute_legacy_anchor_hmac(&material.key, &anchor)
+        {
+            self.ensure_key_initialized(material)?;
+            self.write_anchor(
+                &material.key,
+                material.epoch,
+                anchor.hmac_enabled_since.clone(),
+                anchor.active_entries,
+                anchor.last_entry_hash.clone(),
+                Vec::new(),
+                false,
+            )?;
+            return Ok(self.read_anchor_if_exists());
+        }
+
+        Err(AppError::Other(
+            "Audit anchor signature verification failed (fail-closed, refusing to re-sign)"
+                .to_string(),
+        ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn write_anchor(
         &self,
         key: &[u8; 32],
+        epoch: u64,
         hmac_enabled_since: String,
         active_entries: usize,
         last_entry_hash: String,
@@ -486,12 +635,19 @@ impl AuditLogger {
         if let Some(dir) = anchor_path.parent() {
             ensure_dir_0700(dir)?;
         }
+        let (key_epoch, fp) = if epoch > 0 {
+            (epoch, key_fingerprint(key, epoch))
+        } else {
+            (0, String::new())
+        };
         let payload = AuditAnchorPayload {
             hmac_enabled_since: hmac_enabled_since.clone(),
             active_entries,
             last_entry_hash: last_entry_hash.clone(),
             archives: archives.clone(),
             archives_adopted,
+            key_epoch,
+            key_fingerprint: fp.clone(),
         };
         let anchor_hmac = compute_anchor_hmac(key, &payload);
         let state = AuditAnchorState {
@@ -500,13 +656,21 @@ impl AuditLogger {
             last_entry_hash,
             archives,
             archives_adopted,
+            key_epoch,
+            key_fingerprint: fp,
             anchor_hmac,
         };
         let serialized = serde_json::to_string(&state)?;
         let tmp_path = anchor_path.with_extension("anchor.tmp");
         fs::write(&tmp_path, serialized)?;
-        set_file_permissions_0600(&tmp_path)?;
-        fs::rename(&tmp_path, &anchor_path)?;
+        if let Err(err) = set_file_permissions_0600(&tmp_path) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(err);
+        }
+        if let Err(err) = fs::rename(&tmp_path, &anchor_path) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(err.into());
+        }
         set_file_permissions_0600(&anchor_path)?;
         Ok(())
     }
@@ -628,15 +792,16 @@ impl AuditLogger {
             (None, None) => Utc::now(),
         };
 
+        let epoch = self.write_dck2_key(&material.key)?;
         self.write_anchor(
             &material.key,
+            epoch,
             normalize_utc_rfc3339(enabled_since),
             active_entries,
             last_hash,
             archives,
             true,
         )?;
-        self.write_dck2_key(&material.key)?;
         Ok(())
     }
 
@@ -652,6 +817,26 @@ impl AuditLogger {
             .map_while(Result::ok)
             .filter(|l| !l.trim().is_empty())
             .count()
+    }
+
+    fn hash_at_entry_index(path: &Path, target_count: usize) -> Option<String> {
+        if target_count == 0 {
+            return Some(GENESIS_HASH.to_string());
+        }
+        let file = File::open(path).ok()?;
+        let mut count = 0usize;
+        for line in BufReader::new(file).lines().map_while(Result::ok) {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            count += 1;
+            if count == target_count {
+                let entry = serde_json::from_str::<AuditLogEntry>(trimmed).ok()?;
+                return entry.entry_hash;
+            }
+        }
+        None
     }
 
     /// Read the latest entry hash from disk if cache is uninitialized
@@ -734,6 +919,14 @@ impl AuditLogger {
         let _guard = self.write_lock.lock().unwrap();
         ensure_dir_0700(&self.log_dir)?;
 
+        self.bootstrap_anchor_if_needed()?;
+        let (mut material, is_new_key) = self.get_or_create_key_material()?;
+        let mut existing_anchor = if is_new_key {
+            None
+        } else {
+            self.read_verified_anchor(&mut material)?
+        };
+
         let mut input = input;
         if let Some(ref mut q) = input.query {
             *q = redact_sensitive_sql(q);
@@ -779,9 +972,6 @@ impl AuditLogger {
             parts.join(";")
         });
 
-        let _ = self.bootstrap_anchor_if_needed();
-        let hmac_key = self.get_or_create_hmac_key()?;
-
         let mut entry = AuditLogEntry {
             id,
             timestamp: parse_ts(&timestamp)
@@ -803,7 +993,7 @@ impl AuditLogger {
             hash_algo: Some("hmac-sha256".to_string()),
         };
 
-        let entry_hash = compute_entry_hmac(&hmac_key, &prev_hash, &entry);
+        let entry_hash = compute_entry_hmac(&material.key, &prev_hash, &entry);
         entry.entry_hash = Some(entry_hash.clone());
 
         let serialized = serde_json::to_string(&entry)?;
@@ -813,11 +1003,10 @@ impl AuditLogger {
         if log_path.exists() {
             let current_len = fs::metadata(&log_path).map(|m| m.len()).unwrap_or(0);
             if current_len >= self.max_file_size {
-                self.rotate_log_file()?;
+                self.rotate_log_file_with_state(Some(&material), &mut existing_anchor)?;
             }
         }
 
-        let existing_anchor = self.read_anchor_if_exists();
         let enabled_since = existing_anchor
             .as_ref()
             .map(|a| a.hmac_enabled_since.clone())
@@ -829,7 +1018,11 @@ impl AuditLogger {
         let archives_adopted = existing_anchor
             .as_ref()
             .map(|a| a.archives_adopted)
-            .unwrap_or(true);
+            .unwrap_or_else(|| {
+                self.list_rotated_files()
+                    .map(|r| r.is_empty())
+                    .unwrap_or(true)
+            });
         let prior_active_count = Self::count_existing_non_empty_lines(&log_path);
 
         // Open or create log file with mode 0600 on Unix
@@ -849,9 +1042,10 @@ impl AuditLogger {
             *cache = Some(entry_hash.clone());
         }
 
-        // 2) Best-effort signed anchor update (self-heals on subsequent write if transient error occurs)
+        // 2) Best-effort signed anchor update (self-heals on subsequent write or verify if transient error occurs)
         if let Err(err) = self.write_anchor(
-            &hmac_key,
+            &material.key,
+            material.epoch,
             enabled_since,
             prior_active_count + 1,
             entry_hash,
@@ -864,8 +1058,11 @@ impl AuditLogger {
         Ok(entry)
     }
 
-    /// Rotate active audit.jsonl to audit.<timestamp>.jsonl
-    pub fn rotate_log_file(&self) -> Result<PathBuf, AppError> {
+    fn rotate_log_file_with_state(
+        &self,
+        material: Option<&AuditKeyMaterial>,
+        anchor: &mut Option<AuditAnchorState>,
+    ) -> Result<PathBuf, AppError> {
         let main_path = self.main_log_path();
         if !main_path.exists() {
             return Ok(main_path);
@@ -886,30 +1083,47 @@ impl AuditLogger {
         fs::rename(&main_path, &target)?;
         set_file_permissions_0600(&target)?;
 
-        if let (Ok(Some(material)), Some(anchor)) =
-            (self.read_key_material(), self.read_anchor_if_exists())
-        {
-            let mut archives = anchor.archives;
+        if let (Some(mat), Some(anc)) = (material, anchor.as_mut()) {
             if let Some(fname) = target.file_name().and_then(|n| n.to_str()) {
-                archives.push(ArchiveState {
+                anc.archives.push(ArchiveState {
                     file_name: fname.to_string(),
                     entries: main_summary.count,
                     last_entry_hash: main_summary
                         .last_hash
-                        .unwrap_or_else(|| anchor.last_entry_hash.clone()),
+                        .unwrap_or_else(|| anc.last_entry_hash.clone()),
                 });
             }
+            anc.active_entries = 0;
+            anc.archives_adopted = true;
             let _ = self.write_anchor(
-                &material.key,
-                anchor.hmac_enabled_since,
+                &mat.key,
+                mat.epoch,
+                anc.hmac_enabled_since.clone(),
                 0,
-                anchor.last_entry_hash,
-                archives,
+                anc.last_entry_hash.clone(),
+                anc.archives.clone(),
                 true,
             );
         }
 
         Ok(target)
+    }
+
+    /// Rotate active audit.jsonl to audit.<timestamp>.jsonl
+    pub fn rotate_log_file(&self) -> Result<PathBuf, AppError> {
+        let _guard = self.write_lock.lock().unwrap();
+        self.bootstrap_anchor_if_needed()?;
+        let mut material = self.read_key_material()?;
+        let mut anchor = if let Some(ref mut mat) = material {
+            self.read_verified_anchor(mat)?
+        } else if self.hmac_anchor_path().exists() {
+            return Err(AppError::Other(
+                "HMAC key missing while audit anchor exists (fail-closed)".to_string(),
+            ));
+        } else {
+            None
+        };
+        self.rotate_log_file_with_state(material.as_ref(), &mut anchor)
     }
 
     /// Retrieve audit logs in newest-first order with pagination
@@ -1109,54 +1323,27 @@ impl AuditLogger {
             return Ok(invalid(0, err.to_string(), None));
         }
 
-        let key_material = match self.read_key_material() {
+        let mut key_material = match self.read_key_material() {
             Ok(m) => m,
             Err(err) => return Ok(invalid(0, err.to_string(), None)),
         };
-        let hmac_key = key_material.as_ref().map(|m| m.key);
-        let mut anchor = self.read_anchor_if_exists();
-        let anchor_file_exists = self.hmac_anchor_path().exists();
 
-        if anchor_file_exists && anchor.is_none() {
-            return Ok(invalid(
-                0,
-                "Audit anchor file is corrupted (fail-closed)".to_string(),
-                None,
-            ));
-        }
-
-        if key_material.as_ref().is_some_and(|m| m.initialized) && anchor.is_none() {
-            return Ok(invalid(
-                0,
-                "Audit anchor missing for initialized key (fail-closed)".to_string(),
-                None,
-            ));
-        }
-
-        if let Some(ref anc) = anchor {
-            let Some(ref key) = hmac_key else {
+        let mut anchor = if let Some(ref mut mat) = key_material {
+            match self.read_verified_anchor(mat) {
+                Ok(a) => a,
+                Err(err) => return Ok(invalid(0, err.to_string(), None)),
+            }
+        } else {
+            if self.hmac_anchor_path().exists() {
                 return Ok(invalid(
                     0,
                     "HMAC key missing while audit anchor exists (fail-closed)".to_string(),
                     None,
                 ));
-            };
-            let payload = AuditAnchorPayload {
-                hmac_enabled_since: anc.hmac_enabled_since.clone(),
-                active_entries: anc.active_entries,
-                last_entry_hash: anc.last_entry_hash.clone(),
-                archives: anc.archives.clone(),
-                archives_adopted: anc.archives_adopted,
-            };
-            let expected_anchor_hmac = compute_anchor_hmac(key, &payload);
-            if anc.anchor_hmac != expected_anchor_hmac {
-                return Ok(invalid(
-                    0,
-                    "Audit anchor signature verification failed".to_string(),
-                    None,
-                ));
             }
-        }
+            None
+        };
+        let hmac_key = key_material.as_ref().map(|m| m.key);
 
         // Verify rotated archives tracked in anchor (or adopt-once for legacy anchors)
         let mut chain_prev = GENESIS_HASH.to_string();
@@ -1248,11 +1435,12 @@ impl AuditLogger {
                         }
                     }
                 }
-                if let Some(ref key) = hmac_key {
+                if let Some(ref mat) = key_material {
                     anc.archives = adopted;
                     anc.archives_adopted = true;
                     let _ = self.write_anchor(
-                        key,
+                        &mat.key,
+                        mat.epoch,
                         anc.hmac_enabled_since.clone(),
                         anc.active_entries,
                         anc.last_entry_hash.clone(),
@@ -1285,7 +1473,7 @@ impl AuditLogger {
             });
         }
 
-        let (count, last_hash) = match Self::verify_file_chain(
+        let (count, last_hash, seen_hmac_main) = match Self::verify_file_chain(
             &main_path,
             hmac_key.as_ref(),
             &chain_prev,
@@ -1293,8 +1481,10 @@ impl AuditLogger {
             seen_hmac_across_chain,
         )? {
             ChainVerifyOutcome::Valid {
-                count, last_hash, ..
-            } => (count, last_hash),
+                count,
+                last_hash,
+                seen_hmac,
+            } => (count, last_hash, seen_hmac),
             ChainVerifyOutcome::Invalid {
                 count,
                 error,
@@ -1304,16 +1494,34 @@ impl AuditLogger {
 
         if let Some(ref anc) = anchor {
             if count != anc.active_entries {
-                return Ok(invalid(
-                    count,
-                    format!(
-                        "Audit log truncation or external rewrite detected: found {} entries, anchor expects {}",
-                        count, anc.active_entries
-                    ),
-                    None,
-                ));
-            }
-            if count > 0 && last_hash != anc.last_entry_hash {
+                let forward = count > anc.active_entries;
+                let within_limit = count.saturating_sub(anc.active_entries) <= 100;
+                let prefix_matches = anc.active_entries == 0
+                    || Self::hash_at_entry_index(&main_path, anc.active_entries).as_deref()
+                        == Some(anc.last_entry_hash.as_str());
+                if forward && within_limit && seen_hmac_main && prefix_matches {
+                    if let Some(ref mat) = key_material {
+                        let _ = self.write_anchor(
+                            &mat.key,
+                            mat.epoch,
+                            anc.hmac_enabled_since.clone(),
+                            count,
+                            last_hash.clone(),
+                            anc.archives.clone(),
+                            anc.archives_adopted,
+                        );
+                    }
+                } else {
+                    return Ok(invalid(
+                        count,
+                        format!(
+                            "Audit log truncation or external rewrite detected: found {} entries, anchor expects {}",
+                            count, anc.active_entries
+                        ),
+                        None,
+                    ));
+                }
+            } else if count > 0 && last_hash != anc.last_entry_hash {
                 return Ok(invalid(
                     count,
                     "Audit log head hash mismatch against anchor (external rewrite detected)"
@@ -1335,6 +1543,18 @@ impl AuditLogger {
     /// Clear all audit logs (removes audit.jsonl and rotated archives)
     pub fn clear_logs(&self) -> Result<(), AppError> {
         let _guard = self.write_lock.lock().unwrap();
+        self.bootstrap_anchor_if_needed()?;
+        let mut material = self.read_key_material()?;
+        let verified_anchor = if let Some(ref mut mat) = material {
+            self.read_verified_anchor(mat)?
+        } else if self.hmac_anchor_path().exists() {
+            return Err(AppError::Other(
+                "HMAC key missing while audit anchor exists (fail-closed)".to_string(),
+            ));
+        } else {
+            None
+        };
+
         let main_path = self.main_log_path();
         if main_path.exists() {
             fs::remove_file(&main_path)?;
@@ -1346,17 +1566,16 @@ impl AuditLogger {
             }
         }
 
-        if let (Ok(Some(material)), Some(anchor)) =
-            (self.read_key_material(), self.read_anchor_if_exists())
-        {
-            let _ = self.write_anchor(
-                &material.key,
+        if let (Some(mat), Some(anchor)) = (material.as_ref(), verified_anchor) {
+            self.write_anchor(
+                &mat.key,
+                mat.epoch,
                 anchor.hmac_enabled_since,
                 0,
                 GENESIS_HASH.to_string(),
                 Vec::new(),
                 true,
-            );
+            )?;
         }
 
         let mut cache = self.last_hash_cache.lock().unwrap();

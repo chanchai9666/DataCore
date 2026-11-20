@@ -1337,6 +1337,22 @@
 - **Dependency Policy (`dependabot.yml`, `ci.yml`):**
   - เพิ่ม `.github/dependabot.yml` (npm/cargo weekly, github-actions monthly) และระบุวันที่/owner/เงื่อนไขถอน allowlist ใน `ci.yml` (R9)
 
+### Phase 58: แก้ไขผลตรวจความปลอดภัยรอบที่ 5 — Write-Path Anchor Verification, Legacy DCK1→DCK2 Migration, Verify Self-Heal, AuditLogDrawer i18n, Dependabot Policy และ Key-Anchor Binding (M1–M6 — Issue #216) [Completed]
+
+- **Write-Path Anchor Verification (M1 — `audit_logger.rs`, `audit_logger_test.rs`):**
+  - เพิ่ม `read_verified_anchor()` เพื่อตรวจสอบลายเซ็นและสถานะของ Anchor (`AuditAnchorState`) ก่อนใช้งานหรือเซ็นซ้ำทั้งใน `log()`, `rotate_log_file()`, `clear_logs()` และ `verify_integrity()` ป้องกันการ re-baseline anchor ที่เสียหายหรือเซ็นทับ anchor ปลอมแบบ fail-closed
+- **Legacy Anchor Compatibility & DCK1→DCK2 Promotion (M2 — `audit_logger.rs`, `audit_logger_test.rs`):**
+  - เพิ่ม `compute_legacy_anchor_hmac()` รองรับ anchor รูปแบบเดิม (`anchor|since|entries|last`) และเลื่อนระดับคีย์จาก `DCK1` (32 bytes) เป็น `DCK2` (44 bytes) โดยอัตโนมัติตั้งแต่การตรวจสอบหรือการเขียนที่ผ่านการยืนยันครั้งแรก ลด false positive หลังอัปเกรดและเปิดใช้งาน anti-anchor-deletion สำหรับเครื่องเดิม
+- **Bounded Forward-Lag Self-Heal on Verify (M3 — `audit_logger.rs`, `audit_logger_test.rs`):**
+  - ปรับ `verify_integrity()` ให้ตรวจสอบ prefix hash (`hash_at_entry_index`) และ HMAC chain ของ entry ส่วนเกินเมื่อ anchor ตามหลัง log (`count > active_entries`, ไม่เกิน 100 รายการ) พร้อม self-heal anchor อัตโนมัติ โดยยังคง fail-closed เมื่อพบการตัดทอน (`count < active_entries`) และปรับเทส `test_anchor_write_failure_does_not_break_chain_and_self_heals` ให้ทดสอบบน path เดิม
+- **Key↔Anchor Epoch & Fingerprint Binding (M6 — `audit_logger.rs`, `audit_logger_test.rs`, `SECURITY.md`):**
+  - เพิ่ม `key_epoch` และ `key_fingerprint` ลงใน `AuditAnchorPayload` / `AuditAnchorState` เพื่อตรวจจับการปลอมแปลง epoch ของคีย์หรือการลดระดับ `DCK2`→`DCK1` พร้อมอัปเดต `SECURITY.md` ให้ตรงตามขอบเขตการทำงานจริง
+- **AuditLogDrawer Complete i18n & Security Literal Guard (M4 — `AuditLogDrawer.tsx`, `en.json`, `th.json`, `AuditLogDrawer.test.tsx`):**
+  - เพิ่มคำแปลภาษาไทย/อังกฤษครบ 47 คีย์ภายใต้ `security.*` รวมถึงข้อความแนะนำแนวทางกู้คืนเมื่อตรวจพบความเสียหายของ anchor/log และเพิ่มเทสตรวจสอบการแสดงผลภาษาไทยและป้องกันสตริงภาษาอังกฤษนอก `t()`
+- **Dependabot Grouping Policy & Stale PR Cleanup (M5 — `.github/dependabot.yml`):**
+  - เพิ่ม `groups` (`npm-minor-patch`, `cargo-minor-patch`, `actions-all`), `open-pull-requests-limit: 5`, `labels: ["dependencies"]` และ `ignore` สำหรับ `version-update:semver-major` (`tailwindcss`, `sqlx`, `sha2`, `base64`, `zstd`) พร้อมเปิด Dependabot vulnerability alerts และปิด PR ค้างรุ่นเก่า (`#202`–`#215`)
+
+
 
 
 

@@ -1,5 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import fs from 'node:fs';
+import path from 'node:path';
+import { toast } from 'sonner';
+import i18n from '../../i18n';
 import { AuditLogDrawer } from './AuditLogDrawer';
 import { useAuditLogStore } from '../../stores/auditLogStore';
 
@@ -9,6 +13,7 @@ describe('AuditLogDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAuditLogStore.getState().clearLogs();
+    useAuditLogStore.setState({ integrity: null });
     useAuditLogStore.getState().addLog({
       action: 'QUERY',
       user: 'root',
@@ -28,6 +33,10 @@ describe('AuditLogDrawer', () => {
       status: 'FAILURE',
       errorMessage: 'Permission denied',
     });
+  });
+
+  afterEach(async () => {
+    await i18n.changeLanguage('en');
   });
 
   it('renders nothing when isOpen is false', () => {
@@ -86,5 +95,52 @@ describe('AuditLogDrawer', () => {
     expect(selects).toHaveLength(2);
     expect(selects[0].className).toContain('h-[34px]');
     expect(selects[1].className).toContain('h-[34px]');
+  });
+
+  it('renders Thai audit verification messages', async () => {
+    await i18n.changeLanguage('th');
+    const successSpy = vi.spyOn(toast, 'success');
+
+    render(<AuditLogDrawer isOpen={true} onClose={onClose} />);
+    expect(screen.getByText(/บันทึกความปลอดภัยและ Audit Log/)).toBeDefined();
+    expect(screen.getByText('ตรวจสอบ Chain')).toBeDefined();
+    expect(screen.getByText('ส่งออก CSV')).toBeDefined();
+
+    const verifyBtn = screen.getByLabelText('ตรวจสอบความถูกต้องของ Chain');
+    await act(async () => {
+      fireEvent.click(verifyBtn);
+    });
+
+    expect(successSpy).toHaveBeenCalledWith(expect.stringContaining('ตรวจสอบห่วงโซ่ Audit Log แล้ว'));
+
+    // Also render Thai recovery hint when integrity fails
+    act(() => {
+      useAuditLogStore.setState({
+        integrity: {
+          isValid: false,
+          totalEntries: 2,
+          verifiedAt: '2026-11-20T00:00:00Z',
+          error: 'Audit anchor file is corrupted (fail-closed)',
+        },
+      });
+    });
+
+    expect(screen.getByText('ตรวจพบการแก้ไขผิดปกติ')).toBeDefined();
+    expect(screen.getByText(/หากไฟล์ anchor หรือบันทึกเกิดความเสียหาย/)).toBeDefined();
+  });
+
+  it('contains no hardcoded English literals outside t()', () => {
+    const filesToCheck = ['AuditLogDrawer.tsx', 'VaultUnlockModal.tsx'];
+    const literalToastOrDialog = /(?:toast\.(?:success|error|info|warning)|showConfirmDialog)\(\s*['"`]/;
+    const literalAttr = /\b(?:placeholder|aria-label)=['"][A-Za-z][^'"]*['"]/;
+    const literalJsxText = />[A-Z][a-zA-Z0-9\s,&.:/()-]{2,}</;
+
+    for (const fileName of filesToCheck) {
+      const filePath = path.resolve(process.cwd(), 'src/components/security', fileName);
+      const source = fs.readFileSync(filePath, 'utf-8');
+      expect(source, `${fileName} has hardcoded toast/dialog string`).not.toMatch(literalToastOrDialog);
+      expect(source, `${fileName} has hardcoded placeholder/aria-label`).not.toMatch(literalAttr);
+      expect(source, `${fileName} has hardcoded JSX text outside t()`).not.toMatch(literalJsxText);
+    }
   });
 });
