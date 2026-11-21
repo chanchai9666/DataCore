@@ -1472,3 +1472,11 @@
   - ขยายความสูงแถวเงื่อนไข (`h-[34px]`, `text-[13px]`, `max-h-56`) ให้อ่านและคลิกใช้งานง่ายขึ้น
 - **`LIKE %%` Operator (`src/types/db.ts`, `src/components/grid/filterUtils.ts`, `src-tauri/src/drivers/traits.rs`):**
   - เพิ่ม `'LIKE %%'` ใน `FilterOperator`, `AVAILABLE_OPERATORS`, `buildSqlWhereClause`, `evaluateCondition` และ `build_safe_where_clause` พร้อม unit tests ทั้งฝั่ง Frontend และ Rust Backend
+
+### Phase 69: FilterBar Uniform Widths, Per-Row `AND`/`OR` & Enable Toggle (#254) [Completed]
+
+- **Uniform Layout & Overflow Safety (`src/components/grid/FilterBar.tsx`):**
+  - กำหนดความกว้างคงที่ `w-[250px] shrink-0` ให้ `ColumnCombobox` และ `w-[116px] shrink-0` ให้ Operator `<select>` เพื่อให้ทุกแถวเรียงตรงกันและไม่ดันปุ่มลบแถว (`X`) ตกขอบขวา
+- **Per-Row `AND`/`OR` & Enable Toggle + Numeric Hint (`db.ts`, `query.rs`, `traits.rs`, `filterUtils.ts`, `FilterBar.tsx`):**
+  - เพิ่ม `conjunction?: 'AND' | 'OR'` และ `enabled?: boolean` ใน `FilterCondition` ทั้งฝั่ง TypeScript และ Rust (`build_safe_where_clause`) พร้อมปุ่มสลับ `AND`/`OR` และ checkbox เปิด/ปิดรายแถวใน `FilterBar`
+  - เพิ่ม `isNumericDataType` และแสดงไอคอนเตือนสีเหลืองอำพันเมื่อกรอกค่าที่ไม่ใช่ตัวเลขในคอลัมน์ตัวเลข

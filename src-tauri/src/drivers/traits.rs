@@ -361,13 +361,22 @@ pub fn build_safe_where_clause(filter: Option<&str>, driver: &str) -> Result<Str
                 "AND"
             };
 
-            let mut conditions_sql = Vec::new();
+            let mut conditions_sql: Vec<(String, String)> = Vec::new();
             for cond in ast.conditions {
+                if cond.enabled == Some(false) {
+                    continue;
+                }
                 let col = cond.column.trim();
                 if col.is_empty() {
                     continue;
                 }
                 validate_safe_column_identifier(col)?;
+
+                let row_conj = match cond.conjunction.as_deref() {
+                    Some(c) if c.eq_ignore_ascii_case("OR") => "OR".to_string(),
+                    Some(c) if c.eq_ignore_ascii_case("AND") => "AND".to_string(),
+                    _ => conjunction.to_string(),
+                };
 
                 let quoted_col = if driver == "mysql" {
                     format!("`{}`", col)
@@ -376,9 +385,9 @@ pub fn build_safe_where_clause(filter: Option<&str>, driver: &str) -> Result<Str
                 };
 
                 let op_upper = cond.operator.trim().to_ascii_uppercase();
-                match op_upper.as_str() {
-                    "IS NULL" => conditions_sql.push(format!("{} IS NULL", quoted_col)),
-                    "IS NOT NULL" => conditions_sql.push(format!("{} IS NOT NULL", quoted_col)),
+                let clause = match op_upper.as_str() {
+                    "IS NULL" => format!("{} IS NULL", quoted_col),
+                    "IS NOT NULL" => format!("{} IS NOT NULL", quoted_col),
                     "=" | "!=" | "<>" | ">" | "<" | ">=" | "<=" => {
                         let raw_val = cond.value.as_deref().unwrap_or("").trim();
                         // Check numeric literal (without leading zero loss)
@@ -399,7 +408,7 @@ pub fn build_safe_where_clause(filter: Option<&str>, driver: &str) -> Result<Str
                             format!("'{}'", final_val)
                         };
                         let op = if op_upper == "<>" { "!=" } else { &op_upper };
-                        conditions_sql.push(format!("{} {} {}", quoted_col, op, formatted_val));
+                        format!("{} {} {}", quoted_col, op, formatted_val)
                     }
                     "LIKE" | "LIKE %%" | "NOT LIKE" => {
                         let raw_val = cond.value.as_deref().unwrap_or("").trim();
@@ -421,7 +430,7 @@ pub fn build_safe_where_clause(filter: Option<&str>, driver: &str) -> Result<Str
                         } else {
                             "LIKE"
                         };
-                        conditions_sql.push(format!("{} {} '{}'", quoted_col, sql_op, pattern));
+                        format!("{} {} '{}'", quoted_col, sql_op, pattern)
                     }
                     _ => {
                         return Err(AppError::InvalidInput(format!(
@@ -429,17 +438,23 @@ pub fn build_safe_where_clause(filter: Option<&str>, driver: &str) -> Result<Str
                             cond.operator
                         )));
                     }
-                }
+                };
+                conditions_sql.push((row_conj, clause));
             }
 
             if conditions_sql.is_empty() {
                 return Ok(String::new());
             }
 
-            return Ok(format!(
-                " WHERE {}",
-                conditions_sql.join(&format!(" {} ", conjunction))
-            ));
+            let mut joined = String::new();
+            for (idx, (row_conj, clause)) in conditions_sql.into_iter().enumerate() {
+                if idx > 0 {
+                    joined.push_str(&format!(" {} ", row_conj));
+                }
+                joined.push_str(&clause);
+            }
+
+            return Ok(format!(" WHERE {}", joined));
         }
     }
 
@@ -488,6 +503,20 @@ mod tests {
         let like_pct_where =
             build_safe_where_clause(Some(like_pct_filter), "postgres").expect("parse LIKE %%");
         assert_eq!(like_pct_where, " WHERE \"product_name\" LIKE '%coffee%'");
+
+        let per_row_filter = r#"{
+            "enabled": true,
+            "conjunction": "AND",
+            "conditions": [
+                {"column": "a", "operator": "=", "value": "1", "enabled": true},
+                {"column": "b", "operator": "=", "value": "2", "enabled": false},
+                {"column": "c", "operator": "=", "value": "3", "conjunction": "OR"},
+                {"column": "d", "operator": "=", "value": "4", "conjunction": "AND"}
+            ]
+        }"#;
+        let per_row_where =
+            build_safe_where_clause(Some(per_row_filter), "postgres").expect("parse per-row");
+        assert_eq!(per_row_where, " WHERE \"a\" = 1 OR \"c\" = 3 AND \"d\" = 4");
     }
 
     #[test]

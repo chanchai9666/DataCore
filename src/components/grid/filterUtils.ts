@@ -10,6 +10,14 @@ export const isSafeUnquotedNumber = (val: string): boolean => {
   return /^-?\d+(\.\d+)?$/.test(val);
 };
 
+export const isNumericDataType = (dataType?: string): boolean => {
+  if (!dataType) return false;
+  const upper = dataType.toUpperCase();
+  return /\b(INT|INT2|INT4|INT8|SMALLINT|INTEGER|BIGINT|TINYINT|MEDIUMINT|REAL|FLOAT|DOUBLE|NUMERIC|DECIMAL|NUMBER|MONEY|SMALLMONEY)\b/.test(
+    upper
+  );
+};
+
 /**
  * Builds an escaped SQL WHERE clause string from a list of filter conditions.
  */
@@ -20,6 +28,7 @@ export function buildSqlWhereClause(
 ): string {
   const activeConditions = conditions.filter(
     (c) =>
+      c.enabled !== false &&
       c.column &&
       (c.operator === 'IS NULL' ||
         c.operator === 'IS NOT NULL' ||
@@ -70,7 +79,11 @@ export function buildSqlWhereClause(
     }
   });
 
-  return parts.join(` ${conjunction} `);
+  return parts.reduce((acc, part, idx) => {
+    if (idx === 0) return part;
+    const rowConj = activeConditions[idx].conjunction ?? conjunction;
+    return `${acc} ${rowConj} ${part}`;
+  }, '');
 }
 
 /**
@@ -153,6 +166,7 @@ export function filterInMemoryRows(
 ): CellValue[][] {
   const activeConditions = conditions.filter(
     (c) =>
+      c.enabled !== false &&
       c.column &&
       (c.operator === 'IS NULL' ||
         c.operator === 'IS NOT NULL' ||
@@ -164,21 +178,24 @@ export function filterInMemoryRows(
   const colIndexMap = new Map<string, number>();
   columns.forEach((col, idx) => colIndexMap.set(col.name, idx));
 
-  return rows.filter((row) => {
-    if (conjunction === 'AND') {
-      return activeConditions.every((cond) => {
-        const colIdx = colIndexMap.get(cond.column);
-        if (colIdx === undefined) return true;
-        const cellVal = extractRawCellValue(row[colIdx]);
-        return evaluateCondition(cellVal, cond);
-      });
+  // Group into OR-separated AND-chains to match standard SQL precedence (AND binds tighter than OR)
+  const orGroups: FilterCondition[][] = [[]];
+  activeConditions.forEach((cond, idx) => {
+    if (idx > 0 && (cond.conjunction ?? conjunction) === 'OR') {
+      orGroups.push([cond]);
     } else {
-      return activeConditions.some((cond) => {
+      orGroups[orGroups.length - 1].push(cond);
+    }
+  });
+
+  return rows.filter((row) =>
+    orGroups.some((andGroup) =>
+      andGroup.every((cond) => {
         const colIdx = colIndexMap.get(cond.column);
         if (colIdx === undefined) return false;
         const cellVal = extractRawCellValue(row[colIdx]);
         return evaluateCondition(cellVal, cond);
-      });
-    }
-  });
+      })
+    )
+  );
 }

@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, Filter, Play, ChevronDown, Search, Check } from 'lucide-react';
+import { Plus, X, Filter, Play, ChevronDown, Search, Check, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ColumnMeta, FilterCondition, FilterOperator, TableFilterState } from '../../types/db';
-import { buildSqlWhereClause } from './filterUtils';
+import { buildSqlWhereClause, isNumericDataType, isSafeUnquotedNumber } from './filterUtils';
 
 export interface FilterBarProps {
   columns: ColumnMeta[];
@@ -147,7 +147,7 @@ const ColumnCombobox: React.FC<ColumnComboboxProps> = ({
         aria-expanded={isOpen}
         data-testid="filter-column-combobox"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="h-[34px] min-w-[200px] max-w-[280px] flex items-center justify-between gap-2 bg-grid text-text border border-line rounded px-2.5 text-[13px] hover:border-[var(--accent)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+        className="h-[34px] w-[250px] shrink-0 flex items-center justify-between gap-2 bg-grid text-text border border-line rounded px-2.5 text-[13px] hover:border-[var(--accent)] focus:outline-none focus:border-[var(--accent)] transition-colors"
       >
         <span className="truncate font-mono text-left">
           {selectedCol ? (
@@ -261,6 +261,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     onChange({
       ...filterState,
       conjunction,
+      conditions: filterState.conditions.map((c) => ({ ...c, conjunction })),
     });
   };
 
@@ -285,6 +286,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       column: defaultColumn,
       operator: '=',
       value: '',
+      enabled: true,
+      conjunction: filterState.conjunction,
     };
     onChange({
       ...filterState,
@@ -419,17 +422,67 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       </div>
 
       {/* Conditions Rows */}
-      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+      <div className="space-y-2 max-h-56 overflow-y-auto overflow-x-auto pr-1">
         {filterState.conditions.map((cond, idx) => {
           const isNullOp = cond.operator === 'IS NULL' || cond.operator === 'IS NOT NULL';
+          const isRowEnabled = cond.enabled !== false;
+          const rowConj = cond.conjunction ?? filterState.conjunction;
+          const colMeta = columns.find((c) => c.name === (cond.column || columns[0]?.name));
+          const isComparisonOp = ['=', '!=', '>', '<', '>=', '<='].includes(cond.operator);
+          const trimmedVal = cond.value?.trim() ?? '';
+          const hasNumericMismatch =
+            isRowEnabled &&
+            isComparisonOp &&
+            trimmedVal !== '' &&
+            isNumericDataType(colMeta?.data_type) &&
+            !isSafeUnquotedNumber(trimmedVal);
 
           return (
-            <div key={cond.id || idx} className="flex items-center space-x-2">
-              <span className="text-xs w-6 text-right text-muted font-medium">
-                {idx === 0 ? '' : filterState.conjunction}
-              </span>
+            <div
+              key={cond.id || idx}
+              className={`flex items-center gap-2 transition-opacity ${
+                isRowEnabled ? '' : 'opacity-50'
+              }`}
+            >
+              {/* Per-row AND/OR selector (row 2+) */}
+              <div className="w-12 shrink-0 flex justify-end">
+                {idx > 0 && (
+                  <button
+                    type="button"
+                    data-testid={`row-conjunction-${cond.id || idx}`}
+                    onClick={() =>
+                      handleConditionChange(cond.id, {
+                        conjunction: rowConj === 'AND' ? 'OR' : 'AND',
+                      })
+                    }
+                    title={t(
+                      'grid.toggleRowConjunction',
+                      'Click to switch AND / OR for this condition'
+                    )}
+                    className={`w-11 h-[28px] rounded border text-[11px] font-semibold transition-colors ${
+                      rowConj === 'OR'
+                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400'
+                        : 'bg-sidebar border-line text-muted hover:text-text'
+                    }`}
+                  >
+                    {rowConj}
+                  </button>
+                )}
+              </div>
 
-              {/* Searchable Column selector */}
+              {/* Per-row enable/disable toggle */}
+              <input
+                type="checkbox"
+                aria-label={t('grid.toggleRowEnabled', 'Enable or disable this condition')}
+                title={t('grid.toggleRowEnabled', 'Enable or disable this condition')}
+                checked={isRowEnabled}
+                onChange={(e) =>
+                  handleConditionChange(cond.id, { enabled: e.target.checked })
+                }
+                className="shrink-0 rounded focus:ring-0 focus:ring-offset-0 border-line bg-grid text-accent cursor-pointer"
+              />
+
+              {/* Searchable Column selector (uniform width) */}
               <ColumnCombobox
                 columns={columns}
                 value={cond.column || columns[0]?.name || ''}
@@ -438,14 +491,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 noMatchText={t('grid.noColumnsMatch', 'No matching columns')}
               />
 
-              {/* Operator selector */}
+              {/* Operator selector (uniform width) */}
               <select
                 aria-label="Filter Operator"
                 value={cond.operator}
                 onChange={(e) =>
                   handleConditionChange(cond.id, { operator: e.target.value as FilterOperator })
                 }
-                className={`h-[34px] ${inputCls} border rounded px-2.5 text-[13px] focus:outline-none focus:border-[var(--accent)] font-mono`}
+                className={`h-[34px] w-[116px] shrink-0 ${inputCls} border rounded px-2.5 text-[13px] focus:outline-none focus:border-[var(--accent)] font-mono`}
               >
                 {AVAILABLE_OPERATORS.map((op) => (
                   <option key={op} value={op}>
@@ -455,24 +508,40 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               </select>
 
               {/* Value Input */}
-              <input
-                type="text"
-                disabled={isNullOp}
-                placeholder={isNullOp ? '(no value needed)' : 'Enter filter value...'}
-                value={isNullOp ? '' : cond.value}
-                onChange={(e) => handleConditionChange(cond.id, { value: e.target.value })}
-                onKeyDown={handleKeyDown}
-                className={`flex-1 h-[34px] ${inputCls} border rounded px-2.5 text-[13px] focus:outline-none focus:border-[var(--accent)] ${
-                  isNullOp ? 'opacity-50 cursor-not-allowed italic' : ''
-                }`}
-              />
+              <div className="relative flex-1 min-w-[140px]">
+                <input
+                  type="text"
+                  disabled={isNullOp}
+                  placeholder={isNullOp ? '(no value needed)' : 'Enter filter value...'}
+                  value={isNullOp ? '' : cond.value}
+                  onChange={(e) => handleConditionChange(cond.id, { value: e.target.value })}
+                  onKeyDown={handleKeyDown}
+                  className={`w-full h-[34px] ${inputCls} border rounded px-2.5 ${
+                    hasNumericMismatch ? 'pr-7 border-amber-500/70' : ''
+                  } text-[13px] focus:outline-none focus:border-[var(--accent)] ${
+                    isNullOp ? 'opacity-50 cursor-not-allowed italic' : ''
+                  }`}
+                />
+                {hasNumericMismatch && (
+                  <span
+                    data-testid={`numeric-mismatch-warn-${cond.id || idx}`}
+                    title={t(
+                      'grid.numericMismatchHint',
+                      'Numeric column expects a number for comparison operators.'
+                    )}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-amber-500"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                  </span>
+                )}
+              </div>
 
               {/* Delete condition button */}
               <button
                 type="button"
                 onClick={() => handleRemoveCondition(cond.id)}
                 title="Remove Condition"
-                className="p-1.5 rounded transition-colors text-muted hover:text-red-500 hover:bg-black/5 dark:hover:bg-white/10"
+                className="shrink-0 p-1.5 rounded transition-colors text-muted hover:text-red-500 hover:bg-black/5 dark:hover:bg-white/10"
               >
                 <X className="w-4 h-4" />
               </button>

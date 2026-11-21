@@ -174,5 +174,15 @@ describe('filterUtils', () => {
       const result = filterInMemoryRows(columns, rows, conditions, 'OR');
       expect(result).toHaveLength(2);
     });
+
+    it('supports per-row conjunction and skips disabled conditions', () => {
+      const conditions: FilterCondition[] = [
+        { id: '1', column: 'name', operator: '=', value: 'Alice' },
+        { id: '2', column: 'name', operator: '=', value: 'Bob', enabled: false },
+        { id: '3', column: 'name', operator: '=', value: 'David', conjunction: 'OR' },
+      ];
+      expect(buildSqlWhereClause(conditions, 'AND')).toBe('"name" = \'Alice\' OR "name" = \'David\'');
+      expect(filterInMemoryRows(columns, rows, conditions, 'AND')).toHaveLength(2);
+    });
   });
 });

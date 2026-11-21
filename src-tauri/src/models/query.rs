@@ -336,6 +336,10 @@ pub struct FilterCondition {
     pub operator: String,
     #[serde(default)]
     pub value: Option<String>,
+    #[serde(default)]
+    pub enabled: Option<bool>,
+    #[serde(default)]
+    pub conjunction: Option<String>,
 }
 
 /// A structured table filter AST representing conjunction and a list of conditions.

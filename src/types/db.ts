@@ -200,6 +200,8 @@ export interface FilterCondition {
   column: string;
   operator: FilterOperator;
   value: string;
+  enabled?: boolean;
+  conjunction?: 'AND' | 'OR';
 }
 
 export interface TableFilterState {

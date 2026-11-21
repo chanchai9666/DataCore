@@ -211,4 +211,84 @@ describe('FilterBar', () => {
     expect(opSelect).toHaveValue('LIKE %%');
     expect(screen.getByText(/WHERE "product_name" LIKE '%coffee%'/i)).toBeInTheDocument();
   });
+
+  it('uses uniform fixed widths for column combobox and operator dropdown', () => {
+    render(
+      <FilterBar
+        columns={mockColumns}
+        filterState={initialFilterState}
+        onChange={vi.fn()}
+        onApply={vi.fn()}
+        onClear={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('filter-column-combobox').className).toContain('w-[250px]');
+    expect(screen.getByLabelText('Filter Operator').className).toContain('w-[116px]');
+  });
+
+  it('toggles per-row AND/OR conjunction and per-row enabled state', () => {
+    const handleChange = vi.fn();
+    const multiState: TableFilterState = {
+      enabled: true,
+      conjunction: 'AND',
+      conditions: [
+        { id: 'c1', column: 'product_name', operator: 'LIKE %%', value: 'ice', enabled: true },
+        { id: 'c2', column: 'price', operator: '>', value: '10', enabled: true, conjunction: 'AND' },
+      ],
+    };
+
+    render(
+      <FilterBar
+        columns={mockColumns}
+        filterState={multiState}
+        onChange={handleChange}
+        onApply={vi.fn()}
+        onClear={vi.fn()}
+      />
+    );
+
+    // Toggle row 2 conjunction from AND -> OR
+    fireEvent.click(screen.getByTestId('row-conjunction-c2'));
+    expect(handleChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conditions: expect.arrayContaining([
+          expect.objectContaining({ id: 'c2', conjunction: 'OR' }),
+        ]),
+      })
+    );
+
+    // Toggle row 2 enabled checkbox -> false
+    const rowCheckboxes = screen.getAllByRole('checkbox', { name: /enable or disable this condition/i });
+    fireEvent.click(rowCheckboxes[1]);
+    expect(handleChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conditions: expect.arrayContaining([
+          expect.objectContaining({ id: 'c2', enabled: false }),
+        ]),
+      })
+    );
+  });
+
+  it('shows numeric mismatch warning when non-numeric value is entered on numeric column', () => {
+    const mismatchState: TableFilterState = {
+      enabled: true,
+      conjunction: 'AND',
+      conditions: [
+        { id: 'c1', column: 'price', operator: '=', value: 'abc', enabled: true },
+      ],
+    };
+
+    render(
+      <FilterBar
+        columns={mockColumns}
+        filterState={mismatchState}
+        onChange={vi.fn()}
+        onApply={vi.fn()}
+        onClear={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('numeric-mismatch-warn-c1')).toBeInTheDocument();
+  });
 });
