@@ -63,6 +63,7 @@ pub fn run() {
             rollback_transaction,
             get_schema_tree,
             get_object_ddl,
+            execute_metadata_query,
             set_session_password,
             clear_session_password,
             set_session_ssh_passphrase,

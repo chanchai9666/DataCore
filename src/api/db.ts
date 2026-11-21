@@ -171,6 +171,13 @@ export const executeDirectQuery = async (
   }
 };
 
+export const executeMetadataQuery = async (
+  connectionId: string,
+  sql: string
+): Promise<QueryResult> => {
+  return invoke<QueryResult>('execute_metadata_query', { connectionId, sql });
+};
+
 export const fetchTableData = async (
   tabId: string,
   table: string,
@@ -479,6 +486,7 @@ export const dbApi = {
   disconnectConnection,
   executeQuery,
   executeDirectQuery,
+  executeMetadataQuery,
   fetchTableData,
   countTableRows,
   fetchTableDataKeyset,

@@ -199,11 +199,11 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
   }, []);
 
   // Load data
-  const loadDiagram = useCallback(async () => {
+  const loadDiagram = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
     setError(null);
     try {
-      const diagram = await fetchERDiagramData(connectionId, driver, schemaName);
+      const diagram = await fetchERDiagramData(connectionId, driver, schemaName, forceRefresh);
       setData(diagram);
     } catch (err: any) {
       console.error('Failed to load ER diagram:', err);
@@ -214,7 +214,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
   }, [connectionId, driver, schemaName]);
 
   useEffect(() => {
-    loadDiagram();
+    loadDiagram(false);
   }, [loadDiagram]);
 
   // Zoom helpers
@@ -459,7 +459,7 @@ export const ERDiagramTab: React.FC<ERDiagramTabProps> = ({
         <p className="text-xs text-muted mt-1 max-w-md text-center">{error}</p>
         <button
           type="button"
-          onClick={loadDiagram}
+          onClick={() => loadDiagram(true)}
           className="mt-4 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium flex items-center gap-1.5 transition-colors"
         >
           <RefreshCw className="w-3.5 h-3.5" />

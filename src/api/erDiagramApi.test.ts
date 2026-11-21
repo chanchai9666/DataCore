@@ -10,6 +10,7 @@ import {
   fetchPostgresSchemaER,
   fetchMysqlSchemaER,
   fetchERDiagramData,
+  clearERDiagramCache,
 } from './erDiagramApi';
 import { dbApi } from './db';
 import type { ERTable, ERRelationship, ERDiagramData } from '../types/db';
@@ -343,12 +344,13 @@ describe('erDiagramApi', () => {
         execution_time_ms: 1,
       };
 
-      const executeSpy = vi.spyOn(dbApi, 'executeDirectQuery').mockImplementation(async (_conn, sql) => {
-        if (sql.includes('information_schema.columns')) {
-          return mockColRes;
-        }
-        if (sql.includes('tc.constraint_type = \'FOREIGN KEY\'')) {
+      const executeSpy = vi.spyOn(dbApi, 'executeMetadataQuery').mockImplementation(async (_conn, sql) => {
+        expect(sql).not.toContain('information_schema');
+        if (sql.includes('pg_catalog.pg_constraint con')) {
           return mockFkRes;
+        }
+        if (sql.includes('pg_catalog.pg_attribute a')) {
+          return mockColRes;
         }
         return { columns: [], rows: [], execution_time_ms: 0 };
       });
@@ -409,7 +411,7 @@ describe('erDiagramApi', () => {
         execution_time_ms: 1,
       };
 
-      vi.spyOn(dbApi, 'executeDirectQuery').mockImplementation(async (_conn, sql) => {
+      vi.spyOn(dbApi, 'executeMetadataQuery').mockImplementation(async (_conn, sql) => {
         if (sql.includes('information_schema.tables')) return mockTableRes;
         if (sql.includes('information_schema.columns')) return mockColRes;
         if (sql.includes('key_column_usage')) return mockFkRes;
@@ -447,7 +449,8 @@ describe('erDiagramApi', () => {
         execution_time_ms: 1,
       };
 
-      vi.spyOn(dbApi, 'executeDirectQuery').mockImplementation(async (_conn, sql) => {
+      clearERDiagramCache('conn-sqlite');
+      vi.spyOn(dbApi, 'executeMetadataQuery').mockImplementation(async (_conn, sql) => {
         if (sql.includes('sqlite_master')) return mockMasterRes;
         if (sql.includes('table_info')) return mockInfoRes;
         if (sql.includes('foreign_key_list')) return mockFkRes;
@@ -458,6 +461,26 @@ describe('erDiagramApi', () => {
       expect(diagram.tables).toHaveLength(1);
       expect(diagram.tables[0].name).toBe('items');
       expect(diagram.tables[0].columns[0].isPrimaryKey).toBe(true);
+    });
+
+    it('caches ER diagram data per connection/schema and bypasses cache when forceRefresh is true', async () => {
+      clearERDiagramCache('conn-cache');
+      const spy = vi.spyOn(dbApi, 'executeMetadataQuery').mockResolvedValue({
+        columns: [],
+        rows: [],
+        execution_time_ms: 1,
+      });
+
+      await fetchERDiagramData('conn-cache', 'postgres', 'public');
+      expect(spy).toHaveBeenCalledTimes(2);
+
+      // Second call uses in-memory cache (0 additional queries)
+      await fetchERDiagramData('conn-cache', 'postgres', 'public');
+      expect(spy).toHaveBeenCalledTimes(2);
+
+      // forceRefresh = true bypasses cache
+      await fetchERDiagramData('conn-cache', 'postgres', 'public', true);
+      expect(spy).toHaveBeenCalledTimes(4);
     });
   });
 });

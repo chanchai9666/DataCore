@@ -562,6 +562,30 @@ pub async fn get_object_ddl_impl(
     conn.get_object_ddl(schema, object_name, object_type).await
 }
 
+/// Executes a read-only metadata query (e.g. pg_catalog / information_schema / PRAGMA)
+/// reusing an already-open session for `connection_id` before falling back to a new connection.
+pub async fn execute_metadata_query_impl(
+    store: &ConnectionStore,
+    session_mgr: &SessionManager,
+    connection_id: &str,
+    sql: &str,
+) -> Result<QueryResult, AppError> {
+    if crate::drivers::is_read_only_blocked_sql(sql) {
+        return Err(AppError::InvalidInput(
+            "execute_metadata_query only permits read-only metadata queries.".to_string(),
+        ));
+    }
+    if let Some(conn) = session_mgr.get_connection_session(connection_id).await {
+        if let Ok(res) = conn.execute_query(sql).await {
+            return Ok(res);
+        }
+    }
+    let (config, password) =
+        resolve_connection_credentials(store, session_mgr, connection_id).await?;
+    let conn = SessionManager::create_connection(&config, password.as_deref()).await?;
+    conn.execute_query(sql).await
+}
+
 pub fn strip_sql_comments_and_whitespace(sql: &str) -> String {
     let mut result = String::with_capacity(sql.len());
     let mut chars = sql.chars().peekable();
@@ -1206,6 +1230,18 @@ pub async fn get_object_ddl(
     )
     .await
     .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn execute_metadata_query(
+    store: State<'_, ConnectionStore>,
+    session_mgr: State<'_, SessionManager>,
+    connection_id: String,
+    sql: String,
+) -> Result<QueryResult, String> {
+    execute_metadata_query_impl(&store, &session_mgr, &connection_id, &sql)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

@@ -281,58 +281,63 @@ export async function fetchPostgresSchemaER(
   const s = schemaName || 'public';
   const schemaLit = formatSqlLiteral(s, 'postgres');
 
-  // Query 1: All columns with PK indicator across all BASE TABLES in schema
-  const colSql = `SELECT 
-    c.table_name,
-    c.column_name, 
-    c.data_type, 
-    c.is_nullable, 
-    CASE WHEN pk.column_name IS NOT NULL THEN 1 ELSE 0 END AS is_pk 
-  FROM information_schema.columns c 
-  JOIN information_schema.tables t
-    ON c.table_schema = t.table_schema
-    AND c.table_name = t.table_name
-  LEFT JOIN (
-    SELECT kcu.table_schema, kcu.table_name, kcu.column_name 
-    FROM information_schema.table_constraints tc 
-    JOIN information_schema.key_column_usage kcu 
-      ON tc.constraint_name = kcu.constraint_name 
-      AND tc.table_schema = kcu.table_schema 
-    WHERE tc.constraint_type = 'PRIMARY KEY'
-      AND tc.table_schema = ${schemaLit}
-  ) pk ON c.table_schema = pk.table_schema 
-      AND c.table_name = pk.table_name 
-      AND c.column_name = pk.column_name 
-  WHERE c.table_schema = ${schemaLit}
-    AND t.table_type = 'BASE TABLE'
-  ORDER BY c.table_name, c.ordinal_position;`;
+  // Query 1: All columns with PK indicator across all BASE / PARTITIONED TABLES via pg_catalog
+  const colSql = `SELECT
+    c.relname AS table_name,
+    a.attname AS column_name,
+    pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
+    CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable,
+    CASE WHEN EXISTS (
+      SELECT 1 FROM pg_catalog.pg_index i
+      WHERE i.indrelid = c.oid AND i.indisprimary AND a.attnum = ANY(i.indkey)
+    ) THEN 1 ELSE 0 END AS is_pk
+  FROM pg_catalog.pg_class c
+  JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+  JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
+  WHERE n.nspname = ${schemaLit}
+    AND c.relkind IN ('r', 'p')
+    AND a.attnum > 0
+    AND NOT a.attisdropped
+  ORDER BY c.relname, a.attnum;`;
 
-  // Query 2: All foreign keys across the schema
+  // Query 2: All foreign keys across the schema via pg_catalog
   const fkSql = `SELECT
-    tc.table_name AS from_table,
-    kcu.column_name AS from_column,
-    ccu.table_name AS to_table,
-    ccu.column_name AS to_column,
-    tc.constraint_name,
-    rc.update_rule,
-    rc.delete_rule
-  FROM information_schema.table_constraints AS tc
-  JOIN information_schema.key_column_usage AS kcu
-    ON tc.constraint_name = kcu.constraint_name
-    AND tc.table_schema = kcu.table_schema
-  JOIN information_schema.constraint_column_usage AS ccu
-    ON ccu.constraint_name = tc.constraint_name
-    AND ccu.table_schema = tc.table_schema
-  LEFT JOIN information_schema.referential_constraints AS rc
-    ON rc.constraint_name = tc.constraint_name
-    AND rc.constraint_schema = tc.table_schema
-  WHERE tc.constraint_type = 'FOREIGN KEY'
-    AND tc.table_schema = ${schemaLit}
-  ORDER BY tc.table_name, kcu.ordinal_position;`;
+    cl_from.relname AS from_table,
+    att_from.attname AS from_column,
+    cl_to.relname AS to_table,
+    att_to.attname AS to_column,
+    con.conname AS constraint_name,
+    CASE con.confupdtype
+      WHEN 'a' THEN 'NO ACTION'
+      WHEN 'r' THEN 'RESTRICT'
+      WHEN 'c' THEN 'CASCADE'
+      WHEN 'n' THEN 'SET NULL'
+      WHEN 'd' THEN 'SET DEFAULT'
+      ELSE 'NO ACTION'
+    END AS update_rule,
+    CASE con.confdeltype
+      WHEN 'a' THEN 'NO ACTION'
+      WHEN 'r' THEN 'RESTRICT'
+      WHEN 'c' THEN 'CASCADE'
+      WHEN 'n' THEN 'SET NULL'
+      WHEN 'd' THEN 'SET DEFAULT'
+      ELSE 'NO ACTION'
+    END AS delete_rule
+  FROM pg_catalog.pg_constraint con
+  JOIN pg_catalog.pg_class cl_from ON cl_from.oid = con.conrelid
+  JOIN pg_catalog.pg_namespace n ON n.oid = cl_from.relnamespace
+  JOIN pg_catalog.pg_class cl_to ON cl_to.oid = con.confrelid
+  CROSS JOIN LATERAL UNNEST(con.conkey, con.confkey) WITH ORDINALITY AS cols(from_attnum, to_attnum, ord)
+  JOIN pg_catalog.pg_attribute att_from ON att_from.attrelid = con.conrelid AND att_from.attnum = cols.from_attnum
+  JOIN pg_catalog.pg_attribute att_to ON att_to.attrelid = con.confrelid AND att_to.attnum = cols.to_attnum
+  WHERE con.contype = 'f'
+    AND n.nspname = ${schemaLit}
+  ORDER BY cl_from.relname, cols.ord;`;
 
+  const runQuery = dbApi.executeMetadataQuery ?? dbApi.executeDirectQuery;
   const [colRes, fkRes] = await Promise.all([
-    dbApi.executeDirectQuery(connectionId, colSql),
-    dbApi.executeDirectQuery(connectionId, fkSql),
+    runQuery(connectionId, colSql),
+    runQuery(connectionId, fkSql),
   ]);
 
   const getStr = (val: CellValue) => {
@@ -435,10 +440,11 @@ export async function fetchMysqlSchemaER(
     AND referenced_table_name IS NOT NULL
   ORDER BY table_name, ordinal_position;`;
 
+  const runQuery = dbApi.executeMetadataQuery ?? dbApi.executeDirectQuery;
   const [tableRes, colRes, fkRes] = await Promise.all([
-    dbApi.executeDirectQuery(connectionId, tableSql),
-    dbApi.executeDirectQuery(connectionId, colSql),
-    dbApi.executeDirectQuery(connectionId, fkSql),
+    runQuery(connectionId, tableSql),
+    runQuery(connectionId, colSql),
+    runQuery(connectionId, fkSql),
   ]);
 
   const getStr = (val: CellValue) => {
@@ -509,7 +515,8 @@ export async function fetchMysqlSchemaER(
 export async function fetchSqliteSchemaER(
   connectionId: string
 ): Promise<{ tables: ERTable[]; relationships: ERRelationship[] }> {
-  const tableRes = await dbApi.executeDirectQuery(
+  const runQuery = dbApi.executeMetadataQuery ?? dbApi.executeDirectQuery;
+  const tableRes = await runQuery(
     connectionId,
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;"
   );
@@ -518,8 +525,8 @@ export async function fetchSqliteSchemaER(
   const results = await Promise.all(
     tableNames.map(async (tName) => {
       const [colRes, fkRes] = await Promise.all([
-        dbApi.executeDirectQuery(connectionId, `PRAGMA table_info(${formatSqlLiteral(tName, 'sqlite')});`),
-        dbApi.executeDirectQuery(connectionId, `PRAGMA foreign_key_list(${formatSqlLiteral(tName, 'sqlite')});`),
+        runQuery(connectionId, `PRAGMA table_info(${formatSqlLiteral(tName, 'sqlite')});`),
+        runQuery(connectionId, `PRAGMA foreign_key_list(${formatSqlLiteral(tName, 'sqlite')});`),
       ]);
       const columns = parseSQLiteColumns(colRes);
       const fks = parseForeignKeysFromQueryResult(fkRes, 'sqlite');
@@ -544,15 +551,39 @@ export async function fetchSqliteSchemaER(
   return { tables, relationships };
 }
 
+const erDiagramCache = new Map<string, ERDiagramData>();
+
+export function clearERDiagramCache(connectionId?: string): void {
+  if (!connectionId) {
+    erDiagramCache.clear();
+    return;
+  }
+  const prefix = `${connectionId}:`;
+  for (const key of erDiagramCache.keys()) {
+    if (key.startsWith(prefix)) {
+      erDiagramCache.delete(key);
+    }
+  }
+}
+
 /**
  * Fetches tables, columns, and foreign keys for an entire schema/database to build ERDiagramData
  */
 export async function fetchERDiagramData(
   connectionId: string,
   driver: string,
-  schemaName?: string
+  schemaName?: string,
+  forceRefresh = false
 ): Promise<ERDiagramData> {
   const d = (driver || '').toLowerCase();
+  const cacheKey = `${connectionId}:${d}:${schemaName || '__default__'}`;
+  if (!forceRefresh) {
+    const cached = erDiagramCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
   let tables: ERTable[] = [];
   let allRelationships: ERRelationship[] = [];
 
@@ -573,11 +604,13 @@ export async function fetchERDiagramData(
 
   // Compute Auto Layout
   const laidOutTables = computeAutoLayout(tables, allRelationships);
-
-  return {
+  const result: ERDiagramData = {
     tables: laidOutTables,
     relationships: allRelationships,
   };
+  erDiagramCache.set(cacheKey, result);
+
+  return result;
 }
 
 /**

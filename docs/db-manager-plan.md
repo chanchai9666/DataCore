@@ -1480,3 +1480,11 @@
 - **Per-Row `AND`/`OR` & Enable Toggle + Numeric Hint (`db.ts`, `query.rs`, `traits.rs`, `filterUtils.ts`, `FilterBar.tsx`):**
   - เพิ่ม `conjunction?: 'AND' | 'OR'` และ `enabled?: boolean` ใน `FilterCondition` ทั้งฝั่ง TypeScript และ Rust (`build_safe_where_clause`) พร้อมปุ่มสลับ `AND`/`OR` และ checkbox เปิด/ปิดรายแถวใน `FilterBar`
   - เพิ่ม `isNumericDataType` และแสดงไอคอนเตือนสีเหลืองอำพันเมื่อกรอกค่าที่ไม่ใช่ตัวเลขในคอลัมน์ตัวเลข
+
+### Phase 70: ER Diagram `pg_catalog` Introspection, Session Reuse & Caching (#255) [Completed]
+
+- **Backend Session Reuse (`src-tauri/src/commands/db.rs`, `src-tauri/src/lib.rs`):**
+  - เพิ่ม `execute_metadata_query_impl` และ Tauri command `execute_metadata_query` ที่ตรวจสอบ `is_read_only_blocked_sql` และนำ connection ที่เปิดอยู่แล้วจาก `SessionManager::get_connection_session` มาใช้ซ้ำทันที
+- **PostgreSQL `pg_catalog` Introspection & Caching (`src/api/db.ts`, `src/api/erDiagramApi.ts`, `src/components/diagram/ERDiagramTab.tsx`):**
+  - เปลี่ยน `fetchPostgresSchemaER` จาก `information_schema` joins มาใช้ `pg_catalog` (`pg_class`, `pg_namespace`, `pg_attribute`, `pg_index`, `pg_constraint` + `UNNEST(con.conkey, con.confkey) WITH ORDINALITY`)
+  - เปลี่ยน `erDiagramApi.ts` ให้เรียก `executeMetadataQuery` และเพิ่ม `erDiagramCache` + `clearERDiagramCache` (ส่ง `forceRefresh = true` เมื่อกด Refresh ใน `ERDiagramTab.tsx`)

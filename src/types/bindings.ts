@@ -97,6 +97,8 @@ export type FilterCondition_Deserialize = {
 	column: string,
 	operator: string,
 	value?: string | null,
+	enabled?: boolean | null,
+	conjunction?: string | null,
 };
 
 /**  A structured single filter condition. */
@@ -105,6 +107,8 @@ export type FilterCondition_Serialize = {
 	column: string,
 	operator: string,
 	value: string | null,
+	enabled: boolean | null,
+	conjunction: string | null,
 };
 
 /**  Simulation result for impact preview before running DELETE or UPDATE queries. */
