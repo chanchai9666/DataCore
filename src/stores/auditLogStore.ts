@@ -7,10 +7,12 @@ import {
   clearAuditLogs as clearBackendAuditLogs,
   recordAuditLog,
   getAuditHealth,
+  repairAuditLogs,
   type AuditHealth,
+  type AuditRepairResult,
 } from '../api/auditApi';
 
-export type { AuditHealth };
+export type { AuditHealth, AuditRepairResult };
 
 export type AuditActionType =
   | 'QUERY'
@@ -67,6 +69,9 @@ interface AuditLogState {
   loadLogs: (limit?: number, offset?: number) => Promise<AuditLogEntry[]>;
   verifyIntegrity: () => Promise<AuditIntegrityResult>;
   checkHealth: () => Promise<AuditHealth>;
+  repairLogs: (
+    action: 'report' | 'quarantine' | 'rebuild_anchor'
+  ) => Promise<AuditRepairResult | null>;
   addLog: (
     entry: Omit<AuditLogEntry, 'id' | 'timestamp'>,
     options?: { skipBackendSync?: boolean }
@@ -125,7 +130,13 @@ export const useAuditLogStore = create<AuditLogState>()(
           if (res.isValid) {
             set({ integrity: res, health: { ok: true, lastError: null } });
           } else {
-            set({ integrity: res });
+            set({
+              integrity: res,
+              health: {
+                ok: false,
+                lastError: res.error ?? 'Audit integrity verification failed',
+              },
+            });
           }
           return res;
         } catch (err) {
@@ -135,7 +146,10 @@ export const useAuditLogStore = create<AuditLogState>()(
             verifiedAt: new Date().toISOString(),
             error: String(err),
           };
-          set({ integrity: fallback });
+          set({
+            integrity: fallback,
+            health: { ok: false, lastError: String(err) },
+          });
           return fallback;
         }
       },
@@ -152,6 +166,20 @@ export const useAuditLogStore = create<AuditLogState>()(
           console.debug('Failed to check audit health via backend IPC:', err);
           return get().health;
         }
+      },
+
+      repairLogs: async (action) => {
+        if (!isTauri()) {
+          return null;
+        }
+        const res = await repairAuditLogs(action);
+        const health = await getAuditHealth();
+        set({ health });
+        if (res.integrityValid) {
+          const integrity = await verifyAuditLogIntegrity();
+          set({ integrity });
+        }
+        return res;
       },
 
       addLog: (entry, options) => {

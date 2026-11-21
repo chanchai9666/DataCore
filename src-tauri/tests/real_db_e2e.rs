@@ -159,7 +159,10 @@ async fn real_sqlite_readonly_mode_blocks_writes_and_bypasses() {
     assert_eq!(read_res.rows[0][0], CellValue::Text("ok".into()));
 
     // All write & bypass attempts must be rejected
-    assert!(ro.execute_query("INSERT INTO secrets VALUES (2, 'hack');").await.is_err());
+    assert!(ro
+        .execute_query("INSERT INTO secrets VALUES (2, 'hack');")
+        .await
+        .is_err());
     assert!(ro.execute_query("DROP TABLE secrets;").await.is_err());
     assert!(ro.execute_query("PRAGMA query_only = OFF;").await.is_err());
     assert!(ro
@@ -177,11 +180,27 @@ async fn real_sqlite_sqli_filter_and_path_traversal_guards() {
 
     // Malicious SQLi filters must be rejected
     assert!(conn
-        .fetch_table_data(None, "notes", 10, 0, Some("1=1; DROP TABLE notes;"), None, None)
+        .fetch_table_data(
+            None,
+            "notes",
+            10,
+            0,
+            Some("1=1; DROP TABLE notes;"),
+            None,
+            None
+        )
         .await
         .is_err());
     assert!(conn
-        .fetch_table_data(None, "notes", 10, 0, Some("id = 1 UNION SELECT 1, 2"), None, None)
+        .fetch_table_data(
+            None,
+            "notes",
+            10,
+            0,
+            Some("id = 1 UNION SELECT 1, 2"),
+            None,
+            None
+        )
         .await
         .is_err());
     assert!(conn
@@ -191,7 +210,15 @@ async fn real_sqlite_sqli_filter_and_path_traversal_guards() {
 
     // Safe string literal filter containing keyword works
     let safe_res = conn
-        .fetch_table_data(None, "notes", 10, 0, Some("body = 'it''s an update'"), None, None)
+        .fetch_table_data(
+            None,
+            "notes",
+            10,
+            0,
+            Some("body = 'it''s an update'"),
+            None,
+            None,
+        )
         .await
         .expect("safe filter");
     assert_eq!(safe_res.rows.len(), 1);

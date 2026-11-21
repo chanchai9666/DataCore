@@ -499,12 +499,12 @@ impl DatabaseConnection for MssqlConnection {
         self.autocommit.store(enabled, Ordering::SeqCst);
         if enabled {
             let _ = self
-                .execute_query("IF @@TRANCOUNT > 0 COMMIT TRANSACTION; SET IMPLICIT_TRANSACTIONS OFF;")
+                .execute_query(
+                    "IF @@TRANCOUNT > 0 COMMIT TRANSACTION; SET IMPLICIT_TRANSACTIONS OFF;",
+                )
                 .await?;
         } else {
-            let _ = self
-                .execute_query("SET IMPLICIT_TRANSACTIONS ON;")
-                .await?;
+            let _ = self.execute_query("SET IMPLICIT_TRANSACTIONS ON;").await?;
         }
         Ok(())
     }
@@ -571,10 +571,7 @@ mod tests {
 
     #[test]
     fn test_build_mssql_object_ref_escapes_brackets_and_preserves_quotes() {
-        assert_eq!(
-            build_mssql_object_ref(None, "users"),
-            "[dbo].[users]"
-        );
+        assert_eq!(build_mssql_object_ref(None, "users"), "[dbo].[users]");
         assert_eq!(
             build_mssql_object_ref(Some("my]schema'test"), "my]table'name"),
             "[my]]schema'test].[my]]table'name]"

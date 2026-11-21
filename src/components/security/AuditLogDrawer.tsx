@@ -42,19 +42,24 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
     integrity,
     health,
     checkHealth,
+    repairLogs,
   } = useAuditLogStore();
   const [search, setSearch] = useState('');
   const [selectedAction, setSelectedAction] = useState<AuditActionType | 'ALL'>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<AuditStatus | 'ALL'>('ALL');
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [repairing, setRepairing] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       loadLogs();
       checkHealth();
+      if (integrity === null && health.ok) {
+        verifyIntegrity().catch(() => {});
+      }
     }
-  }, [isOpen, loadLogs, checkHealth]);
+  }, [isOpen, loadLogs, checkHealth, integrity, health.ok, verifyIntegrity]);
 
   useEffect(() => {
     const handleDegraded = () => {
@@ -344,6 +349,42 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                     'security.auditRecoveryHint',
                     'If the audit anchor or log file was unexpectedly corrupted, export existing records for investigation before clearing logs or restoring from backup.'
                   )}
+                </div>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    disabled={repairing}
+                    onClick={async () => {
+                      setRepairing(true);
+                      try {
+                        const res = await repairLogs?.('quarantine');
+                        if (res?.integrityValid) {
+                          toast.success(
+                            t(
+                              'security.quarantineSuccess',
+                              'Quarantined stray audit archives and restored integrity.'
+                            )
+                          );
+                        } else {
+                          toast.error(
+                            t(
+                              'security.quarantinePartial',
+                              'Stray files quarantined, but integrity still requires attention.'
+                            )
+                          );
+                        }
+                      } catch (err) {
+                        toast.error(String(err));
+                      } finally {
+                        setRepairing(false);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 rounded border border-amber-400 bg-amber-100/80 px-2 py-0.5 text-[10px] font-medium text-amber-900 hover:bg-amber-200/80 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-900/50 dark:text-amber-100 dark:hover:bg-amber-900"
+                  >
+                    {repairing
+                      ? t('security.repairingLogs', 'Repairing...')
+                      : t('security.quarantineStrayLogs', 'Quarantine Stray Logs')}
+                  </button>
                 </div>
               </div>
             </div>

@@ -182,6 +182,17 @@ pub struct AuditHealth {
     pub last_error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditRepairResult {
+    pub action: String,
+    pub untracked_files: Vec<String>,
+    pub quarantined_files: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quarantine_dir: Option<String>,
+    pub integrity_valid: bool,
+}
+
 /// Computes legacy SHA-256 tamper-evident hash over (prev_hash, timestamp, action/event_type, details)
 pub fn compute_entry_hash(prev_hash: &str, timestamp: &str, action: &str, details: &str) -> String {
     let mut hasher = Sha256::new();
@@ -339,6 +350,7 @@ enum ChainVerifyOutcome {
         count: usize,
         last_hash: String,
         seen_hmac: bool,
+        file_seen_hmac: bool,
     },
     Invalid {
         count: usize,
@@ -392,14 +404,13 @@ impl AuditLogger {
             return PathBuf::from(dir);
         }
         #[cfg(test)]
-        {
-            return std::env::temp_dir().join(format!("datacore-test-audit-{}", std::process::id()));
-        }
+        let dir = std::env::temp_dir().join(format!("datacore-test-audit-{}", std::process::id()));
         #[cfg(not(test))]
-        std::env::var("HOME")
+        let dir = std::env::var("HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("."))
-            .join(".datacore")
+            .join(".datacore");
+        dir
     }
 
     pub fn global() -> &'static AuditLogger {
@@ -612,10 +623,11 @@ impl AuditLogger {
                     anchor.active_entries,
                     anchor.last_entry_hash.clone(),
                     anchor.archives.clone(),
-                    anchor.archives_adopted,
+                    true,
                 );
                 anchor.key_epoch = material.epoch;
                 anchor.key_fingerprint = fp;
+                anchor.archives_adopted = true;
             }
             return Ok(Some(anchor));
         }
@@ -900,7 +912,10 @@ impl AuditLogger {
     }
 
     /// Read the latest entry hash from disk if cache is uninitialized
-    fn get_or_recover_last_hash(&self) -> Result<String, AppError> {
+    fn get_or_recover_last_hash(
+        &self,
+        anchor: Option<&AuditAnchorState>,
+    ) -> Result<String, AppError> {
         let mut cache = self.last_hash_cache.lock().unwrap();
         if let Some(ref h) = *cache {
             return Ok(h.clone());
@@ -918,6 +933,12 @@ impl AuditLogger {
         if let Some(last_rotated_hash) = self.find_latest_rotated_hash()? {
             *cache = Some(last_rotated_hash.clone());
             return Ok(last_rotated_hash);
+        }
+
+        if let Some(anc) = anchor {
+            if anc.active_entries > 0 {
+                return Ok(anc.last_entry_hash.clone());
+            }
         }
 
         let genesis = GENESIS_HASH.to_string();
@@ -1043,6 +1064,35 @@ impl AuditLogger {
             }
         }
 
+        let log_path = self.main_log_path();
+        if let Some(ref anc) = existing_anchor {
+            let disk_count = if log_path.exists() {
+                Self::count_existing_non_empty_lines(&log_path)
+            } else {
+                0
+            };
+            if disk_count < anc.active_entries {
+                return Err(AppError::Other(format!(
+                    "Audit log truncation detected before write: active log has {} entries but anchor expects {} (fail-closed)",
+                    disk_count, anc.active_entries
+                )));
+            }
+
+            let forward = disk_count - anc.active_entries;
+            let prefix_ok = anc.active_entries == 0
+                || Self::hash_at_entry_index(&log_path, anc.active_entries).as_deref()
+                    == Some(anc.last_entry_hash.as_str());
+
+            if forward > 100 || !prefix_ok {
+                return Err(AppError::Other(format!(
+                    "Audit log diverged from anchor before write ({} entries ahead, prefix_ok={}) (fail-closed)",
+                    forward, prefix_ok
+                )));
+            }
+
+            *self.active_entries_cache.lock().unwrap() = Some(disk_count);
+        }
+
         let mut input = input;
         if let Some(ref mut q) = input.query {
             *q = redact_sensitive_sql(q);
@@ -1051,7 +1101,7 @@ impl AuditLogger {
             *d = redact_sensitive_sql(d);
         }
 
-        let prev_hash = self.get_or_recover_last_hash()?;
+        let prev_hash = self.get_or_recover_last_hash(existing_anchor.as_ref())?;
 
         let id = input
             .id
@@ -1113,7 +1163,6 @@ impl AuditLogger {
         entry.entry_hash = Some(entry_hash.clone());
 
         let serialized = serde_json::to_string(&entry)?;
-        let log_path = self.main_log_path();
 
         // Check file rotation if existing file exceeds max_file_size
         if log_path.exists() {
@@ -1349,6 +1398,7 @@ impl AuditLogger {
 
         let mut expected_prev_hash = initial_prev_hash.to_string();
         let mut count = 0usize;
+        let mut file_seen_hmac = false;
 
         for (idx, line) in reader.lines().enumerate() {
             let line = line?;
@@ -1385,6 +1435,7 @@ impl AuditLogger {
 
             if algo == "hmac-sha256" {
                 seen_hmac = true;
+                file_seen_hmac = true;
                 let Some(key) = hmac_key else {
                     return Ok(ChainVerifyOutcome::Invalid {
                         count,
@@ -1461,6 +1512,7 @@ impl AuditLogger {
             count,
             last_hash: expected_prev_hash,
             seen_hmac,
+            file_seen_hmac,
         })
     }
 
@@ -1470,6 +1522,12 @@ impl AuditLogger {
         let res = self.verify_integrity_locked()?;
         if res.is_valid {
             *self.last_write_error.lock().unwrap() = None;
+        } else {
+            *self.last_write_error.lock().unwrap() = Some(
+                res.error
+                    .clone()
+                    .unwrap_or_else(|| "Audit integrity verification failed".to_string()),
+            );
         }
         Ok(res)
     }
@@ -1517,6 +1575,7 @@ impl AuditLogger {
         // Verify rotated archives tracked in anchor (or adopt-once for legacy anchors)
         let mut chain_prev = GENESIS_HASH.to_string();
         let mut seen_hmac_across_chain = false;
+        let mut checked_entries = 0usize;
         let enabled_since_ref = anchor.as_ref().map(|a| a.hmac_enabled_since.clone());
 
         if let Some(ref mut anc) = anchor {
@@ -1524,7 +1583,7 @@ impl AuditLogger {
                 for arc in &anc.archives {
                     let Some(safe_name) = Path::new(&arc.file_name).file_name() else {
                         return Ok(invalid(
-                            0,
+                            checked_entries,
                             "Invalid archive filename in anchor".to_string(),
                             None,
                         ));
@@ -1532,7 +1591,7 @@ impl AuditLogger {
                     let arc_path = self.log_dir.join(safe_name);
                     if !arc_path.exists() {
                         return Ok(invalid(
-                            0,
+                            checked_entries,
                             format!("Archived audit log missing: {}", arc.file_name),
                             None,
                         ));
@@ -1548,10 +1607,12 @@ impl AuditLogger {
                             count: arc_count,
                             last_hash: arc_last_hash,
                             seen_hmac: arc_seen_hmac,
+                            ..
                         } => {
+                            checked_entries += arc_count;
                             if arc_count != arc.entries || arc_last_hash != arc.last_entry_hash {
                                 return Ok(invalid(
-                                    0,
+                                    checked_entries,
                                     format!("Archived audit log tampered: {}", arc.file_name),
                                     None,
                                 ));
@@ -1560,11 +1621,15 @@ impl AuditLogger {
                             seen_hmac_across_chain = arc_seen_hmac;
                         }
                         ChainVerifyOutcome::Invalid {
+                            count: err_count,
                             error,
                             tampered_entry_id,
-                            ..
                         } => {
-                            return Ok(invalid(0, error, tampered_entry_id));
+                            return Ok(invalid(
+                                checked_entries + err_count,
+                                error,
+                                tampered_entry_id,
+                            ));
                         }
                     }
                 }
@@ -1586,7 +1651,9 @@ impl AuditLogger {
                             count: arc_count,
                             last_hash: arc_last_hash,
                             seen_hmac: arc_seen_hmac,
+                            ..
                         } => {
+                            checked_entries += arc_count;
                             adopted.push(ArchiveState {
                                 file_name: fname.to_string(),
                                 entries: arc_count,
@@ -1596,11 +1663,15 @@ impl AuditLogger {
                             seen_hmac_across_chain = arc_seen_hmac;
                         }
                         ChainVerifyOutcome::Invalid {
+                            count: err_count,
                             error,
                             tampered_entry_id,
-                            ..
                         } => {
-                            return Ok(invalid(0, error, tampered_entry_id));
+                            return Ok(invalid(
+                                checked_entries + err_count,
+                                error,
+                                tampered_entry_id,
+                            ));
                         }
                     }
                 }
@@ -1657,11 +1728,17 @@ impl AuditLogger {
                         count: arc_count,
                         last_hash: arc_last_hash,
                         seen_hmac: arc_seen_hmac,
+                        file_seen_hmac: arc_file_seen_hmac,
                     } => {
-                        if arc_count == 0 || (anchor_was_adopted && !arc_seen_hmac) {
+                        if arc_count == 0 {
+                            eprintln!("[audit] skipping empty untracked rotated log: {}", fname);
+                            continue;
+                        }
+                        checked_entries += arc_count;
+                        if anchor_was_adopted && !arc_file_seen_hmac {
                             return Ok(invalid(
-                                0,
-                                format!("Untracked rotated audit log invalid or empty: {}", fname),
+                                checked_entries,
+                                format!("Untracked rotated audit log missing HMAC: {}", fname),
                                 None,
                             ));
                         }
@@ -1675,11 +1752,15 @@ impl AuditLogger {
                         seen_hmac_across_chain = arc_seen_hmac;
                     }
                     ChainVerifyOutcome::Invalid {
+                        count: err_count,
                         error,
                         tampered_entry_id,
-                        ..
                     } => {
-                        return Ok(invalid(0, error, tampered_entry_id));
+                        return Ok(invalid(
+                            checked_entries + err_count,
+                            error,
+                            tampered_entry_id,
+                        ));
                     }
                 }
             }
@@ -1731,7 +1812,7 @@ impl AuditLogger {
                     }
                 } else if anc.active_entries > 0 {
                     return Ok(invalid(
-                        0,
+                        archived_entries,
                         format!(
                             "Audit log file missing while anchor expects {} active entries",
                             anc.active_entries
@@ -1761,6 +1842,7 @@ impl AuditLogger {
                 count,
                 last_hash,
                 seen_hmac,
+                ..
             } => (count, last_hash, seen_hmac),
             ChainVerifyOutcome::Invalid {
                 count,
@@ -1874,9 +1956,40 @@ impl AuditLogger {
             None
         };
 
-        // Write empty anchor BEFORE removing files so anchor I/O failure leaves logs intact (S2)
+        // Stage all files into a temporary clearing directory BEFORE touching anchor (U3)
+        let mut files_to_clear = Vec::new();
+        let main_path = self.main_log_path();
+        if main_path.exists() {
+            files_to_clear.push(main_path);
+        }
+        files_to_clear.extend(self.list_rotated_files()?);
+
+        let clearing_dir = self.log_dir.join(format!(
+            "audit.clearing.{}",
+            chrono::Utc::now().timestamp_millis()
+        ));
+        let mut moved_pairs: Vec<(PathBuf, PathBuf)> = Vec::new();
+        if !files_to_clear.is_empty() {
+            fs::create_dir_all(&clearing_dir)?;
+            for src in files_to_clear {
+                let Some(fname) = src.file_name() else {
+                    continue;
+                };
+                let dst = clearing_dir.join(fname);
+                if let Err(err) = fs::rename(&src, &dst) {
+                    for (orig, staged) in moved_pairs.into_iter().rev() {
+                        let _ = fs::rename(&staged, &orig);
+                    }
+                    let _ = fs::remove_dir_all(&clearing_dir);
+                    return Err(err.into());
+                }
+                moved_pairs.push((src, dst));
+            }
+        }
+
+        // Write empty anchor after all files are safely staged outside active/rotated patterns
         if let (Some(mat), Some(anchor)) = (material.as_ref(), verified_anchor.as_ref()) {
-            self.write_anchor(
+            if let Err(err) = self.write_anchor(
                 &mat.key,
                 mat.epoch,
                 anchor.hmac_enabled_since.clone(),
@@ -1884,30 +1997,18 @@ impl AuditLogger {
                 GENESIS_HASH.to_string(),
                 Vec::new(),
                 true,
-            )?;
-        }
-
-        let main_path = self.main_log_path();
-        if main_path.exists() {
-            if let Err(err) = fs::remove_file(&main_path) {
-                if let (Some(mat), Some(anchor)) = (material.as_ref(), verified_anchor.as_ref()) {
-                    let _ = self.write_anchor(
-                        &mat.key,
-                        mat.epoch,
-                        anchor.hmac_enabled_since.clone(),
-                        anchor.active_entries,
-                        anchor.last_entry_hash.clone(),
-                        anchor.archives.clone(),
-                        anchor.archives_adopted,
-                    );
+            ) {
+                for (orig, staged) in moved_pairs.into_iter().rev() {
+                    let _ = fs::rename(&staged, &orig);
                 }
-                return Err(err.into());
+                let _ = fs::remove_dir_all(&clearing_dir);
+                return Err(err);
             }
         }
 
-        if let Ok(rotated) = self.list_rotated_files() {
-            for path in rotated {
-                let _ = fs::remove_file(path);
+        if clearing_dir.exists() {
+            if let Err(err) = fs::remove_dir_all(&clearing_dir) {
+                eprintln!("[audit] warning: could not remove clearing dir: {err}");
             }
         }
 
@@ -1917,6 +2018,158 @@ impl AuditLogger {
         *self.last_write_error.lock().unwrap() = None;
 
         Ok(())
+    }
+
+    /// Inspect or repair untracked / corrupted rotated audit files (U2)
+    pub fn repair_audit_log(&self, action: &str) -> Result<AuditRepairResult, AppError> {
+        let _guard = self.write_lock.lock().unwrap();
+        self.bootstrap_anchor_if_needed()?;
+        let mut material = self.read_key_material()?;
+        let anchor = if let Some(ref mut mat) = material {
+            self.read_verified_anchor(mat)?
+        } else {
+            None
+        };
+
+        let tracked: std::collections::HashSet<String> = anchor
+            .as_ref()
+            .map(|a| a.archives.iter().map(|x| x.file_name.clone()).collect())
+            .unwrap_or_default();
+
+        let untracked_paths: Vec<PathBuf> = self
+            .list_rotated_files()?
+            .into_iter()
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|name| !tracked.contains(name))
+            })
+            .collect();
+
+        let untracked_files: Vec<String> = untracked_paths
+            .iter()
+            .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(str::to_string))
+            .collect();
+
+        match action {
+            "report" => {
+                let res = self.verify_integrity_locked()?;
+                Ok(AuditRepairResult {
+                    action: action.to_string(),
+                    untracked_files,
+                    quarantined_files: Vec::new(),
+                    quarantine_dir: None,
+                    integrity_valid: res.is_valid,
+                })
+            }
+            "quarantine" => {
+                let mut quarantined_files = Vec::new();
+                let mut quarantine_dir_str = None;
+                if !untracked_paths.is_empty() {
+                    let q_dir = self.log_dir.join(format!(
+                        "audit.quarantine.{}",
+                        chrono::Utc::now().timestamp_millis()
+                    ));
+                    fs::create_dir_all(&q_dir)?;
+                    quarantine_dir_str = Some(q_dir.to_string_lossy().to_string());
+                    for src in &untracked_paths {
+                        let Some(fname) = src.file_name() else {
+                            continue;
+                        };
+                        let dst = q_dir.join(fname);
+                        fs::rename(src, &dst)?;
+                        quarantined_files.push(fname.to_string_lossy().to_string());
+                    }
+                }
+                let res = self.verify_integrity_locked()?;
+                if res.is_valid {
+                    *self.last_write_error.lock().unwrap() = None;
+                }
+                Ok(AuditRepairResult {
+                    action: action.to_string(),
+                    untracked_files,
+                    quarantined_files,
+                    quarantine_dir: quarantine_dir_str,
+                    integrity_valid: res.is_valid,
+                })
+            }
+            "rebuild_anchor" => {
+                let Some(ref mat) = material else {
+                    return Err(AppError::Other(
+                        "Cannot rebuild audit anchor without HMAC key material".to_string(),
+                    ));
+                };
+                let mut quarantined_files = Vec::new();
+                let mut quarantine_dir_str = None;
+                if !untracked_paths.is_empty() {
+                    let q_dir = self.log_dir.join(format!(
+                        "audit.quarantine.{}",
+                        chrono::Utc::now().timestamp_millis()
+                    ));
+                    fs::create_dir_all(&q_dir)?;
+                    quarantine_dir_str = Some(q_dir.to_string_lossy().to_string());
+                    for src in &untracked_paths {
+                        let Some(fname) = src.file_name() else {
+                            continue;
+                        };
+                        let dst = q_dir.join(fname);
+                        fs::rename(src, &dst)?;
+                        quarantined_files.push(fname.to_string_lossy().to_string());
+                    }
+                }
+
+                let main_path = self.main_log_path();
+                let enabled_since = anchor
+                    .as_ref()
+                    .map(|a| a.hmac_enabled_since.clone())
+                    .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+                let (active_count, last_hash) = if main_path.exists() {
+                    match Self::verify_file_chain(
+                        &main_path,
+                        Some(&mat.key),
+                        GENESIS_HASH,
+                        Some(&enabled_since),
+                        false,
+                    )? {
+                        ChainVerifyOutcome::Valid {
+                            count, last_hash, ..
+                        } => (count, last_hash),
+                        ChainVerifyOutcome::Invalid { error, .. } => {
+                            return Err(AppError::Other(format!(
+                                "Cannot rebuild anchor from invalid active log: {error}"
+                            )));
+                        }
+                    }
+                } else {
+                    (0, GENESIS_HASH.to_string())
+                };
+
+                self.write_anchor(
+                    &mat.key,
+                    mat.epoch,
+                    enabled_since,
+                    active_count,
+                    last_hash.clone(),
+                    Vec::new(),
+                    true,
+                )?;
+                *self.last_hash_cache.lock().unwrap() = Some(last_hash);
+                *self.active_entries_cache.lock().unwrap() = Some(active_count);
+                *self.last_write_error.lock().unwrap() = None;
+
+                Ok(AuditRepairResult {
+                    action: action.to_string(),
+                    untracked_files,
+                    quarantined_files,
+                    quarantine_dir: quarantine_dir_str,
+                    integrity_valid: true,
+                })
+            }
+            _ => Err(AppError::InvalidInput(format!(
+                "Unsupported repair action '{}'. Expected 'report', 'quarantine', or 'rebuild_anchor'.",
+                action
+            ))),
+        }
     }
 }
 

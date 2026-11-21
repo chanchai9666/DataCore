@@ -7,6 +7,14 @@ export interface AuditHealth {
   lastError?: string | null;
 }
 
+export interface AuditRepairResult {
+  action: string;
+  untrackedFiles: string[];
+  quarantinedFiles: string[];
+  quarantineDir?: string | null;
+  integrityValid: boolean;
+}
+
 export const getAuditLogs = async (
   limit?: number,
   offset?: number
@@ -24,6 +32,12 @@ export const clearAuditLogs = async (): Promise<void> => {
 
 export const getAuditHealth = async (): Promise<AuditHealth> => {
   return invoke<AuditHealth>('get_audit_health');
+};
+
+export const repairAuditLogs = async (
+  action: 'report' | 'quarantine' | 'rebuild_anchor'
+): Promise<AuditRepairResult> => {
+  return invoke<AuditRepairResult>('repair_audit_logs', { action });
 };
 
 export const recordAuditLog = async (

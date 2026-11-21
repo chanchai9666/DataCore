@@ -1436,3 +1436,16 @@
 - **Table List Metadata Cache & Manual Refresh (`src/stores/tableListCacheStore.ts`, `src/components/tablelist/TableListTab.tsx`):**
   - สร้าง `useTableListCacheStore` เก็บแคชข้อมูลตารางแยกตาม `${connectionId}:${schemaName || '__default__'}` เพื่อไม่ให้ `TableListTab` โหลดข้อมูลใหม่ทุกครั้งที่สลับแท็บกลับมา
   - เพิ่มเมนูคลิกขวา **Refresh Tables** (`ctx-refresh-tables`) ทั้งบนแถวตารางและพื้นที่ว่างของตาราง สำหรับสั่งโหลดข้อมูลใหม่ด้วยตนเองควบคู่กับปุ่ม Refresh ด้านบน
+
+### Phase 65: Round 7 Security Audit Remediation & CI Hardening (#250) [Completed]
+
+- **Write-Path Anchor Enforcement (`src-tauri/src/services/audit_logger.rs` — U1):**
+  - ตรวจสอบจำนวน entry จริงบนดิสก์และ prefix hash (`hash_at_entry_index`) เทียบกับ signed anchor ก่อน append ทุกครั้งใน `log_inner` (fail-closed เมื่อ `disk_count < anchor.active_entries`, `forward > 100`, หรือ prefix hash ไม่ตรง) พร้อมให้ `get_or_recover_last_hash` fallback จาก anchor
+- **Stray Archive Handling & Guided Repair (`audit_logger.rs`, `audit_commands.rs`, `auditApi.ts`, `auditLogStore.ts`, `AuditLogDrawer.tsx` — U2):**
+  - ข้ามไฟล์ `audit.*.jsonl` ว่าง 0 ไบต์ใน adoption loop เพื่อไม่ให้บล็อกการเขียนทั้งระบบ และเพิ่ม `repair_audit_logs` (`report` / `quarantine` / `rebuild_anchor`) พร้อมปุ่ม **Quarantine Stray Logs** ในแบนเนอร์แจ้งเตือนของ `AuditLogDrawer`
+- **Transactional `clear_logs`, Health Observability, Error Counts & Adoption Hardening (U3, U4, U8, U9):**
+  - ปรับ `clear_logs` ให้ย้ายไฟล์เข้า `audit.clearing.<ts>/` ก่อนเขียน empty anchor และ rollback อัตโนมัติหากย้ายไม่สำเร็จ
+  - ให้ `verify_integrity` อัปเดต `last_write_error` เมื่อตรวจไม่ผ่าน และให้ `AuditLogDrawer` ตรวจสอบอัตโนมัติเมื่อเปิดหากยังไม่มีผลตรวจ
+  - นับ `checked_entries` ในทุก error path ของ `verify_integrity_locked`, แยก `file_seen_hmac` ต่อไฟล์ใน `verify_file_chain` และตั้ง `archives_adopted = true` เมื่อ migrate
+- **CI, Docs & Dependency Notes (U5, U6, U7):**
+  - จัดรูปแบบด้วย `cargo fmt` และแก้ `clippy::needless_return` ใน `default_dir()`, อัปเดตตัวเลขเทสใน `README.md` (214 Rust / 1,163 Vitest = 1,377), และบันทึกสถานะ Dependabot `glib`/`minimatch` ใน `SECURITY.md`

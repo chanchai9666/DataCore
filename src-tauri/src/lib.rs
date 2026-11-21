@@ -89,6 +89,7 @@ pub fn run() {
             clear_audit_logs,
             record_audit_log,
             get_audit_health,
+            repair_audit_logs,
             set_screen_protection,
         ])
         .run(tauri::generate_context!())

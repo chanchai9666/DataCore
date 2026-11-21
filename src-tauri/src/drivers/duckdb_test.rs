@@ -215,7 +215,9 @@ async fn test_duckdb_stream_query_respects_read_only() {
     let conn = DuckdbConnection::from_config(&config).expect("Failed to create DuckDB in-memory");
 
     let (tx, _rx) = tokio::sync::mpsc::channel::<Chunk>(2);
-    let res = conn.stream_query("CREATE TABLE blocked (id INT);", 10, tx).await;
+    let res = conn
+        .stream_query("CREATE TABLE blocked (id INT);", 10, tx)
+        .await;
     assert!(res.is_err());
     assert!(res.unwrap_err().to_string().contains("read-only"));
 }

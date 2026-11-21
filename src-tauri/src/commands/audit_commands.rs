@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use crate::services::audit_logger::{
     AuditHealth, AuditIntegrityResult, AuditLogEntry, AuditLogEntryInput, AuditLogger,
+    AuditRepairResult,
 };
 use tauri::State;
 
@@ -31,6 +32,13 @@ pub fn record_audit_log_impl(
 
 pub fn get_audit_health_impl(logger: &AuditLogger) -> AuditHealth {
     logger.health()
+}
+
+pub fn repair_audit_logs_impl(
+    logger: &AuditLogger,
+    action: &str,
+) -> Result<AuditRepairResult, AppError> {
+    logger.repair_audit_log(action)
 }
 
 #[tauri::command]
@@ -65,4 +73,12 @@ pub async fn record_audit_log(
 #[tauri::command]
 pub async fn get_audit_health(logger: State<'_, AuditLogger>) -> Result<AuditHealth, String> {
     Ok(get_audit_health_impl(&logger))
+}
+
+#[tauri::command]
+pub async fn repair_audit_logs(
+    logger: State<'_, AuditLogger>,
+    action: String,
+) -> Result<AuditRepairResult, String> {
+    repair_audit_logs_impl(&logger, &action).map_err(|e| e.to_string())
 }

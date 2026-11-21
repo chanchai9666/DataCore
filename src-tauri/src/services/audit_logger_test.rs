@@ -1445,3 +1445,312 @@ fn test_audit_health_tracks_write_failure_and_recovery() {
     assert!(recovered.ok);
     assert!(recovered.last_error.is_none());
 }
+
+#[test]
+fn test_write_path_rejects_deleted_active_log_after_restart() {
+    let dir = tempdir().unwrap();
+    {
+        let logger = AuditLogger::new(dir.path());
+        for i in 1..=3 {
+            logger
+                .log(AuditLogEntryInput {
+                    action: "QUERY".to_string(),
+                    query: Some(format!("SELECT {i};")),
+                    status: "SUCCESS".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+        }
+    }
+
+    // Delete active log while logger is shut down
+    fs::remove_file(dir.path().join("audit.jsonl")).unwrap();
+
+    // New process/logger instance must reject write (fail-closed, no re-baseline)
+    let logger2 = AuditLogger::new(dir.path());
+    let write_res = logger2.log(AuditLogEntryInput {
+        action: "QUERY".to_string(),
+        query: Some("SELECT 4;".to_string()),
+        status: "SUCCESS".to_string(),
+        ..Default::default()
+    });
+    assert!(write_res.is_err());
+    assert!(!logger2.health().ok);
+    let verify_res = logger2.verify_integrity().unwrap();
+    assert!(!verify_res.is_valid);
+}
+
+#[test]
+fn test_write_path_rejects_truncated_tail_after_restart() {
+    let dir = tempdir().unwrap();
+    {
+        let logger = AuditLogger::new(dir.path());
+        for i in 1..=3 {
+            logger
+                .log(AuditLogEntryInput {
+                    action: "QUERY".to_string(),
+                    query: Some(format!("SELECT {i};")),
+                    status: "SUCCESS".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+        }
+    }
+
+    // Truncate last line from active log
+    let log_path = dir.path().join("audit.jsonl");
+    let content = fs::read_to_string(&log_path).unwrap();
+    let lines: Vec<&str> = content.lines().take(2).collect();
+    fs::write(&log_path, format!("{}\n", lines.join("\n"))).unwrap();
+
+    let logger2 = AuditLogger::new(dir.path());
+    let write_res = logger2.log(AuditLogEntryInput {
+        action: "QUERY".to_string(),
+        query: Some("SELECT 4;".to_string()),
+        status: "SUCCESS".to_string(),
+        ..Default::default()
+    });
+    assert!(write_res.is_err());
+    assert!(!logger2.verify_integrity().unwrap().is_valid);
+}
+
+#[test]
+fn test_write_path_allows_bounded_forward_lag_self_heal() {
+    let dir = tempdir().unwrap();
+    let anchor_snapshot;
+    let anchor_path;
+    {
+        let logger = AuditLogger::new(dir.path());
+        anchor_path = logger.hmac_anchor_path();
+        logger
+            .log(AuditLogEntryInput {
+                action: "QUERY".to_string(),
+                query: Some("SELECT 1;".to_string()),
+                status: "SUCCESS".to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+        anchor_snapshot = fs::read_to_string(&anchor_path).unwrap();
+
+        logger
+            .log(AuditLogEntryInput {
+                action: "QUERY".to_string(),
+                query: Some("SELECT 2;".to_string()),
+                status: "SUCCESS".to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+
+    // Simulate anchor lagging behind by 1 valid entry
+    fs::write(&anchor_path, anchor_snapshot).unwrap();
+
+    let logger2 = AuditLogger::new(dir.path());
+    logger2
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 3;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    let verify_res = logger2.verify_integrity().unwrap();
+    assert!(verify_res.is_valid);
+    assert_eq!(verify_res.total_entries, 3);
+}
+
+#[test]
+fn test_write_path_rejects_external_rewrite_with_same_count() {
+    let dir = tempdir().unwrap();
+    {
+        let logger = AuditLogger::new(dir.path());
+        for i in 1..=2 {
+            logger
+                .log(AuditLogEntryInput {
+                    action: "QUERY".to_string(),
+                    query: Some(format!("SELECT {i};")),
+                    status: "SUCCESS".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+        }
+    }
+
+    // Replace line 2 with forged content & different entryHash keeping same line count
+    let log_path = dir.path().join("audit.jsonl");
+    let content = fs::read_to_string(&log_path).unwrap();
+    let mut lines: Vec<String> = content.lines().map(str::to_string).collect();
+    let mut forged: serde_json::Value = serde_json::from_str(&lines[1]).unwrap();
+    forged["entryHash"] = serde_json::Value::String("forged_hash_value".to_string());
+    lines[1] = serde_json::to_string(&forged).unwrap();
+    fs::write(&log_path, format!("{}\n", lines.join("\n"))).unwrap();
+
+    let logger2 = AuditLogger::new(dir.path());
+    assert!(logger2
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 3;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .is_err());
+}
+
+#[test]
+fn test_empty_untracked_rotated_file_does_not_block_writes() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Drop an empty 0-byte rotated file
+    fs::write(dir.path().join("audit.20200101_000000.jsonl"), "").unwrap();
+
+    // Must not block writes or fail verification
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    let res = logger.verify_integrity().unwrap();
+    assert!(res.is_valid);
+    assert_eq!(res.total_entries, 2);
+}
+
+#[test]
+fn test_repair_audit_log_quarantines_corrupt_stray_archive_and_recovers() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Drop a corrupt non-empty rotated file
+    fs::write(
+        dir.path().join("audit.20200101_000001.jsonl"),
+        "{corrupt json\n",
+    )
+    .unwrap();
+
+    // Report finds it, write is blocked
+    let report = logger.repair_audit_log("report").unwrap();
+    assert_eq!(report.untracked_files, vec!["audit.20200101_000001.jsonl"]);
+    assert!(!report.integrity_valid);
+    assert!(logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .is_err());
+
+    // Quarantine moves it out of rotated files and restores health
+    let repaired = logger.repair_audit_log("quarantine").unwrap();
+    assert!(repaired.integrity_valid);
+    assert_eq!(
+        repaired.quarantined_files,
+        vec!["audit.20200101_000001.jsonl"]
+    );
+    assert!(logger.health().ok);
+    assert!(!dir.path().join("audit.20200101_000001.jsonl").exists());
+
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 2;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    assert!(logger.verify_integrity().unwrap().is_valid);
+}
+
+#[test]
+fn test_verify_failure_sets_health_degraded() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+    assert!(logger.health().ok);
+
+    // Corrupt anchor
+    fs::write(logger.hmac_anchor_path(), "corrupt-anchor").unwrap();
+    let res = logger.verify_integrity().unwrap();
+    assert!(!res.is_valid);
+    let health = logger.health();
+    assert!(!health.ok);
+    assert!(health.last_error.is_some());
+}
+
+#[test]
+fn test_verify_failure_reports_checked_entries_count() {
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::with_max_size(dir.path(), 120);
+    for i in 1..=3 {
+        logger
+            .log(AuditLogEntryInput {
+                action: "QUERY".to_string(),
+                query: Some(format!("SELECT {i};")),
+                status: "SUCCESS".to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+
+    // Tamper the active log after valid rotated archive(s)
+    let main_path = dir.path().join("audit.jsonl");
+    let content = fs::read_to_string(&main_path).unwrap();
+    let tampered = content.replacen("SELECT 3;", "SELECT 999;", 1);
+    fs::write(&main_path, tampered).unwrap();
+
+    let res = logger.verify_integrity().unwrap();
+    assert!(!res.is_valid);
+    assert!(res.total_entries >= 2);
+}
+
+#[cfg(unix)]
+#[test]
+fn test_clear_logs_transactional_rolls_back_when_directory_unwritable() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempdir().unwrap();
+    let logger = AuditLogger::new(dir.path());
+    logger
+        .log(AuditLogEntryInput {
+            action: "QUERY".to_string(),
+            query: Some("SELECT 1;".to_string()),
+            status: "SUCCESS".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    // Make log directory read-only so staging dir creation/rename fails
+    fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o500)).unwrap();
+    let clear_res = logger.clear_logs();
+    fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o700)).unwrap();
+
+    assert!(clear_res.is_err());
+    let verify_res = logger.verify_integrity().unwrap();
+    assert!(verify_res.is_valid);
+    assert_eq!(verify_res.total_entries, 1);
+}
