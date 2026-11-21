@@ -747,4 +747,37 @@ describe('TableListTab component', () => {
     expect(screen.getByText('Index > Data')).toBeInTheDocument();
     expect(screen.getByText('Healthy')).toBeInTheDocument();
   });
+
+  it('uses semantic CSS theme tokens instead of hardcoded bg-white for Warm Paper compatibility', async () => {
+    vi.mocked(dbApi.getTableListMetadata).mockResolvedValue([
+      {
+        name: 'users',
+        approxRowCount: 10,
+        totalSizeBytes: 1024,
+        dataSizeBytes: 512,
+        indexSizeBytes: 512,
+      },
+    ]);
+
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+        theme="light"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+
+    const container = screen.getByTestId('table-list-container');
+    expect(container.className).toContain('bg-[var(--bg-grid)]');
+    expect(container.className).not.toContain('bg-white');
+
+    fireEvent.contextMenu(screen.getByText('users'), { clientX: 50, clientY: 50 });
+    const ctxMenu = screen.getByTestId('table-list-context-menu');
+    expect(ctxMenu.className).toContain('bg-[var(--bg-panel)]');
+    expect(ctxMenu.className).not.toContain('bg-white');
+  });
 });

@@ -1459,3 +1459,8 @@
   - ให้ `clear_logs` คืน `Err` พร้อม path หากลบ `audit.clearing.<ts>/` ไม่สำเร็จ, นับบรรทัดที่พัง (`count + 1`) ใน `verify_file_chain`, ใส่ชื่อไฟล์ใน error ของ corrupt untracked archive, และ promote `DCK2` anchor ที่ `archives_adopted = false` ใน `read_verified_anchor`
 - **O(1) Write-Path Prefix Cache & Frontend Tests (R6, R7):**
   - เพิ่ม `verified_prefix_cache` + `last_known_file_len` ใน `AuditLogger` เพื่อข้ามการสแกนไฟล์ `O(n)` เมื่อไฟล์ไม่ถูกแก้ไขจากภายนอก และเพิ่ม Vitest tests สำหรับ `report`, `Quarantine Stray Logs`, และ `Rebuild Anchor`
+
+### Phase 67: Table Detail (`TableListTab`) Semantic Theme Tokens for Warm Paper (#252) [Completed]
+
+- **Semantic Token Migration (`src/components/tablelist/TableListTab.tsx`, `TableListTab.test.tsx`):**
+  - แทนที่คลาสสี hardcode (`bg-white`, `bg-gray-*`, `bg-[#1e1e1e]`, `bg-[#252526]`, `border-gray-*`) ทั้งหมดใน Container, Top Toolbar, View Mode Switcher, List View (Flat & Accordion), Grid View, Storage & Health View และ Context Menu ด้วย semantic CSS theme tokens (`--bg-grid`, `--bg-panel`, `--bg-card`, `--bg-input`, `--bg-toolbar`, `--row-alt`, `--sel`, `--grid-header-bg`, `--border`, `--text`, `--text-muted`) เพื่อให้ธีม **Warm Paper**, **Light** และ **Dark** แสดงผลกลมกลืนสม่ำเสมอกัน

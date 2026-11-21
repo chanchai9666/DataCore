@@ -815,20 +815,16 @@ export const TableListTab: React.FC<TableListTabProps> = ({
       tabIndex={0}
       onKeyDown={handleContainerKeyDown}
       data-testid="table-list-container"
-      className={`flex flex-col h-full font-sans select-none outline-none ${
-        theme === 'light' ? 'bg-white text-gray-800' : 'bg-[#1e1e1e] text-[#cccccc]'
-      }`}
+      className="flex flex-col h-full font-sans select-none outline-none bg-[var(--bg-grid)] text-[var(--text)]"
     >
       {/* Top Action & Search Bar */}
-      <div className={`flex items-center justify-between px-4 py-2 border-b gap-4 transition-colors ${
-        theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-[#252526] border-[#333333]'
-      }`}>
+      <div className="flex items-center justify-between px-4 py-2 border-b gap-4 transition-colors bg-[var(--bg-panel)] border-[var(--border)]">
         <div className="flex items-center gap-2">
-          <Database className="w-4 h-4 text-blue-500" />
-          <span className={`font-semibold text-xs ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+          <Database className="w-4 h-4 text-[var(--accent)]" />
+          <span className="font-semibold text-xs text-[var(--text)]">
             {schemaName ? `${schemaName} Tables` : 'Tables'}
           </span>
-          <span className={`text-[11px] px-1.5 py-0.5 rounded ${theme === 'light' ? 'bg-gray-200 text-gray-700 font-medium' : 'bg-[#333333] text-gray-300'}`}>
+          <span className="text-[11px] px-1.5 py-0.5 rounded bg-[var(--bg-toolbar)] text-[var(--text-muted)] font-medium">
             {filteredAndSortedTables.length === 1
               ? t('tableList.tableCount', { count: 1 })
               : t('tableList.tableCount_plural', { count: filteredAndSortedTables.length })}
@@ -836,12 +832,12 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           {selectedTables.length > 0 && (
             <span
               data-testid="table-list-selected-badge"
-              className="text-[11px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-500 font-medium"
+              className="text-[11px] px-1.5 py-0.5 rounded bg-[var(--sel)] text-[var(--text)] font-medium"
             >
               {t('tableList.selectedCount', '{{count}} selected', { count: selectedTables.length })}
             </span>
           )}
-          <span className="hidden xl:inline text-[11px] text-gray-400 ml-2">
+          <span className="hidden xl:inline text-[11px] text-[var(--text-muted)] ml-2">
             {t('tableList.shortcutsHint', '⌘A Select All · ⌘C Copy · ↑↓ Navigate · Enter Open')}
           </span>
         </div>
@@ -857,12 +853,8 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               title={t('tableList.groupInListTooltip', 'Group tables by prefix in list view')}
               className={`flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-medium transition-colors ${
                 groupInList
-                  ? theme === 'light'
-                    ? 'bg-blue-50 border-blue-300 text-blue-600'
-                    : 'bg-blue-500/20 border-blue-500/50 text-blue-400'
-                  : theme === 'light'
-                  ? 'bg-white border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  : 'bg-[#1e1e1e] border-[#3c3c3c] text-gray-400 hover:text-gray-200 hover:bg-[#333333]'
+                  ? 'bg-[var(--sel)] border-[var(--accent)] text-[var(--text)]'
+                  : 'bg-[var(--bg-grid)] border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--row-alt)]'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
@@ -874,11 +866,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <div
             role="group"
             aria-label={t('tableList.viewModeLabel', 'View Mode')}
-            className={`flex items-center rounded border p-0.5 ${
-              theme === 'light'
-                ? 'bg-gray-100 border-gray-200'
-                : 'bg-[#1e1e1e] border-[#3c3c3c]'
-            }`}
+            className="flex items-center rounded border p-0.5 bg-[var(--bg-toolbar)] border-[var(--border)]"
           >
             {([
               { id: 'table', icon: List, label: t('tableList.viewTable', 'List') },
@@ -897,12 +885,8 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                   title={label}
                   className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
                     active
-                      ? theme === 'light'
-                        ? 'bg-white text-blue-600 shadow-sm'
-                        : 'bg-[#333333] text-blue-400 shadow-sm'
-                      : theme === 'light'
-                      ? 'text-gray-600 hover:text-gray-900'
-                      : 'text-gray-400 hover:text-gray-200'
+                      ? 'bg-[var(--bg-grid)] text-[var(--accent)] shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text)]'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -913,18 +897,14 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           </div>
 
           <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
               ref={searchInputRef}
               type="text"
               placeholder={t('tableList.searchPlaceholder', 'Search tables...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`text-xs pl-8 pr-3 py-1 rounded border focus:outline-none focus:border-blue-500 w-44 sm:w-52 transition-colors ${
-                theme === 'light'
-                  ? 'bg-white text-gray-900 border-gray-300 placeholder-gray-400'
-                  : 'bg-[#1e1e1e] text-white border-[#3c3c3c] placeholder-gray-500'
-              }`}
+              className="text-xs pl-8 pr-3 py-1 rounded border focus:outline-none focus:border-[var(--accent)] w-44 sm:w-52 transition-colors bg-[var(--bg-input)] text-[var(--text)] border-[var(--border)] placeholder-[var(--text-muted)]"
             />
           </div>
 
@@ -932,11 +912,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             onClick={fetchTables}
             disabled={loading}
             title={t('tableList.refreshTooltip', 'Refresh tables metadata')}
-            className={`p-1 rounded transition-colors disabled:opacity-50 ${
-              theme === 'light'
-                ? 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'
-                : 'hover:bg-[#333333] text-gray-300 hover:text-white'
-            }`}
+            className="p-1 rounded transition-colors disabled:opacity-50 hover:bg-[var(--row-alt)] text-[var(--text-muted)] hover:text-[var(--text)]"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -952,23 +928,23 @@ export const TableListTab: React.FC<TableListTabProps> = ({
         }}
       >
         {loading && tables.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-xs text-gray-400 gap-2">
-            <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+          <div className="flex items-center justify-center h-full text-xs text-[var(--text-muted)] gap-2">
+            <RefreshCw className="w-4 h-4 animate-spin text-[var(--accent)]" />
             <span>{t('tableList.loading', 'Loading tables metadata...')}</span>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-            <p className="text-xs text-red-400 mb-2">{t('tableList.failedToLoad', 'Failed to load tables: {{error}}', { error })}</p>
+            <p className="text-xs text-[var(--danger)] mb-2">{t('tableList.failedToLoad', 'Failed to load tables: {{error}}', { error })}</p>
             <button
               onClick={fetchTables}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition-colors"
+              className="px-3 py-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs rounded transition-colors"
             >
               {t('tableList.retry', 'Retry')}
             </button>
           </div>
         ) : filteredAndSortedTables.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-xs text-gray-400 p-4">
-            <TableIcon className="w-8 h-8 text-gray-600 mb-2 stroke-1" />
+          <div className="flex flex-col items-center justify-center h-full text-xs text-[var(--text-muted)] p-4">
+            <TableIcon className="w-8 h-8 text-[var(--text-muted)] opacity-50 mb-2 stroke-1" />
             <p>{searchQuery ? t('tableList.noTablesMatch', 'No tables match your search.') : t('tableList.noTablesFound', 'No tables found in this schema.')}</p>
           </div>
         ) : viewMode === 'grid' ? (
@@ -996,12 +972,8 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                   }}
                   className={`rounded-lg border p-3 transition-colors cursor-pointer flex flex-col justify-between gap-2.5 ${
                     isSelected
-                      ? theme === 'light'
-                        ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-400/50'
-                        : 'bg-blue-500/15 border-blue-500 ring-1 ring-blue-500/40'
-                      : theme === 'light'
-                      ? 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50/70'
-                      : 'bg-[#252526] border-[#333333] hover:border-[#4a4a4a] hover:bg-[#2a2d2e]'
+                      ? 'bg-[var(--sel)] border-[var(--accent)] ring-1 ring-[var(--accent)]/40'
+                      : 'bg-[var(--bg-card)] border-[var(--border)] hover:bg-[var(--row-alt)]'
                   }`}
                 >
                   <div>
@@ -1009,68 +981,52 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                       <div className="flex items-center gap-1.5 min-w-0">
                         {renderTableIcon(table.name)}
                         <span
-                          className={`font-mono text-xs font-semibold truncate ${
-                            theme === 'light' ? 'text-gray-900' : 'text-white'
-                          }`}
+                          className="font-mono text-xs font-semibold truncate text-[var(--text)]"
                           title={table.name}
                         >
                           {table.name}
                         </span>
                       </div>
                       {table.engine && (
-                        <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
-                            theme === 'light'
-                              ? 'bg-gray-100 text-gray-600'
-                              : 'bg-[#333333] text-gray-300'
-                          }`}
-                        >
+                        <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 bg-[var(--bg-toolbar)] text-[var(--text-muted)]">
                           {table.engine}
                         </span>
                       )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div className={`rounded px-2 py-1 ${theme === 'light' ? 'bg-gray-50' : 'bg-[#1e1e1e]'}`}>
-                        <div className="text-[10px] text-gray-400">
+                      <div className="rounded px-2 py-1 bg-[var(--bg-grid)]">
+                        <div className="text-[10px] text-[var(--text-muted)]">
                           {t('tableList.approxRowsHeader', 'Approx Rows')}
                         </div>
-                        <div className={`font-mono font-medium ${theme === 'light' ? 'text-gray-800' : 'text-gray-200'}`}>
+                        <div className="font-mono font-medium text-[var(--text)]">
                           {formatApproxRows(table.approxRowCount)}
                         </div>
                       </div>
-                      <div className={`rounded px-2 py-1 ${theme === 'light' ? 'bg-gray-50' : 'bg-[#1e1e1e]'}`}>
-                        <div className="text-[10px] text-gray-400">
+                      <div className="rounded px-2 py-1 bg-[var(--bg-grid)]">
+                        <div className="text-[10px] text-[var(--text-muted)]">
                           {t('tableList.totalSizeHeader', 'Total Size')}
                         </div>
-                        <div className={`font-mono font-medium ${theme === 'light' ? 'text-gray-800' : 'text-gray-200'}`}>
+                        <div className="font-mono font-medium text-[var(--text)]">
                           {formatBytes(table.totalSizeBytes)}
                         </div>
                       </div>
                     </div>
 
-                    <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400 font-mono">
+                    <div className="mt-2 flex items-center justify-between text-[10px] text-[var(--text-muted)] font-mono">
                       <span>{t('tableList.dataShort', 'Data')}: {formatBytes(table.dataSizeBytes)}</span>
                       <span>{t('tableList.indexShort', 'Index')}: {formatBytes(table.indexSizeBytes)}</span>
                     </div>
                   </div>
 
-                  <div
-                    className={`pt-2 border-t flex items-center justify-end gap-1 ${
-                      theme === 'light' ? 'border-gray-100' : 'border-[#333333]'
-                    }`}
-                  >
+                  <div className="pt-2 border-t flex items-center justify-end gap-1 border-[var(--border-subtle,var(--border))]">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleOpenData(table.name);
                       }}
                       title={t('tableList.openData', 'Open Table Data')}
-                      className={`p-1 rounded transition-colors ${
-                        theme === 'light'
-                          ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                          : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                      }`}
+                      className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                     >
                       <ExternalLink className="w-3 h-3" />
                     </button>
@@ -1080,11 +1036,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                         handleOpenStructure(table.name);
                       }}
                       title={t('tableList.designStructure', 'Design Table Structure')}
-                      className={`p-1 rounded transition-colors ${
-                        theme === 'light'
-                          ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                          : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                      }`}
+                      className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                     >
                       <Wrench className="w-3 h-3" />
                     </button>
@@ -1094,11 +1046,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                         handleTriggerDuplicate(table.name);
                       }}
                       title={t('tableList.duplicateTable', 'Duplicate Table...')}
-                      className={`p-1 rounded transition-colors ${
-                        theme === 'light'
-                          ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                          : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                      }`}
+                      className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                     >
                       <Copy className="w-3 h-3" />
                     </button>
@@ -1108,11 +1056,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                         handleTriggerRenameTable(table.name);
                       }}
                       title={t('sidebar.contextMenu.renameTable', 'Rename Table...')}
-                      className={`p-1 rounded transition-colors ${
-                        theme === 'light'
-                          ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                          : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                      }`}
+                      className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                     >
                       <Pencil className="w-3 h-3 text-blue-500" />
                     </button>
@@ -1122,11 +1066,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                         handleTriggerMaintenance(table.name);
                       }}
                       title={t('tableList.maintenance', 'Table Maintenance & Diagnostics...')}
-                      className={`p-1 rounded transition-colors ${
-                        theme === 'light'
-                          ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                          : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                      }`}
+                      className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                     >
                       <Wrench className="w-3.5 h-3.5 text-emerald-500" />
                     </button>
@@ -1179,10 +1119,8 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           }}
                           className={`flex items-center justify-between gap-2 px-1.5 py-1 rounded text-xs cursor-pointer transition-colors group ${
                             isSelected
-                              ? theme === 'light'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-blue-500 text-white'
-                              : `${palette.itemHover} ${theme === 'light' ? 'text-gray-800' : 'text-gray-200'}`
+                              ? 'bg-[var(--accent)] text-white'
+                              : `${palette.itemHover} text-[var(--text)]`
                           }`}
                         >
                           <div className="flex items-center gap-1.5 min-w-0">
@@ -1210,60 +1148,44 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <div data-testid="table-list-storage-view" className="p-4 space-y-4">
             {/* KPI Summary Strip */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div
-                className={`rounded-lg border p-3 ${
-                  theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-[#252526] border-[#333333]'
-                }`}
-              >
-                <div className="text-[11px] text-gray-400">
+              <div className="rounded-lg border p-3 bg-[var(--bg-card)] border-[var(--border)]">
+                <div className="text-[11px] text-[var(--text-muted)]">
                   {t('tableList.kpiTotalTables', 'Total Tables')}
                 </div>
-                <div className={`text-base font-semibold font-mono mt-0.5 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+                <div className="text-base font-semibold font-mono mt-0.5 text-[var(--text)]">
                   {filteredAndSortedTables.length}
                 </div>
               </div>
 
-              <div
-                className={`rounded-lg border p-3 ${
-                  theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-[#252526] border-[#333333]'
-                }`}
-              >
-                <div className="text-[11px] text-gray-400">
+              <div className="rounded-lg border p-3 bg-[var(--bg-card)] border-[var(--border)]">
+                <div className="text-[11px] text-[var(--text-muted)]">
                   {t('tableList.kpiTotalStorage', 'Total Storage')}
                 </div>
-                <div className={`text-base font-semibold font-mono mt-0.5 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+                <div className="text-base font-semibold font-mono mt-0.5 text-[var(--text)]">
                   {formatBytes(storageSummary.totalStorageBytes)}
                 </div>
-                <div className="text-[10px] text-gray-400 font-mono mt-0.5">
+                <div className="text-[10px] text-[var(--text-muted)] font-mono mt-0.5">
                   {t('tableList.dataShort', 'Data')}: {formatBytes(storageSummary.totalDataBytes)} · {t('tableList.indexShort', 'Index')}: {formatBytes(storageSummary.totalIndexBytes)}
                 </div>
               </div>
 
-              <div
-                className={`rounded-lg border p-3 ${
-                  theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-[#252526] border-[#333333]'
-                }`}
-              >
-                <div className="text-[11px] text-gray-400">
+              <div className="rounded-lg border p-3 bg-[var(--bg-card)] border-[var(--border)]">
+                <div className="text-[11px] text-[var(--text-muted)]">
                   {t('tableList.kpiLargestTable', 'Largest Table')}
                 </div>
                 <div
-                  className={`text-sm font-semibold font-mono truncate mt-0.5 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}
+                  className="text-sm font-semibold font-mono truncate mt-0.5 text-[var(--text)]"
                   title={storageSummary.largestTable?.name}
                 >
                   {storageSummary.largestTable ? storageSummary.largestTable.name : '-'}
                 </div>
-                <div className="text-[10px] text-gray-400 font-mono mt-0.5">
+                <div className="text-[10px] text-[var(--text-muted)] font-mono mt-0.5">
                   {storageSummary.largestTable ? formatBytes(storageSummary.largestTable.totalSizeBytes) : '-'}
                 </div>
               </div>
 
-              <div
-                className={`rounded-lg border p-3 ${
-                  theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-[#252526] border-[#333333]'
-                }`}
-              >
-                <div className="text-[11px] text-gray-400">
+              <div className="rounded-lg border p-3 bg-[var(--bg-card)] border-[var(--border)]">
+                <div className="text-[11px] text-[var(--text-muted)]">
                   {t('tableList.kpiHealthAlerts', 'Health Alerts')}
                 </div>
                 <div
@@ -1282,19 +1204,9 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             </div>
 
             {/* Storage & Health Breakdown Table */}
-            <div
-              className={`rounded-lg border overflow-hidden ${
-                theme === 'light' ? 'border-gray-200' : 'border-[#333333]'
-              }`}
-            >
+            <div className="rounded-lg border overflow-hidden border-[var(--border)]">
               <table className="w-full text-left border-collapse text-xs">
-                <thead
-                  className={`border-b ${
-                    theme === 'light'
-                      ? 'bg-gray-100 text-gray-600 border-gray-200'
-                      : 'bg-[#252526] text-gray-400 border-[#333333]'
-                  }`}
-                >
+                <thead className="border-b bg-[var(--grid-header-bg,var(--bg-panel))] text-[var(--text-muted)] border-[var(--border)]">
                   <tr>
                     <th
                       onClick={() => handleSort('name')}
@@ -1302,7 +1214,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                     >
                       <div className="flex items-center gap-1">
                         <span>{t('tableList.nameHeader', 'Name')}</span>
-                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                        <ArrowUpDown className="w-3 h-3 text-[var(--text-muted)]" />
                       </div>
                     </th>
                     <th
@@ -1311,7 +1223,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                     >
                       <div className="flex items-center justify-end gap-1">
                         <span>{t('tableList.totalSizeHeader', 'Total Size')}</span>
-                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                        <ArrowUpDown className="w-3 h-3 text-[var(--text-muted)]" />
                       </div>
                     </th>
                     <th className="py-2 px-3 font-medium w-48">
@@ -1323,14 +1235,14 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                     >
                       <div className="flex items-center justify-end gap-1">
                         <span>{t('tableList.approxRowsHeader', 'Approx Rows')}</span>
-                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                        <ArrowUpDown className="w-3 h-3 text-[var(--text-muted)]" />
                       </div>
                     </th>
                     <th className="py-2 px-3 font-medium">{t('tableList.healthStatus', 'Health')}</th>
                     <th className="py-2 px-3 font-medium text-right">{t('tableList.actionsHeader', 'Actions')}</th>
                   </tr>
                 </thead>
-                <tbody className={`divide-y ${theme === 'light' ? 'divide-gray-100' : 'divide-[#2a2a2a]'}`}>
+                <tbody className="divide-y divide-[var(--border-subtle,var(--border))]">
                   {filteredAndSortedTables.map((table) => {
                     const isSelected = selectedTables.includes(table.name);
                     const total = table.totalSizeBytes || 0;
@@ -1354,15 +1266,11 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                         }}
                         className={`transition-colors cursor-pointer ${
                           isSelected
-                            ? theme === 'light'
-                              ? 'bg-blue-50 hover:bg-blue-100/70'
-                              : 'bg-blue-500/20 hover:bg-blue-500/25'
-                            : theme === 'light'
-                            ? 'hover:bg-gray-50'
-                            : 'hover:bg-[#2a2d2e]'
+                            ? 'bg-[var(--sel)]'
+                            : 'hover:bg-[var(--row-alt)]'
                         }`}
                       >
-                        <td className={`py-2 px-3 font-mono ${theme === 'light' ? 'text-gray-900 font-medium' : 'text-white'}`}>
+                        <td className="py-2 px-3 font-mono text-[var(--text)] font-medium">
                           <div className="flex items-center gap-2">
                             {renderTableIcon(table.name)}
                             <span className="truncate max-w-[180px]" title={table.name}>
@@ -1370,14 +1278,12 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                             </span>
                           </div>
                         </td>
-                        <td className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-700' : 'text-gray-300'}`}>
+                        <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">
                           {formatBytes(total)}
                         </td>
                         <td className="py-2 px-3">
                           <div
-                            className={`w-full h-2 rounded-full overflow-hidden flex ${
-                              theme === 'light' ? 'bg-gray-200' : 'bg-[#333333]'
-                            }`}
+                            className="w-full h-2 rounded-full overflow-hidden flex bg-[var(--bg-toolbar)]"
                             title={`${t('tableList.dataShort', 'Data')}: ${formatBytes(table.dataSizeBytes)} (${dataPct}%) · ${t('tableList.indexShort', 'Index')}: ${formatBytes(table.indexSizeBytes)} (${indexPct}%)`}
                           >
                             {total > 0 && (
@@ -1387,12 +1293,12 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                               </>
                             )}
                           </div>
-                          <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-0.5">
+                          <div className="flex justify-between text-[10px] text-[var(--text-muted)] font-mono mt-0.5">
                             <span>{formatBytes(table.dataSizeBytes)}</span>
                             <span>{formatBytes(table.indexSizeBytes)}</span>
                           </div>
                         </td>
-                        <td className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-700' : 'text-gray-300'}`}>
+                        <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">
                           {formatApproxRows(table.approxRowCount)}
                         </td>
                         <td className="py-2 px-3">
@@ -1421,11 +1327,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                                 handleTriggerMaintenance(table.name);
                               }}
                               title={t('tableList.maintenance', 'Table Maintenance & Diagnostics...')}
-                              className={`p-1 rounded transition-colors ${
-                                theme === 'light'
-                                  ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                                  : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                              }`}
+                              className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                             >
                               <Wrench className="w-3.5 h-3.5 text-emerald-500" />
                             </button>
@@ -1435,11 +1337,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                                 handleOpenData(table.name);
                               }}
                               title={t('tableList.openData', 'Open Table Data')}
-                              className={`p-1 rounded transition-colors ${
-                                theme === 'light'
-                                  ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                                  : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                              }`}
+                              className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                             >
                               <ExternalLink className="w-3 h-3" />
                             </button>
@@ -1459,50 +1357,38 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               return (
                 <div
                   key={group.key}
-                  className={`rounded-lg border overflow-hidden ${
-                    theme === 'light' ? 'border-gray-200 bg-white' : 'border-[#333333] bg-[#252526]'
-                  }`}
+                  className="rounded-lg border overflow-hidden border-[var(--border)] bg-[var(--bg-grid)]"
                 >
                   <button
                     type="button"
                     data-testid={`prefix-group-${group.key}`}
                     onClick={() => toggleGroupCollapsed(group.key)}
-                    className={`w-full flex items-center justify-between px-3 py-2 text-xs transition-colors ${
-                      theme === 'light'
-                        ? 'bg-gray-50 hover:bg-gray-100 text-gray-800'
-                        : 'bg-[#2a2d2e] hover:bg-[#323638] text-gray-200'
-                    }`}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs transition-colors bg-[var(--bg-panel)] hover:bg-[var(--row-alt)] text-[var(--text)]"
                   >
                     <div className="flex items-center gap-2">
                       {isCollapsed ? (
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                        <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                       ) : (
-                        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                        <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                       )}
-                      <FolderTree className="w-3.5 h-3.5 text-blue-500" />
+                      <FolderTree className="w-3.5 h-3.5 text-[var(--accent)]" />
                       <span className="font-mono font-semibold">
                         {group.isOther ? t('tableList.otherGroup', 'Other / Ungrouped') : group.label}
                       </span>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded ${
-                          theme === 'light'
-                            ? 'bg-gray-200 text-gray-700'
-                            : 'bg-[#3c3c3c] text-gray-300'
-                        }`}
-                      >
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-toolbar)] text-[var(--text-muted)]">
                         {group.tables.length === 1
                           ? t('tableList.tableCount', { count: 1 })
                           : t('tableList.tableCount_plural', { count: group.tables.length })}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] font-mono text-gray-400">
+                    <div className="flex items-center gap-3 text-[11px] font-mono text-[var(--text-muted)]">
                       <span>{formatApproxRows(group.totalRows)}</span>
                       <span>{formatBytes(group.totalSizeBytes)}</span>
                     </div>
                   </button>
 
                   {!isCollapsed && (
-                    <div className={`divide-y ${theme === 'light' ? 'divide-gray-100' : 'divide-[#2d2d2d]'}`}>
+                    <div className="divide-y divide-[var(--border-subtle,var(--border))]">
                       {group.tables.map((table) => {
                         const isSelected = selectedTables.includes(table.name);
                         return (
@@ -1522,36 +1408,30 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                             }}
                             className={`flex items-center justify-between px-4 py-1.5 text-xs cursor-pointer transition-colors group ${
                               isSelected
-                                ? theme === 'light'
-                                  ? 'bg-blue-50 hover:bg-blue-100/70'
-                                  : 'bg-blue-500/20 hover:bg-blue-500/25'
-                                : theme === 'light'
-                                ? 'hover:bg-gray-50'
-                                : 'bg-[#1e1e1e] hover:bg-[#2a2d2e]'
+                                ? 'bg-[var(--sel)]'
+                                : 'bg-[var(--bg-grid)] hover:bg-[var(--row-alt)]'
                             }`}
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               {renderTableIcon(table.name)}
                               <span
-                                className={`font-mono truncate ${
-                                  theme === 'light' ? 'text-gray-900 font-medium' : 'text-white'
-                                }`}
+                                className="font-mono truncate text-[var(--text)] font-medium"
                                 title={table.name}
                               >
                                 {table.name}
                               </span>
                               {table.engine && (
-                                <span className="text-[10px] text-gray-400 hidden sm:inline">
+                                <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">
                                   {table.engine}
                                 </span>
                               )}
                             </div>
 
                             <div className="flex items-center gap-4 shrink-0">
-                              <span className={`font-mono text-[11px] w-16 text-right ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`}>
+                              <span className="font-mono text-[11px] w-16 text-right text-[var(--text-muted)]">
                                 {formatApproxRows(table.approxRowCount)}
                               </span>
-                              <span className={`font-mono text-[11px] w-16 text-right ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`}>
+                              <span className="font-mono text-[11px] w-16 text-right text-[var(--text-muted)]">
                                 {formatBytes(table.totalSizeBytes)}
                               </span>
                               <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
@@ -1561,11 +1441,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                                     handleOpenData(table.name);
                                   }}
                                   title={t('tableList.openData', 'Open Table Data')}
-                                  className={`p-1 rounded transition-colors ${
-                                    theme === 'light'
-                                      ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                                      : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                                  }`}
+                                  className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                                 >
                                   <ExternalLink className="w-3 h-3" />
                                 </button>
@@ -1575,11 +1451,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                                     handleOpenStructure(table.name);
                                   }}
                                   title={t('tableList.designStructure', 'Design Table Structure')}
-                                  className={`p-1 rounded transition-colors ${
-                                    theme === 'light'
-                                      ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                                      : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                                  }`}
+                                  className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                                 >
                                   <Wrench className="w-3 h-3" />
                                 </button>
@@ -1589,11 +1461,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                                     handleTriggerMaintenance(table.name);
                                   }}
                                   title={t('tableList.maintenance', 'Table Maintenance & Diagnostics...')}
-                                  className={`p-1 rounded transition-colors ${
-                                    theme === 'light'
-                                      ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                                      : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                                  }`}
+                                  className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                                 >
                                   <Wrench className="w-3.5 h-3.5 text-emerald-500" />
                                 </button>
@@ -1610,55 +1478,51 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           </div>
         ) : (
           <table className="w-full text-left border-collapse text-xs">
-            <thead className={`sticky top-0 z-10 border-b transition-colors ${
-              theme === 'light'
-                ? 'bg-gray-100 text-gray-600 border-gray-200'
-                : 'bg-[#252526] text-gray-400 border-[#333333]'
-            }`}>
+            <thead className="sticky top-0 z-10 border-b transition-colors bg-[var(--grid-header-bg,var(--bg-panel))] text-[var(--text-muted)] border-[var(--border)]">
               <tr>
                 <th
                   onClick={() => handleSort('name')}
-                  className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none`}
+                  className="py-2 px-3 font-medium cursor-pointer hover:text-[var(--text)] select-none"
                 >
                   <div className="flex items-center gap-1">
                     <span>{t('tableList.nameHeader', 'Name')}</span>
-                    <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                    <ArrowUpDown className="w-3 h-3 text-[var(--text-muted)]" />
                   </div>
                 </th>
                 <th
                   onClick={() => handleSort('approxRowCount')}
-                  className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none text-right`}
+                  className="py-2 px-3 font-medium cursor-pointer hover:text-[var(--text)] select-none text-right"
                 >
                   <div className="flex items-center justify-end gap-1">
                     <span>{t('tableList.approxRowsHeader', 'Approx Rows')}</span>
-                    <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                    <ArrowUpDown className="w-3 h-3 text-[var(--text-muted)]" />
                   </div>
                 </th>
                 <th
                   onClick={() => handleSort('totalSizeBytes')}
-                  className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none text-right`}
+                  className="py-2 px-3 font-medium cursor-pointer hover:text-[var(--text)] select-none text-right"
                 >
                   <div className="flex items-center justify-end gap-1">
                     <span>{t('tableList.totalSizeHeader', 'Total Size')}</span>
-                    <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                    <ArrowUpDown className="w-3 h-3 text-[var(--text-muted)]" />
                   </div>
                 </th>
                 <th className="py-2 px-3 font-medium text-right">{t('tableList.dataSizeHeader', 'Data Size')}</th>
                 <th className="py-2 px-3 font-medium text-right">{t('tableList.indexSizeHeader', 'Index Size')}</th>
                 <th
                   onClick={() => handleSort('engine')}
-                  className={`py-2 px-3 font-medium cursor-pointer ${theme === 'light' ? 'hover:text-gray-900' : 'hover:text-white'} select-none`}
+                  className="py-2 px-3 font-medium cursor-pointer hover:text-[var(--text)] select-none"
                 >
                   <div className="flex items-center gap-1">
                     <span>{t('tableList.engine', 'Engine')}</span>
-                    <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                    <ArrowUpDown className="w-3 h-3 text-[var(--text-muted)]" />
                   </div>
                 </th>
                 <th className="py-2 px-3 font-medium">{t('tableList.collation', 'Collation')}</th>
                 <th className="py-2 px-3 font-medium text-right">{t('tableList.actionsHeader', 'Actions')}</th>
               </tr>
             </thead>
-            <tbody className={`divide-y ${theme === 'light' ? 'divide-gray-100' : 'divide-[#2a2a2a]'}`}>
+            <tbody className="divide-y divide-[var(--border-subtle,var(--border))]">
               {filteredAndSortedTables.map((table) => {
                 const isSelected = selectedTables.includes(table.name);
                 return (
@@ -1678,41 +1542,35 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                   }}
                   className={`transition-colors group cursor-pointer ${
                     isSelected
-                      ? theme === 'light'
-                        ? 'bg-blue-50 hover:bg-blue-100/70'
-                        : 'bg-blue-500/20 hover:bg-blue-500/25'
-                      : theme === 'light'
-                      ? 'hover:bg-gray-50'
-                      : 'hover:bg-[#2a2d2e]'
+                      ? 'bg-[var(--sel)]'
+                      : 'hover:bg-[var(--row-alt)]'
                   }`}
                 >
-                  <td className={`py-2 px-3 flex items-center gap-2 font-mono ${
-                    theme === 'light' ? 'text-gray-900 font-medium' : 'text-white'
-                  }`}>
+                  <td className="py-2 px-3 flex items-center gap-2 font-mono text-[var(--text)] font-medium">
                     {renderTableIcon(table.name)}
                     <span className="truncate max-w-[200px]" title={table.name}>
                       {table.name}
                     </span>
                   </td>
                   <td
-                    className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-700' : 'text-gray-300'}`}
+                    className="py-2 px-3 text-right font-mono text-[var(--text-muted)]"
                     title="Approximate row count from database catalog"
                   >
                     {formatApproxRows(table.approxRowCount)}
                   </td>
-                  <td className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-700' : 'text-gray-300'}`}>
+                  <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">
                     {formatBytes(table.totalSizeBytes)}
                   </td>
-                  <td className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">
                     {formatBytes(table.dataSizeBytes)}
                   </td>
-                  <td className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">
                     {formatBytes(table.indexSizeBytes)}
                   </td>
-                  <td className={`py-2 px-3 ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>
+                  <td className="py-2 px-3 text-[var(--text-muted)]">
                     {table.engine || '-'}
                   </td>
-                  <td className={`py-2 px-3 truncate max-w-[120px] ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`} title={table.collation}>
+                  <td className="py-2 px-3 truncate max-w-[120px] text-[var(--text-muted)]" title={table.collation}>
                     {table.collation || '-'}
                   </td>
                   <td className="py-2 px-3 text-right">
@@ -1723,11 +1581,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           handleOpenData(table.name);
                         }}
                         title={t('tableList.openData', 'Open Table Data')}
-                        className={`p-1 rounded transition-colors ${
-                          theme === 'light'
-                            ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                            : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                        }`}
+                        className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                       >
                         <ExternalLink className="w-3 h-3" />
                       </button>
@@ -1737,11 +1591,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           handleOpenStructure(table.name);
                         }}
                         title={t('tableList.designStructure', 'Design Table Structure')}
-                        className={`p-1 rounded transition-colors ${
-                          theme === 'light'
-                            ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                            : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                        }`}
+                        className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                       >
                         <Wrench className="w-3 h-3" />
                       </button>
@@ -1751,11 +1601,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           handleTriggerDuplicate(table.name);
                         }}
                         title={t('tableList.duplicateTable', 'Duplicate Table...')}
-                        className={`p-1 rounded transition-colors ${
-                          theme === 'light'
-                            ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                            : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                        }`}
+                        className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                       >
                         <Copy className="w-3 h-3" />
                       </button>
@@ -1765,11 +1611,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           handleTriggerRenameTable(table.name);
                         }}
                         title={t('sidebar.contextMenu.renameTable', 'Rename Table...')}
-                        className={`p-1 rounded transition-colors ${
-                          theme === 'light'
-                            ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                            : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                        }`}
+                        className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                       >
                         <Pencil className="w-3 h-3 text-blue-500" />
                       </button>
@@ -1779,11 +1621,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                           handleTriggerMaintenance(table.name);
                         }}
                         title={t('tableList.maintenance', 'Table Maintenance & Diagnostics...')}
-                        className={`p-1 rounded transition-colors ${
-                          theme === 'light'
-                            ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
-                            : 'hover:bg-[#383838] text-gray-400 hover:text-white'
-                        }`}
+                        className="p-1 rounded transition-colors hover:bg-[var(--bg-toolbar)] text-[var(--text-muted)] hover:text-[var(--text)]"
                       >
                         <Wrench className="w-3.5 h-3.5 text-emerald-500" />
                       </button>
@@ -1803,19 +1641,13 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           ref={contextMenuRef}
           role="menu"
           data-testid="table-list-context-menu"
-          className={`fixed z-50 rounded-md shadow-2xl py-1 text-xs min-w-[190px] max-h-[calc(100vh-16px)] overflow-y-auto select-none border ${
-            theme === 'light'
-              ? 'bg-white border-gray-200 text-gray-800'
-              : 'bg-[#1e1e1e] border-[#333333] text-gray-200'
-          }`}
+          className="fixed z-50 rounded-md shadow-2xl py-1 text-xs min-w-[190px] max-h-[calc(100vh-16px)] overflow-y-auto select-none border bg-[var(--bg-panel)] border-[var(--border)] text-[var(--text)]"
           style={{ top: menuPosition.top, left: menuPosition.left }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className={`px-3 py-1.5 text-[11px] font-mono border-b flex items-center gap-1.5 truncate ${
-            theme === 'light' ? 'text-gray-500 border-gray-100' : 'text-gray-400 border-[#2d2d2d]'
-          }`}>
-            <TableIcon className="w-3 h-3 text-blue-500 shrink-0" />
-            <span className={`truncate font-semibold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+          <div className="px-3 py-1.5 text-[11px] font-mono border-b flex items-center gap-1.5 truncate text-[var(--text-muted)] border-[var(--border-subtle,var(--border))]">
+            <TableIcon className="w-3 h-3 text-[var(--accent)] shrink-0" />
+            <span className="truncate font-semibold text-[var(--text)]">
               {!contextMenu.table
                 ? schemaName
                   ? `${schemaName} Tables`
@@ -1830,9 +1662,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             <button
               type="button"
               data-testid="ctx-refresh-tables"
-              className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-                theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-              }`}
+              className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
               onClick={() => {
                 setContextMenu(null);
                 fetchTables();
@@ -1846,9 +1676,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               <button
                 type="button"
                 data-testid="ctx-open-selected-tables"
-                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-                }`}
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
                 onClick={() => handleOpenSelectedTables(selectedTables)}
               >
                 <TableIcon className="w-3.5 h-3.5 text-emerald-500" />
@@ -1857,9 +1685,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               <button
                 type="button"
                 data-testid="ctx-design-selected-tables"
-                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-                }`}
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
                 onClick={() => handleEditSelectedStructures(selectedTables)}
               >
                 <Wrench className="w-3.5 h-3.5 text-amber-500" />
@@ -1868,9 +1694,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               <button
                 type="button"
                 data-testid="ctx-export-selected-sql"
-                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-                }`}
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
                 onClick={() => handleTriggerExportSelectedSql(selectedTables)}
               >
                 <Download className="w-3.5 h-3.5 text-indigo-500" />
@@ -1879,9 +1703,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               <button
                 type="button"
                 data-testid="ctx-import-sql"
-                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-                }`}
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
                 onClick={() => handleTriggerImportSql(contextMenu.table!.name)}
               >
                 <Upload className="w-3.5 h-3.5 text-emerald-500" />
@@ -1890,9 +1712,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               <button
                 type="button"
                 data-testid="ctx-query-selected-tables"
-                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-                }`}
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
                 onClick={() => handleQuerySelectedTables(selectedTables)}
               >
                 <FileCode className="w-3.5 h-3.5 text-blue-500" />
@@ -1901,9 +1721,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               <button
                 type="button"
                 data-testid="ctx-query-builder"
-                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors font-medium ${
-                  theme === 'light' ? 'hover:bg-gray-100 text-amber-600' : 'hover:bg-[#2d2d2d] text-amber-400'
-                }`}
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors font-medium hover:bg-[var(--row-alt)] text-[var(--warn)]"
                 onClick={() => handleOpenQueryBuilder(contextMenu.table!.name)}
               >
                 <Wand2 className="w-3.5 h-3.5 text-amber-500" />
@@ -1912,9 +1730,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               <button
                 type="button"
                 data-testid="ctx-view-selected-ddl"
-                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-                }`}
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
                 onClick={() => handleViewSelectedDdl(selectedTables)}
               >
                 <FileCode className="w-3.5 h-3.5 text-blue-500" />
@@ -1923,21 +1739,17 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               <button
                 type="button"
                 data-testid="ctx-copy-selected-names"
-                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-                }`}
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
                 onClick={() => handleCopySelectedNames(selectedTables)}
               >
-                <Copy className="w-3.5 h-3.5 text-gray-400" />
+                <Copy className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                 <span>{t('tableList.copySelectedNames', 'Copy {{count}} Table Names', { count: selectedTables.length })}</span>
               </button>
-              <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
+              <div className="border-t my-1 border-[var(--border-subtle,var(--border))]" />
               <button
                 type="button"
                 data-testid="ctx-refresh-tables"
-                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-                }`}
+                className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
                 onClick={() => {
                   setContextMenu(null);
                   fetchTables();
@@ -1946,7 +1758,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                 <RefreshCw className="w-3.5 h-3.5 text-emerald-500" />
                 <span>{t('tableList.refreshContextMenu', 'Refresh Tables')}</span>
               </button>
-              <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
+              <div className="border-t my-1 border-[var(--border-subtle,var(--border))]" />
               <button
                 type="button"
                 data-testid="ctx-drop-selected-tables"
@@ -1964,9 +1776,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-open-table"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => {
               handleOpenData(contextMenu.table!.name);
               setContextMenu(null);
@@ -1979,9 +1789,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-design-table"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => {
               handleOpenStructure(contextMenu.table!.name);
               setContextMenu(null);
@@ -1994,9 +1802,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-import-data"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => handleTriggerImportData(contextMenu.table!.name)}
           >
             <Upload className="w-3.5 h-3.5 text-emerald-500" />
@@ -2006,9 +1812,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-export-data"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => handleTriggerExportData(contextMenu.table!.name)}
           >
             <Download className="w-3.5 h-3.5 text-blue-500" />
@@ -2018,9 +1822,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-duplicate-table"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => handleTriggerDuplicate(contextMenu.table!.name)}
           >
             <Copy className="w-3.5 h-3.5 text-purple-500" />
@@ -2030,9 +1832,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-copy-to-db"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => handleTriggerCopyTableToDb(contextMenu.table!.name)}
           >
             <ArrowRightLeft className="w-3.5 h-3.5 text-blue-500" />
@@ -2042,9 +1842,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-export-sql"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => handleTriggerExportSql(contextMenu.table!.name)}
           >
             <Download className="w-3.5 h-3.5 text-indigo-500" />
@@ -2054,9 +1852,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-import-sql"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => handleTriggerImportSql(contextMenu.table!.name)}
           >
             <Upload className="w-3.5 h-3.5 text-emerald-500" />
@@ -2066,9 +1862,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-query-table"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => handleQueryTable(contextMenu.table!.name)}
           >
             <FileCode className="w-3.5 h-3.5 text-blue-500" />
@@ -2078,9 +1872,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-query-builder"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors font-medium ${
-              theme === 'light' ? 'hover:bg-gray-100 text-amber-600' : 'hover:bg-[#2d2d2d] text-amber-400'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors font-medium hover:bg-[var(--row-alt)] text-[var(--warn)]"
             onClick={() => handleOpenQueryBuilder(contextMenu.table!.name)}
           >
             <Wand2 className="w-3.5 h-3.5 text-amber-500" />
@@ -2090,9 +1882,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-view-ddl"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => handleViewObjectDdl(contextMenu.table!.name)}
           >
             <FileCode className="w-3.5 h-3.5 text-blue-500" />
@@ -2102,23 +1892,19 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-copy-name"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => handleCopyName(contextMenu.table!.name)}
           >
-            <Copy className="w-3.5 h-3.5 text-gray-400" />
+            <Copy className="w-3.5 h-3.5 text-[var(--text-muted)]" />
             <span>{t('sidebar.contextMenu.copyName', 'Copy Name')}</span>
           </button>
 
-          <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
+          <div className="border-t my-1 border-[var(--border-subtle,var(--border))]" />
 
           <button
             type="button"
             data-testid="ctx-rename-table"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => handleTriggerRenameTable(contextMenu.table!.name)}
           >
             <Pencil className="w-3.5 h-3.5 text-blue-500" />
@@ -2128,9 +1914,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-maintenance-table"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => handleTriggerMaintenance(contextMenu.table!.name)}
           >
             <Wrench className="w-3.5 h-3.5 text-emerald-500" />
@@ -2140,9 +1924,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <button
             type="button"
             data-testid="ctx-refresh-tables"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
+            className="w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors hover:bg-[var(--row-alt)] text-[var(--text)]"
             onClick={() => {
               setContextMenu(null);
               fetchTables();
@@ -2152,7 +1934,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             <span>{t('tableList.refreshContextMenu', 'Refresh Tables')}</span>
           </button>
 
-          <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
+          <div className="border-t my-1 border-[var(--border-subtle,var(--border))]" />
 
           <button
             type="button"
