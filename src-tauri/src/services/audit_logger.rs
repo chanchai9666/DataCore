@@ -365,6 +365,8 @@ pub struct AuditLogger {
     max_file_size: u64,
     last_hash_cache: Arc<Mutex<Option<String>>>,
     active_entries_cache: Arc<Mutex<Option<usize>>>,
+    verified_prefix_cache: Arc<Mutex<Option<(usize, String)>>>,
+    last_known_file_len: Arc<Mutex<Option<u64>>>,
     write_lock: Arc<Mutex<()>>,
     last_write_error: Arc<Mutex<Option<String>>>,
 }
@@ -380,6 +382,8 @@ impl AuditLogger {
             max_file_size,
             last_hash_cache: Arc::new(Mutex::new(None)),
             active_entries_cache: Arc::new(Mutex::new(None)),
+            verified_prefix_cache: Arc::new(Mutex::new(None)),
+            last_known_file_len: Arc::new(Mutex::new(None)),
             write_lock: Arc::new(Mutex::new(())),
             last_write_error: Arc::new(Mutex::new(None)),
         }
@@ -613,7 +617,11 @@ impl AuditLogger {
         }
 
         if anchor.anchor_hmac == compute_anchor_hmac(&material.key, &anchor.payload()) {
-            if !material.initialized || anchor.key_epoch == 0 || anchor.key_fingerprint.is_empty() {
+            if !material.initialized
+                || anchor.key_epoch == 0
+                || anchor.key_fingerprint.is_empty()
+                || !anchor.archives_adopted
+            {
                 self.ensure_key_initialized(material)?;
                 let fp = key_fingerprint(&material.key, material.epoch);
                 let _ = self.write_anchor(
@@ -1066,31 +1074,48 @@ impl AuditLogger {
 
         let log_path = self.main_log_path();
         if let Some(ref anc) = existing_anchor {
-            let disk_count = if log_path.exists() {
-                Self::count_existing_non_empty_lines(&log_path)
-            } else {
-                0
-            };
-            if disk_count < anc.active_entries {
-                return Err(AppError::Other(format!(
-                    "Audit log truncation detected before write: active log has {} entries but anchor expects {} (fail-closed)",
-                    disk_count, anc.active_entries
-                )));
+            let current_len = fs::metadata(&log_path).map(|m| m.len()).ok();
+            let cached_len = *self.last_known_file_len.lock().unwrap();
+            let cached_count = *self.active_entries_cache.lock().unwrap();
+            let cached_prefix = self.verified_prefix_cache.lock().unwrap().clone();
+
+            let fast_path_ok = current_len.is_some()
+                && current_len == cached_len
+                && cached_count.is_some()
+                && cached_prefix
+                    .as_ref()
+                    .is_some_and(|(e, h)| *e == anc.active_entries && h == &anc.last_entry_hash);
+
+            if !fast_path_ok {
+                let disk_count = if log_path.exists() {
+                    Self::count_existing_non_empty_lines(&log_path)
+                } else {
+                    0
+                };
+                if disk_count < anc.active_entries {
+                    return Err(AppError::Other(format!(
+                        "Audit log truncation detected before write: active log has {} entries but anchor expects {} (fail-closed)",
+                        disk_count, anc.active_entries
+                    )));
+                }
+
+                let forward = disk_count - anc.active_entries;
+                let prefix_ok = anc.active_entries == 0
+                    || Self::hash_at_entry_index(&log_path, anc.active_entries).as_deref()
+                        == Some(anc.last_entry_hash.as_str());
+
+                if forward > 100 || !prefix_ok {
+                    return Err(AppError::Other(format!(
+                        "Audit log diverged from anchor before write ({} entries ahead, prefix_ok={}) (fail-closed)",
+                        forward, prefix_ok
+                    )));
+                }
+
+                *self.active_entries_cache.lock().unwrap() = Some(disk_count);
+                *self.verified_prefix_cache.lock().unwrap() =
+                    Some((anc.active_entries, anc.last_entry_hash.clone()));
+                *self.last_known_file_len.lock().unwrap() = current_len;
             }
-
-            let forward = disk_count - anc.active_entries;
-            let prefix_ok = anc.active_entries == 0
-                || Self::hash_at_entry_index(&log_path, anc.active_entries).as_deref()
-                    == Some(anc.last_entry_hash.as_str());
-
-            if forward > 100 || !prefix_ok {
-                return Err(AppError::Other(format!(
-                    "Audit log diverged from anchor before write ({} entries ahead, prefix_ok={}) (fail-closed)",
-                    forward, prefix_ok
-                )));
-            }
-
-            *self.active_entries_cache.lock().unwrap() = Some(disk_count);
         }
 
         let mut input = input;
@@ -1224,6 +1249,9 @@ impl AuditLogger {
             let mut cache = self.active_entries_cache.lock().unwrap();
             *cache = Some(prior_active_count + 1);
         }
+        *self.last_known_file_len.lock().unwrap() = fs::metadata(&log_path).map(|m| m.len()).ok();
+        *self.verified_prefix_cache.lock().unwrap() =
+            Some((prior_active_count + 1, entry_hash.clone()));
 
         // 2) Best-effort signed anchor update (self-heals on subsequent write or verify if transient error occurs)
         if let Err(err) = self.write_anchor(
@@ -1308,6 +1336,8 @@ impl AuditLogger {
         }
 
         *self.active_entries_cache.lock().unwrap() = Some(0);
+        *self.verified_prefix_cache.lock().unwrap() = None;
+        *self.last_known_file_len.lock().unwrap() = None;
         Ok(target)
     }
 
@@ -1411,7 +1441,7 @@ impl AuditLogger {
                 Ok(e) => e,
                 Err(err) => {
                     return Ok(ChainVerifyOutcome::Invalid {
-                        count,
+                        count: count + 1,
                         error: format!("Invalid JSON format at line {}: {}", idx + 1, err),
                         tampered_entry_id: None,
                     });
@@ -1421,7 +1451,7 @@ impl AuditLogger {
             let entry_prev = entry.prev_hash.as_deref().unwrap_or(GENESIS_HASH);
             if entry_prev != expected_prev_hash {
                 return Ok(ChainVerifyOutcome::Invalid {
-                    count,
+                    count: count + 1,
                     error: format!(
                         "Chain broken at entry {}: prev_hash '{}' does not match expected '{}'",
                         entry.id, entry_prev, expected_prev_hash
@@ -1438,7 +1468,7 @@ impl AuditLogger {
                 file_seen_hmac = true;
                 let Some(key) = hmac_key else {
                     return Ok(ChainVerifyOutcome::Invalid {
-                        count,
+                        count: count + 1,
                         error: format!(
                             "HMAC key missing for entry {} (fail-closed integrity check)",
                             entry.id
@@ -1449,7 +1479,7 @@ impl AuditLogger {
                 let expected_hash = compute_entry_hmac(key, entry_prev, &entry);
                 if entry.entry_hash.as_deref() != Some(expected_hash.as_str()) {
                     return Ok(ChainVerifyOutcome::Invalid {
-                        count,
+                        count: count + 1,
                         error: format!(
                             "Tamper detected at entry {}: entry_hash '{:?}' does not match computed '{:?}'",
                             entry.id, entry.entry_hash, expected_hash
@@ -1460,7 +1490,7 @@ impl AuditLogger {
             } else {
                 if seen_hmac {
                     return Ok(ChainVerifyOutcome::Invalid {
-                        count,
+                        count: count + 1,
                         error: format!(
                             "Hash algorithm downgrade detected at entry {}: legacy '{}' after hmac-sha256",
                             entry.id, algo
@@ -1481,7 +1511,7 @@ impl AuditLogger {
                     };
                     if is_downgrade {
                         return Ok(ChainVerifyOutcome::Invalid {
-                            count,
+                            count: count + 1,
                             error: format!(
                                 "Hash algorithm downgrade detected at entry {}: legacy '{}' entry at '{}' is not older than HMAC activation '{}'",
                                 entry.id, algo, entry.timestamp, since_str
@@ -1494,7 +1524,7 @@ impl AuditLogger {
                     compute_entry_hash(entry_prev, &entry.timestamp, &entry.action, details);
                 if entry.entry_hash.as_deref() != Some(expected_hash.as_str()) {
                     return Ok(ChainVerifyOutcome::Invalid {
-                        count,
+                        count: count + 1,
                         error: format!(
                             "Tamper detected at entry {}: entry_hash '{:?}' does not match computed '{:?}'",
                             entry.id, entry.entry_hash, expected_hash
@@ -1758,7 +1788,7 @@ impl AuditLogger {
                     } => {
                         return Ok(invalid(
                             checked_entries + err_count,
-                            error,
+                            format!("In untracked archive '{}': {}", fname, error),
                             tampered_entry_id,
                         ));
                     }
@@ -2008,20 +2038,30 @@ impl AuditLogger {
 
         if clearing_dir.exists() {
             if let Err(err) = fs::remove_dir_all(&clearing_dir) {
-                eprintln!("[audit] warning: could not remove clearing dir: {err}");
+                return Err(AppError::Other(format!(
+                    "Audit logs staged in '{}' but could not be deleted ({}). Remove manually after review.",
+                    clearing_dir.display(),
+                    err
+                )));
             }
         }
 
         let mut cache = self.last_hash_cache.lock().unwrap();
         *cache = None;
         *self.active_entries_cache.lock().unwrap() = None;
+        *self.verified_prefix_cache.lock().unwrap() = None;
+        *self.last_known_file_len.lock().unwrap() = None;
         *self.last_write_error.lock().unwrap() = None;
 
         Ok(())
     }
 
-    /// Inspect or repair untracked / corrupted rotated audit files (U2)
-    pub fn repair_audit_log(&self, action: &str) -> Result<AuditRepairResult, AppError> {
+    /// Inspect or repair untracked / corrupted rotated audit files (U2 / R1 / R5)
+    pub fn repair_audit_log(
+        &self,
+        action: &str,
+        confirm: bool,
+    ) -> Result<AuditRepairResult, AppError> {
         let _guard = self.write_lock.lock().unwrap();
         self.bootstrap_anchor_if_needed()?;
         let mut material = self.read_key_material()?;
@@ -2051,6 +2091,37 @@ impl AuditLogger {
             .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(str::to_string))
             .collect();
 
+        let quarantine_paths =
+            |paths: &[PathBuf]| -> Result<(Vec<String>, Option<String>), AppError> {
+                let mut quarantined_files = Vec::new();
+                let mut quarantine_dir_str = None;
+                if !paths.is_empty() {
+                    let q_dir = self.log_dir.join(format!(
+                        "audit.quarantine.{}",
+                        chrono::Utc::now().timestamp_millis()
+                    ));
+                    fs::create_dir_all(&q_dir)?;
+                    quarantine_dir_str = Some(q_dir.to_string_lossy().to_string());
+                    let mut moved: Vec<(PathBuf, PathBuf)> = Vec::new();
+                    for src in paths {
+                        let Some(fname) = src.file_name() else {
+                            continue;
+                        };
+                        let dst = q_dir.join(fname);
+                        if let Err(err) = fs::rename(src, &dst) {
+                            for (orig, staged) in moved.into_iter().rev() {
+                                let _ = fs::rename(&staged, &orig);
+                            }
+                            let _ = fs::remove_dir_all(&q_dir);
+                            return Err(err.into());
+                        }
+                        moved.push((src.clone(), dst));
+                        quarantined_files.push(fname.to_string_lossy().to_string());
+                    }
+                }
+                Ok((quarantined_files, quarantine_dir_str))
+            };
+
         match action {
             "report" => {
                 let res = self.verify_integrity_locked()?;
@@ -2063,24 +2134,7 @@ impl AuditLogger {
                 })
             }
             "quarantine" => {
-                let mut quarantined_files = Vec::new();
-                let mut quarantine_dir_str = None;
-                if !untracked_paths.is_empty() {
-                    let q_dir = self.log_dir.join(format!(
-                        "audit.quarantine.{}",
-                        chrono::Utc::now().timestamp_millis()
-                    ));
-                    fs::create_dir_all(&q_dir)?;
-                    quarantine_dir_str = Some(q_dir.to_string_lossy().to_string());
-                    for src in &untracked_paths {
-                        let Some(fname) = src.file_name() else {
-                            continue;
-                        };
-                        let dst = q_dir.join(fname);
-                        fs::rename(src, &dst)?;
-                        quarantined_files.push(fname.to_string_lossy().to_string());
-                    }
-                }
+                let (quarantined_files, quarantine_dir_str) = quarantine_paths(&untracked_paths)?;
                 let res = self.verify_integrity_locked()?;
                 if res.is_valid {
                     *self.last_write_error.lock().unwrap() = None;
@@ -2099,23 +2153,15 @@ impl AuditLogger {
                         "Cannot rebuild audit anchor without HMAC key material".to_string(),
                     ));
                 };
-                let mut quarantined_files = Vec::new();
-                let mut quarantine_dir_str = None;
-                if !untracked_paths.is_empty() {
-                    let q_dir = self.log_dir.join(format!(
-                        "audit.quarantine.{}",
-                        chrono::Utc::now().timestamp_millis()
-                    ));
-                    fs::create_dir_all(&q_dir)?;
-                    quarantine_dir_str = Some(q_dir.to_string_lossy().to_string());
-                    for src in &untracked_paths {
-                        let Some(fname) = src.file_name() else {
-                            continue;
-                        };
-                        let dst = q_dir.join(fname);
-                        fs::rename(src, &dst)?;
-                        quarantined_files.push(fname.to_string_lossy().to_string());
-                    }
+                let (quarantined_files, quarantine_dir_str) = quarantine_paths(&untracked_paths)?;
+
+                let existing_archives = anchor
+                    .as_ref()
+                    .map(|a| a.archives.clone())
+                    .unwrap_or_default();
+                let mut chain_prev = GENESIS_HASH.to_string();
+                for arc in &existing_archives {
+                    chain_prev = arc.last_entry_hash.clone();
                 }
 
                 let main_path = self.main_log_path();
@@ -2123,13 +2169,15 @@ impl AuditLogger {
                     .as_ref()
                     .map(|a| a.hmac_enabled_since.clone())
                     .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+                let prior_active_expected = anchor.as_ref().map(|a| a.active_entries).unwrap_or(0);
+
                 let (active_count, last_hash) = if main_path.exists() {
                     match Self::verify_file_chain(
                         &main_path,
                         Some(&mat.key),
-                        GENESIS_HASH,
+                        &chain_prev,
                         Some(&enabled_since),
-                        false,
+                        !existing_archives.is_empty(),
                     )? {
                         ChainVerifyOutcome::Valid {
                             count, last_hash, ..
@@ -2141,20 +2189,70 @@ impl AuditLogger {
                         }
                     }
                 } else {
-                    (0, GENESIS_HASH.to_string())
+                    (0, chain_prev)
                 };
 
+                if active_count < prior_active_expected && !confirm {
+                    return Err(AppError::Other(format!(
+                        "Rebuild would accept truncation of active log from {} to {} entries; explicit confirmation required.",
+                        prior_active_expected, active_count
+                    )));
+                }
+
+                // Append a tamper-evident SECURITY audit entry recording the rebuild action
+                let repair_timestamp = normalize_utc_rfc3339(chrono::Utc::now());
+                let repair_details = format!(
+                    "audit_repair;action=rebuild_anchor;prev_active={};new_active={};archives={};quarantined={}",
+                    prior_active_expected,
+                    active_count,
+                    existing_archives.len(),
+                    quarantined_files.len()
+                );
+                let mut repair_entry = AuditLogEntry {
+                    id: format!("audit-{}", uuid::Uuid::new_v4()),
+                    timestamp: repair_timestamp,
+                    action: "SECURITY".to_string(),
+                    user: None,
+                    connection_id: None,
+                    connection_name: None,
+                    database: None,
+                    query: None,
+                    execution_time_ms: None,
+                    rows_affected: None,
+                    status: "SUCCESS".to_string(),
+                    error_message: None,
+                    details: Some(repair_details),
+                    prev_hash: Some(last_hash.clone()),
+                    entry_hash: None,
+                    hash_algo: Some("hmac-sha256".to_string()),
+                };
+                let repair_hash = compute_entry_hmac(&mat.key, &last_hash, &repair_entry);
+                repair_entry.entry_hash = Some(repair_hash.clone());
+                let serialized = serde_json::to_string(&repair_entry)?;
+
+                let mut file = OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&main_path)?;
+                writeln!(file, "{}", serialized)?;
+                file.flush()?;
+                set_file_permissions_0600(&main_path)?;
+
+                let final_count = active_count + 1;
                 self.write_anchor(
                     &mat.key,
                     mat.epoch,
                     enabled_since,
-                    active_count,
-                    last_hash.clone(),
-                    Vec::new(),
+                    final_count,
+                    repair_hash.clone(),
+                    existing_archives,
                     true,
                 )?;
-                *self.last_hash_cache.lock().unwrap() = Some(last_hash);
-                *self.active_entries_cache.lock().unwrap() = Some(active_count);
+                *self.last_hash_cache.lock().unwrap() = Some(repair_hash.clone());
+                *self.active_entries_cache.lock().unwrap() = Some(final_count);
+                *self.verified_prefix_cache.lock().unwrap() = Some((final_count, repair_hash));
+                *self.last_known_file_len.lock().unwrap() =
+                    fs::metadata(&main_path).map(|m| m.len()).ok();
                 *self.last_write_error.lock().unwrap() = None;
 
                 Ok(AuditRepairResult {

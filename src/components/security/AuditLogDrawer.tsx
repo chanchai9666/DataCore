@@ -50,6 +50,7 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [repairing, setRepairing] = useState(false);
+  const [untrackedFiles, setUntrackedFiles] = useState<string[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -60,6 +61,20 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
       }
     }
   }, [isOpen, loadLogs, checkHealth, integrity, health.ok, verifyIntegrity]);
+
+  useEffect(() => {
+    if (isOpen && health && !health.ok && repairLogs) {
+      repairLogs('report')
+        .then((res) => {
+          if (res?.untrackedFiles) {
+            setUntrackedFiles(res.untrackedFiles);
+          }
+        })
+        .catch(() => {});
+    } else if (health?.ok) {
+      setUntrackedFiles([]);
+    }
+  }, [isOpen, health, repairLogs]);
 
   useEffect(() => {
     const handleDegraded = () => {
@@ -350,7 +365,13 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                     'If the audit anchor or log file was unexpectedly corrupted, export existing records for investigation before clearing logs or restoring from backup.'
                   )}
                 </div>
-                <div className="pt-1">
+                {untrackedFiles.length > 0 && (
+                  <div className="font-mono text-[10px] text-amber-900 dark:text-amber-200">
+                    {t('security.untrackedFilesLabel', 'Untracked files:')}{' '}
+                    {untrackedFiles.join(', ')}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
                   <button
                     type="button"
                     disabled={repairing}
@@ -358,6 +379,7 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                       setRepairing(true);
                       try {
                         const res = await repairLogs?.('quarantine');
+                        setUntrackedFiles([]);
                         if (res?.integrityValid) {
                           toast.success(
                             t(
@@ -384,6 +406,42 @@ export const AuditLogDrawer: React.FC<AuditLogDrawerProps> = ({ isOpen, onClose 
                     {repairing
                       ? t('security.repairingLogs', 'Repairing...')
                       : t('security.quarantineStrayLogs', 'Quarantine Stray Logs')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={repairing}
+                    onClick={async () => {
+                      const confirmed = window.confirm(
+                        t(
+                          'security.rebuildAnchorConfirm',
+                          'Rebuild the audit anchor from the remaining verified log entries? If entries were truncated, this will record an audit repair event and re-baseline the anchor.'
+                        )
+                      );
+                      if (!confirmed) return;
+                      setRepairing(true);
+                      try {
+                        const res = await repairLogs?.('rebuild_anchor', true);
+                        if (res?.integrityValid) {
+                          setUntrackedFiles([]);
+                          await loadLogs();
+                          toast.success(
+                            t(
+                              'security.rebuildAnchorSuccess',
+                              'Audit anchor rebuilt and repair event recorded.'
+                            )
+                          );
+                        }
+                      } catch (err) {
+                        toast.error(String(err));
+                      } finally {
+                        setRepairing(false);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 rounded border border-amber-400 bg-white/80 px-2 py-0.5 text-[10px] font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-slate-900/60 dark:text-amber-100 dark:hover:bg-amber-900/60"
+                  >
+                    {repairing
+                      ? t('security.repairingLogs', 'Repairing...')
+                      : t('security.rebuildAnchorBtn', 'Rebuild Anchor')}
                   </button>
                 </div>
               </div>

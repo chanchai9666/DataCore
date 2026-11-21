@@ -70,7 +70,8 @@ interface AuditLogState {
   verifyIntegrity: () => Promise<AuditIntegrityResult>;
   checkHealth: () => Promise<AuditHealth>;
   repairLogs: (
-    action: 'report' | 'quarantine' | 'rebuild_anchor'
+    action: 'report' | 'quarantine' | 'rebuild_anchor',
+    confirm?: boolean
   ) => Promise<AuditRepairResult | null>;
   addLog: (
     entry: Omit<AuditLogEntry, 'id' | 'timestamp'>,
@@ -168,11 +169,11 @@ export const useAuditLogStore = create<AuditLogState>()(
         }
       },
 
-      repairLogs: async (action) => {
+      repairLogs: async (action, confirm = false) => {
         if (!isTauri()) {
           return null;
         }
-        const res = await repairAuditLogs(action);
+        const res = await repairAuditLogs(action, confirm);
         const health = await getAuditHealth();
         set({ health });
         if (res.integrityValid) {

@@ -37,8 +37,9 @@ pub fn get_audit_health_impl(logger: &AuditLogger) -> AuditHealth {
 pub fn repair_audit_logs_impl(
     logger: &AuditLogger,
     action: &str,
+    confirm: bool,
 ) -> Result<AuditRepairResult, AppError> {
-    logger.repair_audit_log(action)
+    logger.repair_audit_log(action, confirm)
 }
 
 #[tauri::command]
@@ -79,6 +80,7 @@ pub async fn get_audit_health(logger: State<'_, AuditLogger>) -> Result<AuditHea
 pub async fn repair_audit_logs(
     logger: State<'_, AuditLogger>,
     action: String,
+    confirm: Option<bool>,
 ) -> Result<AuditRepairResult, String> {
-    repair_audit_logs_impl(&logger, &action).map_err(|e| e.to_string())
+    repair_audit_logs_impl(&logger, &action, confirm.unwrap_or(false)).map_err(|e| e.to_string())
 }

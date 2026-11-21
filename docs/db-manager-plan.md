@@ -1449,3 +1449,13 @@
   - นับ `checked_entries` ในทุก error path ของ `verify_integrity_locked`, แยก `file_seen_hmac` ต่อไฟล์ใน `verify_file_chain` และตั้ง `archives_adopted = true` เมื่อ migrate
 - **CI, Docs & Dependency Notes (U5, U6, U7):**
   - จัดรูปแบบด้วย `cargo fmt` และแก้ `clippy::needless_return` ใน `default_dir()`, อัปเดตตัวเลขเทสใน `README.md` (214 Rust / 1,163 Vitest = 1,377), และบันทึกสถานะ Dependabot `glib`/`minimatch` ใน `SECURITY.md`
+
+### Phase 66: Round 8 Audit Hardening — Repair/Rebuild, Error Counts, Anchor Promotion & O(1) Guard (#251) [Completed]
+
+- **Archive-Aware `rebuild_anchor` & Confirmation Guard (`audit_logger.rs`, `audit_commands.rs`, `AuditLogDrawer.tsx` — R1):**
+  - ปรับ `rebuild_anchor` ให้ต่อ chain จาก `anchor.archives` สุดท้าย, คง `archives` เดิมไว้, บังคับ `confirm=true` เมื่อ `active_count < anchor.active_entries`, และบันทึกเหตุการณ์ `SECURITY` (`audit_repair`) ลง audit log ทุกครั้ง
+  - เพิ่มปุ่ม **Rebuild Anchor** (พร้อม confirmation dialog) และแสดงรายชื่อไฟล์แปลกปลอมจาก `repairLogs('report')` ในแบนเนอร์ของ `AuditLogDrawer`
+- **Transactional `clear_logs` Error Propagation, Error Counts, Filename & Promotion (R2, R3, R4, R5):**
+  - ให้ `clear_logs` คืน `Err` พร้อม path หากลบ `audit.clearing.<ts>/` ไม่สำเร็จ, นับบรรทัดที่พัง (`count + 1`) ใน `verify_file_chain`, ใส่ชื่อไฟล์ใน error ของ corrupt untracked archive, และ promote `DCK2` anchor ที่ `archives_adopted = false` ใน `read_verified_anchor`
+- **O(1) Write-Path Prefix Cache & Frontend Tests (R6, R7):**
+  - เพิ่ม `verified_prefix_cache` + `last_known_file_len` ใน `AuditLogger` เพื่อข้ามการสแกนไฟล์ `O(n)` เมื่อไฟล์ไม่ถูกแก้ไขจากภายนอก และเพิ่ม Vitest tests สำหรับ `report`, `Quarantine Stray Logs`, และ `Rebuild Anchor`

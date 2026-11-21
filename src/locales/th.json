@@ -1155,6 +1155,10 @@
     "repairingLogs": "กำลังซ่อมแซม...",
     "quarantineSuccess": "กักเก็บไฟล์บันทึกแปลกปลอมและกู้คืนสถานะสำเร็จ",
     "quarantinePartial": "กักเก็บไฟล์แปลกปลอมแล้ว แต่ความสมบูรณ์ของบันทึกยังต้องตรวจสอบเพิ่มเติม",
+    "untrackedFilesLabel": "ไฟล์แปลกปลอม:",
+    "rebuildAnchorBtn": "สร้าง Anchor ใหม่",
+    "rebuildAnchorConfirm": "ต้องการสร้าง Audit Anchor ใหม่จากบันทึกที่ตรวจสอบผ่านที่เหลืออยู่หรือไม่? หากมีข้อมูลถูกตัดทอน ระบบจะบันทึกเหตุการณ์ซ่อมแซมและตั้งฐาน Anchor ใหม่",
+    "rebuildAnchorSuccess": "สร้าง Audit Anchor ใหม่และบันทึกเหตุการณ์ซ่อมแซมแล้ว",
     "auditClearFailed": "ล้าง Audit Log ไม่สำเร็จ: {{error}}",
     "auditDegradedTitle": "ตรวจพบความล้มเหลวในการบันทึก Audit Log"
   },

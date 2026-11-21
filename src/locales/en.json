@@ -1155,6 +1155,10 @@
     "repairingLogs": "Repairing...",
     "quarantineSuccess": "Quarantined stray audit archives and restored integrity.",
     "quarantinePartial": "Stray files quarantined, but integrity still requires attention.",
+    "untrackedFilesLabel": "Untracked files:",
+    "rebuildAnchorBtn": "Rebuild Anchor",
+    "rebuildAnchorConfirm": "Rebuild the audit anchor from the remaining verified log entries? If entries were truncated, this will record an audit repair event and re-baseline the anchor.",
+    "rebuildAnchorSuccess": "Audit anchor rebuilt and repair event recorded.",
     "auditClearFailed": "Failed to clear audit logs: {{error}}",
     "auditDegradedTitle": "Audit log write failure detected"
   },

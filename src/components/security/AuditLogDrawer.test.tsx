@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import fs from 'node:fs';
 import path from 'node:path';
 import { toast } from 'sonner';
@@ -186,5 +186,78 @@ describe('AuditLogDrawer', () => {
     expect(screen.getByText('Audit log write failure detected')).toBeDefined();
     expect(screen.getByText('Audit anchor file is corrupted (fail-closed)')).toBeDefined();
     expect(screen.getByText(/export existing records for investigation/)).toBeDefined();
+  });
+
+  it('displays untracked files from report and triggers quarantine on click', async () => {
+    const repairMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        action: 'report',
+        untrackedFiles: ['audit.stray.jsonl'],
+        quarantinedFiles: [],
+        integrityValid: false,
+      })
+      .mockResolvedValueOnce({
+        action: 'quarantine',
+        untrackedFiles: ['audit.stray.jsonl'],
+        quarantinedFiles: ['audit.stray.jsonl'],
+        integrityValid: true,
+      });
+
+    const originalRepair = useAuditLogStore.getState().repairLogs;
+    useAuditLogStore.setState({
+      health: { ok: false, lastError: 'Stray archive detected' },
+      repairLogs: repairMock,
+    });
+
+    try {
+      render(<AuditLogDrawer isOpen={true} onClose={onClose} />);
+      await waitFor(() => {
+        expect(screen.getByText(/audit\.stray\.jsonl/)).toBeDefined();
+      });
+
+      fireEvent.click(screen.getByText('Quarantine Stray Logs'));
+      await waitFor(() => {
+        expect(repairMock).toHaveBeenCalledWith('quarantine');
+      });
+    } finally {
+      useAuditLogStore.setState({ repairLogs: originalRepair });
+    }
+  });
+
+  it('triggers rebuild_anchor with confirm=true after user confirmation', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const repairMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        action: 'report',
+        untrackedFiles: [],
+        quarantinedFiles: [],
+        integrityValid: false,
+      })
+      .mockResolvedValueOnce({
+        action: 'rebuild_anchor',
+        untrackedFiles: [],
+        quarantinedFiles: [],
+        integrityValid: true,
+      });
+
+    const originalRepair = useAuditLogStore.getState().repairLogs;
+    useAuditLogStore.setState({
+      health: { ok: false, lastError: 'Truncation detected' },
+      repairLogs: repairMock,
+    });
+
+    try {
+      render(<AuditLogDrawer isOpen={true} onClose={onClose} />);
+      fireEvent.click(screen.getByText('Rebuild Anchor'));
+      await waitFor(() => {
+        expect(confirmSpy).toHaveBeenCalled();
+        expect(repairMock).toHaveBeenCalledWith('rebuild_anchor', true);
+      });
+    } finally {
+      confirmSpy.mockRestore();
+      useAuditLogStore.setState({ repairLogs: originalRepair });
+    }
   });
 });

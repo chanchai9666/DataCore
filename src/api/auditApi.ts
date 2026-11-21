@@ -35,9 +35,10 @@ export const getAuditHealth = async (): Promise<AuditHealth> => {
 };
 
 export const repairAuditLogs = async (
-  action: 'report' | 'quarantine' | 'rebuild_anchor'
+  action: 'report' | 'quarantine' | 'rebuild_anchor',
+  confirm = false
 ): Promise<AuditRepairResult> => {
-  return invoke<AuditRepairResult>('repair_audit_logs', { action });
+  return invoke<AuditRepairResult>('repair_audit_logs', { action, confirm });
 };
 
 export const recordAuditLog = async (

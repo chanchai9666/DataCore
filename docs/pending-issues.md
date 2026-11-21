@@ -30,6 +30,8 @@
 | Issue 20 | [#246](https://github.com/chanchai9666/DataCore/issues/246) | ✅ Closed | [Perf/Backend] Optimize PostgreSQL `pg_catalog` Queries, Session Reuse, and `AuditLogger` Scaling |
 | Issue 21 | [#247](https://github.com/chanchai9666/DataCore/issues/247) | ✅ Closed | [Security/Hygiene] Remove Unused `password` Field from `MssqlConnection` |
 | Issue 22 | [#248](https://github.com/chanchai9666/DataCore/issues/248) | ✅ Closed | [UI/UX] Replace Disconnected Text Label with Gray Status Dot in `MainToolbar` |
+| Round 7 | [#250](https://github.com/chanchai9666/DataCore/issues/250) | ✅ Closed | security: address Round 7 audit findings U1-U9 and fix CI fmt/clippy |
+| Round 8 | [#251](https://github.com/chanchai9666/DataCore/issues/251) | ✅ Closed | security: address Round 8 audit findings R1-R7 (repair/rebuild, error counts, anchor promotion, perf & tests) |
 | Issue 19 | — | ✅ Fixed (Pending Issue) | [Test/Bug] Add Real-Browser Playwright E2E & Backend Real-DB E2E Suites and Fix `SaveQueryModal` Hook Order |
 | Issue 20 | — | ✅ Fixed (Pending Issue) | [Perf/Backend] Optimize PostgreSQL `pg_catalog` Queries, Session Reuse, and `AuditLogger` Scaling |
 | Issue 21 | — | ✅ Fixed (Pending Issue) | [Security/Hygiene] Remove Unused `password` Field from `MssqlConnection` |
