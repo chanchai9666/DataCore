@@ -54,7 +54,7 @@ const SketchFolderIcon: React.FC<{ name: string; color?: string; testId?: string
   );
 };
 
-const SketchTableIcon: React.FC<{ name: string; testId?: string }> = ({ name, testId }) => {
+export const SketchTableIcon: React.FC<{ name: string; testId?: string }> = ({ name, testId }) => {
   const hash = name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   const headerColor = SKETCH_TABLE_HEADER_COLORS[hash % SKETCH_TABLE_HEADER_COLORS.length];
   return (

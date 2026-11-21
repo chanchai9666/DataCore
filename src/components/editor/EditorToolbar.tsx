@@ -7,6 +7,7 @@ import {
   Loader2,
   History,
   Bookmark,
+  BookmarkPlus,
   Activity,
   Zap,
   Lock,
@@ -48,6 +49,8 @@ export interface EditorToolbarProps {
   onOpenAuditLog?: () => void;
   onOpenHistory?: () => void;
   onOpenSnippets?: () => void;
+  onSaveQuery?: () => void;
+  isSavedQuery?: boolean;
   onExplain?: (analyze: boolean) => void;
   onFormat?: () => void;
   splitDirection?: 'vertical' | 'horizontal';
@@ -82,6 +85,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onOpenAuditLog,
   onOpenHistory,
   onOpenSnippets,
+  onSaveQuery,
+  isSavedQuery = false,
   onExplain,
   onFormat,
   splitDirection = 'vertical',
@@ -113,8 +118,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '6px 12px',
-        borderBottom: '1px solid var(--border-color, #e5e7eb)',
-        backgroundColor: 'var(--toolbar-bg, #f9fafb)',
+        borderBottom: '1px solid var(--border-color, #d6d6da)',
+        backgroundColor: 'var(--bg-panel, #fafafb)',
         flexWrap: 'wrap',
         gap: '8px',
         fontSize: '13px',
@@ -164,9 +169,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             minHeight: '28px',
             boxSizing: 'border-box',
             gap: '5px',
-            backgroundColor: !isRunning ? '#f3f4f6' : '#ef4444',
-            color: !isRunning ? '#9ca3af' : '#ffffff',
-            border: '1px solid #d1d5db',
+            backgroundColor: !isRunning ? 'var(--bg-sidebar, #f4f4f6)' : '#ef4444',
+            color: !isRunning ? 'var(--text-disabled, #a1a1aa)' : '#ffffff',
+            border: '1px solid var(--border-color, #d6d6da)',
             borderRadius: '4px',
             padding: '0 10px',
             fontWeight: 500,
@@ -193,9 +198,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                 minHeight: '28px',
                 boxSizing: 'border-box',
                 gap: '4px',
-                backgroundColor: isExecutionDisabled ? '#f3f4f6' : '#ffffff',
-                color: isExecutionDisabled ? '#9ca3af' : '#374151',
-                border: '1px solid #d1d5db',
+                backgroundColor: isExecutionDisabled ? 'var(--bg-sidebar, #f4f4f6)' : 'var(--bg-input, #ffffff)',
+                color: isExecutionDisabled ? 'var(--text-disabled, #a1a1aa)' : 'var(--text-primary, #1c1c1e)',
+                border: '1px solid var(--border-color, #d6d6da)',
                 borderRadius: '4px',
                 padding: '0 8px',
                 fontWeight: 500,
@@ -219,9 +224,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                 minHeight: '28px',
                 boxSizing: 'border-box',
                 gap: '4px',
-                backgroundColor: isExecutionDisabled ? '#f3f4f6' : '#ffffff',
-                color: isExecutionDisabled ? '#9ca3af' : '#374151',
-                border: '1px solid #d1d5db',
+                backgroundColor: isExecutionDisabled ? 'var(--bg-sidebar, #f4f4f6)' : 'var(--bg-input, #ffffff)',
+                color: isExecutionDisabled ? 'var(--text-disabled, #a1a1aa)' : 'var(--text-primary, #1c1c1e)',
+                border: '1px solid var(--border-color, #d6d6da)',
                 borderRadius: '4px',
                 padding: '0 8px',
                 fontWeight: 500,
@@ -248,9 +253,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             minHeight: '28px',
             boxSizing: 'border-box',
             gap: '4px',
-            backgroundColor: isExecutionDisabled ? '#f3f4f6' : '#ffffff',
-            color: isExecutionDisabled ? '#9ca3af' : '#2563eb',
-            border: '1px solid #d1d5db',
+            backgroundColor: isExecutionDisabled ? 'var(--bg-sidebar, #f4f4f6)' : 'var(--bg-input, #ffffff)',
+            color: isExecutionDisabled ? 'var(--text-disabled, #a1a1aa)' : '#2563eb',
+            border: '1px solid var(--border-color, #d6d6da)',
             borderRadius: '4px',
             padding: '0 8px',
             fontWeight: 500,
@@ -277,9 +282,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               minHeight: '28px',
               boxSizing: 'border-box',
               gap: '4px',
-              backgroundColor: isRunning ? '#f3f4f6' : '#ffffff',
-              color: isRunning ? '#9ca3af' : '#7c3aed',
-              border: '1px solid #d1d5db',
+              backgroundColor: isRunning ? 'var(--bg-sidebar, #f4f4f6)' : 'var(--bg-input, #ffffff)',
+              color: isRunning ? 'var(--text-disabled, #a1a1aa)' : '#a855f7',
+              border: '1px solid var(--border-color, #d6d6da)',
               borderRadius: '4px',
               padding: '0 8px',
               fontWeight: 500,
@@ -292,7 +297,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         )}
 
         {/* Separator */}
-        <div style={{ width: '1px', height: '18px', backgroundColor: '#d1d5db', margin: '0 4px' }} />
+        <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-color, #d6d6da)', margin: '0 4px' }} />
 
         {/* Auto-Commit Switch */}
         <div style={{ display: 'inline-flex', alignItems: 'center', height: '28px', gap: '6px' }}>
@@ -309,7 +314,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               width: '36px',
               height: '20px',
               borderRadius: '10px',
-              backgroundColor: autoCommit && isConnected ? '#10b981' : '#9ca3af',
+              backgroundColor: autoCommit && isConnected ? '#10b981' : 'var(--text-disabled, #a1a1aa)',
               border: 'none',
               padding: '2px',
               cursor: isRunning || !isConnected ? 'not-allowed' : 'pointer',
@@ -329,7 +334,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               }}
             />
           </button>
-          <span style={{ fontSize: '12px', userSelect: 'none', color: '#374151' }}>
+          <span style={{ fontSize: '12px', userSelect: 'none', color: 'var(--text-primary, #1c1c1e)' }}>
             {autoCommit ? t('editorToolbar.autoCommitOn', 'Auto-Commit: ON') : t('editorToolbar.autoCommitOff', 'Auto-Commit: OFF')}
           </span>
         </div>
@@ -348,9 +353,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             minHeight: '28px',
             boxSizing: 'border-box',
             gap: '4px',
-            backgroundColor: autoCommit || isRunning || !isConnected ? '#f3f4f6' : '#ffffff',
-            color: autoCommit || isRunning || !isConnected ? '#9ca3af' : '#15803d',
-            border: '1px solid #d1d5db',
+            backgroundColor: autoCommit || isRunning || !isConnected ? 'var(--bg-sidebar, #f4f4f6)' : 'var(--bg-input, #ffffff)',
+            color: autoCommit || isRunning || !isConnected ? 'var(--text-disabled, #a1a1aa)' : '#15803d',
+            border: '1px solid var(--border-color, #d6d6da)',
             borderRadius: '4px',
             padding: '0 8px',
             cursor: autoCommit || isRunning || !isConnected ? 'not-allowed' : 'pointer',
@@ -374,9 +379,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             minHeight: '28px',
             boxSizing: 'border-box',
             gap: '4px',
-            backgroundColor: autoCommit || isRunning || !isConnected ? '#f3f4f6' : '#ffffff',
-            color: autoCommit || isRunning || !isConnected ? '#9ca3af' : '#b91c1c',
-            border: '1px solid #d1d5db',
+            backgroundColor: autoCommit || isRunning || !isConnected ? 'var(--bg-sidebar, #f4f4f6)' : 'var(--bg-input, #ffffff)',
+            color: autoCommit || isRunning || !isConnected ? 'var(--text-disabled, #a1a1aa)' : '#b91c1c',
+            border: '1px solid var(--border-color, #d6d6da)',
             borderRadius: '4px',
             padding: '0 8px',
             cursor: autoCommit || isRunning || !isConnected ? 'not-allowed' : 'pointer',
@@ -402,9 +407,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               fontSize: '11px',
               fontWeight: 500,
               borderRadius: '4px',
-              border: '1px solid #d1d5db',
-              backgroundColor: '#ffffff',
-              color: isRunning || !isConnected ? '#9ca3af' : '#374151',
+              border: '1px solid var(--border-color, #d6d6da)',
+              backgroundColor: 'var(--bg-input, #ffffff)',
+              color: isRunning || !isConnected ? 'var(--text-disabled, #a1a1aa)' : 'var(--text-primary, #1c1c1e)',
               cursor: isRunning || !isConnected ? 'not-allowed' : 'pointer',
             }}
           >
@@ -430,9 +435,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               minHeight: '28px',
               boxSizing: 'border-box',
               gap: '4px',
-              backgroundColor: !isConnected ? '#f3f4f6' : '#ffffff',
-              color: !isConnected ? '#9ca3af' : '#374151',
-              border: '1px solid #d1d5db',
+              backgroundColor: !isConnected ? 'var(--bg-sidebar, #f4f4f6)' : 'var(--bg-input, #ffffff)',
+              color: !isConnected ? 'var(--text-disabled, #a1a1aa)' : 'var(--text-primary, #1c1c1e)',
+              border: '1px solid var(--border-color, #d6d6da)',
               borderRadius: '4px',
               padding: '0 8px',
               cursor: !isConnected ? 'not-allowed' : 'pointer',
@@ -458,9 +463,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               minHeight: '28px',
               boxSizing: 'border-box',
               gap: '4px',
-              backgroundColor: !isConnected ? '#f3f4f6' : '#ffffff',
-              color: !isConnected ? '#9ca3af' : '#374151',
-              border: '1px solid #d1d5db',
+              backgroundColor: !isConnected ? 'var(--bg-sidebar, #f4f4f6)' : 'var(--bg-input, #ffffff)',
+              color: !isConnected ? 'var(--text-disabled, #a1a1aa)' : 'var(--text-primary, #1c1c1e)',
+              border: '1px solid var(--border-color, #d6d6da)',
               borderRadius: '4px',
               padding: '0 8px',
               cursor: !isConnected ? 'not-allowed' : 'pointer',
@@ -472,7 +477,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         )}
 
         {/* Separator */}
-        <div style={{ width: '1px', height: '18px', backgroundColor: '#d1d5db', margin: '0 4px' }} />
+        <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-color, #d6d6da)', margin: '0 4px' }} />
 
         {/* Performance Metrics Button */}
         {onOpenMetrics && (
@@ -489,9 +494,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               minHeight: '28px',
               boxSizing: 'border-box',
               gap: '4px',
-              backgroundColor: !isConnected ? '#f3f4f6' : '#ffffff',
-              color: !isConnected ? '#9ca3af' : '#374151',
-              border: '1px solid #d1d5db',
+              backgroundColor: !isConnected ? 'var(--bg-sidebar, #f4f4f6)' : 'var(--bg-input, #ffffff)',
+              color: !isConnected ? 'var(--text-disabled, #a1a1aa)' : 'var(--text-primary, #1c1c1e)',
+              border: '1px solid var(--border-color, #d6d6da)',
               borderRadius: '4px',
               padding: '0 8px',
               cursor: !isConnected ? 'not-allowed' : 'pointer',
@@ -516,9 +521,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               minHeight: '28px',
               boxSizing: 'border-box',
               gap: '4px',
-              backgroundColor: '#ffffff',
-              color: '#374151',
-              border: '1px solid #d1d5db',
+              backgroundColor: 'var(--bg-input, #ffffff)',
+              color: 'var(--text-primary, #1c1c1e)',
+              border: '1px solid var(--border-color, #d6d6da)',
               borderRadius: '4px',
               padding: '0 8px',
               cursor: 'pointer',
@@ -530,8 +535,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         )}
 
         {/* Separator */}
-        {(onOpenHistory || onOpenSnippets) && (
-          <div style={{ width: '1px', height: '18px', backgroundColor: '#d1d5db', margin: '0 4px' }} />
+        {(onSaveQuery || onOpenHistory || onOpenSnippets) && (
+          <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-color, #d6d6da)', margin: '0 4px' }} />
         )}
 
         {/* History Button */}
@@ -548,9 +553,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               minHeight: '28px',
               boxSizing: 'border-box',
               gap: '4px',
-              backgroundColor: '#ffffff',
-              color: '#374151',
-              border: '1px solid #d1d5db',
+              backgroundColor: 'var(--bg-input, #ffffff)',
+              color: 'var(--text-primary, #1c1c1e)',
+              border: '1px solid var(--border-color, #d6d6da)',
               borderRadius: '4px',
               padding: '0 8px',
               cursor: 'pointer',
@@ -558,6 +563,35 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           >
             <History size={13} />
             <span>{t('editorToolbar.history', 'History')}</span>
+          </button>
+        )}
+
+        {/* Save Query Button */}
+        {onSaveQuery && (
+          <button
+            type="button"
+            data-testid="save-query-btn"
+            onClick={onSaveQuery}
+            aria-label="Save Query"
+            title={isMac ? 'Save Query (⌘S)' : 'Save Query (Ctrl+S)'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              height: '28px',
+              minHeight: '28px',
+              boxSizing: 'border-box',
+              gap: '4px',
+              backgroundColor: isSavedQuery ? 'var(--badge-bg, #dbeafe)' : 'var(--bg-input, #ffffff)',
+              color: isSavedQuery ? 'var(--badge-text, #1d4ed8)' : 'var(--text-primary, #1c1c1e)',
+              border: `1px solid ${isSavedQuery ? 'var(--accent, #2d6cdf)' : 'var(--border-color, #d6d6da)'}`,
+              borderRadius: '4px',
+              padding: '0 8px',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <BookmarkPlus size={13} className="text-blue-600" />
+            <span>{isSavedQuery ? t('editorToolbar.updateSavedQuery', 'Update Saved') : t('editorToolbar.saveQuery', 'Save Query')}</span>
           </button>
         )}
 
@@ -575,9 +609,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               minHeight: '28px',
               boxSizing: 'border-box',
               gap: '4px',
-              backgroundColor: '#ffffff',
-              color: '#374151',
-              border: '1px solid #d1d5db',
+              backgroundColor: 'var(--bg-input, #ffffff)',
+              color: 'var(--text-primary, #1c1c1e)',
+              border: '1px solid var(--border-color, #d6d6da)',
               borderRadius: '4px',
               padding: '0 8px',
               cursor: 'pointer',
@@ -590,13 +624,13 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
         {/* Separator */}
         {onChangeSafeLimit && (
-          <div style={{ width: '1px', height: '18px', backgroundColor: '#d1d5db', margin: '0 4px' }} />
+          <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-color, #d6d6da)', margin: '0 4px' }} />
         )}
 
         {/* Safe Limit Dropdown */}
         {onChangeSafeLimit && (
           <div style={{ display: 'inline-flex', alignItems: 'center', height: '28px', gap: '5px' }}>
-            <span style={{ fontSize: '11px', color: '#6b7280', userSelect: 'none' }}>{t('editorToolbar.limit', 'Limit:')}</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary, #6e6e73)', userSelect: 'none' }}>{t('editorToolbar.limit', 'Limit:')}</span>
             <select
               aria-label="Safe Limit"
               value={String(safeLimit)}
@@ -611,9 +645,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                 fontSize: '11px',
                 padding: '0 28px 0 8px',
                 borderRadius: '4px',
-                border: '1px solid #d1d5db',
-                backgroundColor: '#ffffff',
-                color: '#374151',
+                border: '1px solid var(--border-color, #d6d6da)',
+                backgroundColor: 'var(--bg-input, #ffffff)',
+                color: 'var(--text-primary, #1c1c1e)',
                 cursor: 'pointer',
               }}
             >
@@ -640,9 +674,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               minHeight: '28px',
               boxSizing: 'border-box',
               gap: '4px',
-              backgroundColor: '#ffffff',
-              color: '#374151',
-              border: '1px solid #d1d5db',
+              backgroundColor: 'var(--bg-input, #ffffff)',
+              color: 'var(--text-primary, #1c1c1e)',
+              border: '1px solid var(--border-color, #d6d6da)',
               borderRadius: '4px',
               padding: '0 8px',
               fontWeight: 500,
@@ -661,7 +695,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
       </div>
 
       {/* Right status indicators */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#6b7280', fontSize: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-secondary, #6e6e73)', fontSize: '12px' }}>
         {isLimitedActive && rowCount != null && (
           <div
             data-testid="safe-limit-badge"
@@ -669,8 +703,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             style={{
               padding: '2px 6px',
               borderRadius: '4px',
-              backgroundColor: '#fef3c7',
-              color: '#b45309',
+              backgroundColor: 'rgba(245, 158, 11, 0.16)',
+              color: 'var(--warn, #b45309)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
               fontSize: '11px',
               fontWeight: 500,
             }}

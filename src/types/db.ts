@@ -133,17 +133,20 @@ export interface TableSortState {
 export interface Tab {
   id: string;
   connectionId: string;
-  type: 'query' | 'table' | 'table-list' | 'er-diagram' | 'query-builder';
+  type: 'query' | 'table' | 'table-list' | 'er-diagram' | 'query-builder' | 'saved-queries';
   title: string;
   autoCommit: boolean;
   queryContent: string;
   schemaName?: string;
   tableName?: string;
   viewMode?: 'data' | 'structure';
+  savedQueryId?: string;
+  autoRun?: boolean;
   filterState?: TableFilterState;
   sortState?: TableSortState;
   columnWidths?: Record<string, number>;
   isLoaded?: boolean;
+  pinned?: boolean;
 }
 
 export interface ERColumn {

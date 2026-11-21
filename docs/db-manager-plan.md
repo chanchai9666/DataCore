@@ -1397,3 +1397,42 @@
 
 
 
+
+### Phase 62: การยกระดับความปลอดภัย Driver, ความสามารถ MSSQL/DuckDB และคำเตือน Vault DCV1 สำหรับ Production [Completed]
+
+- **Cleanup & Hygiene (`src-tauri/src/services/mod.rs`):**
+  - ลบไฟล์ทดสอบชั่วคราว `round7_probe_test.rs` และนำโมดูลออกจาก `services/mod.rs`
+- **MSSQL Parameterized DDL & Transaction Hardening (`src-tauri/src/drivers/mssql.rs`):**
+  - ปรับ `MssqlConnection::get_object_ddl()` ให้ใช้ parameterized query (`OBJECT_ID(@P1)` ผ่าน `tiberius::Query::bind`) ร่วมกับ `build_mssql_object_ref()` เพื่อป้องกัน SQL interpolation ในชื่อ schema และ object
+  - เพิ่มการตรวจสอบ `is_read_only_blocked_sql()` ใน `stream_query()`
+  - เพิ่ม `autocommit` state พร้อม implement `set_autocommit()` ด้วย `SET IMPLICIT_TRANSACTIONS ON/OFF` และปรับ `commit()`/`rollback()` ให้ตรวจ `IF @@TRANCOUNT > 0`
+  - จัดเก็บรหัสผ่านด้วย `Zeroizing<String>` เพื่อล้างความลับในหน่วยความจำอัตโนมัติ
+- **DuckDB Read-Only Stream & DDL Parity (`src-tauri/src/drivers/duckdb.rs`, `src-tauri/src/drivers/duckdb_test.rs`):**
+  - เพิ่มการตรวจสอบ `is_read_only_blocked_sql()` ใน `stream_query()`
+  - ปรับ `get_object_ddl()` ให้รองรับทั้งตาราง (`duckdb_tables()`) และ View (`duckdb_views()`) พร้อมกรอง schema
+  - ใช้ `reconcile_page_row_count()` ใน `fetch_table_data()` และเพิ่ม unit tests ใน `duckdb_test.rs`
+- **Raw Filter Validation Hardening (`src-tauri/src/drivers/traits.rs`):**
+  - ขยาย `FORBIDDEN_KEYWORDS` ใน `validate_table_filter()` เพื่อบล็อก `SELECT` subquery, `INTO`, `CREATE`, `MERGE`, `GRANT`, `REVOKE`, `PRAGMA`, `ATTACH`, `DETACH`, `COPY`, `CALL`, `WAITFOR`, `SLEEP`, `PG_SLEEP`, `BENCHMARK` และ `LOAD_FILE` นอก string literal
+- **Production Vault DCV1 Security Nudge (`ConnectionDialog.tsx`, `ConnectionDialog.test.tsx`, `en.json`, `th.json`):**
+  - เพิ่มแบนเนอร์เตือนใน `ConnectionDialog` เมื่อตั้งค่า `environment === 'production'` โดยเปิด `Remember password` ไว้แต่ยังไม่ได้ตั้ง Master Password (`DCV2 Argon2id`) พร้อมคำแปลไทย/อังกฤษและ unit test รองรับ
+
+### Phase 63: Saved / Frequently Used Queries per Database & Export/Import JSON [Completed]
+
+- **Scoped Saved Queries Store & Portability (`src/types/queryHistory.ts`, `src/stores/snippetStore.ts`, `src/stores/snippetStore.test.ts`):**
+  - ขยาย `SqlSnippet` ด้วย `scope` (`'global' | 'connection' | 'database'`), `connectionId`, `connectionName`, `database`, `driver`, `isPinned`, `runCount`, `lastRunAt` โดยเข้ากันได้ย้อนหลังกับข้อมูลเดิมใน `localStorage` (`datacore_sql_snippets_v1`)
+  - เพิ่ม `togglePin`, `recordRun`, `getQueriesForContext`, `exportQueriesJson` และ `importQueriesJson(jsonText, mode)` เพื่อสำรองและย้ายชุด Query ข้ามเครื่องผ่านไฟล์ `.json`
+- **Save Query Workflow in SQL Editor (`SaveQueryModal.tsx`, `EditorToolbar.tsx`, `SqlEditor.tsx`, `tabHelpers.ts`, `src/types/db.ts`):**
+  - เพิ่ม `savedQueryId` และ `autoRun` ใน `Tab` พร้อมปุ่ม `Save Query` / `Update Saved` (`⌘S`) และ Modal ตั้งชื่อ หมายเหตุ เลือกขอบเขต (`database` / `connection` / `global`) ปักหมุด และ `Save as New`
+  - รองรับ `autoRun` พร้อมเคารพ Production Safe Mode (`dangerousQueryDetector`) โดยอัตโนมัติก่อนรันจริง
+- **Saved Queries Hub Tab, Sidebar Quick List & Command Palette (`SavedQueriesTab.tsx`, `ObjectBrowser.tsx`, `DockLayout.tsx`, `MainToolbar.tsx`, `CommandPaletteModal.tsx`, `en.json`, `th.json`):**
+  - สร้างแท็บกลางจอ `SavedQueriesTab` สำหรับค้นหา กรองตาม Connection/Scope ปักหมุด รัน 1 คลิก เปิดแก้ไข ลบ และ Export/Import `.json`
+  - เพิ่มรายการย่อแบบพับได้ใน `ObjectBrowser` สำหรับฐานข้อมูลที่กำลังใช้งาน พร้อมเชื่อม `CommandPaletteModal` (`⌘K`) และเมนู Tools -> Productivity ใน `MainToolbar`
+
+### Phase 64: ปรับปรุงการค้นหาแท็บที่ใช้งานอยู่และแคชข้อมูลหน้า Table Detail [Completed]
+
+- **Active Tab Visibility & Open Tabs Switcher (`src/components/layout/DockLayout.tsx`, `src/locales/en.json`, `src/locales/th.json`):**
+  - เพิ่ม Auto-scroll (`scrollIntoView`) เมื่อเปลี่ยน `activeTabId`, ปรับ contrast ของแท็บที่กำลังใช้งานในธีม `warm-paper`, `dark`, และ `light` (`data-active="true"`) และแสดงปุ่มปิดบนแท็บที่ใช้งานอยู่
+  - เพิ่มปุ่ม **Open Tabs Switcher** ด้านขวาของแถบแท็บ พร้อมช่องค้นหาชื่อแท็บ, สถานะ Active, ปุ่มปิดแท็บรายตัว และปุ่ม **Close Other Tabs**
+- **Table List Metadata Cache & Manual Refresh (`src/stores/tableListCacheStore.ts`, `src/components/tablelist/TableListTab.tsx`):**
+  - สร้าง `useTableListCacheStore` เก็บแคชข้อมูลตารางแยกตาม `${connectionId}:${schemaName || '__default__'}` เพื่อไม่ให้ `TableListTab` โหลดข้อมูลใหม่ทุกครั้งที่สลับแท็บกลับมา
+  - เพิ่มเมนูคลิกขวา **Refresh Tables** (`ctx-refresh-tables`) ทั้งบนแถวตารางและพื้นที่ว่างของตาราง สำหรับสั่งโหลดข้อมูลใหม่ด้วยตนเองควบคู่กับปุ่ม Refresh ด้านบน

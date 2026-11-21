@@ -70,12 +70,12 @@ export const DriverForm: React.FC<DriverFormProps> = ({
   };
 
   return (
-    <div className="space-y-4 text-sm text-gray-200">
+    <div className="space-y-4 text-sm text-text">
       {/* General Settings: Connection Name & Folder */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="conn-name" className="block text-xs font-medium text-gray-300 mb-1">
-            {t('connection.connectionName', 'Connection Name')} <span className="text-red-400">*</span>
+          <label htmlFor="conn-name" className="block text-xs font-medium text-text mb-1">
+            {t('connection.connectionName', 'Connection Name')} <span className="text-danger">*</span>
           </label>
           <input
             id="conn-name"
@@ -84,15 +84,15 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             onChange={(e) => onChange('name', e.target.value)}
             disabled={disabled}
             placeholder={t('connection.connectionNamePlaceholder', 'e.g. Production Database')}
-            className={`w-full px-3 py-1.5 rounded bg-gray-800 border ${
-              errors.name ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-            } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs`}
+            className={`w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border ${
+              errors.name ? 'border-danger' : 'border-border focus:border-accent'
+            } text-text placeholder:text-muted focus:outline-none transition-colors text-xs`}
           />
-          {errors.name && <p className="mt-1 text-xs text-red-400">{errors.name}</p>}
+          {errors.name && <p className="mt-1 text-xs text-danger">{errors.name}</p>}
         </div>
 
         <div>
-          <label htmlFor="conn-folder" className="block text-xs font-medium text-gray-300 mb-1">
+          <label htmlFor="conn-folder" className="block text-xs font-medium text-text mb-1">
             {t('connection.folder', 'Folder (Optional)')}
           </label>
           <input
@@ -102,15 +102,15 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             onChange={(e) => onChange('folder', e.target.value)}
             disabled={disabled}
             placeholder={t('connection.folderPlaceholder', 'e.g. Production, Analytics')}
-            className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
+            className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs"
           />
         </div>
       </div>
 
       {/* Environment & Read-Only Settings */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
         <div>
-          <label htmlFor="conn-environment" className="block text-xs font-medium text-gray-300 mb-1">
+          <label htmlFor="conn-environment" className="block text-xs font-medium text-text mb-1">
             {t('connection.environment', 'Environment')}
           </label>
           <select
@@ -121,7 +121,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
               onChange('environment', (e.target.value as 'development' | 'staging' | 'production' | '') || undefined)
             }
             disabled={disabled}
-            className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 focus:outline-none transition-colors text-xs"
+            className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text focus:outline-none transition-colors text-xs"
           >
             <option value="">{t('connection.envNone', 'None (Default)')}</option>
             <option value="development">{t('connection.envDevelopment', 'Development')}</option>
@@ -130,8 +130,8 @@ export const DriverForm: React.FC<DriverFormProps> = ({
           </select>
         </div>
 
-        <div className="pt-2 md:pt-4">
-          <label className="flex items-center space-x-2 cursor-pointer select-none">
+        <div className="pt-1 md:pt-5">
+          <label className="flex items-start gap-2.5 cursor-pointer select-none">
             <input
               id="conn-readonly"
               type="checkbox"
@@ -139,23 +139,25 @@ export const DriverForm: React.FC<DriverFormProps> = ({
               checked={formData.readOnly ?? false}
               onChange={(e) => onChange('readOnly', e.target.checked)}
               disabled={disabled}
-              className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+              className="mt-0.5 rounded bg-[var(--bg-input)] border-border text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5 shrink-0"
             />
-            <span className="text-xs text-gray-300 font-medium">{t('connection.readOnlyMode', 'Read-Only Mode')}</span>
-            <span className="text-[11px] text-gray-500">({t('connection.readOnlyDesc', 'Enforce read-only queries')})</span>
+            <div className="leading-tight">
+              <div className="text-xs text-text font-medium">{t('connection.readOnlyMode', 'Read-Only Mode')}</div>
+              <div className="text-[11px] text-muted mt-0.5">{t('connection.readOnlyDesc', 'Enforce read-only queries')}</div>
+            </div>
           </label>
         </div>
       </div>
 
-      {driver !== 'sqlite' && (
-        <div className="flex border-b border-gray-800 text-xs gap-4 pt-1">
+      {driver !== 'sqlite' && driver !== 'duckdb' && (
+        <div className="flex border-b border-line text-xs gap-4 pt-1">
           <button
             type="button"
             onClick={() => setSubTab('general')}
             className={`pb-2 font-medium flex items-center gap-1.5 transition-colors border-b-2 ${
               subTab === 'general'
-                ? 'text-blue-400 border-blue-500'
-                : 'text-gray-400 border-transparent hover:text-gray-200'
+                ? 'text-accent border-accent'
+                : 'text-muted border-transparent hover:text-text'
             }`}
           >
             <span>{t('connection.generalTab', 'General')}</span>
@@ -165,8 +167,8 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             onClick={() => setSubTab('ssl')}
             className={`pb-2 font-medium flex items-center gap-1.5 transition-colors border-b-2 ${
               subTab === 'ssl'
-                ? 'text-blue-400 border-blue-500'
-                : 'text-gray-400 border-transparent hover:text-gray-200'
+                ? 'text-accent border-accent'
+                : 'text-muted border-transparent hover:text-text'
             }`}
           >
             <Shield size={13} />
@@ -177,8 +179,8 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             onClick={() => setSubTab('ssh')}
             className={`pb-2 font-medium flex items-center gap-1.5 transition-colors border-b-2 ${
               subTab === 'ssh'
-                ? 'text-blue-400 border-blue-500'
-                : 'text-gray-400 border-transparent hover:text-gray-200'
+                ? 'text-accent border-accent'
+                : 'text-muted border-transparent hover:text-text'
             }`}
           >
             <Terminal size={13} />
@@ -189,8 +191,8 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             onClick={() => setSubTab('advanced')}
             className={`pb-2 font-medium flex items-center gap-1.5 transition-colors border-b-2 ${
               subTab === 'advanced'
-                ? 'text-blue-400 border-blue-500'
-                : 'text-gray-400 border-transparent hover:text-gray-200'
+                ? 'text-accent border-accent'
+                : 'text-muted border-transparent hover:text-text'
             }`}
           >
             <Sliders size={13} />
@@ -204,8 +206,8 @@ export const DriverForm: React.FC<DriverFormProps> = ({
         {(driver === 'sqlite' || driver === 'duckdb') && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="conn-database" className="block text-xs font-medium text-gray-300">
-                {driver === 'duckdb' ? 'DuckDB File / Memory / Parquet' : 'Database Path'} <span className="text-red-400">*</span>
+              <label htmlFor="conn-database" className="block text-xs font-medium text-text">
+                {driver === 'duckdb' ? t('connection.duckdbPathLabel', 'DuckDB File / Memory / Parquet') : t('connection.databasePathLabel', 'Database Path')} <span className="text-danger">*</span>
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -215,9 +217,9 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                   onChange={(e) => onChange('database', e.target.value)}
                   disabled={disabled}
                   placeholder={driver === 'duckdb' ? ':memory: or path to .duckdb / .parquet / .csv file' : ':memory: or select a .db/.sqlite file'}
-                  className={`flex-1 px-3 py-1.5 rounded bg-gray-800 border ${
-                    errors.database ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-                  } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs font-mono`}
+                  className={`flex-1 px-3 py-1.5 rounded bg-[var(--bg-input)] border ${
+                    errors.database ? 'border-danger' : 'border-border focus:border-accent'
+                  } text-text placeholder:text-muted focus:outline-none transition-colors text-xs font-mono`}
                 />
                 <button
                   type="button"
@@ -227,18 +229,18 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   <FolderOpen size={14} />
-                  <span>Browse...</span>
+                  <span>{t('connection.browse', 'Browse...')}</span>
                 </button>
               </div>
               {errors.database ? (
-                <p className="mt-1 text-xs text-red-400">{errors.database}</p>
+                <p className="mt-1 text-xs text-danger">{errors.database}</p>
               ) : (
-                <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
-                  <span>Click <strong>Browse</strong> or use in-memory mode</span>
+                <p className="mt-1 text-xs text-muted flex items-center gap-1">
+                  <span>{t('connection.clickBrowseOrMemory', 'Click Browse or use in-memory mode')}</span>
                   <button
                     type="button"
                     onClick={() => onChange('database', ':memory:')}
-                    className="text-blue-400 hover:underline font-mono inline"
+                    className="text-accent hover:underline font-mono inline"
                   >
                     :memory:
                   </button>
@@ -246,16 +248,16 @@ export const DriverForm: React.FC<DriverFormProps> = ({
               )}
             </div>
 
-            <div className="border-t border-gray-800 pt-3">
+            <div className="border-t border-line pt-3">
               <label className="flex items-center space-x-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={formData.autoReconnect ?? true}
                   onChange={(e) => onChange('autoReconnect', e.target.checked)}
                   disabled={disabled}
-                  className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                  className="rounded bg-[var(--bg-input)] border-border text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
                 />
-                <span className="text-xs text-gray-300">Auto-reconnect on connection loss</span>
+                <span className="text-xs text-text">{t('connection.autoReconnectLabel', 'Auto-reconnect on connection loss')}</span>
               </label>
             </div>
           </div>
@@ -267,10 +269,10 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             {/* SubTab: General */}
             {subTab === 'general' && (
               <div className="space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="md:col-span-2">
-                    <label htmlFor="conn-host" className="block text-xs font-medium text-gray-300 mb-1">
-                      {t('connection.host', 'Host')} <span className="text-red-400">*</span>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                  <div className="md:col-span-9">
+                    <label htmlFor="conn-host" className="block text-xs font-medium text-text mb-1">
+                      {t('connection.host', 'Host')} <span className="text-danger">*</span>
                     </label>
                     <input
                       id="conn-host"
@@ -279,16 +281,16 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                       onChange={(e) => onChange('host', e.target.value)}
                       disabled={disabled}
                       placeholder="127.0.0.1"
-                      className={`w-full px-3 py-1.5 rounded bg-gray-800 border ${
-                        errors.host ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-                      } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs`}
+                      className={`w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border ${
+                        errors.host ? 'border-danger' : 'border-border focus:border-accent'
+                      } text-text placeholder:text-muted focus:outline-none transition-colors text-xs`}
                     />
-                    {errors.host && <p className="mt-1 text-xs text-red-400">{errors.host}</p>}
+                    {errors.host && <p className="mt-1 text-xs text-danger">{errors.host}</p>}
                   </div>
 
-                  <div>
-                    <label htmlFor="conn-port" className="block text-xs font-medium text-gray-300 mb-1">
-                      {t('connection.port', 'Port')} <span className="text-red-400">*</span>
+                  <div className="md:col-span-3">
+                    <label htmlFor="conn-port" className="block text-xs font-medium text-text mb-1">
+                      {t('connection.port', 'Port')} <span className="text-danger">*</span>
                     </label>
                     <input
                       id="conn-port"
@@ -297,18 +299,18 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                       onChange={(e) => onChange('port', e.target.value)}
                       disabled={disabled}
                       placeholder={driver === 'postgres' ? '5432' : driver === 'mysql' ? '3306' : '1433'}
-                      className={`w-full px-3 py-1.5 rounded bg-gray-800 border ${
-                        errors.port ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-                      } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs`}
+                      className={`w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                        errors.port ? 'border-danger' : 'border-border focus:border-accent'
+                      } text-text placeholder:text-muted focus:outline-none transition-colors text-xs font-mono`}
                     />
-                    {errors.port && <p className="mt-1 text-xs text-red-400">{errors.port}</p>}
+                    {errors.port && <p className="mt-1 text-xs text-danger">{errors.port}</p>}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="conn-database" className="block text-xs font-medium text-gray-300 mb-1">
-                      {t('connection.database', 'Database')} <span className="text-red-400">*</span>
+                    <label htmlFor="conn-database" className="block text-xs font-medium text-text mb-1">
+                      {t('connection.database', 'Database')} <span className="text-danger">*</span>
                     </label>
                     <input
                       id="conn-database"
@@ -317,16 +319,16 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                       onChange={(e) => onChange('database', e.target.value)}
                       disabled={disabled}
                       placeholder={driver === 'postgres' ? 'postgres' : driver === 'mysql' ? 'database_name' : 'master'}
-                      className={`w-full px-3 py-1.5 rounded bg-gray-800 border ${
-                        errors.database ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-                      } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs`}
+                      className={`w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border ${
+                        errors.database ? 'border-danger' : 'border-border focus:border-accent'
+                      } text-text placeholder:text-muted focus:outline-none transition-colors text-xs`}
                     />
-                    {errors.database && <p className="mt-1 text-xs text-red-400">{errors.database}</p>}
+                    {errors.database && <p className="mt-1 text-xs text-danger">{errors.database}</p>}
                   </div>
 
                   <div>
-                    <label htmlFor="conn-user" className="block text-xs font-medium text-gray-300 mb-1">
-                      {t('connection.username', 'Username')} <span className="text-red-400">*</span>
+                    <label htmlFor="conn-user" className="block text-xs font-medium text-text mb-1">
+                      {t('connection.username', 'Username')} <span className="text-danger">*</span>
                     </label>
                     <input
                       id="conn-user"
@@ -335,17 +337,17 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                       onChange={(e) => onChange('user', e.target.value)}
                       disabled={disabled}
                       placeholder={driver === 'postgres' ? 'postgres' : driver === 'mysql' ? 'root' : 'sa'}
-                      className={`w-full px-3 py-1.5 rounded bg-gray-800 border ${
-                        errors.user ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
-                      } text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs`}
+                      className={`w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border ${
+                        errors.user ? 'border-danger' : 'border-border focus:border-accent'
+                      } text-text placeholder:text-muted focus:outline-none transition-colors text-xs`}
                     />
-                    {errors.user && <p className="mt-1 text-xs text-red-400">{errors.user}</p>}
+                    {errors.user && <p className="mt-1 text-xs text-danger">{errors.user}</p>}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="conn-password" className="block text-xs font-medium text-gray-300 mb-1">
+                    <label htmlFor="conn-password" className="block text-xs font-medium text-text mb-1">
                       {t('connection.password', 'Password')}
                     </label>
                     <div className="relative">
@@ -355,60 +357,60 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                         value={formData.password || ''}
                         onChange={(e) => onChange('password', e.target.value)}
                         disabled={disabled}
-                        placeholder={isEditing ? 'Leave blank to keep existing password' : '••••••••'}
-                        className="w-full pl-3 pr-8 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
+                        placeholder={isEditing ? t('connection.leaveBlankKeepPassword', 'Leave blank to keep existing password') : '••••••••'}
+                        className="w-full pl-3 pr-8 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword((prev) => !prev)}
                         tabIndex={-1}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 p-0.5 transition-colors"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-text p-0.5 transition-colors"
                         title={showPassword ? 'Hide password' : 'Show password'}
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-
-                    {/* Remember Password Checkbox & Security Indicator */}
-                    <div className="mt-2 space-y-1">
-                      <label className="flex items-center space-x-1.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          id="conn-remember-password"
-                          checked={formData.rememberPassword ?? true}
-                          onChange={(e) => onChange('rememberPassword', e.target.checked)}
-                          disabled={disabled}
-                          className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5 cursor-pointer"
-                        />
-                        <span className="text-[11px] text-gray-300 font-medium">
-                          Remember password
-                        </span>
-                      </label>
-                      <div className="flex items-center space-x-1 text-[10px] text-emerald-400/90 pl-5">
-                        <ShieldCheck className="w-3 h-3 shrink-0" />
-                        <span>Saved in local encrypted vault (No OS Keychain access)</span>
-                      </div>
-                    </div>
                   </div>
 
                   <div>
-                    <label htmlFor="conn-ssl" className="block text-xs font-medium text-gray-300 mb-1">
-                      SSL Mode
+                    <label htmlFor="conn-ssl" className="block text-xs font-medium text-text mb-1">
+                      {t('connection.sslMode', 'SSL Mode')}
                     </label>
                     <select
                       id="conn-ssl"
                       value={formData.sslMode || 'prefer'}
                       onChange={(e) => onChange('sslMode', e.target.value)}
                       disabled={disabled}
-                      className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 focus:outline-none transition-colors text-xs"
+                      className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text focus:outline-none transition-colors text-xs"
                     >
-                      <option value="disable">disable (Plaintext - No encryption)</option>
-                      <option value="prefer">prefer (Attempt TLS, fallback to unencrypted)</option>
-                      <option value="require">require (Enforce TLS encryption)</option>
-                      <option value="verify-ca">verify-ca (Verify Certificate Authority)</option>
-                      <option value="verify-full">verify-full (Verify CA & Server Hostname)</option>
+                      <option value="disable">{t('connection.sslDisableDesc', 'disable (Plaintext - No encryption)')}</option>
+                      <option value="prefer">{t('connection.sslPreferDesc', 'prefer (Attempt TLS, fallback to unencrypted)')}</option>
+                      <option value="require">{t('connection.sslRequireDesc', 'require (Enforce TLS encryption)')}</option>
+                      <option value="verify-ca">{t('connection.sslVerifyCaDesc', 'verify-ca (Verify Certificate Authority)')}</option>
+                      <option value="verify-full">{t('connection.sslVerifyFullDesc', 'verify-full (Verify CA & Server Hostname)')}</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* Remember Password & Local Vault Status (Full-Width Row) */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                  <label className="flex items-center space-x-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      id="conn-remember-password"
+                      checked={formData.rememberPassword ?? true}
+                      onChange={(e) => onChange('rememberPassword', e.target.checked)}
+                      disabled={disabled}
+                      className="rounded bg-[var(--bg-input)] border-border text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span className="text-xs text-text font-medium">
+                      {t('connection.rememberPassword', 'Remember password')}
+                    </span>
+                  </label>
+                  <div className="flex items-center space-x-1 text-[11px] text-success">
+                    <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                    <span>{t('connection.savedInLocalVault', 'Saved in local encrypted vault (No OS Keychain access)')}</span>
                   </div>
                 </div>
               </div>
@@ -417,12 +419,12 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             {/* SubTab: SSL / TLS Certificates */}
             {subTab === 'ssl' && (
               <div className="space-y-3 py-1">
-                <p className="text-xs text-gray-400">
-                  Configure CA certificate and mutual TLS (mTLS) client certificate files.
+                <p className="text-xs text-muted">
+                  {t('connection.sslCertsDesc', 'Configure CA certificate and mutual TLS (mTLS) client certificate files.')}
                 </p>
                 <div>
-                  <label htmlFor="conn-ca-cert" className="block text-xs font-medium text-gray-300 mb-1">
-                    CA Certificate Path (root.crt / ca.pem)
+                  <label htmlFor="conn-ca-cert" className="block text-xs font-medium text-text mb-1">
+                    {t('connection.caCertPath', 'CA Certificate Path (root.crt / ca.pem)')}
                   </label>
                   <input
                     id="conn-ca-cert"
@@ -431,13 +433,13 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                     onChange={(e) => onChange('caCertPath', e.target.value)}
                     disabled={disabled}
                     placeholder="/path/to/server-ca.pem"
-                    className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs font-mono"
+                    className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs font-mono"
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="conn-client-cert" className="block text-xs font-medium text-gray-300 mb-1">
-                      Client Certificate Path (client.crt)
+                    <label htmlFor="conn-client-cert" className="block text-xs font-medium text-text mb-1">
+                      {t('connection.clientCertPath', 'Client Certificate Path (client.crt)')}
                     </label>
                     <input
                       id="conn-client-cert"
@@ -446,12 +448,12 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                       onChange={(e) => onChange('clientCertPath', e.target.value)}
                       disabled={disabled}
                       placeholder="/path/to/client-cert.pem"
-                      className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs font-mono"
+                      className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs font-mono"
                     />
                   </div>
                   <div>
-                    <label htmlFor="conn-client-key" className="block text-xs font-medium text-gray-300 mb-1">
-                      Client Key Path (client.key)
+                    <label htmlFor="conn-client-key" className="block text-xs font-medium text-text mb-1">
+                      {t('connection.clientKeyPath', 'Client Key Path (client.key)')}
                     </label>
                     <input
                       id="conn-client-key"
@@ -460,7 +462,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                       onChange={(e) => onChange('clientKeyPath', e.target.value)}
                       disabled={disabled}
                       placeholder="/path/to/client-key.pem"
-                      className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs font-mono"
+                      className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs font-mono"
                     />
                   </div>
                 </div>
@@ -477,17 +479,17 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                     checked={formData.sshEnabled || false}
                     onChange={(e) => onChange('sshEnabled', e.target.checked)}
                     disabled={disabled}
-                    className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                    className="rounded bg-[var(--bg-input)] border-border text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
                   />
-                  <span className="text-xs text-gray-200 font-medium">Use SSH Tunnel (Bastion / Jump Host)</span>
+                  <span className="text-xs text-text font-medium">{t('connection.sshEnable', 'Use SSH Tunnel (Bastion / Jump Host)')}</span>
                 </label>
 
                 {formData.sshEnabled && (
                   <div className="space-y-3 pl-2 border-l-2 border-blue-500/30">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="md:col-span-2">
-                        <label htmlFor="conn-ssh-host" className="block text-xs font-medium text-gray-300 mb-1">
-                          SSH Host
+                        <label htmlFor="conn-ssh-host" className="block text-xs font-medium text-text mb-1">
+                          {t('connection.sshHost', 'SSH Host')}
                         </label>
                         <input
                           id="conn-ssh-host"
@@ -496,12 +498,12 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                           onChange={(e) => onChange('sshHost', e.target.value)}
                           disabled={disabled}
                           placeholder="bastion.example.com"
-                          className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
+                          className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs"
                         />
                       </div>
                       <div>
-                        <label htmlFor="conn-ssh-port" className="block text-xs font-medium text-gray-300 mb-1">
-                          SSH Port
+                        <label htmlFor="conn-ssh-port" className="block text-xs font-medium text-text mb-1">
+                          {t('connection.sshPort', 'SSH Port')}
                         </label>
                         <input
                           id="conn-ssh-port"
@@ -510,15 +512,15 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                           onChange={(e) => onChange('sshPort', e.target.value)}
                           disabled={disabled}
                           placeholder="22"
-                          className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
+                          className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs"
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label htmlFor="conn-ssh-user" className="block text-xs font-medium text-gray-300 mb-1">
-                          SSH User
+                        <label htmlFor="conn-ssh-user" className="block text-xs font-medium text-text mb-1">
+                          {t('connection.sshUser', 'SSH User')}
                         </label>
                         <input
                           id="conn-ssh-user"
@@ -527,22 +529,22 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                           onChange={(e) => onChange('sshUser', e.target.value)}
                           disabled={disabled}
                           placeholder="ec2-user / ubuntu"
-                          className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
+                          className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs"
                         />
                       </div>
                       <div>
-                        <label htmlFor="conn-ssh-auth" className="block text-xs font-medium text-gray-300 mb-1">
-                          Authentication Method
+                        <label htmlFor="conn-ssh-auth" className="block text-xs font-medium text-text mb-1">
+                          {t('connection.sshAuthMethod', 'Authentication Method')}
                         </label>
                         <select
                           id="conn-ssh-auth"
                           value={formData.sshAuthType || 'key'}
                           onChange={(e) => onChange('sshAuthType', e.target.value as 'password' | 'key')}
                           disabled={disabled}
-                          className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 focus:outline-none transition-colors text-xs"
+                          className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text focus:outline-none transition-colors text-xs"
                         >
-                          <option value="key">Private Key</option>
-                          <option value="password">Password</option>
+                          <option value="key">{t('connection.sshAuthKey', 'Private Key')}</option>
+                          <option value="password">{t('connection.sshAuthPassword', 'Password')}</option>
                         </select>
                       </div>
                     </div>
@@ -550,8 +552,8 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                     {formData.sshAuthType === 'key' ? (
                       <div className="space-y-3">
                         <div>
-                          <label htmlFor="conn-ssh-key" className="block text-xs font-medium text-gray-300 mb-1">
-                            Private Key Path
+                          <label htmlFor="conn-ssh-key" className="block text-xs font-medium text-text mb-1">
+                            {t('connection.sshPrivateKeyPath', 'Private Key Path')}
                           </label>
                           <input
                             id="conn-ssh-key"
@@ -560,12 +562,12 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                             onChange={(e) => onChange('sshPrivateKeyPath', e.target.value)}
                             disabled={disabled}
                             placeholder="~/.ssh/id_rsa or /path/to/key.pem"
-                            className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs font-mono"
+                            className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs font-mono"
                           />
                         </div>
                         <div>
-                          <label htmlFor="conn-ssh-passphrase" className="block text-xs font-medium text-gray-300 mb-1">
-                            Key Passphrase (Optional)
+                          <label htmlFor="conn-ssh-passphrase" className="block text-xs font-medium text-text mb-1">
+                            {t('connection.sshKeyPassphrase', 'Key Passphrase (Optional)')}
                           </label>
                           <input
                             id="conn-ssh-passphrase"
@@ -573,15 +575,15 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                             value={formData.sshPassphrase || ''}
                             onChange={(e) => onChange('sshPassphrase', e.target.value)}
                             disabled={disabled}
-                            placeholder="Passphrase if encrypted"
-                            className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
+                            placeholder={t('connection.sshPassphrasePlaceholder', 'Passphrase if encrypted')}
+                            className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs"
                           />
                         </div>
                       </div>
                     ) : (
                       <div>
-                        <label htmlFor="conn-ssh-password" className="block text-xs font-medium text-gray-300 mb-1">
-                          SSH Password
+                        <label htmlFor="conn-ssh-password" className="block text-xs font-medium text-text mb-1">
+                          {t('connection.sshPassword', 'SSH Password')}
                         </label>
                         <input
                           id="conn-ssh-password"
@@ -590,7 +592,7 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                           onChange={(e) => onChange('sshPassphrase', e.target.value)}
                           disabled={disabled}
                           placeholder="SSH Password"
-                          className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
+                          className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs"
                         />
                       </div>
                     )}
@@ -603,8 +605,8 @@ export const DriverForm: React.FC<DriverFormProps> = ({
             {subTab === 'advanced' && (
               <div className="space-y-3 py-1">
                 <div>
-                  <label htmlFor="conn-timeout" className="block text-xs font-medium text-gray-300 mb-1">
-                    Connection Timeout (seconds)
+                  <label htmlFor="conn-timeout" className="block text-xs font-medium text-text mb-1">
+                    {t('connection.connectionTimeoutLabel', 'Connection Timeout (seconds)')}
                   </label>
                   <input
                     id="conn-timeout"
@@ -613,10 +615,10 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                     onChange={(e) => onChange('timeoutSeconds', e.target.value)}
                     disabled={disabled}
                     placeholder="15 (Default)"
-                    className="w-full px-3 py-1.5 rounded bg-gray-800 border border-gray-700 focus:border-blue-500 text-gray-100 placeholder-gray-500 focus:outline-none transition-colors text-xs"
+                    className="w-full px-3 py-1.5 rounded bg-[var(--bg-input)] border border-border focus:border-accent text-text placeholder:text-muted focus:outline-none transition-colors text-xs"
                   />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Maximum time to establish connection before aborting.
+                  <p className="mt-1 text-xs text-muted">
+                    {t('connection.connectionTimeoutDesc', 'Maximum time to establish connection before aborting.')}
                   </p>
                 </div>
 
@@ -628,12 +630,12 @@ export const DriverForm: React.FC<DriverFormProps> = ({
                       checked={formData.autoReconnect ?? true}
                       onChange={(e) => onChange('autoReconnect', e.target.checked)}
                       disabled={disabled}
-                      className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                      className="rounded bg-[var(--bg-input)] border-border text-blue-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
                     />
-                    <span className="text-xs text-gray-200 font-medium">Auto-reconnect on connection loss</span>
+                    <span className="text-xs text-text font-medium">{t('connection.autoReconnectLabel', 'Auto-reconnect on connection loss')}</span>
                   </label>
-                  <p className="mt-1 text-xs text-gray-500 pl-5">
-                    Automatically re-establishes session connection if disconnected unexpectedly.
+                  <p className="mt-1 text-xs text-muted pl-5">
+                    {t('connection.autoReconnectDesc', 'Automatically re-establishes session connection if disconnected unexpectedly.')}
                   </p>
                 </div>
               </div>

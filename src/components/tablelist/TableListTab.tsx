@@ -13,14 +13,36 @@ import {
   Upload,
   FileCode,
   Trash2,
-  Share2,
-  FileSpreadsheet,
+  ArrowRightLeft,
   Pencil,
+  Wand2,
+  List,
+  LayoutGrid,
+  FolderTree,
+  HardDrive,
+  ChevronDown,
+  ChevronRight,
+  AlertTriangle,
+  CheckCircle2,
+  Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { dbApi } from '../../api/db';
+import { useConnectionStore } from '../../stores/connectionStore';
+import { useTabStore } from '../../stores/tabStore';
+import {
+  useTableListCacheStore,
+  getTableListCacheKey,
+} from '../../stores/tableListCacheStore';
+import { buildDropTableSql, qualifyTable } from '../../api/queryBuilder';
+import { showConfirmDialog } from '../../utils/dialog';
 import type { TableMetadata } from '../../types/dataTransfer';
-import { openTableTab } from '../sidebar/tabHelpers';
+import {
+  openTableTab,
+  openQueryTab,
+  openQueryBuilderTab,
+} from '../sidebar/tabHelpers';
+import { SketchTableIcon } from '../sidebar/ConnectionTreeNode';
 import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
 import { CrossDbCopyModal } from '../transfer/CrossDbCopyModal';
 import { ExportSqlModal } from '../transfer/ExportSqlModal';
@@ -68,6 +90,122 @@ export interface TableListTabProps {
 
 type SortField = 'name' | 'approxRowCount' | 'totalSizeBytes' | 'engine';
 type SortOrder = 'asc' | 'desc';
+export type TableListViewMode = 'table' | 'grid' | 'grouped' | 'storage';
+export type TableHealthStatus = 'needs_analyze' | 'index_heavy' | 'healthy';
+
+const VIEW_MODE_STORAGE_KEY = 'datacore-table-list-view-mode';
+const GROUP_IN_LIST_STORAGE_KEY = 'datacore-table-list-group-in-list';
+
+const GROUP_BOARD_PALETTES = {
+  light: [
+    { card: 'bg-orange-50/90 border-orange-200/80', header: 'text-orange-950', badge: 'bg-orange-200/70 text-orange-900', itemHover: 'hover:bg-orange-100/70' },
+    { card: 'bg-lime-50/90 border-lime-200/80', header: 'text-lime-950', badge: 'bg-lime-200/70 text-lime-900', itemHover: 'hover:bg-lime-100/70' },
+    { card: 'bg-sky-50/90 border-sky-200/80', header: 'text-sky-950', badge: 'bg-sky-200/70 text-sky-900', itemHover: 'hover:bg-sky-100/70' },
+    { card: 'bg-rose-50/90 border-rose-200/80', header: 'text-rose-950', badge: 'bg-rose-200/70 text-rose-900', itemHover: 'hover:bg-rose-100/70' },
+    { card: 'bg-amber-50/90 border-amber-200/80', header: 'text-amber-950', badge: 'bg-amber-200/70 text-amber-900', itemHover: 'hover:bg-amber-100/70' },
+    { card: 'bg-teal-50/90 border-teal-200/80', header: 'text-teal-950', badge: 'bg-teal-200/70 text-teal-900', itemHover: 'hover:bg-teal-100/70' },
+    { card: 'bg-purple-50/90 border-purple-200/80', header: 'text-purple-950', badge: 'bg-purple-200/70 text-purple-900', itemHover: 'hover:bg-purple-100/70' },
+    { card: 'bg-indigo-50/90 border-indigo-200/80', header: 'text-indigo-950', badge: 'bg-indigo-200/70 text-indigo-900', itemHover: 'hover:bg-indigo-100/70' },
+  ],
+  dark: [
+    { card: 'bg-orange-950/30 border-orange-800/40', header: 'text-orange-100', badge: 'bg-orange-900/60 text-orange-200', itemHover: 'hover:bg-orange-900/30' },
+    { card: 'bg-lime-950/30 border-lime-800/40', header: 'text-lime-100', badge: 'bg-lime-900/60 text-lime-200', itemHover: 'hover:bg-lime-900/30' },
+    { card: 'bg-sky-950/30 border-sky-800/40', header: 'text-sky-100', badge: 'bg-sky-900/60 text-sky-200', itemHover: 'hover:bg-sky-900/30' },
+    { card: 'bg-rose-950/30 border-rose-800/40', header: 'text-rose-100', badge: 'bg-rose-900/60 text-rose-200', itemHover: 'hover:bg-rose-900/30' },
+    { card: 'bg-amber-950/30 border-amber-800/40', header: 'text-amber-100', badge: 'bg-amber-900/60 text-amber-200', itemHover: 'hover:bg-amber-900/30' },
+    { card: 'bg-teal-950/30 border-teal-800/40', header: 'text-teal-100', badge: 'bg-teal-900/60 text-teal-200', itemHover: 'hover:bg-teal-900/30' },
+    { card: 'bg-purple-950/30 border-purple-800/40', header: 'text-purple-100', badge: 'bg-purple-900/60 text-purple-200', itemHover: 'hover:bg-purple-900/30' },
+    { card: 'bg-indigo-950/30 border-indigo-800/40', header: 'text-indigo-100', badge: 'bg-indigo-900/60 text-indigo-200', itemHover: 'hover:bg-indigo-900/30' },
+  ],
+};
+
+function loadInitialGroupInList(): boolean {
+  try {
+    return localStorage.getItem(GROUP_IN_LIST_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function loadInitialViewMode(): TableListViewMode {
+  try {
+    const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+    if (saved === 'table' || saved === 'grid' || saved === 'grouped' || saved === 'storage') {
+      return saved;
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return 'table';
+}
+
+export function getTablePrefix(tableName: string): string {
+  const idx = tableName.indexOf('_');
+  if (idx <= 0) return '';
+  return tableName.slice(0, idx);
+}
+
+export interface TablePrefixGroup {
+  key: string;
+  label: string;
+  isOther: boolean;
+  tables: TableMetadata[];
+  totalRows: number;
+  totalSizeBytes: number;
+}
+
+export function groupTablesByPrefix(tables: TableMetadata[]): TablePrefixGroup[] {
+  const prefixMap = new Map<string, TableMetadata[]>();
+  for (const table of tables) {
+    const prefix = getTablePrefix(table.name);
+    const list = prefixMap.get(prefix) || [];
+    list.push(table);
+    prefixMap.set(prefix, list);
+  }
+
+  const groups: TablePrefixGroup[] = [];
+  const otherTables: TableMetadata[] = [];
+
+  for (const [prefix, list] of prefixMap.entries()) {
+    if (prefix && list.length >= 2) {
+      groups.push({
+        key: prefix,
+        label: `${prefix}_*`,
+        isOther: false,
+        tables: list,
+        totalRows: list.reduce((sum, t) => sum + Math.max(0, t.approxRowCount || 0), 0),
+        totalSizeBytes: list.reduce((sum, t) => sum + (t.totalSizeBytes || 0), 0),
+      });
+    } else {
+      otherTables.push(...list);
+    }
+  }
+
+  groups.sort((a, b) => a.key.localeCompare(b.key));
+
+  if (otherTables.length > 0) {
+    groups.push({
+      key: '__other__',
+      label: 'Other / Ungrouped',
+      isOther: true,
+      tables: otherTables,
+      totalRows: otherTables.reduce((sum, t) => sum + Math.max(0, t.approxRowCount || 0), 0),
+      totalSizeBytes: otherTables.reduce((sum, t) => sum + (t.totalSizeBytes || 0), 0),
+    });
+  }
+
+  return groups;
+}
+
+export function getTableHealthStatus(table: TableMetadata): TableHealthStatus {
+  if ((table.totalSizeBytes || 0) > 0 && (table.approxRowCount || 0) === 0) {
+    return 'needs_analyze';
+  }
+  if ((table.dataSizeBytes || 0) > 0 && (table.indexSizeBytes || 0) > (table.dataSizeBytes || 0)) {
+    return 'index_heavy';
+  }
+  return 'healthy';
+}
 
 export const TableListTab: React.FC<TableListTabProps> = ({
   connectionId,
@@ -85,31 +223,63 @@ export const TableListTab: React.FC<TableListTabProps> = ({
   onDropTable,
 }) => {
   const { t } = useTranslation();
+  const connectionName = useConnectionStore(
+    (s) => s.connections?.find((c) => c.id === connectionId)?.name
+  );
   const isDark = propTheme
     ? propTheme === 'dark'
     : typeof document !== 'undefined'
     ? document.documentElement.classList.contains('dark')
     : true;
+  const isWarmPaper =
+    propTheme === 'warm-paper' ||
+    (typeof document !== 'undefined' &&
+      document.documentElement.getAttribute('data-theme') === 'warm-paper');
   const theme = isDark ? 'dark' : 'light';
 
-  const [tables, setTables] = useState<TableMetadata[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const renderTableIcon = (name: string, selected = false) => {
+    if (isWarmPaper) {
+      return <SketchTableIcon name={name} />;
+    }
+    return (
+      <TableIcon
+        className={`w-4 h-4 shrink-0 ${selected ? 'text-white' : 'text-emerald-400'}`}
+      />
+    );
+  };
+
+  const cacheKey = getTableListCacheKey(connectionId, schemaName);
+  const cachedEntry = useTableListCacheStore((s) => s.entries[cacheKey]);
+  const setCachedTables = useTableListCacheStore((s) => s.setCachedTables);
+
+  const [tables, setTables] = useState<TableMetadata[]>(() => cachedEntry?.tables ?? []);
+  const [loading, setLoading] = useState<boolean>(() => !cachedEntry);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [viewMode, setViewMode] = useState<TableListViewMode>(loadInitialViewMode);
+  const [groupInList, setGroupInList] = useState<boolean>(loadInitialGroupInList);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [selectedTables, setSelectedTables] = useState<string[]>([]);
+  const [anchorTable, setAnchorTable] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
     mouseX: number;
     mouseY: number;
-    table: TableMetadata;
+    table: TableMetadata | null;
   } | null>(null);
 
   // Active modals state
   const [activeDuplicateTable, setActiveDuplicateTable] = useState<string | null>(null);
   const [activeCopyTableToDb, setActiveCopyTableToDb] = useState<string | null>(null);
-  const [activeExportSqlTable, setActiveExportSqlTable] = useState<string | null>(null);
+  const [activeExportSqlTarget, setActiveExportSqlTarget] = useState<{
+    tableName?: string;
+    tableNames?: string[];
+  } | null>(null);
   const [activeExportDataTable, setActiveExportDataTable] = useState<string | null>(null);
   const [activeImportSqlTable, setActiveImportSqlTable] = useState<string | null>(null);
   const [activeImportDataTarget, setActiveImportDataTarget] = useState<{
@@ -193,8 +363,13 @@ export const TableListTab: React.FC<TableListTabProps> = ({
     if (onExportSql) {
       onExportSql(tableName);
     } else {
-      setActiveExportSqlTable(tableName);
+      setActiveExportSqlTarget({ tableName });
     }
+    setContextMenu(null);
+  };
+
+  const handleTriggerExportSelectedSql = (names: string[]) => {
+    setActiveExportSqlTarget({ tableNames: names });
     setContextMenu(null);
   };
 
@@ -262,9 +437,47 @@ export const TableListTab: React.FC<TableListTabProps> = ({
     setContextMenu(null);
   };
 
+  const handleQueryTable = (tableName: string) => {
+    openQueryTab({
+      connectionId,
+      connectionName: connectionName || tableName,
+      schemaName,
+      tableName,
+      driver,
+    });
+    setContextMenu(null);
+  };
+
+  const handleOpenQueryBuilder = (tableName: string) => {
+    openQueryBuilderTab({
+      connectionId,
+      tableName,
+      schemaName,
+    });
+    setContextMenu(null);
+  };
+
+  const handleViewObjectDdl = async (tableName: string) => {
+    setContextMenu(null);
+    try {
+      const ddl = await dbApi.getObjectDdl(connectionId, schemaName, tableName, 'table');
+      openQueryTab({
+        connectionId,
+        connectionName: connectionName || tableName,
+        schemaName,
+        tableName,
+        driver,
+        initialQuery: ddl,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to load DDL: ${msg}`);
+    }
+  };
+
   const handleCopyName = (name: string) => {
-    navigator.clipboard.writeText(name);
-    toast.success(`Copied table name "${name}" to clipboard`);
+    navigator.clipboard?.writeText(name);
+    toast.success(`Copied "${name}" to clipboard`);
     setContextMenu(null);
   };
 
@@ -274,6 +487,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
     try {
       const data = await dbApi.getTableListMetadata(connectionId, schemaName);
       setTables(data);
+      setCachedTables(connectionId, schemaName, data);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -282,8 +496,40 @@ export const TableListTab: React.FC<TableListTabProps> = ({
   };
 
   useEffect(() => {
+    const existing = useTableListCacheStore.getState().entries[cacheKey];
+    if (existing) {
+      setTables(existing.tables);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     fetchTables();
-  }, [connectionId, schemaName]);
+  }, [connectionId, schemaName, cacheKey]);
+
+  const handleChangeViewMode = (mode: TableListViewMode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+    } catch {
+      // ignore storage errors
+    }
+  };
+
+  const handleToggleGroupInList = () => {
+    setGroupInList((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(GROUP_IN_LIST_STORAGE_KEY, String(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
+
+  const toggleGroupCollapsed = (groupKey: string) => {
+    setCollapsedGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -315,9 +561,261 @@ export const TableListTab: React.FC<TableListTabProps> = ({
       });
   }, [tables, searchQuery, sortField, sortOrder]);
 
+  const groupedTables = useMemo(
+    () => groupTablesByPrefix(filteredAndSortedTables),
+    [filteredAndSortedTables]
+  );
+
+  const storageSummary = useMemo(() => {
+    let totalStorageBytes = 0;
+    let totalDataBytes = 0;
+    let totalIndexBytes = 0;
+    let largestTable: TableMetadata | null = null;
+    let alertCount = 0;
+
+    for (const table of filteredAndSortedTables) {
+      const total = table.totalSizeBytes || 0;
+      totalStorageBytes += total;
+      totalDataBytes += table.dataSizeBytes || 0;
+      totalIndexBytes += table.indexSizeBytes || 0;
+      if (!largestTable || total > (largestTable.totalSizeBytes || 0)) {
+        largestTable = table;
+      }
+      if (getTableHealthStatus(table) !== 'healthy') {
+        alertCount += 1;
+      }
+    }
+
+    return {
+      totalStorageBytes,
+      totalDataBytes,
+      totalIndexBytes,
+      largestTable,
+      alertCount,
+    };
+  }, [filteredAndSortedTables]);
+
+  const handleRowClick = (tableName: string, e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey) {
+      setSelectedTables((prev) =>
+        prev.includes(tableName) ? prev.filter((t) => t !== tableName) : [...prev, tableName]
+      );
+      setAnchorTable(tableName);
+    } else if (e.shiftKey) {
+      const names = filteredAndSortedTables.map((t) => t.name);
+      const targetIdx = names.indexOf(tableName);
+      const anchorIdx = anchorTable ? names.indexOf(anchorTable) : 0;
+      const start = Math.min(anchorIdx === -1 ? 0 : anchorIdx, targetIdx);
+      const end = Math.max(anchorIdx === -1 ? 0 : anchorIdx, targetIdx);
+      if (targetIdx !== -1) {
+        setSelectedTables(names.slice(start, end + 1));
+      }
+    } else {
+      setSelectedTables([tableName]);
+      setAnchorTable(tableName);
+    }
+  };
+
+  const handleCopySelectedNames = (namesToCopy: string[]) => {
+    if (namesToCopy.length === 0) return;
+    const text = namesToCopy.join('\n');
+    navigator.clipboard?.writeText(text);
+    if (namesToCopy.length === 1) {
+      toast.success(`Copied table name "${namesToCopy[0]}" to clipboard`);
+    } else {
+      toast.success(
+        t('tableList.copiedMultipleNames', 'Copied {{count}} table names to clipboard', {
+          count: namesToCopy.length,
+        })
+      );
+    }
+    setContextMenu(null);
+  };
+
+  const handleOpenSelectedTables = (namesToOpen: string[]) => {
+    for (const name of namesToOpen) {
+      handleOpenData(name);
+    }
+    setContextMenu(null);
+  };
+
+  const handleEditSelectedStructures = (namesToEdit: string[]) => {
+    for (const name of namesToEdit) {
+      handleOpenStructure(name);
+    }
+    setContextMenu(null);
+  };
+
+  const handleQuerySelectedTables = (namesToQuery: string[]) => {
+    const sql = namesToQuery
+      .map((name) => `SELECT * FROM ${qualifyTable(name, schemaName, driver)} LIMIT 100;`)
+      .join('\n');
+    openQueryTab({
+      connectionId,
+      connectionName: connectionName || `${namesToQuery.length} Tables`,
+      schemaName,
+      driver,
+      initialQuery: `${sql}\n`,
+    });
+    setContextMenu(null);
+  };
+
+  const handleViewSelectedDdl = async (namesToView: string[]) => {
+    setContextMenu(null);
+    try {
+      const ddls = await Promise.all(
+        namesToView.map((name) => dbApi.getObjectDdl(connectionId, schemaName, name, 'table'))
+      );
+      openQueryTab({
+        connectionId,
+        connectionName: connectionName || `${namesToView.length} Tables`,
+        schemaName,
+        driver,
+        initialQuery: ddls.filter(Boolean).join('\n\n'),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to load DDL: ${msg}`);
+    }
+  };
+
+  const handleTriggerDropSelectedTables = async (namesToDrop: string[]) => {
+    setContextMenu(null);
+    const confirmed = await showConfirmDialog(
+      t(
+        'tableList.confirmDropMultipleMessage',
+        'Are you sure you want to drop {{count}} selected tables ({{tables}})? This action cannot be undone.',
+        { count: namesToDrop.length, tables: namesToDrop.join(', ') }
+      ),
+      {
+        title: t('tableList.confirmDropMultipleTitle', 'Drop Selected Tables'),
+        kind: 'warning',
+      }
+    );
+    if (!confirmed) return;
+
+    try {
+      for (const name of namesToDrop) {
+        const sql = buildDropTableSql(name, schemaName, driver);
+        await dbApi.executeDirectQuery(connectionId, sql);
+      }
+      const { tabs, closeTab } = useTabStore.getState();
+      const droppedSet = new Set(namesToDrop);
+      const openTabs = tabs.filter(
+        (tab) =>
+          tab.connectionId === connectionId &&
+          tab.tableName &&
+          droppedSet.has(tab.tableName) &&
+          (!schemaName || tab.schemaName === schemaName)
+      );
+      for (const tab of openTabs) {
+        await closeTab(tab.id);
+      }
+      toast.success(
+        t('tableList.droppedMultipleSuccess', 'Dropped {{count}} tables successfully', {
+          count: namesToDrop.length,
+        })
+      );
+      setSelectedTables([]);
+      setAnchorTable(null);
+      fetchTables();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(t('structure.failedToDrop', 'Failed to drop table: {{error}}', { error: msg }));
+    }
+  };
+
+  const handleContainerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement | null;
+    const isInput =
+      target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
+
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+      return;
+    }
+
+    if (isInput) {
+      if (e.key === 'Escape') {
+        (target as HTMLElement).blur();
+        containerRef.current?.focus();
+      }
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      if (contextMenu) {
+        setContextMenu(null);
+      } else if (selectedTables.length > 0) {
+        setSelectedTables([]);
+      }
+      return;
+    }
+
+    const names = filteredAndSortedTables.map((t) => t.name);
+    if (names.length === 0) return;
+
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      setSelectedTables(names);
+      setAnchorTable(names[0]);
+      return;
+    }
+
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
+      if (selectedTables.length > 0) {
+        e.preventDefault();
+        handleCopySelectedNames(selectedTables);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const currentLast = selectedTables[selectedTables.length - 1];
+      const currentIdx = currentLast ? names.indexOf(currentLast) : -1;
+      const nextIdx =
+        e.key === 'ArrowDown'
+          ? currentIdx < names.length - 1
+            ? currentIdx + 1
+            : 0
+          : currentIdx > 0
+          ? currentIdx - 1
+          : names.length - 1;
+      const nextName = names[nextIdx];
+      if (e.shiftKey && anchorTable) {
+        const anchorIdx = names.indexOf(anchorTable);
+        const start = Math.min(anchorIdx === -1 ? 0 : anchorIdx, nextIdx);
+        const end = Math.max(anchorIdx === -1 ? 0 : anchorIdx, nextIdx);
+        setSelectedTables(names.slice(start, end + 1));
+      } else {
+        setSelectedTables([nextName]);
+        setAnchorTable(nextName);
+      }
+      return;
+    }
+
+    if (e.key === 'Enter' && selectedTables.length > 0) {
+      e.preventDefault();
+      handleOpenSelectedTables(selectedTables);
+      return;
+    }
+
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTables.length === 1) {
+      e.preventDefault();
+      handleTriggerDropTable(selectedTables[0]);
+    }
+  };
+
   return (
     <div
-      className={`flex flex-col h-full font-sans select-none ${
+      ref={containerRef}
+      tabIndex={0}
+      onKeyDown={handleContainerKeyDown}
+      data-testid="table-list-container"
+      className={`flex flex-col h-full font-sans select-none outline-none ${
         theme === 'light' ? 'bg-white text-gray-800' : 'bg-[#1e1e1e] text-[#cccccc]'
       }`}
     >
@@ -330,24 +828,99 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <span className={`font-semibold text-xs ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
             {schemaName ? `${schemaName} Tables` : 'Tables'}
           </span>
-          <span className={`text-[11px] px-1.5 py-0.5 rounded ${
-            theme === 'light' ? 'bg-gray-200 text-gray-700 font-medium' : 'bg-[#333333] text-gray-300'
-          }`}>
+          <span className={`text-[11px] px-1.5 py-0.5 rounded ${theme === 'light' ? 'bg-gray-200 text-gray-700 font-medium' : 'bg-[#333333] text-gray-300'}`}>
             {filteredAndSortedTables.length === 1
               ? t('tableList.tableCount', { count: 1 })
               : t('tableList.tableCount_plural', { count: filteredAndSortedTables.length })}
           </span>
+          {selectedTables.length > 0 && (
+            <span
+              data-testid="table-list-selected-badge"
+              className="text-[11px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-500 font-medium"
+            >
+              {t('tableList.selectedCount', '{{count}} selected', { count: selectedTables.length })}
+            </span>
+          )}
+          <span className="hidden xl:inline text-[11px] text-gray-400 ml-2">
+            {t('tableList.shortcutsHint', '⌘A Select All · ⌘C Copy · ↑↓ Navigate · Enter Open')}
+          </span>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Group-in-list option when in List view */}
+          {viewMode === 'table' && (
+            <button
+              type="button"
+              data-testid="toggle-group-in-list"
+              aria-pressed={groupInList}
+              onClick={handleToggleGroupInList}
+              title={t('tableList.groupInListTooltip', 'Group tables by prefix in list view')}
+              className={`flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-medium transition-colors ${
+                groupInList
+                  ? theme === 'light'
+                    ? 'bg-blue-50 border-blue-300 text-blue-600'
+                    : 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+                  : theme === 'light'
+                  ? 'bg-white border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  : 'bg-[#1e1e1e] border-[#3c3c3c] text-gray-400 hover:text-gray-200 hover:bg-[#333333]'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{t('tableList.groupToggle', 'Group')}</span>
+            </button>
+          )}
+
+          {/* View Mode Switcher */}
+          <div
+            role="group"
+            aria-label={t('tableList.viewModeLabel', 'View Mode')}
+            className={`flex items-center rounded border p-0.5 ${
+              theme === 'light'
+                ? 'bg-gray-100 border-gray-200'
+                : 'bg-[#1e1e1e] border-[#3c3c3c]'
+            }`}
+          >
+            {([
+              { id: 'table', icon: List, label: t('tableList.viewTable', 'List') },
+              { id: 'grid', icon: LayoutGrid, label: t('tableList.viewGrid', 'Grid') },
+              { id: 'grouped', icon: FolderTree, label: t('tableList.viewGrouped', 'Categories') },
+              { id: 'storage', icon: HardDrive, label: t('tableList.viewStorage', 'Storage') },
+            ] as const).map(({ id, icon: Icon, label }) => {
+              const active = viewMode === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  data-testid={`view-mode-${id}`}
+                  aria-pressed={active}
+                  onClick={() => handleChangeViewMode(id)}
+                  title={label}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                    active
+                      ? theme === 'light'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'bg-[#333333] text-blue-400 shadow-sm'
+                      : theme === 'light'
+                      ? 'text-gray-600 hover:text-gray-900'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder={t('tableList.searchPlaceholder', 'Search tables...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`text-xs pl-8 pr-3 py-1 rounded border focus:outline-none focus:border-blue-500 w-52 transition-colors ${
+              className={`text-xs pl-8 pr-3 py-1 rounded border focus:outline-none focus:border-blue-500 w-44 sm:w-52 transition-colors ${
                 theme === 'light'
                   ? 'bg-white text-gray-900 border-gray-300 placeholder-gray-400'
                   : 'bg-[#1e1e1e] text-white border-[#3c3c3c] placeholder-gray-500'
@@ -371,7 +944,13 @@ export const TableListTab: React.FC<TableListTabProps> = ({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-auto">
+      <div
+        className="flex-1 overflow-auto"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setContextMenu({ mouseX: e.clientX, mouseY: e.clientY, table: null });
+        }}
+      >
         {loading && tables.length === 0 ? (
           <div className="flex items-center justify-center h-full text-xs text-gray-400 gap-2">
             <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
@@ -391,6 +970,643 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           <div className="flex flex-col items-center justify-center h-full text-xs text-gray-400 p-4">
             <TableIcon className="w-8 h-8 text-gray-600 mb-2 stroke-1" />
             <p>{searchQuery ? t('tableList.noTablesMatch', 'No tables match your search.') : t('tableList.noTablesFound', 'No tables found in this schema.')}</p>
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div
+            data-testid="table-list-grid-view"
+            className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
+          >
+            {filteredAndSortedTables.map((table) => {
+              const isSelected = selectedTables.includes(table.name);
+              return (
+                <div
+                  key={table.name}
+                  data-testid={`table-card-${table.name}`}
+                  aria-selected={isSelected}
+                  onClick={(e) => handleRowClick(table.name, e)}
+                  onDoubleClick={() => handleOpenData(table.name)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!selectedTables.includes(table.name)) {
+                      setSelectedTables([table.name]);
+                      setAnchorTable(table.name);
+                    }
+                    setContextMenu({ mouseX: e.clientX, mouseY: e.clientY, table });
+                  }}
+                  className={`rounded-lg border p-3 transition-colors cursor-pointer flex flex-col justify-between gap-2.5 ${
+                    isSelected
+                      ? theme === 'light'
+                        ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-400/50'
+                        : 'bg-blue-500/15 border-blue-500 ring-1 ring-blue-500/40'
+                      : theme === 'light'
+                      ? 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50/70'
+                      : 'bg-[#252526] border-[#333333] hover:border-[#4a4a4a] hover:bg-[#2a2d2e]'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {renderTableIcon(table.name)}
+                        <span
+                          className={`font-mono text-xs font-semibold truncate ${
+                            theme === 'light' ? 'text-gray-900' : 'text-white'
+                          }`}
+                          title={table.name}
+                        >
+                          {table.name}
+                        </span>
+                      </div>
+                      {table.engine && (
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
+                            theme === 'light'
+                              ? 'bg-gray-100 text-gray-600'
+                              : 'bg-[#333333] text-gray-300'
+                          }`}
+                        >
+                          {table.engine}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className={`rounded px-2 py-1 ${theme === 'light' ? 'bg-gray-50' : 'bg-[#1e1e1e]'}`}>
+                        <div className="text-[10px] text-gray-400">
+                          {t('tableList.approxRowsHeader', 'Approx Rows')}
+                        </div>
+                        <div className={`font-mono font-medium ${theme === 'light' ? 'text-gray-800' : 'text-gray-200'}`}>
+                          {formatApproxRows(table.approxRowCount)}
+                        </div>
+                      </div>
+                      <div className={`rounded px-2 py-1 ${theme === 'light' ? 'bg-gray-50' : 'bg-[#1e1e1e]'}`}>
+                        <div className="text-[10px] text-gray-400">
+                          {t('tableList.totalSizeHeader', 'Total Size')}
+                        </div>
+                        <div className={`font-mono font-medium ${theme === 'light' ? 'text-gray-800' : 'text-gray-200'}`}>
+                          {formatBytes(table.totalSizeBytes)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400 font-mono">
+                      <span>{t('tableList.dataShort', 'Data')}: {formatBytes(table.dataSizeBytes)}</span>
+                      <span>{t('tableList.indexShort', 'Index')}: {formatBytes(table.indexSizeBytes)}</span>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`pt-2 border-t flex items-center justify-end gap-1 ${
+                      theme === 'light' ? 'border-gray-100' : 'border-[#333333]'
+                    }`}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenData(table.name);
+                      }}
+                      title={t('tableList.openData', 'Open Table Data')}
+                      className={`p-1 rounded transition-colors ${
+                        theme === 'light'
+                          ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                          : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenStructure(table.name);
+                      }}
+                      title={t('tableList.designStructure', 'Design Table Structure')}
+                      className={`p-1 rounded transition-colors ${
+                        theme === 'light'
+                          ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                          : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <Wrench className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTriggerDuplicate(table.name);
+                      }}
+                      title={t('tableList.duplicateTable', 'Duplicate Table...')}
+                      className={`p-1 rounded transition-colors ${
+                        theme === 'light'
+                          ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                          : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTriggerRenameTable(table.name);
+                      }}
+                      title={t('sidebar.contextMenu.renameTable', 'Rename Table...')}
+                      className={`p-1 rounded transition-colors ${
+                        theme === 'light'
+                          ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                          : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <Pencil className="w-3 h-3 text-blue-500" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTriggerMaintenance(table.name);
+                      }}
+                      title={t('tableList.maintenance', 'Table Maintenance & Diagnostics...')}
+                      className={`p-1 rounded transition-colors ${
+                        theme === 'light'
+                          ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                          : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <Wrench className="w-3.5 h-3.5 text-emerald-500" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : viewMode === 'grouped' ? (
+          <div
+            data-testid="table-list-grouped-view"
+            className="p-4 columns-1 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-3"
+          >
+            {groupedTables.map((group, idx) => {
+              const paletteList = theme === 'light' ? GROUP_BOARD_PALETTES.light : GROUP_BOARD_PALETTES.dark;
+              const palette = paletteList[idx % paletteList.length];
+              return (
+                <div
+                  key={group.key}
+                  data-testid={`board-group-${group.key}`}
+                  className={`break-inside-avoid mb-3 rounded-lg border p-3 ${palette.card}`}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className={`font-sans text-xs font-bold tracking-tight truncate ${palette.header}`}>
+                      {group.isOther ? t('tableList.otherGroup', 'Other / Ungrouped') : group.label}
+                    </span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${palette.badge}`}>
+                      {group.tables.length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    {group.tables.map((table) => {
+                      const isSelected = selectedTables.includes(table.name);
+                      return (
+                        <div
+                          key={table.name}
+                          data-testid={`board-item-${table.name}`}
+                          aria-selected={isSelected}
+                          onClick={(e) => handleRowClick(table.name, e)}
+                          onDoubleClick={() => handleOpenData(table.name)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!selectedTables.includes(table.name)) {
+                              setSelectedTables([table.name]);
+                              setAnchorTable(table.name);
+                            }
+                            setContextMenu({ mouseX: e.clientX, mouseY: e.clientY, table });
+                          }}
+                          className={`flex items-center justify-between gap-2 px-1.5 py-1 rounded text-xs cursor-pointer transition-colors group ${
+                            isSelected
+                              ? theme === 'light'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-blue-500 text-white'
+                              : `${palette.itemHover} ${theme === 'light' ? 'text-gray-800' : 'text-gray-200'}`
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {renderTableIcon(table.name, isSelected)}
+                            <span className="font-mono text-[11px] truncate" title={table.name}>
+                              {table.name}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-[10px] font-mono shrink-0 ${
+                              isSelected ? 'text-blue-100' : 'opacity-60'
+                            }`}
+                          >
+                            {formatApproxRows(table.approxRowCount)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : viewMode === 'storage' ? (
+          <div data-testid="table-list-storage-view" className="p-4 space-y-4">
+            {/* KPI Summary Strip */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div
+                className={`rounded-lg border p-3 ${
+                  theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-[#252526] border-[#333333]'
+                }`}
+              >
+                <div className="text-[11px] text-gray-400">
+                  {t('tableList.kpiTotalTables', 'Total Tables')}
+                </div>
+                <div className={`text-base font-semibold font-mono mt-0.5 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+                  {filteredAndSortedTables.length}
+                </div>
+              </div>
+
+              <div
+                className={`rounded-lg border p-3 ${
+                  theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-[#252526] border-[#333333]'
+                }`}
+              >
+                <div className="text-[11px] text-gray-400">
+                  {t('tableList.kpiTotalStorage', 'Total Storage')}
+                </div>
+                <div className={`text-base font-semibold font-mono mt-0.5 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+                  {formatBytes(storageSummary.totalStorageBytes)}
+                </div>
+                <div className="text-[10px] text-gray-400 font-mono mt-0.5">
+                  {t('tableList.dataShort', 'Data')}: {formatBytes(storageSummary.totalDataBytes)} · {t('tableList.indexShort', 'Index')}: {formatBytes(storageSummary.totalIndexBytes)}
+                </div>
+              </div>
+
+              <div
+                className={`rounded-lg border p-3 ${
+                  theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-[#252526] border-[#333333]'
+                }`}
+              >
+                <div className="text-[11px] text-gray-400">
+                  {t('tableList.kpiLargestTable', 'Largest Table')}
+                </div>
+                <div
+                  className={`text-sm font-semibold font-mono truncate mt-0.5 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}
+                  title={storageSummary.largestTable?.name}
+                >
+                  {storageSummary.largestTable ? storageSummary.largestTable.name : '-'}
+                </div>
+                <div className="text-[10px] text-gray-400 font-mono mt-0.5">
+                  {storageSummary.largestTable ? formatBytes(storageSummary.largestTable.totalSizeBytes) : '-'}
+                </div>
+              </div>
+
+              <div
+                className={`rounded-lg border p-3 ${
+                  theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-[#252526] border-[#333333]'
+                }`}
+              >
+                <div className="text-[11px] text-gray-400">
+                  {t('tableList.kpiHealthAlerts', 'Health Alerts')}
+                </div>
+                <div
+                  className={`text-base font-semibold font-mono mt-0.5 flex items-center gap-1.5 ${
+                    storageSummary.alertCount > 0 ? 'text-amber-500' : 'text-emerald-500'
+                  }`}
+                >
+                  {storageSummary.alertCount > 0 ? (
+                    <AlertTriangle className="w-4 h-4" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  <span>{storageSummary.alertCount}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Storage & Health Breakdown Table */}
+            <div
+              className={`rounded-lg border overflow-hidden ${
+                theme === 'light' ? 'border-gray-200' : 'border-[#333333]'
+              }`}
+            >
+              <table className="w-full text-left border-collapse text-xs">
+                <thead
+                  className={`border-b ${
+                    theme === 'light'
+                      ? 'bg-gray-100 text-gray-600 border-gray-200'
+                      : 'bg-[#252526] text-gray-400 border-[#333333]'
+                  }`}
+                >
+                  <tr>
+                    <th
+                      onClick={() => handleSort('name')}
+                      className="py-2 px-3 font-medium cursor-pointer select-none"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>{t('tableList.nameHeader', 'Name')}</span>
+                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('totalSizeBytes')}
+                      className="py-2 px-3 font-medium cursor-pointer select-none text-right"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        <span>{t('tableList.totalSizeHeader', 'Total Size')}</span>
+                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </th>
+                    <th className="py-2 px-3 font-medium w-48">
+                      {t('tableList.storageDistribution', 'Data / Index Split')}
+                    </th>
+                    <th
+                      onClick={() => handleSort('approxRowCount')}
+                      className="py-2 px-3 font-medium cursor-pointer select-none text-right"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        <span>{t('tableList.approxRowsHeader', 'Approx Rows')}</span>
+                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </th>
+                    <th className="py-2 px-3 font-medium">{t('tableList.healthStatus', 'Health')}</th>
+                    <th className="py-2 px-3 font-medium text-right">{t('tableList.actionsHeader', 'Actions')}</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${theme === 'light' ? 'divide-gray-100' : 'divide-[#2a2a2a]'}`}>
+                  {filteredAndSortedTables.map((table) => {
+                    const isSelected = selectedTables.includes(table.name);
+                    const total = table.totalSizeBytes || 0;
+                    const dataPct = total > 0 ? Math.min(100, Math.round(((table.dataSizeBytes || 0) / total) * 100)) : 0;
+                    const indexPct = total > 0 ? Math.max(0, 100 - dataPct) : 0;
+                    const health = getTableHealthStatus(table);
+                    return (
+                      <tr
+                        key={table.name}
+                        aria-selected={isSelected}
+                        onClick={(e) => handleRowClick(table.name, e)}
+                        onDoubleClick={() => handleOpenData(table.name)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!selectedTables.includes(table.name)) {
+                            setSelectedTables([table.name]);
+                            setAnchorTable(table.name);
+                          }
+                          setContextMenu({ mouseX: e.clientX, mouseY: e.clientY, table });
+                        }}
+                        className={`transition-colors cursor-pointer ${
+                          isSelected
+                            ? theme === 'light'
+                              ? 'bg-blue-50 hover:bg-blue-100/70'
+                              : 'bg-blue-500/20 hover:bg-blue-500/25'
+                            : theme === 'light'
+                            ? 'hover:bg-gray-50'
+                            : 'hover:bg-[#2a2d2e]'
+                        }`}
+                      >
+                        <td className={`py-2 px-3 font-mono ${theme === 'light' ? 'text-gray-900 font-medium' : 'text-white'}`}>
+                          <div className="flex items-center gap-2">
+                            {renderTableIcon(table.name)}
+                            <span className="truncate max-w-[180px]" title={table.name}>
+                              {table.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-700' : 'text-gray-300'}`}>
+                          {formatBytes(total)}
+                        </td>
+                        <td className="py-2 px-3">
+                          <div
+                            className={`w-full h-2 rounded-full overflow-hidden flex ${
+                              theme === 'light' ? 'bg-gray-200' : 'bg-[#333333]'
+                            }`}
+                            title={`${t('tableList.dataShort', 'Data')}: ${formatBytes(table.dataSizeBytes)} (${dataPct}%) · ${t('tableList.indexShort', 'Index')}: ${formatBytes(table.indexSizeBytes)} (${indexPct}%)`}
+                          >
+                            {total > 0 && (
+                              <>
+                                <div className="bg-blue-500 h-full" style={{ width: `${dataPct}%` }} />
+                                <div className="bg-purple-500 h-full" style={{ width: `${indexPct}%` }} />
+                              </>
+                            )}
+                          </div>
+                          <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-0.5">
+                            <span>{formatBytes(table.dataSizeBytes)}</span>
+                            <span>{formatBytes(table.indexSizeBytes)}</span>
+                          </div>
+                        </td>
+                        <td className={`py-2 px-3 text-right font-mono ${theme === 'light' ? 'text-gray-700' : 'text-gray-300'}`}>
+                          {formatApproxRows(table.approxRowCount)}
+                        </td>
+                        <td className="py-2 px-3">
+                          {health === 'needs_analyze' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-500">
+                              <AlertTriangle className="w-3 h-3" />
+                              {t('tableList.healthNeedsAnalyze', 'Needs ANALYZE')}
+                            </span>
+                          ) : health === 'index_heavy' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/15 text-purple-400">
+                              <AlertTriangle className="w-3 h-3" />
+                              {t('tableList.healthIndexHeavy', 'Index > Data')}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-500">
+                              <CheckCircle2 className="w-3 h-3" />
+                              {t('tableList.healthOk', 'Healthy')}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTriggerMaintenance(table.name);
+                              }}
+                              title={t('tableList.maintenance', 'Table Maintenance & Diagnostics...')}
+                              className={`p-1 rounded transition-colors ${
+                                theme === 'light'
+                                  ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                                  : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                              }`}
+                            >
+                              <Wrench className="w-3.5 h-3.5 text-emerald-500" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenData(table.name);
+                              }}
+                              title={t('tableList.openData', 'Open Table Data')}
+                              className={`p-1 rounded transition-colors ${
+                                theme === 'light'
+                                  ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                                  : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                              }`}
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : groupInList ? (
+          <div data-testid="table-list-grouped-list" className="p-3 space-y-2">
+            {groupedTables.map((group) => {
+              const isCollapsed = !!collapsedGroups[group.key];
+              return (
+                <div
+                  key={group.key}
+                  className={`rounded-lg border overflow-hidden ${
+                    theme === 'light' ? 'border-gray-200 bg-white' : 'border-[#333333] bg-[#252526]'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    data-testid={`prefix-group-${group.key}`}
+                    onClick={() => toggleGroupCollapsed(group.key)}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-xs transition-colors ${
+                      theme === 'light'
+                        ? 'bg-gray-50 hover:bg-gray-100 text-gray-800'
+                        : 'bg-[#2a2d2e] hover:bg-[#323638] text-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isCollapsed ? (
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                      )}
+                      <FolderTree className="w-3.5 h-3.5 text-blue-500" />
+                      <span className="font-mono font-semibold">
+                        {group.isOther ? t('tableList.otherGroup', 'Other / Ungrouped') : group.label}
+                      </span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded ${
+                          theme === 'light'
+                            ? 'bg-gray-200 text-gray-700'
+                            : 'bg-[#3c3c3c] text-gray-300'
+                        }`}
+                      >
+                        {group.tables.length === 1
+                          ? t('tableList.tableCount', { count: 1 })
+                          : t('tableList.tableCount_plural', { count: group.tables.length })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] font-mono text-gray-400">
+                      <span>{formatApproxRows(group.totalRows)}</span>
+                      <span>{formatBytes(group.totalSizeBytes)}</span>
+                    </div>
+                  </button>
+
+                  {!isCollapsed && (
+                    <div className={`divide-y ${theme === 'light' ? 'divide-gray-100' : 'divide-[#2d2d2d]'}`}>
+                      {group.tables.map((table) => {
+                        const isSelected = selectedTables.includes(table.name);
+                        return (
+                          <div
+                            key={table.name}
+                            aria-selected={isSelected}
+                            onClick={(e) => handleRowClick(table.name, e)}
+                            onDoubleClick={() => handleOpenData(table.name)}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (!selectedTables.includes(table.name)) {
+                                setSelectedTables([table.name]);
+                                setAnchorTable(table.name);
+                              }
+                              setContextMenu({ mouseX: e.clientX, mouseY: e.clientY, table });
+                            }}
+                            className={`flex items-center justify-between px-4 py-1.5 text-xs cursor-pointer transition-colors group ${
+                              isSelected
+                                ? theme === 'light'
+                                  ? 'bg-blue-50 hover:bg-blue-100/70'
+                                  : 'bg-blue-500/20 hover:bg-blue-500/25'
+                                : theme === 'light'
+                                ? 'hover:bg-gray-50'
+                                : 'bg-[#1e1e1e] hover:bg-[#2a2d2e]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {renderTableIcon(table.name)}
+                              <span
+                                className={`font-mono truncate ${
+                                  theme === 'light' ? 'text-gray-900 font-medium' : 'text-white'
+                                }`}
+                                title={table.name}
+                              >
+                                {table.name}
+                              </span>
+                              {table.engine && (
+                                <span className="text-[10px] text-gray-400 hidden sm:inline">
+                                  {table.engine}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-4 shrink-0">
+                              <span className={`font-mono text-[11px] w-16 text-right ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`}>
+                                {formatApproxRows(table.approxRowCount)}
+                              </span>
+                              <span className={`font-mono text-[11px] w-16 text-right ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}`}>
+                                {formatBytes(table.totalSizeBytes)}
+                              </span>
+                              <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenData(table.name);
+                                  }}
+                                  title={t('tableList.openData', 'Open Table Data')}
+                                  className={`p-1 rounded transition-colors ${
+                                    theme === 'light'
+                                      ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                                      : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                                  }`}
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenStructure(table.name);
+                                  }}
+                                  title={t('tableList.designStructure', 'Design Table Structure')}
+                                  className={`p-1 rounded transition-colors ${
+                                    theme === 'light'
+                                      ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                                      : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                                  }`}
+                                >
+                                  <Wrench className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleTriggerMaintenance(table.name);
+                                  }}
+                                  title={t('tableList.maintenance', 'Table Maintenance & Diagnostics...')}
+                                  className={`p-1 rounded transition-colors ${
+                                    theme === 'light'
+                                      ? 'hover:bg-gray-200 text-gray-500 hover:text-gray-900'
+                                      : 'hover:bg-[#383838] text-gray-400 hover:text-white'
+                                  }`}
+                                >
+                                  <Wrench className="w-3.5 h-3.5 text-emerald-500" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <table className="w-full text-left border-collapse text-xs">
@@ -443,23 +1659,37 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               </tr>
             </thead>
             <tbody className={`divide-y ${theme === 'light' ? 'divide-gray-100' : 'divide-[#2a2a2a]'}`}>
-              {filteredAndSortedTables.map((table) => (
+              {filteredAndSortedTables.map((table) => {
+                const isSelected = selectedTables.includes(table.name);
+                return (
                 <tr
                   key={table.name}
+                  aria-selected={isSelected}
+                  onClick={(e) => handleRowClick(table.name, e)}
                   onDoubleClick={() => handleOpenData(table.name)}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    if (!selectedTables.includes(table.name)) {
+                      setSelectedTables([table.name]);
+                      setAnchorTable(table.name);
+                    }
                     setContextMenu({ mouseX: e.clientX, mouseY: e.clientY, table });
                   }}
                   className={`transition-colors group cursor-pointer ${
-                    theme === 'light' ? 'hover:bg-gray-50' : 'hover:bg-[#2a2d2e]'
+                    isSelected
+                      ? theme === 'light'
+                        ? 'bg-blue-50 hover:bg-blue-100/70'
+                        : 'bg-blue-500/20 hover:bg-blue-500/25'
+                      : theme === 'light'
+                      ? 'hover:bg-gray-50'
+                      : 'hover:bg-[#2a2d2e]'
                   }`}
                 >
                   <td className={`py-2 px-3 flex items-center gap-2 font-mono ${
                     theme === 'light' ? 'text-gray-900 font-medium' : 'text-white'
                   }`}>
-                    <TableIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                    {renderTableIcon(table.name)}
                     <span className="truncate max-w-[200px]" title={table.name}>
                       {table.name}
                     </span>
@@ -560,7 +1790,8 @@ export const TableListTab: React.FC<TableListTabProps> = ({
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -572,7 +1803,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           ref={contextMenuRef}
           role="menu"
           data-testid="table-list-context-menu"
-          className={`fixed z-50 rounded-md shadow-2xl py-1 text-xs min-w-[190px] max-h-[calc(100vh-16px)] overflow-y-auto select-none animate-in fade-in duration-100 border ${
+          className={`fixed z-50 rounded-md shadow-2xl py-1 text-xs min-w-[190px] max-h-[calc(100vh-16px)] overflow-y-auto select-none border ${
             theme === 'light'
               ? 'bg-white border-gray-200 text-gray-800'
               : 'bg-[#1e1e1e] border-[#333333] text-gray-200'
@@ -585,10 +1816,151 @@ export const TableListTab: React.FC<TableListTabProps> = ({
           }`}>
             <TableIcon className="w-3 h-3 text-blue-500 shrink-0" />
             <span className={`truncate font-semibold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
-              {contextMenu.table.name}
+              {!contextMenu.table
+                ? schemaName
+                  ? `${schemaName} Tables`
+                  : 'Tables'
+                : selectedTables.length > 1
+                ? t('tableList.selectedCount', '{{count}} selected', { count: selectedTables.length })
+                : contextMenu.table.name}
             </span>
           </div>
 
+          {!contextMenu.table ? (
+            <button
+              type="button"
+              data-testid="ctx-refresh-tables"
+              className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+                theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+              }`}
+              onClick={() => {
+                setContextMenu(null);
+                fetchTables();
+              }}
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-emerald-500" />
+              <span>{t('tableList.refreshContextMenu', 'Refresh Tables')}</span>
+            </button>
+          ) : selectedTables.length > 1 ? (
+            <>
+              <button
+                type="button"
+                data-testid="ctx-open-selected-tables"
+                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+                }`}
+                onClick={() => handleOpenSelectedTables(selectedTables)}
+              >
+                <TableIcon className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{t('tableList.openSelectedTables', 'Open {{count}} Selected Tables', { count: selectedTables.length })}</span>
+              </button>
+              <button
+                type="button"
+                data-testid="ctx-design-selected-tables"
+                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+                }`}
+                onClick={() => handleEditSelectedStructures(selectedTables)}
+              >
+                <Wrench className="w-3.5 h-3.5 text-amber-500" />
+                <span>{t('tableList.editSelectedStructures', 'Edit Structure ({{count}} Tables)', { count: selectedTables.length })}</span>
+              </button>
+              <button
+                type="button"
+                data-testid="ctx-export-selected-sql"
+                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+                }`}
+                onClick={() => handleTriggerExportSelectedSql(selectedTables)}
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-500" />
+                <span>{t('tableList.exportSelectedSql', 'Export {{count}} Tables as SQL Dump...', { count: selectedTables.length })}</span>
+              </button>
+              <button
+                type="button"
+                data-testid="ctx-import-sql"
+                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+                }`}
+                onClick={() => handleTriggerImportSql(contextMenu.table!.name)}
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{t('sidebar.contextMenu.runSqlScript', 'Run SQL Script...')}</span>
+              </button>
+              <button
+                type="button"
+                data-testid="ctx-query-selected-tables"
+                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+                }`}
+                onClick={() => handleQuerySelectedTables(selectedTables)}
+              >
+                <FileCode className="w-3.5 h-3.5 text-blue-500" />
+                <span>{t('tableList.querySelectedTables', 'Query {{count}} Selected Tables', { count: selectedTables.length })}</span>
+              </button>
+              <button
+                type="button"
+                data-testid="ctx-query-builder"
+                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors font-medium ${
+                  theme === 'light' ? 'hover:bg-gray-100 text-amber-600' : 'hover:bg-[#2d2d2d] text-amber-400'
+                }`}
+                onClick={() => handleOpenQueryBuilder(contextMenu.table!.name)}
+              >
+                <Wand2 className="w-3.5 h-3.5 text-amber-500" />
+                <span>{t('sidebar.contextMenu.visualQueryBuilder', 'Visual Query Builder')}</span>
+              </button>
+              <button
+                type="button"
+                data-testid="ctx-view-selected-ddl"
+                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+                }`}
+                onClick={() => handleViewSelectedDdl(selectedTables)}
+              >
+                <FileCode className="w-3.5 h-3.5 text-blue-500" />
+                <span>{t('tableList.viewSelectedDdl', 'View DDL / Source ({{count}} Tables)', { count: selectedTables.length })}</span>
+              </button>
+              <button
+                type="button"
+                data-testid="ctx-copy-selected-names"
+                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+                }`}
+                onClick={() => handleCopySelectedNames(selectedTables)}
+              >
+                <Copy className="w-3.5 h-3.5 text-gray-400" />
+                <span>{t('tableList.copySelectedNames', 'Copy {{count}} Table Names', { count: selectedTables.length })}</span>
+              </button>
+              <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
+              <button
+                type="button"
+                data-testid="ctx-refresh-tables"
+                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+                  theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+                }`}
+                onClick={() => {
+                  setContextMenu(null);
+                  fetchTables();
+                }}
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{t('tableList.refreshContextMenu', 'Refresh Tables')}</span>
+              </button>
+              <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
+              <button
+                type="button"
+                data-testid="ctx-drop-selected-tables"
+                className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+                  theme === 'light' ? 'hover:bg-red-50 text-red-600' : 'hover:bg-red-950/40 text-red-400'
+                }`}
+                onClick={() => handleTriggerDropSelectedTables(selectedTables)}
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                <span>{t('tableList.dropSelectedTables', 'Drop {{count}} Selected Tables', { count: selectedTables.length })}</span>
+              </button>
+            </>
+          ) : (
+            <>
           <button
             type="button"
             data-testid="ctx-open-table"
@@ -596,12 +1968,12 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
             }`}
             onClick={() => {
-              handleOpenData(contextMenu.table.name);
+              handleOpenData(contextMenu.table!.name);
               setContextMenu(null);
             }}
           >
-            <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-            <span>{t('tableList.openData', 'Open Table Data')}</span>
+            <TableIcon className="w-3.5 h-3.5 text-emerald-500" />
+            <span>{t('sidebar.contextMenu.openTable', 'Open Table')}</span>
           </button>
 
           <button
@@ -611,76 +1983,12 @@ export const TableListTab: React.FC<TableListTabProps> = ({
               theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
             }`}
             onClick={() => {
-              handleOpenStructure(contextMenu.table.name);
+              handleOpenStructure(contextMenu.table!.name);
               setContextMenu(null);
             }}
           >
             <Wrench className="w-3.5 h-3.5 text-amber-500" />
-            <span>{t('tableList.designStructure', 'Design Table Structure')}</span>
-          </button>
-
-          <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
-
-          <button
-            type="button"
-            data-testid="ctx-duplicate-table"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
-            onClick={() => handleTriggerDuplicate(contextMenu.table.name)}
-          >
-            <Copy className="w-3.5 h-3.5 text-purple-500" />
-            <span>{t('tableList.duplicateTable', 'Duplicate Table...')}</span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="ctx-copy-to-db"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
-            onClick={() => handleTriggerCopyTableToDb(contextMenu.table.name)}
-          >
-            <Share2 className="w-3.5 h-3.5 text-indigo-500" />
-            <span>{t('transfer.crossDbTitle', 'Copy Table to Database...')}</span>
-          </button>
-
-          <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
-
-          <button
-            type="button"
-            data-testid="ctx-export-sql"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
-            onClick={() => handleTriggerExportSql(contextMenu.table.name)}
-          >
-            <Download className="w-3.5 h-3.5 text-blue-500" />
-            <span>{t('sidebar.contextMenu.exportSqlDump', 'Export as SQL Dump...')}</span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="ctx-export-data"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
-            onClick={() => handleTriggerExportData(contextMenu.table.name)}
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
-            <span>{t('sidebar.contextMenu.exportTableData', 'Export Table Data...')}</span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="ctx-import-sql"
-            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
-              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
-            }`}
-            onClick={() => handleTriggerImportSql(contextMenu.table.name)}
-          >
-            <FileCode className="w-3.5 h-3.5 text-blue-500" />
-            <span>{t('sidebar.contextMenu.runSqlScript', 'Import as SQL Dump...')}</span>
+            <span>{t('sidebar.contextMenu.editStructure', 'Edit Structure')}</span>
           </button>
 
           <button
@@ -689,10 +1997,106 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
               theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
             }`}
-            onClick={() => handleTriggerImportData(contextMenu.table.name)}
+            onClick={() => handleTriggerImportData(contextMenu.table!.name)}
           >
             <Upload className="w-3.5 h-3.5 text-emerald-500" />
-            <span>{t('tableList.importData', 'Import Table Data...')}</span>
+            <span>{t('sidebar.contextMenu.importData', 'Import Data...')}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-export-data"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
+            onClick={() => handleTriggerExportData(contextMenu.table!.name)}
+          >
+            <Download className="w-3.5 h-3.5 text-blue-500" />
+            <span>{t('sidebar.contextMenu.exportTableData', 'Export Table Data...')}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-duplicate-table"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
+            onClick={() => handleTriggerDuplicate(contextMenu.table!.name)}
+          >
+            <Copy className="w-3.5 h-3.5 text-purple-500" />
+            <span>{t('sidebar.contextMenu.duplicateTable', 'Duplicate Table...')}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-copy-to-db"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
+            onClick={() => handleTriggerCopyTableToDb(contextMenu.table!.name)}
+          >
+            <ArrowRightLeft className="w-3.5 h-3.5 text-blue-500" />
+            <span>{t('sidebar.contextMenu.copyTableCrossDb', 'Copy Table to Database...')}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-export-sql"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
+            onClick={() => handleTriggerExportSql(contextMenu.table!.name)}
+          >
+            <Download className="w-3.5 h-3.5 text-indigo-500" />
+            <span>{t('sidebar.contextMenu.exportSqlDump', 'Export as SQL Dump...')}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-import-sql"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
+            onClick={() => handleTriggerImportSql(contextMenu.table!.name)}
+          >
+            <Upload className="w-3.5 h-3.5 text-emerald-500" />
+            <span>{t('sidebar.contextMenu.runSqlScript', 'Run SQL Script...')}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-query-table"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
+            onClick={() => handleQueryTable(contextMenu.table!.name)}
+          >
+            <FileCode className="w-3.5 h-3.5 text-blue-500" />
+            <span>{t('sidebar.contextMenu.queryTable', 'Query Table')}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-query-builder"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors font-medium ${
+              theme === 'light' ? 'hover:bg-gray-100 text-amber-600' : 'hover:bg-[#2d2d2d] text-amber-400'
+            }`}
+            onClick={() => handleOpenQueryBuilder(contextMenu.table!.name)}
+          >
+            <Wand2 className="w-3.5 h-3.5 text-amber-500" />
+            <span>{t('sidebar.contextMenu.visualQueryBuilder', 'Visual Query Builder')}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-view-ddl"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
+            onClick={() => handleViewObjectDdl(contextMenu.table!.name)}
+          >
+            <FileCode className="w-3.5 h-3.5 text-blue-500" />
+            <span>{t('sidebar.contextMenu.viewObjectDdl', 'View DDL / Source')}</span>
           </button>
 
           <button
@@ -701,11 +2105,13 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
               theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
             }`}
-            onClick={() => handleCopyName(contextMenu.table.name)}
+            onClick={() => handleCopyName(contextMenu.table!.name)}
           >
             <Copy className="w-3.5 h-3.5 text-gray-400" />
-            <span>{t('sidebar.contextMenu.copyName', 'Copy Table Name')}</span>
+            <span>{t('sidebar.contextMenu.copyName', 'Copy Name')}</span>
           </button>
+
+          <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
 
           <button
             type="button"
@@ -713,7 +2119,7 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
               theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
             }`}
-            onClick={() => handleTriggerRenameTable(contextMenu.table.name)}
+            onClick={() => handleTriggerRenameTable(contextMenu.table!.name)}
           >
             <Pencil className="w-3.5 h-3.5 text-blue-500" />
             <span>{t('sidebar.contextMenu.renameTable', 'Rename Table...')}</span>
@@ -725,10 +2131,25 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
               theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
             }`}
-            onClick={() => handleTriggerMaintenance(contextMenu.table.name)}
+            onClick={() => handleTriggerMaintenance(contextMenu.table!.name)}
           >
             <Wrench className="w-3.5 h-3.5 text-emerald-500" />
-            <span>{t('tableList.maintenance', 'Table Maintenance & Diagnostics...')}</span>
+            <span>{t('sidebar.contextMenu.maintenanceTable', 'Maintenance & Diagnostics...')}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="ctx-refresh-tables"
+            className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-[#2d2d2d] text-gray-200'
+            }`}
+            onClick={() => {
+              setContextMenu(null);
+              fetchTables();
+            }}
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-emerald-500" />
+            <span>{t('tableList.refreshContextMenu', 'Refresh Tables')}</span>
           </button>
 
           <div className={`border-t my-1 ${theme === 'light' ? 'border-gray-100' : 'border-[#2d2d2d]'}`} />
@@ -739,11 +2160,13 @@ export const TableListTab: React.FC<TableListTabProps> = ({
             className={`w-full text-left px-3 py-1.5 flex items-center space-x-2 transition-colors ${
               theme === 'light' ? 'hover:bg-red-50 text-red-600' : 'hover:bg-red-950/40 text-red-400'
             }`}
-            onClick={() => handleTriggerDropTable(contextMenu.table.name)}
+            onClick={() => handleTriggerDropTable(contextMenu.table!.name)}
           >
             <Trash2 className="w-3.5 h-3.5 text-red-500" />
-            <span>{t('tableList.dropTable', 'Drop Table')}</span>
+            <span>{t('sidebar.contextMenu.dropTable', 'Drop Table')}</span>
           </button>
+            </>
+          )}
         </div>
       )}
 
@@ -774,13 +2197,14 @@ export const TableListTab: React.FC<TableListTabProps> = ({
         />
       )}
 
-      {activeExportSqlTable && (
+      {activeExportSqlTarget && (
         <ExportSqlModal
           isOpen={true}
           connectionId={connectionId}
-          tableName={activeExportSqlTable}
+          tableName={activeExportSqlTarget.tableName}
+          tableNames={activeExportSqlTarget.tableNames}
           schemaName={schemaName}
-          onClose={() => setActiveExportSqlTable(null)}
+          onClose={() => setActiveExportSqlTarget(null)}
         />
       )}
 

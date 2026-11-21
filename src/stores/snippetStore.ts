@@ -1,5 +1,41 @@
 import { create } from 'zustand';
-import type { SqlSnippet } from '../types/queryHistory';
+import type { SavedQueryScope, SqlSnippet } from '../types/queryHistory';
+
+export function findDuplicateSnippetTitle(
+  snippets: SqlSnippet[],
+  params: {
+    title: string;
+    scope: SavedQueryScope;
+    connectionId?: string;
+    database?: string;
+    excludeId?: string;
+  }
+): SqlSnippet | undefined {
+  const normalizedTitle = params.title.trim().toLowerCase();
+  if (!normalizedTitle) return undefined;
+  const targetScope = params.scope || 'global';
+  const normalizedDb = params.database?.trim().toLowerCase();
+
+  return snippets.find((s) => {
+    if (params.excludeId && s.id === params.excludeId) return false;
+    if (s.title.trim().toLowerCase() !== normalizedTitle) return false;
+    const itemScope = s.scope || 'global';
+    if (itemScope !== targetScope) return false;
+    if (targetScope === 'database') {
+      if (params.connectionId && s.connectionId && s.connectionId !== params.connectionId) {
+        return false;
+      }
+      if (normalizedDb && s.database && s.database.trim().toLowerCase() !== normalizedDb) {
+        return false;
+      }
+      return true;
+    }
+    if (targetScope === 'connection') {
+      return Boolean(params.connectionId && s.connectionId === params.connectionId);
+    }
+    return true;
+  });
+}
 
 export const DEFAULT_SNIPPETS: SqlSnippet[] = [
   {
@@ -107,6 +143,17 @@ function persistStoredSnippets(snippets: SqlSnippet[]) {
   }
 }
 
+export interface SnippetContextFilter {
+  connectionId?: string;
+  database?: string;
+  driver?: string;
+}
+
+export interface ImportQueriesResult {
+  importedCount: number;
+  skippedCount: number;
+}
+
 export interface SnippetStoreState {
   snippets: SqlSnippet[];
   addSnippet: (
@@ -118,6 +165,11 @@ export interface SnippetStoreState {
   ) => SqlSnippet;
   updateSnippet: (id: string, updates: Partial<Omit<SqlSnippet, 'id' | 'createdAt'>>) => void;
   deleteSnippet: (id: string) => void;
+  togglePin: (id: string) => void;
+  recordRun: (id: string) => void;
+  getQueriesForContext: (filter: SnippetContextFilter) => SqlSnippet[];
+  exportQueriesJson: (ids?: string[]) => string;
+  importQueriesJson: (jsonText: string, mode?: 'merge' | 'replace') => ImportQueriesResult;
   resetToDefaults: () => void;
 }
 
@@ -130,6 +182,9 @@ export const useSnippetStore = create<SnippetStoreState>((set, get) => ({
       id: snippet.id || `snip-${now}-${Math.random().toString(36).slice(2, 7)}`,
       createdAt: snippet.createdAt || now,
       updatedAt: snippet.updatedAt || now,
+      scope: snippet.scope || (snippet.database ? 'database' : snippet.connectionId ? 'connection' : 'global'),
+      isPinned: snippet.isPinned ?? false,
+      runCount: snippet.runCount ?? 0,
       ...snippet,
     };
 
@@ -156,6 +211,163 @@ export const useSnippetStore = create<SnippetStoreState>((set, get) => ({
     const nextSnippets = get().snippets.filter((s) => s.id !== id);
     set({ snippets: nextSnippets });
     persistStoredSnippets(nextSnippets);
+  },
+
+  togglePin: (id) => {
+    const nextSnippets = get().snippets.map((s) => {
+      if (s.id !== id) return s;
+      return {
+        ...s,
+        isPinned: !s.isPinned,
+        updatedAt: Date.now(),
+      };
+    });
+    set({ snippets: nextSnippets });
+    persistStoredSnippets(nextSnippets);
+  },
+
+  recordRun: (id) => {
+    const now = Date.now();
+    const nextSnippets = get().snippets.map((s) => {
+      if (s.id !== id) return s;
+      return {
+        ...s,
+        runCount: (s.runCount ?? 0) + 1,
+        lastRunAt: now,
+      };
+    });
+    set({ snippets: nextSnippets });
+    persistStoredSnippets(nextSnippets);
+  },
+
+  getQueriesForContext: ({ connectionId, database, driver }) => {
+    const normalizedDb = database?.trim().toLowerCase();
+    const normalizedDriver = driver?.trim().toLowerCase();
+
+    return get()
+      .snippets.filter((s) => {
+        const scope = s.scope || 'global';
+        if (scope === 'database') {
+          if (connectionId && s.connectionId && s.connectionId !== connectionId) {
+            return false;
+          }
+          if (normalizedDb && s.database && s.database.trim().toLowerCase() !== normalizedDb) {
+            return false;
+          }
+          if (!connectionId && !normalizedDb) {
+            return false;
+          }
+          return true;
+        }
+        if (scope === 'connection') {
+          return Boolean(connectionId && s.connectionId === connectionId);
+        }
+        if (normalizedDriver && s.driver && s.driver.trim().toLowerCase() !== normalizedDriver) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const pinDiff = Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
+        if (pinDiff !== 0) return pinDiff;
+        const runDiff = (b.runCount ?? 0) - (a.runCount ?? 0);
+        if (runDiff !== 0) return runDiff;
+        return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
+      });
+  },
+
+  exportQueriesJson: (ids) => {
+    const all = get().snippets;
+    const queries = ids && ids.length > 0 ? all.filter((s) => ids.includes(s.id)) : all;
+    return JSON.stringify(
+      {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        queries,
+      },
+      null,
+      2
+    );
+  },
+
+  importQueriesJson: (jsonText, mode = 'merge') => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      throw new Error('Invalid JSON format for saved queries');
+    }
+
+    const rawList: unknown[] = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === 'object' && Array.isArray((parsed as { queries?: unknown[] }).queries)
+      ? (parsed as { queries: unknown[] }).queries
+      : (() => {
+          throw new Error('Invalid saved queries file structure');
+        })();
+
+    const now = Date.now();
+    const validItems: SqlSnippet[] = [];
+    let skippedCount = 0;
+
+    for (const raw of rawList) {
+      if (!raw || typeof raw !== 'object') {
+        skippedCount++;
+        continue;
+      }
+      const item = raw as Partial<SqlSnippet>;
+      const title = typeof item.title === 'string' ? item.title.trim() : '';
+      const sql = typeof item.sql === 'string' ? item.sql.trim() : '';
+      if (!title || !sql) {
+        skippedCount++;
+        continue;
+      }
+
+      validItems.push({
+        id:
+          typeof item.id === 'string' && item.id.trim()
+            ? item.id.trim()
+            : `snip-${now}-${Math.random().toString(36).slice(2, 7)}`,
+        title,
+        description: typeof item.description === 'string' ? item.description : undefined,
+        sql,
+        category: typeof item.category === 'string' ? item.category : 'General',
+        tags: Array.isArray(item.tags) ? item.tags.filter((t): t is string => typeof t === 'string') : [],
+        scope:
+          item.scope === 'database' || item.scope === 'connection' || item.scope === 'global'
+            ? item.scope
+            : item.database
+            ? 'database'
+            : item.connectionId
+            ? 'connection'
+            : 'global',
+        connectionId: typeof item.connectionId === 'string' ? item.connectionId : undefined,
+        connectionName: typeof item.connectionName === 'string' ? item.connectionName : undefined,
+        database: typeof item.database === 'string' ? item.database : undefined,
+        driver: typeof item.driver === 'string' ? item.driver : undefined,
+        isPinned: Boolean(item.isPinned),
+        runCount: typeof item.runCount === 'number' ? item.runCount : 0,
+        lastRunAt: typeof item.lastRunAt === 'number' ? item.lastRunAt : undefined,
+        createdAt: typeof item.createdAt === 'number' ? item.createdAt : now,
+        updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : now,
+      });
+    }
+
+    if (mode === 'replace') {
+      set({ snippets: validItems });
+      persistStoredSnippets(validItems);
+    } else {
+      const existing = get().snippets;
+      const incomingIds = new Set(validItems.map((i) => i.id));
+      const merged = [...validItems, ...existing.filter((e) => !incomingIds.has(e.id))];
+      set({ snippets: merged });
+      persistStoredSnippets(merged);
+    }
+
+    return {
+      importedCount: validItems.length,
+      skippedCount,
+    };
   },
 
   resetToDefaults: () => {

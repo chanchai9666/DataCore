@@ -22,6 +22,7 @@ export interface ExportSqlModalProps {
   connectionId: string;
   schemaName?: string;
   tableName?: string;
+  tableNames?: string[];
   onClose: () => void;
   onSuccess?: (result: SqlExportResult) => void;
 }
@@ -33,6 +34,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
   connectionId,
   schemaName,
   tableName,
+  tableNames,
   onClose,
   onSuccess,
 }) => {
@@ -114,7 +116,16 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
   };
 
   const effectiveSchema = isSqlite ? undefined : (selectedSchemaName.trim() || undefined);
-  const targetName = tableName || (effectiveSchema ? `${effectiveSchema}_dump` : (activeConn?.name ? `${activeConn.name}_dump` : 'database_dump'));
+  const hasMultipleTables = Boolean(tableNames && tableNames.length > 0);
+  const targetName =
+    tableName ||
+    (hasMultipleTables
+      ? `${tableNames!.length}_tables_dump`
+      : effectiveSchema
+      ? `${effectiveSchema}_dump`
+      : activeConn?.name
+      ? `${activeConn.name}_dump`
+      : 'database_dump');
 
   const handleCancelExport = async () => {
     if (loading && activeJobIdRef.current) {
@@ -154,7 +165,7 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
         status: t('transfer.preparingExport', 'Preparing SQL dump...'),
       });
 
-      let tables = tableName ? [tableName] : [];
+      let tables = hasMultipleTables ? [...tableNames!] : tableName ? [tableName] : [];
       let estimatedTotalRows: number | undefined;
       if (tables.length === 0) {
         try {
@@ -338,7 +349,9 @@ export const ExportSqlModal: React.FC<ExportSqlModalProps> = ({
               {t('transfer.targetScope', 'Target Scope')}
             </label>
             <div className="px-3 py-2 text-xs font-mono bg-sidebar border border-line rounded text-text">
-              {isSqlite
+              {hasMultipleTables
+                ? `${tableNames!.length} tables: ${tableNames!.join(', ')}`
+                : isSqlite
                 ? tableName || t('transfer.allDatabaseTables', 'All database tables')
                 : isMysql
                 ? tableName

@@ -33,6 +33,7 @@ import {
   Eye,
   Palette,
   Check,
+  Bookmark,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -89,6 +90,7 @@ export interface MainToolbarProps {
   onOpenSecurity?: () => void;
   onOpenHistory?: () => void;
   onOpenSnippets?: () => void;
+  onOpenSavedQueries?: () => void;
   onOpenERDiagram?: () => void;
   onOpenQueryBuilder?: () => void;
   onOpenSchemaDiff?: () => void;
@@ -124,6 +126,7 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
   onOpenSecurity,
   onOpenHistory,
   onOpenSnippets,
+  onOpenSavedQueries,
   onOpenERDiagram,
   onOpenQueryBuilder,
   onOpenSchemaDiff,
@@ -455,6 +458,15 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
 
   const productivityItems: DropdownMenuItemConfig[] = [
     {
+      show: Boolean(onOpenSavedQueries),
+      testId: 'toolbar-tools-saved-queries-btn',
+      icon: Bookmark,
+      iconColor: 'text-blue-500',
+      label: t('toolbar.savedQueries', 'Saved Queries'),
+      description: t('toolbar.savedQueriesDesc', 'Manage, run, and export saved queries per database'),
+      onClick: onOpenSavedQueries,
+    },
+    {
       show: Boolean(onOpenHistory || onOpenSnippets),
       testId: 'toolbar-tools-history-btn',
       icon: History,
@@ -727,19 +739,19 @@ export const MainToolbar: React.FC<MainToolbarProps> = ({
           >
             <span
               data-testid="toolbar-connection-status-dot"
+              aria-label={
+                isConnected
+                  ? t('status.connected', 'Connected')
+                  : t('status.disconnected', 'Disconnected')
+              }
               className={`w-2 h-2 rounded-full shrink-0 ${
-                isConnected ? 'bg-emerald-500' : 'bg-muted/40'
+                isConnected ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-500'
               }`}
             />
             <DbBadge driver={activeConnection.driver} />
             <span className="font-medium text-text max-w-[150px] truncate">
               {activeConnection.name}
             </span>
-            {!isConnected && (
-              <span className="text-[10px] text-muted italic ml-1">
-                ({t('status.disconnected', 'Disconnected')})
-              </span>
-            )}
           </button>
         ) : (
           <span className="text-xs text-muted/70 italic hidden sm:inline">

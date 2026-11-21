@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tiberius::{AuthMethod, Client, Config, Query};
 use tokio::net::TcpStream;
@@ -21,6 +22,7 @@ pub struct MssqlConnection {
     client: Arc<Mutex<TiberiusClient>>,
     config: ConnectionConfig,
     read_only: bool,
+    autocommit: Arc<AtomicBool>,
     #[allow(dead_code)]
     ssh_tunnel: Arc<Mutex<Option<SshTunnelHandle>>>,
 }
@@ -85,6 +87,7 @@ impl MssqlConnection {
             client: Arc::new(Mutex::new(client)),
             config: config.clone(),
             read_only: config.read_only.unwrap_or(false),
+            autocommit: Arc::new(AtomicBool::new(true)),
             ssh_tunnel: Arc::new(Mutex::new(tunnel_handle)),
         })
     }
@@ -223,6 +226,12 @@ impl DatabaseConnection for MssqlConnection {
                 rows_sent: 0,
                 stopped_early: false,
             });
+        }
+
+        if self.read_only && crate::drivers::is_read_only_blocked_sql(trimmed) {
+            return Err(AppError::Database(
+                "Connection is in read-only mode. Write operations are disabled.".to_string(),
+            ));
         }
 
         let mut client = self.client.lock().await;
@@ -473,16 +482,30 @@ impl DatabaseConnection for MssqlConnection {
     }
 
     async fn commit(&self) -> Result<(), AppError> {
-        let _ = self.execute_query("COMMIT;").await?;
+        let _ = self
+            .execute_query("IF @@TRANCOUNT > 0 COMMIT TRANSACTION;")
+            .await?;
         Ok(())
     }
 
     async fn rollback(&self) -> Result<(), AppError> {
-        let _ = self.execute_query("ROLLBACK;").await?;
+        let _ = self
+            .execute_query("IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;")
+            .await?;
         Ok(())
     }
 
-    async fn set_autocommit(&self, _enabled: bool) -> Result<(), AppError> {
+    async fn set_autocommit(&self, enabled: bool) -> Result<(), AppError> {
+        self.autocommit.store(enabled, Ordering::SeqCst);
+        if enabled {
+            let _ = self
+                .execute_query("IF @@TRANCOUNT > 0 COMMIT TRANSACTION; SET IMPLICIT_TRANSACTIONS OFF;")
+                .await?;
+        } else {
+            let _ = self
+                .execute_query("SET IMPLICIT_TRANSACTIONS ON;")
+                .await?;
+        }
         Ok(())
     }
 
@@ -493,14 +516,21 @@ impl DatabaseConnection for MssqlConnection {
         _object_type: &str,
     ) -> Result<String, AppError> {
         let s_name = schema.unwrap_or("dbo");
-        let sql = format!(
-            "SELECT OBJECT_DEFINITION(OBJECT_ID('[{s_name}].[{}]')) AS ddl;",
-            name.replace(']', "]]")
-        );
-        let res = self.execute_query(&sql).await?;
-        if let Some(row) = res.rows.first() {
-            if let Some(CellValue::Text(ddl)) = row.first() {
-                return Ok(ddl.clone());
+        let object_ref = build_mssql_object_ref(Some(s_name), name);
+        let mut client = self.client.lock().await;
+        let mut query = Query::new("SELECT OBJECT_DEFINITION(OBJECT_ID(@P1)) AS ddl;");
+        query.bind(object_ref.as_str());
+        let stream = query
+            .query(&mut *client)
+            .await
+            .map_err(|e| AppError::Database(format!("MSSQL DDL query error: {}", e)))?;
+        let result_set = stream
+            .into_first_result()
+            .await
+            .map_err(|e| AppError::Database(format!("MSSQL DDL fetch error: {}", e)))?;
+        if let Some(row) = result_set.first() {
+            if let Ok(Some(ddl)) = row.try_get::<&str, _>(0) {
+                return Ok(ddl.to_string());
             }
         }
         Err(AppError::NotFound(format!(
@@ -508,6 +538,12 @@ impl DatabaseConnection for MssqlConnection {
             s_name, name
         )))
     }
+}
+
+pub(crate) fn build_mssql_object_ref(schema: Option<&str>, name: &str) -> String {
+    let s_name = schema.unwrap_or("dbo").replace(']', "]]");
+    let obj_name = name.replace(']', "]]");
+    format!("[{}].[{}]", s_name, obj_name)
 }
 
 #[cfg(test)]
@@ -531,5 +567,17 @@ mod tests {
         assert!(is_write_sql("-- line\nDELETE FROM users"));
         assert!(!is_write_sql("SELECT * FROM users"));
         assert!(!is_write_sql("-- INSERT\nSELECT 1"));
+    }
+
+    #[test]
+    fn test_build_mssql_object_ref_escapes_brackets_and_preserves_quotes() {
+        assert_eq!(
+            build_mssql_object_ref(None, "users"),
+            "[dbo].[users]"
+        );
+        assert_eq!(
+            build_mssql_object_ref(Some("my]schema'test"), "my]table'name"),
+            "[my]]schema'test].[my]]table'name]"
+        );
     }
 }

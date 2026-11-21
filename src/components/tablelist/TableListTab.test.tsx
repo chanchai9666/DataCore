@@ -4,18 +4,31 @@ import {
   TableListTab,
   formatBytes,
   formatApproxRows,
+  getTablePrefix,
+  groupTablesByPrefix,
+  getTableHealthStatus,
 } from './TableListTab';
 import { dbApi } from '../../api/db';
 import * as tabHelpers from '../sidebar/tabHelpers';
+import { showConfirmDialog } from '../../utils/dialog';
+import { useTableListCacheStore } from '../../stores/tableListCacheStore';
 
 vi.mock('../../api/db', () => ({
   dbApi: {
     getTableListMetadata: vi.fn(),
+    getObjectDdl: vi.fn(),
+    executeDirectQuery: vi.fn(),
   },
+}));
+
+vi.mock('../../utils/dialog', () => ({
+  showConfirmDialog: vi.fn(),
 }));
 
 vi.mock('../sidebar/tabHelpers', () => ({
   openTableTab: vi.fn(),
+  openQueryTab: vi.fn(),
+  openQueryBuilderTab: vi.fn(),
 }));
 
 describe('TableListTab formatting helpers', () => {
@@ -71,6 +84,9 @@ describe('TableListTab component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.removeItem('datacore-table-list-view-mode');
+    localStorage.removeItem('datacore-table-list-group-in-list');
+    useTableListCacheStore.getState().clearCache();
     (dbApi.getTableListMetadata as any).mockResolvedValue(mockTables);
   });
 
@@ -220,6 +236,9 @@ describe('TableListTab component', () => {
     expect(screen.getByTestId('ctx-export-data')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-import-sql')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-import-data')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-query-table')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-query-builder')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-view-ddl')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-copy-name')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-rename-table')).toBeInTheDocument();
     expect(screen.getByTestId('ctx-maintenance-table')).toBeInTheDocument();
@@ -334,5 +353,398 @@ describe('TableListTab component', () => {
     expect(
       await screen.findByRole('heading', { name: /Table Maintenance & Diagnostics/i })
     ).toBeInTheDocument();
+  });
+
+  it('positions context menu at cursor coordinates immediately without flashing at 0,0', async () => {
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+
+    const usersRow = screen.getByText('users').closest('tr');
+    fireEvent.contextMenu(usersRow!, { clientX: 250, clientY: 360 });
+
+    const menu = screen.getByTestId('table-list-context-menu');
+    expect(menu.style.left).toBe('250px');
+    expect(menu.style.top).toBe('360px');
+  });
+
+  it('supports multi-select with Cmd/Ctrl+Click, Shift+Click, and keyboard shortcuts', async () => {
+    const onOpenTable = vi.fn();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+        onOpenTable={onOpenTable}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+
+    const categoriesRow = screen.getByText('categories').closest('tr')!;
+    const ordersRow = screen.getByText('orders').closest('tr')!;
+    const usersRow = screen.getByText('users').closest('tr')!;
+    const container = screen.getByTestId('table-list-container');
+
+    // Single click selects categories
+    fireEvent.click(categoriesRow);
+    expect(categoriesRow).toHaveAttribute('aria-selected', 'true');
+
+    // Shift+Click on users selects categories, orders, users
+    fireEvent.click(usersRow, { shiftKey: true });
+    expect(screen.getByTestId('table-list-selected-badge')).toHaveTextContent('3 selected');
+    expect(ordersRow).toHaveAttribute('aria-selected', 'true');
+
+    // Cmd+C copies all 3 selected table names
+    fireEvent.keyDown(container, { key: 'c', metaKey: true });
+    expect(writeText).toHaveBeenCalledWith('categories\norders\nusers');
+
+    // Enter opens all 3 selected tables
+    fireEvent.keyDown(container, { key: 'Enter' });
+    expect(onOpenTable).toHaveBeenCalledTimes(3);
+
+    // Escape clears selection
+    fireEvent.keyDown(container, { key: 'Escape' });
+    expect(screen.queryByTestId('table-list-selected-badge')).not.toBeInTheDocument();
+
+    // Cmd+A selects all tables
+    fireEvent.keyDown(container, { key: 'a', metaKey: true });
+    expect(screen.getByTestId('table-list-selected-badge')).toHaveTextContent('3 selected');
+  });
+
+  it('triggers Query Table, Visual Query Builder, and View DDL from context menu', async () => {
+    (dbApi.getObjectDdl as any).mockResolvedValue('CREATE TABLE users (id INT);');
+
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+
+    const usersRow = screen.getByText('users').closest('tr')!;
+
+    // Query Table
+    fireEvent.contextMenu(usersRow, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-query-table'));
+    expect(tabHelpers.openQueryTab).toHaveBeenCalledWith({
+      connectionId: 'conn-1',
+      connectionName: 'users',
+      schemaName: 'public',
+      tableName: 'users',
+      driver: 'postgres',
+    });
+
+    // Visual Query Builder
+    fireEvent.contextMenu(usersRow, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-query-builder'));
+    expect(tabHelpers.openQueryBuilderTab).toHaveBeenCalledWith({
+      connectionId: 'conn-1',
+      tableName: 'users',
+      schemaName: 'public',
+    });
+
+    // View DDL / Source
+    fireEvent.contextMenu(usersRow, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-view-ddl'));
+    await waitFor(() => {
+      expect(dbApi.getObjectDdl).toHaveBeenCalledWith('conn-1', 'public', 'users', 'table');
+      expect(tabHelpers.openQueryTab).toHaveBeenCalledWith({
+        connectionId: 'conn-1',
+        connectionName: 'users',
+        schemaName: 'public',
+        tableName: 'users',
+        driver: 'postgres',
+        initialQuery: 'CREATE TABLE users (id INT);',
+      });
+    });
+  });
+
+  it('provides full batch actions in context menu when multiple tables are selected', async () => {
+    (dbApi.getObjectDdl as any).mockImplementation((_connId: string, _schema: string, name: string) =>
+      Promise.resolve(`CREATE TABLE ${name} (id INT);`)
+    );
+    (dbApi.executeDirectQuery as any).mockResolvedValue({ rows: [], columns: [] });
+    (showConfirmDialog as any).mockResolvedValue(true);
+
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+        driver="postgres"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+
+    const categoriesRow = screen.getByText('categories').closest('tr')!;
+    const ordersRow = screen.getByText('orders').closest('tr')!;
+    fireEvent.click(categoriesRow);
+    fireEvent.click(ordersRow, { metaKey: true });
+
+    fireEvent.contextMenu(ordersRow, { clientX: 200, clientY: 300 });
+
+    expect(screen.getByTestId('ctx-open-selected-tables')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-design-selected-tables')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-export-selected-sql')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-import-sql')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-query-selected-tables')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-query-builder')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-view-selected-ddl')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-copy-selected-names')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-drop-selected-tables')).toBeInTheDocument();
+
+    // Edit Structure for multiple tables
+    fireEvent.click(screen.getByTestId('ctx-design-selected-tables'));
+    expect(tabHelpers.openTableTab).toHaveBeenCalledWith({
+      connectionId: 'conn-1',
+      tableName: 'categories',
+      schemaName: 'public',
+      viewMode: 'structure',
+    });
+    expect(tabHelpers.openTableTab).toHaveBeenCalledWith({
+      connectionId: 'conn-1',
+      tableName: 'orders',
+      schemaName: 'public',
+      viewMode: 'structure',
+    });
+
+    // Query multiple tables
+    fireEvent.contextMenu(ordersRow, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-query-selected-tables'));
+    expect(tabHelpers.openQueryTab).toHaveBeenCalledWith(expect.objectContaining({
+      connectionId: 'conn-1',
+      initialQuery: 'SELECT * FROM "public"."categories" LIMIT 100;\nSELECT * FROM "public"."orders" LIMIT 100;\n',
+    }));
+
+    // View DDL for multiple tables
+    fireEvent.contextMenu(ordersRow, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-view-selected-ddl'));
+    await waitFor(() => {
+      expect(tabHelpers.openQueryTab).toHaveBeenCalledWith(expect.objectContaining({
+        initialQuery: 'CREATE TABLE categories (id INT);\n\nCREATE TABLE orders (id INT);',
+      }));
+    });
+
+    // Drop multiple tables
+    fireEvent.contextMenu(ordersRow, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-drop-selected-tables'));
+    await waitFor(() => {
+      expect(showConfirmDialog).toHaveBeenCalled();
+      expect(dbApi.executeDirectQuery).toHaveBeenCalledWith('conn-1', 'DROP TABLE "public"."categories";');
+      expect(dbApi.executeDirectQuery).toHaveBeenCalledWith('conn-1', 'DROP TABLE "public"."orders";');
+    });
+  });
+
+  it('uses cached table metadata when remounted without auto-reloading, and refreshes on right-click Refresh Tables', async () => {
+    const { unmount } = render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+    expect(dbApi.getTableListMetadata).toHaveBeenCalledTimes(1);
+
+    // Unmount and remount (simulating switching away from tab and switching back)
+    unmount();
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+      />
+    );
+
+    expect(screen.getByText('users')).toBeInTheDocument();
+    expect(dbApi.getTableListMetadata).toHaveBeenCalledTimes(1);
+
+    // Right-click empty background area -> Refresh Tables
+    const scrollArea = screen.getByTestId('table-list-container').querySelector('.overflow-auto')!;
+    fireEvent.contextMenu(scrollArea, { clientX: 120, clientY: 180 });
+    fireEvent.click(screen.getByTestId('ctx-refresh-tables'));
+
+    await waitFor(() => {
+      expect(dbApi.getTableListMetadata).toHaveBeenCalledTimes(2);
+    });
+
+    // Right-click a table row -> Refresh Tables
+    const usersRow = screen.getByText('users').closest('tr')!;
+    fireEvent.contextMenu(usersRow, { clientX: 200, clientY: 300 });
+    fireEvent.click(screen.getByTestId('ctx-refresh-tables'));
+
+    await waitFor(() => {
+      expect(dbApi.getTableListMetadata).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  it('computes table prefixes, prefix groups, and health statuses accurately', () => {
+    expect(getTablePrefix('sale_orders')).toBe('sale');
+    expect(getTablePrefix('users')).toBe('');
+    expect(getTablePrefix('_internal')).toBe('');
+
+    const sample = [
+      { name: 'sale_orders', approxRowCount: 100, dataSizeBytes: 8192, indexSizeBytes: 2048, totalSizeBytes: 10240 },
+      { name: 'sale_items', approxRowCount: 500, dataSizeBytes: 16384, indexSizeBytes: 4096, totalSizeBytes: 20480 },
+      { name: 'audit_logs', approxRowCount: 0, dataSizeBytes: 4096, indexSizeBytes: 0, totalSizeBytes: 4096 },
+      { name: 'users', approxRowCount: 50, dataSizeBytes: 2048, indexSizeBytes: 8192, totalSizeBytes: 10240 },
+    ];
+
+    const groups = groupTablesByPrefix(sample);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].key).toBe('sale');
+    expect(groups[0].tables.map((t) => t.name)).toEqual(['sale_orders', 'sale_items']);
+    expect(groups[1].key).toBe('__other__');
+    expect(groups[1].tables.map((t) => t.name)).toEqual(['audit_logs', 'users']);
+
+    expect(getTableHealthStatus(sample[0])).toBe('healthy');
+    expect(getTableHealthStatus(sample[2])).toBe('needs_analyze');
+    expect(getTableHealthStatus(sample[3])).toBe('index_heavy');
+  });
+
+  it('switches to Card / Grid view, persists view mode, and supports card interactions', async () => {
+    const onOpenTable = vi.fn();
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+        onOpenTable={onOpenTable}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('view-mode-grid'));
+    expect(screen.getByTestId('table-list-grid-view')).toBeInTheDocument();
+    expect(localStorage.getItem('datacore-table-list-view-mode')).toBe('grid');
+
+    const usersCard = screen.getByTestId('table-card-users');
+    fireEvent.click(usersCard);
+    expect(usersCard).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.doubleClick(usersCard);
+    expect(onOpenTable).toHaveBeenCalledWith('users');
+
+    fireEvent.contextMenu(usersCard, { clientX: 150, clientY: 220 });
+    expect(screen.getByTestId('table-list-context-menu')).toBeInTheDocument();
+  });
+
+  it('switches to Grouped by Prefix Masonry Board view and supports board item interactions', async () => {
+    const onOpenTable = vi.fn();
+    (dbApi.getTableListMetadata as any).mockResolvedValue([
+      { name: 'sale_orders', approxRowCount: 100, dataSizeBytes: 4096, indexSizeBytes: 1024, totalSizeBytes: 5120 },
+      { name: 'sale_items', approxRowCount: 250, dataSizeBytes: 8192, indexSizeBytes: 2048, totalSizeBytes: 10240 },
+      { name: 'users', approxRowCount: 15, dataSizeBytes: 2048, indexSizeBytes: 512, totalSizeBytes: 2560 },
+    ]);
+
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+        onOpenTable={onOpenTable}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('sale_orders')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('view-mode-grouped'));
+    expect(screen.getByTestId('table-list-grouped-view')).toBeInTheDocument();
+    expect(screen.getByTestId('board-group-sale')).toBeInTheDocument();
+    expect(screen.getByTestId('board-group-__other__')).toBeInTheDocument();
+
+    const item = screen.getByTestId('board-item-sale_orders');
+    fireEvent.click(item);
+    expect(item).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.doubleClick(item);
+    expect(onOpenTable).toHaveBeenCalledWith('sale_orders');
+
+    fireEvent.contextMenu(item, { clientX: 140, clientY: 200 });
+    expect(screen.getByTestId('table-list-context-menu')).toBeInTheDocument();
+  });
+
+  it('toggles prefix grouping in List view and collapses/expands prefix groups', async () => {
+    (dbApi.getTableListMetadata as any).mockResolvedValue([
+      { name: 'sale_orders', approxRowCount: 100, dataSizeBytes: 4096, indexSizeBytes: 1024, totalSizeBytes: 5120 },
+      { name: 'sale_items', approxRowCount: 250, dataSizeBytes: 8192, indexSizeBytes: 2048, totalSizeBytes: 10240 },
+      { name: 'users', approxRowCount: 15, dataSizeBytes: 2048, indexSizeBytes: 512, totalSizeBytes: 2560 },
+    ]);
+
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('sale_orders')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('toggle-group-in-list'));
+    expect(screen.getByTestId('table-list-grouped-list')).toBeInTheDocument();
+    expect(localStorage.getItem('datacore-table-list-group-in-list')).toBe('true');
+    expect(screen.getByTestId('prefix-group-sale')).toBeInTheDocument();
+    expect(screen.getByTestId('prefix-group-__other__')).toBeInTheDocument();
+
+    // Collapse sale group
+    fireEvent.click(screen.getByTestId('prefix-group-sale'));
+    expect(screen.queryByText('sale_orders')).not.toBeInTheDocument();
+
+    // Expand sale group again
+    fireEvent.click(screen.getByTestId('prefix-group-sale'));
+    expect(screen.getByText('sale_orders')).toBeInTheDocument();
+  });
+
+  it('switches to Storage & Health view and displays KPIs and health badges', async () => {
+    (dbApi.getTableListMetadata as any).mockResolvedValue([
+      { name: 'healthy_tbl', approxRowCount: 100, dataSizeBytes: 8192, indexSizeBytes: 2048, totalSizeBytes: 10240 },
+      { name: 'stale_tbl', approxRowCount: 0, dataSizeBytes: 4096, indexSizeBytes: 0, totalSizeBytes: 4096 },
+      { name: 'index_tbl', approxRowCount: 50, dataSizeBytes: 2048, indexSizeBytes: 8192, totalSizeBytes: 10240 },
+    ]);
+
+    render(
+      <TableListTab
+        connectionId="conn-1"
+        schemaName="public"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('healthy_tbl')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('view-mode-storage'));
+    expect(screen.getByTestId('table-list-storage-view')).toBeInTheDocument();
+    expect(screen.getByText('Total Tables')).toBeInTheDocument();
+    expect(screen.getByText('Total Storage')).toBeInTheDocument();
+    expect(screen.getByText('Health Alerts')).toBeInTheDocument();
+    expect(screen.getByText('Needs ANALYZE')).toBeInTheDocument();
+    expect(screen.getByText('Index > Data')).toBeInTheDocument();
+    expect(screen.getByText('Healthy')).toBeInTheDocument();
   });
 });

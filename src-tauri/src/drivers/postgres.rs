@@ -548,11 +548,17 @@ impl DatabaseConnection for PostgresConnection {
         if res.columns.is_empty() {
             let sch = schema.unwrap_or("public");
             let col_sql = format!(
-                "SELECT column_name, data_type, is_nullable FROM information_schema.columns \
-                 WHERE table_name = '{}' AND table_schema = '{}' \
-                 ORDER BY ordinal_position;",
-                table.replace('\'', "''"),
-                sch.replace('\'', "''")
+                "SELECT a.attname AS column_name, \
+                        pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type, \
+                        (NOT a.attnotnull) AS is_nullable \
+                 FROM pg_catalog.pg_attribute a \
+                 JOIN pg_catalog.pg_class c ON c.oid = a.attrelid \
+                 JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace \
+                 WHERE n.nspname = '{}' AND c.relname = '{}' \
+                   AND a.attnum > 0 AND NOT a.attisdropped \
+                 ORDER BY a.attnum;",
+                sch.replace('\'', "''"),
+                table.replace('\'', "''")
             );
             if let Ok(col_res) = self.execute_query(&col_sql).await {
                 res.columns = col_res
@@ -561,11 +567,7 @@ impl DatabaseConnection for PostgresConnection {
                     .filter_map(|r| {
                         let name = r.first()?.as_text()?.to_string();
                         let dtype = r.get(1)?.as_text()?.to_string();
-                        let nullable = r
-                            .get(2)
-                            .and_then(|c| c.as_text())
-                            .map(|s| s == "YES")
-                            .unwrap_or(true);
+                        let nullable = matches!(r.get(2), Some(CellValue::Boolean(true)));
                         Some(ColumnMeta::new(name, dtype, nullable))
                     })
                     .collect();
@@ -575,23 +577,18 @@ impl DatabaseConnection for PostgresConnection {
         if !res.columns.is_empty() {
             let sch = schema.unwrap_or("public");
             let meta_sql = format!(
-                "SELECT c.column_name, \
-                        EXISTS ( \
-                          SELECT 1 FROM information_schema.table_constraints tc \
-                          JOIN information_schema.key_column_usage kcu \
-                            ON tc.constraint_name = kcu.constraint_name \
-                           AND tc.table_schema = kcu.table_schema \
-                           AND tc.table_name = kcu.table_name \
-                          WHERE tc.constraint_type = 'PRIMARY KEY' \
-                            AND tc.table_schema = c.table_schema \
-                            AND tc.table_name = c.table_name \
-                            AND kcu.column_name = c.column_name \
-                        ) AS is_pk, \
-                        (c.is_identity = 'YES' OR COALESCE(c.column_default, '') LIKE 'nextval(%') AS is_auto \
-                 FROM information_schema.columns c \
-                 WHERE c.table_name = '{}' AND c.table_schema = '{}';",
-                table.replace('\'', "''"),
-                sch.replace('\'', "''")
+                "SELECT a.attname AS column_name, \
+                        COALESCE(i.indisprimary, false) AS is_pk, \
+                        (a.attidentity IN ('a', 'd') OR COALESCE(pg_catalog.pg_get_expr(ad.adbin, ad.adrelid), '') LIKE 'nextval(%') AS is_auto \
+                 FROM pg_catalog.pg_attribute a \
+                 JOIN pg_catalog.pg_class c ON c.oid = a.attrelid \
+                 JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace \
+                 LEFT JOIN pg_catalog.pg_index i ON i.indrelid = c.oid AND i.indisprimary AND a.attnum = ANY(i.indkey) \
+                 LEFT JOIN pg_catalog.pg_attrdef ad ON ad.adrelid = c.oid AND ad.adnum = a.attnum \
+                 WHERE n.nspname = '{}' AND c.relname = '{}' \
+                   AND a.attnum > 0 AND NOT a.attisdropped;",
+                sch.replace('\'', "''"),
+                table.replace('\'', "''")
             );
             if let Ok(meta_res) = self.execute_query(&meta_sql).await {
                 let mut flags: std::collections::HashMap<String, (bool, bool)> =
@@ -615,27 +612,52 @@ impl DatabaseConnection for PostgresConnection {
     }
 
     async fn fetch_schema_tree(&self) -> Result<Vec<SchemaNode>, AppError> {
-        let schema_sql = "SELECT schema_name FROM information_schema.schemata \
-            WHERE schema_name NOT IN ('pg_catalog', 'information_schema') \
-              AND schema_name NOT LIKE 'pg_toast%' \
-              AND schema_name NOT LIKE 'pg_temp%' \
-            ORDER BY schema_name;";
         let mut schema_map: HashMap<String, Vec<SchemaNode>> = HashMap::new();
-        if let Ok(schema_res) = self.execute_query(schema_sql).await {
-            for row in schema_res.rows {
-                if let Some(sch) = row.first().and_then(|c| c.as_text()) {
-                    schema_map.entry(sch.to_string()).or_default();
-                }
-            }
-        }
         schema_map.entry("public".to_string()).or_default();
 
-        let sql = "SELECT table_schema, table_name, table_type FROM information_schema.tables \
-            WHERE table_schema NOT IN ('pg_catalog', 'information_schema') \
-              AND table_schema NOT LIKE 'pg_toast%' \
-              AND table_schema NOT LIKE 'pg_temp%' \
-            ORDER BY table_schema, table_type, table_name;";
-        let query_res = self.execute_query(sql).await?;
+        let objects_sql = "SELECT nspname AS schema_name, '' AS obj_name, 'schema' AS obj_type, '' AS table_name \
+            FROM pg_catalog.pg_namespace \
+            WHERE nspname NOT IN ('pg_catalog', 'information_schema') \
+              AND nspname NOT LIKE 'pg_toast%' \
+              AND nspname NOT LIKE 'pg_temp%' \
+            UNION ALL \
+            SELECT n.nspname AS schema_name, c.relname AS obj_name, \
+                CASE c.relkind \
+                    WHEN 'v' THEN 'view' \
+                    WHEN 'm' THEN 'materialized_view' \
+                    WHEN 'S' THEN 'sequence' \
+                    ELSE 'table' \
+                END AS obj_type, \
+                '' AS table_name \
+            FROM pg_catalog.pg_class c \
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace \
+            WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S') \
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema') \
+              AND n.nspname NOT LIKE 'pg_toast%' \
+              AND n.nspname NOT LIKE 'pg_temp%' \
+            UNION ALL \
+            SELECT n.nspname AS schema_name, p.proname AS obj_name, \
+                CASE p.prokind WHEN 'p' THEN 'procedure' ELSE 'function' END AS obj_type, \
+                '' AS table_name \
+            FROM pg_catalog.pg_proc p \
+            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace \
+            WHERE p.prokind IN ('f', 'p') \
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema') \
+              AND n.nspname NOT LIKE 'pg_toast%' \
+              AND n.nspname NOT LIKE 'pg_temp%' \
+            UNION ALL \
+            SELECT n.nspname AS schema_name, t.tgname AS obj_name, \
+                'trigger' AS obj_type, \
+                c.relname AS table_name \
+            FROM pg_catalog.pg_trigger t \
+            JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid \
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace \
+            WHERE NOT t.tgisinternal \
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema') \
+              AND n.nspname NOT LIKE 'pg_toast%' \
+              AND n.nspname NOT LIKE 'pg_temp%' \
+            ORDER BY schema_name, obj_type, obj_name;";
+        let query_res = self.execute_query(objects_sql).await?;
 
         for row in query_res.rows {
             let schema_name = row
@@ -643,103 +665,34 @@ impl DatabaseConnection for PostgresConnection {
                 .and_then(|c| c.as_text())
                 .unwrap_or("public")
                 .to_string();
-            let table_name = row
+            let obj_name = row
                 .get(1)
                 .and_then(|c| c.as_text())
                 .unwrap_or("")
                 .to_string();
-            let table_type = row.get(2).and_then(|c| c.as_text()).unwrap_or("BASE TABLE");
+            let obj_type = row.get(2).and_then(|c| c.as_text()).unwrap_or("table");
+            let table_name = row.get(3).and_then(|c| c.as_text()).unwrap_or("");
 
-            let node_type = if table_type.contains("VIEW") {
-                SchemaNodeType::View
-            } else {
-                SchemaNodeType::Table
+            if obj_type == "schema" {
+                schema_map.entry(schema_name).or_default();
+                continue;
+            }
+
+            let node_type = match obj_type {
+                "view" => SchemaNodeType::View,
+                "materialized_view" => SchemaNodeType::MaterializedView,
+                "sequence" => SchemaNodeType::Sequence,
+                "procedure" => SchemaNodeType::Procedure,
+                "function" => SchemaNodeType::Function,
+                "trigger" => SchemaNodeType::Trigger,
+                _ => SchemaNodeType::Table,
             };
 
-            let node = SchemaNode::new(table_name, node_type).with_schema(&schema_name);
+            let mut node = SchemaNode::new(obj_name, node_type).with_schema(&schema_name);
+            if node_type == SchemaNodeType::Trigger && !table_name.is_empty() {
+                node = node.with_meta("table_name", table_name.to_string());
+            }
             schema_map.entry(schema_name).or_default().push(node);
-        }
-
-        // Fetch routines (functions & procedures)
-        let routine_sql =
-            "SELECT routine_schema, routine_name, routine_type FROM information_schema.routines \
-            WHERE routine_schema NOT IN ('pg_catalog', 'information_schema') \
-              AND routine_schema NOT LIKE 'pg_toast%' \
-              AND routine_schema NOT LIKE 'pg_temp%' \
-            ORDER BY routine_schema, routine_name;";
-        if let Ok(routine_res) = self.execute_query(routine_sql).await {
-            for row in routine_res.rows {
-                let schema_name = row
-                    .first()
-                    .and_then(|c| c.as_text())
-                    .unwrap_or("public")
-                    .to_string();
-                let routine_name = row
-                    .get(1)
-                    .and_then(|c| c.as_text())
-                    .unwrap_or("")
-                    .to_string();
-                let r_type = row.get(2).and_then(|c| c.as_text()).unwrap_or("FUNCTION");
-                let node_type = if r_type.contains("PROCEDURE") {
-                    SchemaNodeType::Procedure
-                } else {
-                    SchemaNodeType::Function
-                };
-                let node = SchemaNode::new(routine_name, node_type).with_schema(&schema_name);
-                schema_map.entry(schema_name).or_default().push(node);
-            }
-        }
-
-        // Fetch triggers
-        let trigger_sql = "SELECT trigger_schema, trigger_name, event_object_table FROM information_schema.triggers \
-            WHERE trigger_schema NOT IN ('pg_catalog', 'information_schema') \
-            ORDER BY trigger_schema, trigger_name;";
-        if let Ok(trigger_res) = self.execute_query(trigger_sql).await {
-            for row in trigger_res.rows {
-                let schema_name = row
-                    .first()
-                    .and_then(|c| c.as_text())
-                    .unwrap_or("public")
-                    .to_string();
-                let trigger_name = row
-                    .get(1)
-                    .and_then(|c| c.as_text())
-                    .unwrap_or("")
-                    .to_string();
-                let table_name = row
-                    .get(2)
-                    .and_then(|c| c.as_text())
-                    .unwrap_or("")
-                    .to_string();
-                let mut node = SchemaNode::new(trigger_name, SchemaNodeType::Trigger)
-                    .with_schema(&schema_name);
-                if !table_name.is_empty() {
-                    node = node.with_meta("table_name", table_name);
-                }
-                schema_map.entry(schema_name).or_default().push(node);
-            }
-        }
-
-        // Fetch sequences
-        let seq_sql = "SELECT sequence_schema, sequence_name FROM information_schema.sequences \
-            WHERE sequence_schema NOT IN ('pg_catalog', 'information_schema') \
-            ORDER BY sequence_schema, sequence_name;";
-        if let Ok(seq_res) = self.execute_query(seq_sql).await {
-            for row in seq_res.rows {
-                let schema_name = row
-                    .first()
-                    .and_then(|c| c.as_text())
-                    .unwrap_or("public")
-                    .to_string();
-                let seq_name = row
-                    .get(1)
-                    .and_then(|c| c.as_text())
-                    .unwrap_or("")
-                    .to_string();
-                let node =
-                    SchemaNode::new(seq_name, SchemaNodeType::Sequence).with_schema(&schema_name);
-                schema_map.entry(schema_name).or_default().push(node);
-            }
         }
 
         let mut schema_nodes = Vec::new();

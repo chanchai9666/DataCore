@@ -9,7 +9,9 @@ export interface TabStoreState {
   activeTabId: string | null;
   openTab: (tab: Tab) => void;
   closeTab: (tabId: string) => Promise<void>;
+  closeTabs: (tabIds: string[]) => Promise<void>;
   closeTabsForConnection: (connectionId: string) => Promise<void>;
+  togglePinTab: (tabId: string) => void;
   setActiveTab: (tabId: string | null) => void;
   setAutoCommit: (tabId: string, autoCommit: boolean) => void;
   setQueryContent: (tabId: string, queryContent: string) => void;
@@ -40,32 +42,58 @@ export const useTabStore = create<TabStoreState>()(
       },
 
       closeTab: async (tabId: string) => {
-        try {
-          await dbApi.closeSession(tabId);
-        } catch (err) {
-          console.error(`Failed to close session for tab ${tabId}:`, err);
-        }
+        await get().closeTabs([tabId]);
+      },
+
+      closeTabs: async (tabIds: string[]) => {
+        if (tabIds.length === 0) return;
+        const idSet = new Set(tabIds);
+        await Promise.allSettled(
+          tabIds.map((id) =>
+            dbApi.closeSession(id).catch((err) => {
+              console.error(`Failed to close session for tab ${id}:`, err);
+            })
+          )
+        );
 
         const { tabs, activeTabId } = get();
-        const remainingTabs = tabs.filter((t) => t.id !== tabId);
+        const remainingTabs = tabs.filter((t) => !idSet.has(t.id));
 
         let nextActiveId = activeTabId;
-        if (activeTabId === tabId) {
+        if (activeTabId && idSet.has(activeTabId)) {
           if (remainingTabs.length > 0) {
-            const closedIndex = tabs.findIndex((t) => t.id === tabId);
-            const newIndex = Math.min(closedIndex, remainingTabs.length - 1);
+            const firstClosedIndex = tabs.findIndex((t) => idSet.has(t.id));
+            const newIndex = Math.min(Math.max(0, firstClosedIndex), remainingTabs.length - 1);
             nextActiveId = remainingTabs[newIndex].id;
           } else {
             nextActiveId = null;
           }
         }
 
-        useStatusStore.getState().removeTabStatus(tabId);
+        for (const id of tabIds) {
+          useStatusStore.getState().removeTabStatus(id);
+        }
         useStatusStore.getState().setActiveTabId(nextActiveId);
 
         set({
           tabs: remainingTabs,
           activeTabId: nextActiveId,
+        });
+      },
+
+      togglePinTab: (tabId: string) => {
+        set((state) => {
+          const target = state.tabs.find((t) => t.id === tabId);
+          if (!target) return state;
+          const nextPinned = !target.pinned;
+          const updated = { ...target, pinned: nextPinned };
+          const others = state.tabs.filter((t) => t.id !== tabId);
+          const pinnedOthers = others.filter((t) => t.pinned);
+          const unpinnedOthers = others.filter((t) => !t.pinned);
+          const nextTabs = nextPinned
+            ? [...pinnedOthers, updated, ...unpinnedOthers]
+            : [...pinnedOthers, updated, ...unpinnedOthers];
+          return { tabs: nextTabs };
         });
       },
 

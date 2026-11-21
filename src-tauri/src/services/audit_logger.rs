@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
 pub const GENESIS_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
-pub const DEFAULT_MAX_FILE_SIZE_BYTES: u64 = 10 * 1024 * 1024; // 10MB
+pub const DEFAULT_MAX_FILE_SIZE_BYTES: u64 = 2 * 1024 * 1024; // 2MB
 const AUDIT_KEY_MAGIC: &[u8; 4] = b"DCK2";
 const AUDIT_KEY_RAW_LEN: usize = 32;
 const AUDIT_KEY_RECORD_LEN: usize = 4 + 32 + 8;
@@ -352,6 +352,7 @@ pub struct AuditLogger {
     log_dir: PathBuf,
     max_file_size: u64,
     last_hash_cache: Arc<Mutex<Option<String>>>,
+    active_entries_cache: Arc<Mutex<Option<usize>>>,
     write_lock: Arc<Mutex<()>>,
     last_write_error: Arc<Mutex<Option<String>>>,
 }
@@ -366,6 +367,7 @@ impl AuditLogger {
             log_dir: log_dir.as_ref().to_path_buf(),
             max_file_size,
             last_hash_cache: Arc::new(Mutex::new(None)),
+            active_entries_cache: Arc::new(Mutex::new(None)),
             write_lock: Arc::new(Mutex::new(())),
             last_write_error: Arc::new(Mutex::new(None)),
         }
@@ -389,6 +391,11 @@ impl AuditLogger {
         if let Ok(dir) = std::env::var("DATACORE_DIR") {
             return PathBuf::from(dir);
         }
+        #[cfg(test)]
+        {
+            return std::env::temp_dir().join(format!("datacore-test-audit-{}", std::process::id()));
+        }
+        #[cfg(not(test))]
         std::env::var("HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("."))
@@ -824,17 +831,34 @@ impl AuditLogger {
     }
 
     fn count_existing_non_empty_lines(path: &Path) -> usize {
-        if !path.exists() {
-            return 0;
-        }
-        let Ok(file) = File::open(path) else {
+        use std::io::Read;
+        let Ok(mut file) = File::open(path) else {
             return 0;
         };
-        BufReader::new(file)
-            .lines()
-            .map_while(Result::ok)
-            .filter(|l| !l.trim().is_empty())
-            .count()
+        let mut buf = [0u8; 65536];
+        let mut count = 0usize;
+        let mut line_has_non_ws = false;
+        loop {
+            let n = match file.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(_) => return 0,
+            };
+            for &b in &buf[..n] {
+                if b == b'\n' {
+                    if line_has_non_ws {
+                        count += 1;
+                        line_has_non_ws = false;
+                    }
+                } else if !b.is_ascii_whitespace() {
+                    line_has_non_ws = true;
+                }
+            }
+        }
+        if line_has_non_ws {
+            count += 1;
+        }
+        count
     }
 
     fn hash_at_entry_index(path: &Path, target_count: usize) -> Option<String> {
@@ -902,7 +926,29 @@ impl AuditLogger {
     }
 
     fn read_last_hash_from_file(path: &Path) -> Result<Option<String>, AppError> {
-        let file = File::open(path)?;
+        use std::io::{Read, Seek, SeekFrom};
+        let mut file = File::open(path)?;
+        let len = file.metadata()?.len();
+        if len > 65536 {
+            let offset = len - 65536;
+            file.seek(SeekFrom::Start(offset))?;
+            let mut tail = Vec::new();
+            file.read_to_end(&mut tail)?;
+            let text = String::from_utf8_lossy(&tail);
+            // Skip the first partial line since we sought mid-file
+            let slice = text.split_once('\n').map(|(_, rest)| rest).unwrap_or("");
+            for line in slice.lines().rev() {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() {
+                    if let Ok(entry) = serde_json::from_str::<AuditLogEntry>(trimmed) {
+                        if let Some(h) = entry.entry_hash {
+                            return Ok(Some(h));
+                        }
+                    }
+                }
+            }
+            file.seek(SeekFrom::Start(0))?;
+        }
         let reader = BufReader::new(file);
         let mut last_hash = None;
         for line in reader.lines() {
@@ -1093,7 +1139,21 @@ impl AuditLogger {
                     .map(|r| r.is_empty())
                     .unwrap_or(true)
             });
-        let prior_active_count = Self::count_existing_non_empty_lines(&log_path);
+        let prior_active_count = if !log_path.exists() {
+            let mut cache = self.active_entries_cache.lock().unwrap();
+            *cache = Some(0);
+            0
+        } else {
+            let mut cache = self.active_entries_cache.lock().unwrap();
+            match *cache {
+                Some(count) => count,
+                None => {
+                    let count = Self::count_existing_non_empty_lines(&log_path);
+                    *cache = Some(count);
+                    count
+                }
+            }
+        };
 
         // Open or create log file with mode 0600 on Unix
         let mut file = OpenOptions::new()
@@ -1106,10 +1166,14 @@ impl AuditLogger {
 
         set_file_permissions_0600(&log_path)?;
 
-        // 1) Update cached last hash immediately so subsequent logs never break the chain
+        // 1) Update cached last hash & active count immediately so subsequent logs never break the chain or re-scan the file
         {
             let mut cache = self.last_hash_cache.lock().unwrap();
             *cache = Some(entry_hash.clone());
+        }
+        {
+            let mut cache = self.active_entries_cache.lock().unwrap();
+            *cache = Some(prior_active_count + 1);
         }
 
         // 2) Best-effort signed anchor update (self-heals on subsequent write or verify if transient error occurs)
@@ -1194,6 +1258,7 @@ impl AuditLogger {
             }
         }
 
+        *self.active_entries_cache.lock().unwrap() = Some(0);
         Ok(target)
     }
 
@@ -1221,31 +1286,39 @@ impl AuditLogger {
         offset: Option<usize>,
     ) -> Result<Vec<AuditLogEntry>, AppError> {
         let _guard = self.write_lock.lock().unwrap();
-        let mut all_entries = Vec::new();
-
-        // Read active audit.jsonl
-        let main_path = self.main_log_path();
-        if main_path.exists() {
-            Self::read_entries_from_file(&main_path, &mut all_entries)?;
-        }
-
-        // If need more, read rotated files (most recent first)
-        let rotated_files = self.list_rotated_files()?;
-        for path in rotated_files.into_iter().rev() {
-            let mut rotated_entries = Vec::new();
-            Self::read_entries_from_file(&path, &mut rotated_entries)?;
-            // Rotated files are older, so append them before reversing
-            all_entries.splice(0..0, rotated_entries);
-        }
-
-        // Reverse to have newest first
-        all_entries.reverse();
-
         let offset = offset.unwrap_or(0);
         let limit = limit.unwrap_or(1000);
+        let needed = offset.saturating_add(limit);
+        if needed == 0 {
+            return Ok(Vec::new());
+        }
 
-        let result = all_entries.into_iter().skip(offset).take(limit).collect();
+        let mut collected = Vec::new();
 
+        // Read active audit.jsonl first (newest entries are at the end)
+        let main_path = self.main_log_path();
+        if main_path.exists() {
+            let mut active_entries = Vec::new();
+            Self::read_entries_from_file(&main_path, &mut active_entries)?;
+            active_entries.reverse();
+            collected.extend(active_entries);
+        }
+
+        // Only read rotated archives (most recent first) if we still need more entries
+        if collected.len() < needed {
+            let rotated_files = self.list_rotated_files()?;
+            for path in rotated_files.into_iter().rev() {
+                let mut rotated_entries = Vec::new();
+                Self::read_entries_from_file(&path, &mut rotated_entries)?;
+                rotated_entries.reverse();
+                collected.extend(rotated_entries);
+                if collected.len() >= needed {
+                    break;
+                }
+            }
+        }
+
+        let result = collected.into_iter().skip(offset).take(limit).collect();
         Ok(result)
     }
 
@@ -1667,6 +1740,7 @@ impl AuditLogger {
                     ));
                 }
             }
+            *self.active_entries_cache.lock().unwrap() = Some(0);
             return Ok(AuditIntegrityResult {
                 is_valid: true,
                 total_entries: archived_entries,
@@ -1775,6 +1849,7 @@ impl AuditLogger {
             }
         }
 
+        *self.active_entries_cache.lock().unwrap() = Some(count);
         Ok(AuditIntegrityResult {
             is_valid: true,
             total_entries: archived_entries + count,
@@ -1838,6 +1913,7 @@ impl AuditLogger {
 
         let mut cache = self.last_hash_cache.lock().unwrap();
         *cache = None;
+        *self.active_entries_cache.lock().unwrap() = None;
         *self.last_write_error.lock().unwrap() = None;
 
         Ok(())

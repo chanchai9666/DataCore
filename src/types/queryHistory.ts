@@ -12,6 +12,8 @@ export interface QueryHistoryItem {
   errorMessage?: string;
 }
 
+export type SavedQueryScope = 'global' | 'connection' | 'database';
+
 export interface SqlSnippet {
   id: string;
   title: string;
@@ -19,6 +21,20 @@ export interface SqlSnippet {
   sql: string;
   category?: string;
   tags?: string[];
+  scope?: SavedQueryScope;
+  connectionId?: string;
+  connectionName?: string;
+  database?: string;
+  driver?: string;
+  isPinned?: boolean;
+  runCount?: number;
+  lastRunAt?: number;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface SavedQueriesExportBundle {
+  version: 1;
+  exportedAt: string;
+  queries: SqlSnippet[];
 }

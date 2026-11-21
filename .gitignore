@@ -7,6 +7,8 @@ src-tauri/target/
 dist/
 dist-ssr/
 .vite/
+playwright-report/
+test-results/
 
 # Logs
 logs

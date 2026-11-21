@@ -39,6 +39,7 @@ import {
   openERDiagramTab,
   openTableTab,
   openQueryBuilderTab,
+  openSavedQueriesTab,
 } from './components/sidebar/tabHelpers';
 import { useShortcuts } from './hooks/useShortcuts';
 import type { ConnectionConfig } from './types/db';
@@ -436,6 +437,9 @@ export function App() {
         }}
         onOpenSecurity={() => {
           if (isDbConnected) setIsSecurityModalOpen(true);
+        }}
+        onOpenSavedQueries={() => {
+          openSavedQueriesTab({ connectionId: resolvedConnectionId || undefined });
         }}
         onOpenHistory={() => {
           if (isDbConnected) setIsHistoryDrawerOpen(true);

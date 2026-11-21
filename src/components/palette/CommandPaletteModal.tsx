@@ -659,21 +659,33 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       });
     }
 
-    // 3. Snippets & SQL Templates
-    for (const snip of snippets) {
+    // 3. Snippets & SQL Templates (prioritize context-matching queries)
+    const sortedSnippets = [...snippets].sort((a, b) => {
+      const aMatch = Number(Boolean(a.connectionId && a.connectionId === resolvedConnectionId));
+      const bMatch = Number(Boolean(b.connectionId && b.connectionId === resolvedConnectionId));
+      if (bMatch !== aMatch) return bMatch - aMatch;
+      return Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
+    });
+    for (const snip of sortedSnippets) {
+      const targetConnId = snip.connectionId || resolvedConnectionId;
+      const targetConn = connections.find((c) => c.id === targetConnId);
       items.push({
         id: `snippet-${snip.id}`,
         title: snip.title,
         subtitle: `${snip.description || snip.sql.slice(0, 60)} • Press Enter to open in editor`,
         category: 'Snippets & Templates',
         icon: <Code2 className="w-4 h-4 text-emerald-400" />,
-        badge: 'SNIPPET',
-        keywords: [snip.title, snip.description || '', snip.sql, 'snippet', 'sql', 'template', 'query'],
+        badge: snip.scope === 'database' && snip.database ? snip.database : 'SAVED',
+        keywords: [snip.title, snip.description || '', snip.sql, snip.database || '', 'snippet', 'sql', 'template', 'query'],
         onSelect: () => {
-          if (resolvedConnectionId) {
+          if (targetConnId) {
             openQueryTab({
-              connectionId: resolvedConnectionId,
+              connectionId: targetConnId,
+              connectionName: targetConn?.name,
+              driver: targetConn?.driver,
               initialQuery: snip.sql,
+              savedQueryId: snip.id,
+              tabTitle: snip.title,
             });
           }
         },

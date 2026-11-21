@@ -762,5 +762,32 @@ describe('ConnectionDialog', () => {
         ).toBeNull();
       });
     });
+
+    it('shows DCV1 warning when editing a production connection without Master Password', async () => {
+      vi.mocked(dbApi.hasStoredPassword).mockResolvedValueOnce(true);
+      dbApi.hasVaultMasterPassword = vi.fn().mockResolvedValue(false);
+
+      render(
+        <ConnectionDialog
+          isOpen={true}
+          onClose={onClose}
+          initialConnection={{
+            id: 'conn-prod',
+            name: 'Prod DB',
+            driver: 'postgres',
+            host: 'db.example.com',
+            port: 5432,
+            database: 'prod',
+            user: 'postgres',
+            ssl_mode: 'require',
+            environment: 'production',
+          }}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('production-vault-dcv1-warning')).toBeInTheDocument();
+      });
+    });
   });
 });

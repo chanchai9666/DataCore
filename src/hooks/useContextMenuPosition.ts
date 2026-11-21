@@ -61,26 +61,35 @@ export function useContextMenuPosition(
   menuRef: RefObject<HTMLElement | null>,
   padding = 8
 ): ContextMenuPosition {
-  const [position, setPosition] = useState<ContextMenuPosition>({
-    top: contextMenu?.mouseY ?? 0,
-    left: contextMenu?.mouseX ?? 0,
-  });
+  const [adjusted, setAdjusted] = useState<{
+    mouseX: number;
+    mouseY: number;
+    pos: ContextMenuPosition;
+  } | null>(null);
 
   useLayoutEffect(() => {
     if (!contextMenu) {
-      setPosition({ top: 0, left: 0 });
+      setAdjusted(null);
       return;
     }
 
     if (!menuRef.current) {
-      setPosition({ top: contextMenu.mouseY, left: contextMenu.mouseX });
+      setAdjusted({
+        mouseX: contextMenu.mouseX,
+        mouseY: contextMenu.mouseY,
+        pos: { top: contextMenu.mouseY, left: contextMenu.mouseX },
+      });
       return;
     }
 
     const rect = menuRef.current.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) {
       // In JSDOM or prior to initial layout, default to raw cursor coordinates
-      setPosition({ top: contextMenu.mouseY, left: contextMenu.mouseX });
+      setAdjusted({
+        mouseX: contextMenu.mouseX,
+        mouseY: contextMenu.mouseY,
+        pos: { top: contextMenu.mouseY, left: contextMenu.mouseX },
+      });
       return;
     }
 
@@ -102,8 +111,24 @@ export function useContextMenuPosition(
       menuRef.current.style.left = `${calculatedPos.left}px`;
     }
 
-    setPosition(calculatedPos);
+    setAdjusted({
+      mouseX: contextMenu.mouseX,
+      mouseY: contextMenu.mouseY,
+      pos: calculatedPos,
+    });
   }, [contextMenu?.mouseX, contextMenu?.mouseY, menuRef, padding]);
 
-  return position;
+  if (!contextMenu) {
+    return { top: 0, left: 0 };
+  }
+
+  if (
+    adjusted &&
+    adjusted.mouseX === contextMenu.mouseX &&
+    adjusted.mouseY === contextMenu.mouseY
+  ) {
+    return adjusted.pos;
+  }
+
+  return { top: contextMenu.mouseY, left: contextMenu.mouseX };
 }

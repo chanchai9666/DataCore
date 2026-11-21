@@ -5,6 +5,7 @@ import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
 import { useStatusStore } from '../../stores/statusStore';
+import { useSchemaStore } from '../../stores/schemaStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, QueryResult } from '../../types/db';
 import * as tauriDialog from '@tauri-apps/plugin-dialog';
@@ -62,6 +63,13 @@ describe('DockLayout', () => {
     useTabStore.setState({
       tabs: [],
       activeTabId: null,
+    });
+    useSchemaStore.setState({
+      schemas: {},
+      schemaTrees: {},
+      treeOpenState: {},
+      tableColumnsMap: {},
+      isLoading: {},
     });
   });
 
@@ -1400,5 +1408,198 @@ describe('DockLayout', () => {
         'UPDATE "public"."testable_data" SET "name" = \'77\', "txt2" = \'77\' WHERE "id" = 7;'
       );
     });
+  });
+
+  it('marks active tab with data-active="true" and provides searchable Open Tabs Switcher with Close Other Tabs', async () => {
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'q1',
+          connectionId: 'conn-1',
+          type: 'query',
+          title: 'Sales Query',
+          autoCommit: true,
+          queryContent: 'SELECT 1;',
+        },
+        {
+          id: 'q2',
+          connectionId: 'conn-1',
+          type: 'query',
+          title: 'Users Query',
+          autoCommit: true,
+          queryContent: 'SELECT 2;',
+        },
+        {
+          id: 'q3',
+          connectionId: 'conn-1',
+          type: 'query',
+          title: 'Orders Query',
+          autoCommit: true,
+          queryContent: 'SELECT 3;',
+        },
+      ],
+      activeTabId: 'q2',
+    });
+
+    render(<DockLayout />);
+
+    const tab1 = screen.getByRole('tab', { name: /Sales Query/i });
+    const tab2 = screen.getByRole('tab', { name: /Users Query/i });
+    expect(tab1).toHaveAttribute('data-active', 'false');
+    expect(tab2).toHaveAttribute('data-active', 'true');
+
+    // Open the tab switcher popover
+    const switcherBtn = screen.getByTestId('open-tabs-switcher-btn');
+    expect(switcherBtn).toHaveTextContent('3');
+    fireEvent.click(switcherBtn);
+
+    const menu = screen.getByTestId('open-tabs-switcher-menu');
+    expect(menu).toBeInTheDocument();
+
+    // Filter tabs in switcher
+    const searchInput = within(menu).getByPlaceholderText(/search open tabs/i);
+    fireEvent.change(searchInput, { target: { value: 'orders' } });
+    expect(within(menu).getByText('Orders Query')).toBeInTheDocument();
+    expect(within(menu).queryByText('Sales Query')).not.toBeInTheDocument();
+
+    // Select Orders Query
+    fireEvent.click(within(menu).getByText('Orders Query'));
+    expect(useTabStore.getState().activeTabId).toBe('q3');
+    expect(screen.queryByTestId('open-tabs-switcher-menu')).not.toBeInTheDocument();
+
+    // Reopen switcher and click Close Other Tabs
+    fireEvent.click(screen.getByTestId('open-tabs-switcher-btn'));
+    fireEvent.click(screen.getByTestId('close-other-tabs-btn'));
+
+    await waitFor(() => {
+      const remaining = useTabStore.getState().tabs;
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].id).toBe('q3');
+    });
+  });
+
+  it('opens tab right-click context menu and supports Close to the Right, Close to the Left, Close Others, and Close All while respecting pinned tabs', async () => {
+    useTabStore.setState({
+      tabs: [
+        { id: 't1', connectionId: 'conn-1', type: 'query', title: 'Tab 1', autoCommit: true, queryContent: '' },
+        { id: 't2', connectionId: 'conn-1', type: 'query', title: 'Tab 2', autoCommit: true, queryContent: '' },
+        { id: 't3', connectionId: 'conn-1', type: 'query', title: 'Tab 3', autoCommit: true, queryContent: '' },
+        { id: 't4', connectionId: 'conn-1', type: 'query', title: 'Tab 4', autoCommit: true, queryContent: '' },
+      ],
+      activeTabId: 't2',
+    });
+
+    render(<DockLayout />);
+
+    // Pin Tab 4 first via context menu
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /Tab 4/i }), { clientX: 120, clientY: 20 });
+    const ctxMenu = screen.getByTestId('tab-context-menu');
+    expect(ctxMenu).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('ctx-tab-pin'));
+    expect(useTabStore.getState().tabs.find((t) => t.id === 't4')?.pinned).toBe(true);
+    // Pinning moves t4 before unpinned tabs: [t4 (pinned), t1, t2, t3]
+    expect(useTabStore.getState().tabs.map((t) => t.id)).toEqual(['t4', 't1', 't2', 't3']);
+
+    // Right-click Tab 2 -> Close to the Right -> should close t3, keep t4, t1, t2
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /Tab 2/i }), { clientX: 150, clientY: 20 });
+    fireEvent.click(screen.getByTestId('ctx-tab-close-right'));
+    await waitFor(() => {
+      expect(useTabStore.getState().tabs.map((t) => t.id)).toEqual(['t4', 't1', 't2']);
+    });
+
+    // Right-click Tab 2 -> Close to the Left -> should close t1 (unpinned), keep t4 (pinned) and t2
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /Tab 2/i }), { clientX: 150, clientY: 20 });
+    fireEvent.click(screen.getByTestId('ctx-tab-close-left'));
+    await waitFor(() => {
+      expect(useTabStore.getState().tabs.map((t) => t.id)).toEqual(['t4', 't2']);
+    });
+
+    // Right-click Tab 2 -> Close All -> should close t2, keep t4 (pinned)
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /Tab 2/i }), { clientX: 150, clientY: 20 });
+    fireEvent.click(screen.getByTestId('ctx-tab-close-all'));
+    await waitFor(() => {
+      expect(useTabStore.getState().tabs.map((t) => t.id)).toEqual(['t4']);
+    });
+  });
+
+  it('supports Close Tabs for This Connection, Close Unloaded Tabs, and Copy Name from tab context menu', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    useConnectionStore.setState({
+      connections: [
+        mockConn,
+        { id: 'conn-2', name: 'Other DB', driver: 'postgres', database: 'other' },
+      ],
+      connectedConnectionIds: ['conn-1'],
+    });
+
+    useTabStore.setState({
+      tabs: [
+        { id: 'a1', connectionId: 'conn-1', type: 'table', title: 'users', tableName: 'users', autoCommit: true, queryContent: '', isLoaded: true },
+        { id: 'a2', connectionId: 'conn-1', type: 'table', title: 'orders', tableName: 'orders', autoCommit: true, queryContent: '', isLoaded: false },
+        { id: 'b1', connectionId: 'conn-2', type: 'query', title: 'Other Query', autoCommit: true, queryContent: '', isLoaded: true },
+      ],
+      activeTabId: 'a1',
+    });
+
+    render(<DockLayout />);
+
+    // Copy Name on a1
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /users/i }), { clientX: 80, clientY: 20 });
+    fireEvent.click(screen.getByTestId('ctx-tab-copy-name'));
+    expect(writeText).toHaveBeenCalledWith('users');
+
+    // Close Unloaded Tabs -> closes a2 (isLoaded: false) and b1 (conn-2 disconnected)
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /users/i }), { clientX: 80, clientY: 20 });
+    fireEvent.click(screen.getByTestId('ctx-tab-close-unloaded'));
+    await waitFor(() => {
+      expect(useTabStore.getState().tabs.map((t) => t.id)).toEqual(['a1']);
+    });
+
+    // Add a second tab on conn-2 and test Close Tabs for This Connection
+    act(() => {
+      useTabStore.setState({
+        tabs: [
+          { id: 'a1', connectionId: 'conn-1', type: 'table', title: 'users', tableName: 'users', autoCommit: true, queryContent: '', isLoaded: true },
+          { id: 'b1', connectionId: 'conn-2', type: 'query', title: 'Other Query', autoCommit: true, queryContent: '', isLoaded: true },
+        ],
+        activeTabId: 'a1',
+      });
+    });
+
+    fireEvent.contextMenu(screen.getByRole('tab', { name: /users/i }), { clientX: 80, clientY: 20 });
+    fireEvent.click(screen.getByTestId('ctx-tab-close-connection'));
+    await waitFor(() => {
+      expect(useTabStore.getState().tabs.map((t) => t.id)).toEqual(['b1']);
+    });
+  });
+
+  it('preserves cached schema tree without re-fetching getSchemaTree when Explorer is collapsed and reopened', async () => {
+    vi.mocked(dbApi.getSchemaTree).mockResolvedValue([
+      {
+        name: 'main',
+        node_type: 'database',
+        children: [{ name: 'users', node_type: 'table', schema: 'main' }],
+      },
+    ]);
+
+    render(<DockLayout />);
+
+    await waitFor(() => {
+      expect(dbApi.getSchemaTree).toHaveBeenCalledTimes(1);
+    });
+
+    // Collapse Explorer
+    fireEvent.click(screen.getByRole('button', { name: /collapse sidebar/i }));
+    expect(screen.queryByText(/explorer/i)).not.toBeInTheDocument();
+
+    // Expand Explorer again -> should reuse cached schema tree immediately without calling getSchemaTree again
+    fireEvent.click(screen.getByRole('button', { name: /expand sidebar/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/explorer/i)).toBeInTheDocument();
+    });
+
+    expect(dbApi.getSchemaTree).toHaveBeenCalledTimes(1);
   });
 });

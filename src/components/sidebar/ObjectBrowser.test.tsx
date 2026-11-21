@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ObjectBrowser } from './ObjectBrowser';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useTabStore } from '../../stores/tabStore';
+import { useSchemaStore } from '../../stores/schemaStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, SchemaNode } from '../../types/db';
 import * as tauriDialog from '@tauri-apps/plugin-dialog';
@@ -76,6 +77,13 @@ describe('ObjectBrowser', () => {
     useTabStore.setState({
       tabs: [],
       activeTabId: null,
+    });
+    useSchemaStore.setState({
+      schemas: {},
+      schemaTrees: {},
+      treeOpenState: {},
+      tableColumnsMap: {},
+      isLoading: {},
     });
     vi.mocked(dbApi.getSchemaTree).mockResolvedValue(mockSchema);
   });

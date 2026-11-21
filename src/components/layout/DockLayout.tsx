@@ -11,8 +11,15 @@ import {
   Network,
   Wand2,
   AlertTriangle,
+  Bookmark,
+  ChevronDown,
+  Search,
+  Check,
+  Pin,
+  Copy,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useContextMenuPosition } from '../../hooks/useContextMenuPosition';
 import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { usePendingChangesStore } from '../../stores/pendingChangesStore';
@@ -44,6 +51,7 @@ import { TableModeSwitcher } from '../table/TableModeSwitcher';
 import { TableListTab } from '../tablelist/TableListTab';
 import { ERDiagramTab } from '../diagram/ERDiagramTab';
 import { VisualQueryBuilderTab } from '../querybuilder/VisualQueryBuilderTab';
+import { SavedQueriesTab } from '../savedqueries/SavedQueriesTab';
 import { DuplicateTableModal } from '../transfer/DuplicateTableModal';
 import { detectErrorType } from '../../utils/sqlErrorParser';
 import { getFetchColumnsSql, parseColumnsFromQueryResult } from '../structure/tableStructureHelpers';
@@ -81,7 +89,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
   lastSavedConnectionId,
 }) => {
   const { t } = useTranslation();
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab } = useTabStore();
+  const { tabs, activeTabId, setActiveTab, closeTab, closeTabs, togglePinTab, updateTab } = useTabStore();
   const {
     connections,
     activeConnectionId,
@@ -242,11 +250,81 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
   const [tableTabModes, setTableTabModes] = useState<Record<string, 'data' | 'structure'>>({});
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
+  const tabRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const tabSwitcherRef = useRef<HTMLDivElement>(null);
+  const tabSearchInputRef = useRef<HTMLInputElement>(null);
+  const tabContextMenuRef = useRef<HTMLDivElement>(null);
+  const [tabSwitcherOpen, setTabSwitcherOpen] = useState(false);
+  const [tabSearchQuery, setTabSearchQuery] = useState('');
+  const [tabContextMenu, setTabContextMenu] = useState<{
+    tabId: string;
+    mouseX: number;
+    mouseY: number;
+  } | null>(null);
+  const tabContextMenuPosition = useContextMenuPosition(tabContextMenu, tabContextMenuRef);
 
   // Sync active tab ID with status store for per-tab metrics isolation
   useEffect(() => {
     useStatusStore.getState().setActiveTabId(activeTabId);
   }, [activeTabId]);
+
+  // Auto-scroll active tab into view when activeTabId changes
+  useEffect(() => {
+    if (!activeTabId) return;
+    const el = tabRefs.current[activeTabId];
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+  }, [activeTabId]);
+
+  // Dismiss tab context menu on outside click, Escape, or window blur
+  useEffect(() => {
+    if (!tabContextMenu) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      if (tabContextMenuRef.current && !tabContextMenuRef.current.contains(e.target as Node)) {
+        setTabContextMenu(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setTabContextMenu(null);
+      }
+    };
+    const handleBlur = () => setTabContextMenu(null);
+    window.addEventListener('mousedown', handlePointerDown, true);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown, true);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [tabContextMenu]);
+
+  // Dismiss open tabs switcher on outside click or Escape
+  useEffect(() => {
+    if (!tabSwitcherOpen) return;
+    const timer = setTimeout(() => {
+      tabSearchInputRef.current?.focus();
+    }, 0);
+    const handlePointerDown = (e: MouseEvent) => {
+      if (tabSwitcherRef.current && !tabSwitcherRef.current.contains(e.target as Node)) {
+        setTabSwitcherOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setTabSwitcherOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handlePointerDown, true);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('mousedown', handlePointerDown, true);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [tabSwitcherOpen]);
 
   // Ensure active tab session is opened in backend only if connection is active
   useEffect(() => {
@@ -1307,7 +1385,7 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
         {/* Tab Bar Header */}
         <div
           role="tablist"
-          className={`flex items-center border-b overflow-x-auto select-none ${
+          className={`relative flex items-center border-b select-none ${
             theme === 'warm-paper'
               ? 'h-9 bg-toolbar border-line'
               : theme === 'dark'
@@ -1344,19 +1422,40 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
               return (
                 <div
                   key={tab.id}
+                  ref={(el) => {
+                    tabRefs.current[tab.id] = el;
+                  }}
                   role="tab"
                   title={tooltip}
                   aria-selected={isActive}
+                  data-active={isActive ? 'true' : 'false'}
+                  data-pinned={tab.pinned ? 'true' : 'false'}
                   onClick={() => setActiveTab(tab.id)}
+                  onAuxClick={(e) => {
+                    if (e.button === 1 && !tab.pinned) {
+                      e.preventDefault();
+                      closeTab(tab.id);
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setTabSwitcherOpen(false);
+                    setTabContextMenu({
+                      tabId: tab.id,
+                      mouseX: e.clientX,
+                      mouseY: e.clientY,
+                    });
+                  }}
                   className={`group flex items-center space-x-2 px-3 cursor-pointer max-w-[200px] min-w-[120px] transition-colors text-xs ${
                     theme === 'warm-paper'
                       ? isActive
-                        ? 'h-6 rounded-full bg-[#c8e4b8] text-[#1f1e1b] border border-[#2c2a26] font-semibold'
+                        ? 'h-6 rounded-full bg-[#b5db9e] text-[#141311] border-2 border-[#1f1e1b] font-semibold shadow-sm'
                         : 'h-6 rounded-full bg-transparent text-[#6b655b] border border-transparent hover:bg-[#f6f1e7] hover:text-[#1f1e1b]'
                       : isActive
                       ? theme === 'dark'
-                        ? 'py-2 border-r bg-gray-950 text-blue-400 border-r-gray-800 font-medium border-t-2 border-t-blue-500'
-                        : 'py-2 border-r bg-white text-blue-600 border-r-gray-200 font-medium border-t-2 border-t-blue-600 shadow-sm'
+                        ? 'py-2 border-r bg-gray-950 text-blue-300 border-r-gray-800 font-semibold border-t-2 border-t-blue-400 shadow-sm'
+                        : 'py-2 border-r bg-white text-blue-700 border-r-gray-200 font-semibold border-t-2 border-t-blue-600 shadow-sm'
                       : theme === 'dark'
                       ? 'py-2 border-r text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 border-r-gray-800'
                       : 'py-2 border-r text-gray-600 hover:bg-gray-200/60 hover:text-gray-900 border-r-gray-200'
@@ -1364,6 +1463,8 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                 >
                   {tab.type === 'table-list' ? (
                     <Database className="w-3.5 h-3.5 flex-shrink-0 text-purple-400" />
+                  ) : tab.type === 'saved-queries' ? (
+                    <Bookmark className="w-3.5 h-3.5 flex-shrink-0 text-blue-500" />
                   ) : tab.type === 'er-diagram' ? (
                     <Network className="w-3.5 h-3.5 flex-shrink-0 text-emerald-400" />
                   ) : tab.type === 'query-builder' ? (
@@ -1380,40 +1481,235 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                       className="w-1.5 h-1.5 rounded-full bg-amber-500/80 shrink-0"
                     />
                   )}
-                  <button
-                    type="button"
-                    aria-label="Close tab"
-                    data-testid={`close-tab-${tab.id}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeTab(tab.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700/60 transition-colors transition-opacity"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+                  {tab.pinned ? (
+                    <button
+                      type="button"
+                      aria-label={t('layout.unpinTab', 'Unpin Tab')}
+                      title={t('layout.unpinTab', 'Unpin Tab')}
+                      data-testid={`unpin-tab-${tab.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePinTab(tab.id);
+                      }}
+                      className="p-0.5 rounded text-blue-400 hover:text-blue-300 hover:bg-gray-200 dark:hover:bg-gray-700/60 transition-colors"
+                    >
+                      <Pin className="w-3 h-3" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label="Close tab"
+                      data-testid={`close-tab-${tab.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeTab(tab.id);
+                      }}
+                      className={`${
+                        isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      } p-0.5 rounded text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700/60 transition-colors transition-opacity`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
 
-          {/* Add Query Tab Button */}
-          {hasConnectedDatabase && (
-            <button
-              type="button"
-              data-testid="add-query-tab-btn"
-              onClick={handleAddNewQueryTab}
-              aria-label="New Query Tab"
-              title="New Query Tab"
-              className={`p-2 transition-colors flex-shrink-0 ${
-                theme === 'dark'
-                  ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-              }`}
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          )}
+          {/* Pinned Tab Actions: Open Tabs Switcher & New Query Tab */}
+          <div
+            className={`flex items-center flex-shrink-0 gap-1 pl-2 pr-1.5 border-l ${
+              theme === 'warm-paper'
+                ? 'border-line bg-toolbar'
+                : theme === 'dark'
+                ? 'border-gray-700/80 bg-gray-900'
+                : 'border-gray-300 bg-gray-100'
+            }`}
+          >
+            {tabs.length > 0 && (
+              <div ref={tabSwitcherRef} className="relative">
+                <button
+                  type="button"
+                  data-testid="open-tabs-switcher-btn"
+                  onClick={() => {
+                    setTabSwitcherOpen((prev) => !prev);
+                    setTabSearchQuery('');
+                  }}
+                  aria-label={t('layout.openTabs', 'Open tabs ({{count}})', { count: tabs.length })}
+                  title={t('layout.openTabs', 'Open tabs ({{count}})', { count: tabs.length })}
+                  className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border transition-colors shadow-xs ${
+                    theme === 'warm-paper'
+                      ? 'bg-[#f6f1e7] border-[#2c2a26]/40 text-[#1f1e1b] hover:bg-[#ede4d0]'
+                      : theme === 'dark'
+                      ? 'bg-gray-800/90 border-gray-700 text-gray-100 hover:bg-gray-700 hover:border-gray-600'
+                      : 'bg-white border-gray-300 text-gray-800 hover:bg-gray-50'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5 opacity-80" />
+                  <span
+                    className={`px-1.5 py-0.5 rounded text-[11px] font-semibold leading-none tabular-nums ${
+                      theme === 'warm-paper'
+                        ? 'bg-[#b5db9e]/70 text-[#141311]'
+                        : theme === 'dark'
+                        ? 'bg-blue-500/20 text-blue-300'
+                        : 'bg-blue-50 text-blue-700'
+                    }`}
+                  >
+                    {tabs.length}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+                </button>
+
+                {tabSwitcherOpen && (
+                  <div
+                    data-testid="open-tabs-switcher-menu"
+                    className={`absolute right-1 top-full mt-1 z-50 w-72 rounded-lg shadow-2xl border overflow-hidden ${
+                      theme === 'warm-paper'
+                        ? 'bg-[#faf7f0] border-[#2c2a26] text-[#1f1e1b]'
+                        : theme === 'dark'
+                        ? 'bg-gray-900 border-gray-700 text-gray-100'
+                        : 'bg-white border-gray-200 text-gray-900'
+                    }`}
+                  >
+                    <div className={`p-2 border-b ${
+                      theme === 'warm-paper'
+                        ? 'border-[#e5dec9]'
+                        : theme === 'dark'
+                        ? 'border-gray-800'
+                        : 'border-gray-100'
+                    }`}>
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          ref={tabSearchInputRef}
+                          type="text"
+                          value={tabSearchQuery}
+                          onChange={(e) => setTabSearchQuery(e.target.value)}
+                          placeholder={t('layout.searchOpenTabs', 'Search open tabs...')}
+                          className={`w-full text-xs pl-8 pr-2.5 py-1.5 rounded border focus:outline-none focus:border-blue-500 ${
+                            theme === 'warm-paper'
+                              ? 'bg-white border-[#d6ceb8] text-[#1f1e1b]'
+                              : theme === 'dark'
+                              ? 'bg-gray-950 border-gray-700 text-gray-100'
+                              : 'bg-gray-50 border-gray-200 text-gray-900'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="max-h-64 overflow-y-auto py-1">
+                      {(() => {
+                        const q = tabSearchQuery.toLowerCase().trim();
+                        const filtered = tabs.filter((tb) => tb.title.toLowerCase().includes(q));
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="px-3 py-4 text-center text-xs text-gray-400">
+                              {t('layout.noMatchingTabs', 'No matching tabs')}
+                            </div>
+                          );
+                        }
+                        return filtered.map((tb) => {
+                          const isTabActive = tb.id === activeTabId;
+                          return (
+                            <div
+                              key={tb.id}
+                              onClick={() => {
+                                setActiveTab(tb.id);
+                                setTabSwitcherOpen(false);
+                              }}
+                              className={`flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer transition-colors ${
+                                isTabActive
+                                  ? theme === 'warm-paper'
+                                    ? 'bg-[#c8e4b8]/60 font-semibold'
+                                    : theme === 'dark'
+                                    ? 'bg-blue-500/20 text-blue-300 font-semibold'
+                                    : 'bg-blue-50 text-blue-700 font-semibold'
+                                  : theme === 'warm-paper'
+                                  ? 'hover:bg-[#f1ead8]'
+                                  : theme === 'dark'
+                                  ? 'hover:bg-gray-800'
+                                  : 'hover:bg-gray-100'
+                              }`}
+                            >
+                              {tb.pinned && <Pin className="w-3 h-3 text-blue-400 shrink-0" />}
+                              <span className="truncate flex-1">{tb.title}</span>
+                              {isTabActive && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-500 shrink-0">
+                                  <Check className="w-2.5 h-2.5" />
+                                  {t('layout.activeTabBadge', 'Active')}
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                data-testid={`switcher-close-tab-${tb.id}`}
+                                aria-label={t('layout.closeTab', 'Close tab')}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  closeTab(tb.id);
+                                }}
+                                className="p-0.5 rounded text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+
+                    {tabs.length > 1 && (
+                      <div className={`p-1.5 border-t ${
+                        theme === 'warm-paper'
+                          ? 'border-[#e5dec9]'
+                          : theme === 'dark'
+                          ? 'border-gray-800'
+                          : 'border-gray-100'
+                      }`}>
+                        <button
+                          type="button"
+                          data-testid="close-other-tabs-btn"
+                          onClick={() => {
+                            const otherIds = tabs
+                              .filter((tb) => tb.id !== activeTabId && !tb.pinned)
+                              .map((tb) => tb.id);
+                            closeTabs(otherIds);
+                            setTabSwitcherOpen(false);
+                          }}
+                          className={`w-full text-left px-2.5 py-1.5 rounded text-xs transition-colors ${
+                            theme === 'dark'
+                              ? 'text-red-400 hover:bg-red-950/40'
+                              : 'text-red-600 hover:bg-red-50'
+                          }`}
+                        >
+                          {t('layout.closeOtherTabs', 'Close Other Tabs')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Add Query Tab Button */}
+            {hasConnectedDatabase && (
+              <button
+                type="button"
+                data-testid="add-query-tab-btn"
+                onClick={handleAddNewQueryTab}
+                aria-label="New Query Tab"
+                title="New Query Tab"
+                className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${
+                  theme === 'warm-paper'
+                    ? 'text-[#1f1e1b] hover:bg-[#ede4d0]'
+                    : theme === 'dark'
+                    ? 'text-gray-300 hover:text-white hover:bg-gray-800'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Tab Body */}
@@ -1451,6 +1747,14 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
                   <span>{t('layout.addConnection', 'Add Connection')}</span>
                 </button>
               ) : null}
+            </div>
+          ) : activeTab.type === 'saved-queries' ? (
+            /* Saved Queries Hub Tab */
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <SavedQueriesTab
+                connectionId={activeTab.connectionId}
+                theme={theme}
+              />
             </div>
           ) : activeTab.type === 'er-diagram' ? (
             /* ER Diagram Tab */
@@ -2138,6 +2442,223 @@ export const DockLayout: React.FC<DockLayoutProps> = ({
           }}
         />
       )}
+
+      {/* Tab Right-Click Context Menu */}
+      {tabContextMenu && (() => {
+        const targetIndex = tabs.findIndex((tb) => tb.id === tabContextMenu.tabId);
+        const targetTab = targetIndex >= 0 ? tabs[targetIndex] : null;
+        if (!targetTab) return null;
+
+        const otherUnpinnedIds = tabs
+          .filter((tb) => tb.id !== targetTab.id && !tb.pinned)
+          .map((tb) => tb.id);
+        const rightUnpinnedIds = tabs
+          .slice(targetIndex + 1)
+          .filter((tb) => !tb.pinned)
+          .map((tb) => tb.id);
+        const leftUnpinnedIds = tabs
+          .slice(0, targetIndex)
+          .filter((tb) => !tb.pinned)
+          .map((tb) => tb.id);
+        const allUnpinnedIds = tabs.filter((tb) => !tb.pinned).map((tb) => tb.id);
+        const sameConnUnpinnedIds = tabs
+          .filter((tb) => tb.connectionId === targetTab.connectionId && !tb.pinned)
+          .map((tb) => tb.id);
+        const unloadedUnpinnedIds = tabs
+          .filter(
+            (tb) =>
+              !tb.pinned &&
+              (!connectedConnectionIds.includes(tb.connectionId) || !tb.isLoaded)
+          )
+          .map((tb) => tb.id);
+
+        const menuItemClass = (disabled?: boolean, danger?: boolean) =>
+          `w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
+            disabled
+              ? 'opacity-40 cursor-not-allowed'
+              : danger
+              ? theme === 'dark'
+                ? 'text-red-400 hover:bg-red-950/40'
+                : 'text-red-600 hover:bg-red-50'
+              : theme === 'warm-paper'
+              ? 'hover:bg-[#f1ead8] text-[#1f1e1b]'
+              : theme === 'dark'
+              ? 'hover:bg-gray-800 text-gray-200'
+              : 'hover:bg-gray-100 text-gray-800'
+          }`;
+
+        const dividerClass = `my-1 border-t ${
+          theme === 'warm-paper'
+            ? 'border-[#e5dec9]'
+            : theme === 'dark'
+            ? 'border-gray-800'
+            : 'border-gray-100'
+        }`;
+
+        return (
+          <div
+            ref={tabContextMenuRef}
+            data-testid="tab-context-menu"
+            role="menu"
+            style={{
+              top: `${tabContextMenuPosition.top}px`,
+              left: `${tabContextMenuPosition.left}px`,
+            }}
+            className={`fixed z-50 w-60 rounded-lg shadow-2xl border py-1 select-none ${
+              theme === 'warm-paper'
+                ? 'bg-[#faf7f0] border-[#2c2a26] text-[#1f1e1b]'
+                : theme === 'dark'
+                ? 'bg-gray-900 border-gray-700 text-gray-100'
+                : 'bg-white border-gray-200 text-gray-900'
+            }`}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="ctx-tab-close"
+              onClick={() => {
+                closeTab(targetTab.id);
+                setTabContextMenu(null);
+              }}
+              className={menuItemClass(false)}
+            >
+              <X className="w-3.5 h-3.5 shrink-0 opacity-75" />
+              <span>{t('layout.closeTab', 'Close tab')}</span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="ctx-tab-close-others"
+              disabled={otherUnpinnedIds.length === 0}
+              onClick={() => {
+                closeTabs(otherUnpinnedIds);
+                setTabContextMenu(null);
+              }}
+              className={menuItemClass(otherUnpinnedIds.length === 0)}
+            >
+              <span className="w-3.5 shrink-0" />
+              <span>{t('layout.closeOtherTabs', 'Close Other Tabs')}</span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="ctx-tab-close-right"
+              disabled={rightUnpinnedIds.length === 0}
+              onClick={() => {
+                closeTabs(rightUnpinnedIds);
+                setTabContextMenu(null);
+              }}
+              className={menuItemClass(rightUnpinnedIds.length === 0)}
+            >
+              <span className="w-3.5 shrink-0" />
+              <span>{t('layout.closeToRight', 'Close to the Right')}</span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="ctx-tab-close-left"
+              disabled={leftUnpinnedIds.length === 0}
+              onClick={() => {
+                closeTabs(leftUnpinnedIds);
+                setTabContextMenu(null);
+              }}
+              className={menuItemClass(leftUnpinnedIds.length === 0)}
+            >
+              <span className="w-3.5 shrink-0" />
+              <span>{t('layout.closeToLeft', 'Close to the Left')}</span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="ctx-tab-close-all"
+              disabled={allUnpinnedIds.length === 0}
+              onClick={() => {
+                closeTabs(allUnpinnedIds);
+                setTabContextMenu(null);
+              }}
+              className={menuItemClass(allUnpinnedIds.length === 0, true)}
+            >
+              <span className="w-3.5 shrink-0" />
+              <span>{t('layout.closeAllTabs', 'Close All Tabs')}</span>
+            </button>
+
+            <div className={dividerClass} />
+
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="ctx-tab-close-connection"
+              disabled={sameConnUnpinnedIds.length === 0}
+              onClick={() => {
+                closeTabs(sameConnUnpinnedIds);
+                setTabContextMenu(null);
+              }}
+              className={menuItemClass(sameConnUnpinnedIds.length === 0)}
+            >
+              <Database className="w-3.5 h-3.5 shrink-0 opacity-75" />
+              <span className="truncate">
+                {t('layout.closeConnectionTabs', 'Close Tabs for This Connection')}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="ctx-tab-close-unloaded"
+              disabled={unloadedUnpinnedIds.length === 0}
+              onClick={() => {
+                closeTabs(unloadedUnpinnedIds);
+                setTabContextMenu(null);
+              }}
+              className={menuItemClass(unloadedUnpinnedIds.length === 0)}
+            >
+              <span className="w-3.5 shrink-0" />
+              <span>{t('layout.closeUnloadedTabs', 'Close Unloaded Tabs')}</span>
+            </button>
+
+            <div className={dividerClass} />
+
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="ctx-tab-pin"
+              onClick={() => {
+                togglePinTab(targetTab.id);
+                setTabContextMenu(null);
+              }}
+              className={menuItemClass(false)}
+            >
+              <Pin className="w-3.5 h-3.5 shrink-0 opacity-75" />
+              <span>
+                {targetTab.pinned
+                  ? t('layout.unpinTab', 'Unpin Tab')
+                  : t('layout.pinTab', 'Pin Tab')}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="ctx-tab-copy-name"
+              onClick={() => {
+                const name = targetTab.tableName || targetTab.title;
+                if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                  navigator.clipboard.writeText(name).catch(() => {});
+                }
+                setTabContextMenu(null);
+              }}
+              className={menuItemClass(false)}
+            >
+              <Copy className="w-3.5 h-3.5 shrink-0 opacity-75" />
+              <span>{t('layout.copyTabName', 'Copy Name')}</span>
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 };

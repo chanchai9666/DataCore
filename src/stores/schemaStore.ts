@@ -2,14 +2,29 @@ import { create } from 'zustand';
 import { dbApi } from '../api/db';
 import { formatCellValue } from '../utils/cellFormatter';
 import { formatSqlLiteral } from '../api/queryBuilder';
+import type { SchemaNode } from '../types/db';
+import type { TableColumnStructure } from '../components/structure/tableStructureHelpers';
 
 export type SchemaMap = Record<string, string[]>;
+export type TableColumnsState = {
+  loading: boolean;
+  columns?: TableColumnStructure[];
+  error?: string;
+};
 
 export interface SchemaStoreState {
   schemas: Record<string, SchemaMap>;
+  schemaTrees: Record<string, SchemaNode[]>;
+  treeOpenState: Record<string, boolean>;
+  tableColumnsMap: Record<string, TableColumnsState>;
   isLoading: Record<string, boolean>;
   fetchSchema: (connectionId: string, driver?: string, schemaName?: string) => Promise<SchemaMap>;
   setSchema: (connectionId: string, schema: SchemaMap) => void;
+  setSchemaTree: (connectionId: string, tree: SchemaNode[]) => void;
+  clearSchemaTree: (connectionId: string) => void;
+  setTreeNodeOpen: (nodeId: string, isOpen: boolean) => void;
+  setTreeOpenState: (openState: Record<string, boolean>) => void;
+  setTableColumns: (tableKey: string, state: TableColumnsState) => void;
   invalidateSchema: (connectionId: string) => void;
   getSchema: (connectionId: string) => SchemaMap;
 }
@@ -126,6 +141,9 @@ export async function fetchDatabaseSchemaMap(
 
 export const useSchemaStore = create<SchemaStoreState>((set, get) => ({
   schemas: {},
+  schemaTrees: {},
+  treeOpenState: {},
+  tableColumnsMap: {},
   isLoading: {},
 
   fetchSchema: async (connectionId: string, driver?: string, schemaName?: string) => {
@@ -156,11 +174,43 @@ export const useSchemaStore = create<SchemaStoreState>((set, get) => ({
     }));
   },
 
+  setSchemaTree: (connectionId: string, tree: SchemaNode[]) => {
+    set((state) => ({
+      schemaTrees: { ...state.schemaTrees, [connectionId]: tree },
+    }));
+  },
+
+  clearSchemaTree: (connectionId: string) => {
+    set((state) => {
+      const nextTrees = { ...state.schemaTrees };
+      delete nextTrees[connectionId];
+      return { schemaTrees: nextTrees };
+    });
+  },
+
+  setTreeNodeOpen: (nodeId: string, isOpen: boolean) => {
+    set((state) => ({
+      treeOpenState: { ...state.treeOpenState, [nodeId]: isOpen },
+    }));
+  },
+
+  setTreeOpenState: (openState: Record<string, boolean>) => {
+    set({ treeOpenState: { ...openState } });
+  },
+
+  setTableColumns: (tableKey: string, colState: TableColumnsState) => {
+    set((state) => ({
+      tableColumnsMap: { ...state.tableColumnsMap, [tableKey]: colState },
+    }));
+  },
+
   invalidateSchema: (connectionId: string) => {
     set((state) => {
       const nextSchemas = { ...state.schemas };
       delete nextSchemas[connectionId];
-      return { schemas: nextSchemas };
+      const nextTrees = { ...state.schemaTrees };
+      delete nextTrees[connectionId];
+      return { schemas: nextSchemas, schemaTrees: nextTrees };
     });
   },
 

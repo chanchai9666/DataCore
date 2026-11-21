@@ -76,6 +76,41 @@ export interface OpenQueryTabParams {
   tableName?: string;
   driver?: string;
   initialQuery?: string;
+  savedQueryId?: string;
+  tabTitle?: string;
+  autoRun?: boolean;
+}
+
+export interface OpenSavedQueriesTabParams {
+  connectionId?: string;
+  schemaName?: string;
+}
+
+export function openSavedQueriesTab({
+  connectionId = '',
+  schemaName,
+}: OpenSavedQueriesTabParams = {}): void {
+  const fullId = 'saved-queries-hub';
+  const existingTab = useTabStore.getState().tabs.find((t) => t.id === fullId);
+
+  if (existingTab) {
+    useTabStore.getState().updateTab(fullId, {
+      ...(connectionId ? { connectionId } : {}),
+      ...(schemaName ? { schemaName } : {}),
+    });
+    useTabStore.getState().setActiveTab(fullId);
+    return;
+  }
+
+  useTabStore.getState().openTab({
+    id: fullId,
+    connectionId,
+    type: 'saved-queries',
+    title: 'Saved Queries',
+    schemaName,
+    autoCommit: true,
+    queryContent: '',
+  });
 }
 
 export function openTableTab({
@@ -116,10 +151,24 @@ export function openQueryTab({
   tableName,
   driver,
   initialQuery: customQuery,
+  savedQueryId,
+  tabTitle,
+  autoRun,
 }: OpenQueryTabParams): void {
   const isTableOrView = Boolean(tableName);
   const title = connectionName || tableName || 'Query';
-  const queryTabId = `query-${Date.now()}`;
+  const queryTabId = savedQueryId ? `query-saved-${savedQueryId}` : `query-${Date.now()}`;
+
+  if (savedQueryId) {
+    const existing = useTabStore.getState().tabs.find((t) => t.id === queryTabId);
+    if (existing) {
+      if (autoRun) {
+        useTabStore.getState().updateTab(queryTabId, { autoRun: true });
+      }
+      useTabStore.getState().setActiveTab(queryTabId);
+      return;
+    }
+  }
 
   const resolvedDriver =
     driver ||
@@ -140,7 +189,10 @@ export function openQueryTab({
     id: queryTabId,
     connectionId,
     type: 'query',
-    title: `Query (${title})`,
+    title: tabTitle || `Query (${title})`,
+    savedQueryId,
+    autoRun,
+    schemaName,
     autoCommit: true,
     queryContent: initialQuery,
   });

@@ -205,3 +205,42 @@ async fn test_duckdb_stream_query_chunks_and_early_stop() {
     assert!(outcome2.stopped_early);
     assert!(outcome2.rows_sent < 15);
 }
+
+#[tokio::test]
+async fn test_duckdb_stream_query_respects_read_only() {
+    use crate::drivers::Chunk;
+
+    let mut config = create_test_config();
+    config.read_only = Some(true);
+    let conn = DuckdbConnection::from_config(&config).expect("Failed to create DuckDB in-memory");
+
+    let (tx, _rx) = tokio::sync::mpsc::channel::<Chunk>(2);
+    let res = conn.stream_query("CREATE TABLE blocked (id INT);", 10, tx).await;
+    assert!(res.is_err());
+    assert!(res.unwrap_err().to_string().contains("read-only"));
+}
+
+#[tokio::test]
+async fn test_duckdb_get_object_ddl_for_table_and_view() {
+    let config = create_test_config();
+    let conn = DuckdbConnection::from_config(&config).expect("Failed to create DuckDB in-memory");
+
+    conn.execute_query("CREATE TABLE orders (id INT, total DOUBLE);")
+        .await
+        .unwrap();
+    conn.execute_query("CREATE VIEW big_orders AS SELECT * FROM orders WHERE total > 100;")
+        .await
+        .unwrap();
+
+    let table_ddl = conn
+        .get_object_ddl(None, "orders", "table")
+        .await
+        .expect("table ddl");
+    assert!(table_ddl.to_uppercase().contains("CREATE TABLE"));
+
+    let view_ddl = conn
+        .get_object_ddl(None, "big_orders", "view")
+        .await
+        .expect("view ddl");
+    assert!(view_ddl.to_uppercase().contains("CREATE VIEW"));
+}

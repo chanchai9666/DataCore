@@ -22,12 +22,18 @@ import {
   FolderPlus,
   Palette,
   ChevronRight,
+  ChevronDown,
   Network,
   Wand2,
+  Bookmark,
+  Play,
+  Pin,
 } from 'lucide-react';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useFolderStore } from '../../stores/folderStore';
 import { useTabStore } from '../../stores/tabStore';
+import { useSnippetStore } from '../../stores/snippetStore';
+import { useSchemaStore } from '../../stores/schemaStore';
 import { dbApi } from '../../api/db';
 import type { ConnectionConfig, SchemaNode } from '../../types/db';
 import {
@@ -36,6 +42,7 @@ import {
   openTableListTab,
   openERDiagramTab,
   openQueryBuilderTab,
+  openSavedQueriesTab,
 } from './tabHelpers';
 import {
   getFetchColumnsSql,
@@ -612,7 +619,23 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   const [pendingMoveConnId, setPendingMoveConnId] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [schemas, setSchemas] = useState<Record<string, SchemaNode[]>>({});
+  const [savedQueriesExpanded, setSavedQueriesExpanded] = useState(true);
+  const allSnippets = useSnippetStore((s) => s.snippets);
+  const recordSnippetRun = useSnippetStore((s) => s.recordRun);
+  const schemas = useSchemaStore((s) => s.schemaTrees);
+  const setSchemaTree = useSchemaStore((s) => s.setSchemaTree);
+  const clearSchemaTree = useSchemaStore((s) => s.clearSchemaTree);
+  const setTreeNodeOpen = useSchemaStore((s) => s.setTreeNodeOpen);
+  const setTreeOpenState = useSchemaStore((s) => s.setTreeOpenState);
+  const initialTreeOpenState = useRef(useSchemaStore.getState().treeOpenState).current;
+
+  useEffect(() => {
+    return () => {
+      if (treeRef.current?.openState) {
+        setTreeOpenState(treeRef.current.openState);
+      }
+    };
+  }, [setTreeOpenState]);
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
   const [errorMap, setErrorMap] = useState<Record<string, string>>({});
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -685,9 +708,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
   const [nativeBackupTarget, setNativeBackupTarget] = useState<string | null>(null);
   const [nativeRestoreTarget, setNativeRestoreTarget] = useState<string | null>(null);
 
-  const [tableColumnsMap, setTableColumnsMap] = useState<
-    Record<string, { loading: boolean; columns?: TableColumnStructure[]; error?: string }>
-  >({});
+  const tableColumnsMap = useSchemaStore((s) => s.tableColumnsMap);
+  const setTableColumns = useSchemaStore((s) => s.setTableColumns);
 
   const handleLoadTableColumns = useCallback(
     async (node: BrowserTreeNode) => {
@@ -695,7 +717,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       if (tableColumnsMap[tableKey]?.columns || tableColumnsMap[tableKey]?.loading) {
         return;
       }
-      setTableColumnsMap((prev) => ({ ...prev, [tableKey]: { loading: true } }));
+      setTableColumns(tableKey, { loading: true });
       try {
         const sql = getFetchColumnsSql(
           node.driver || 'postgres',
@@ -704,19 +726,13 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         );
         const res = await dbApi.executeDirectQuery(node.connectionId, sql);
         const cols = parseColumnsFromQueryResult(res, node.driver || 'postgres');
-        setTableColumnsMap((prev) => ({
-          ...prev,
-          [tableKey]: { loading: false, columns: cols },
-        }));
+        setTableColumns(tableKey, { loading: false, columns: cols });
       } catch (err: unknown) {
         console.error(`Failed to load columns for ${tableKey}:`, err);
-        setTableColumnsMap((prev) => ({
-          ...prev,
-          [tableKey]: { loading: false, error: String(err) },
-        }));
+        setTableColumns(tableKey, { loading: false, error: String(err) });
       }
     },
-    [tableColumnsMap]
+    [tableColumnsMap, setTableColumns]
   );
 
   const handleInsertColumnToEditor = useCallback((colName: string) => {
@@ -803,7 +819,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
     try {
       const tree = await dbApi.getSchemaTree(connectionId);
-      setSchemas((prev) => ({ ...prev, [connectionId]: tree }));
+      setSchemaTree(connectionId, tree);
       markConnected(connectionId);
       treeRef.current?.open(`conn-${connectionId}`);
     } catch (err: unknown) {
@@ -811,16 +827,12 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
       console.error(`Failed to load schema for connection ${connectionId}:`, err);
       setErrorMap((prev) => ({ ...prev, [connectionId]: msg }));
       markDisconnected(connectionId);
-      setSchemas((prev) => {
-        const next = { ...prev };
-        delete next[connectionId];
-        return next;
-      });
+      clearSchemaTree(connectionId);
       treeRef.current?.open(`conn-${connectionId}`);
     } finally {
       setLoadingMap((prev) => ({ ...prev, [connectionId]: false }));
     }
-  }, [markConnected, markDisconnected]);
+  }, [markConnected, markDisconnected, setSchemaTree, clearSchemaTree]);
 
   const handleRefreshAll = useCallback(async () => {
     await loadConnections();
@@ -1463,11 +1475,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         setActiveConnection(null);
       }
       markDisconnected(connectionId);
-      setSchemas((prev) => {
-        const next = { ...prev };
-        delete next[connectionId];
-        return next;
-      });
+      clearSchemaTree(connectionId);
       setErrorMap((prev) => {
         const next = { ...prev };
         delete next[connectionId];
@@ -1484,7 +1492,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
           console.error('Failed to teardown connection backend sessions:', err);
         });
     },
-    [activeConnectionId, setActiveConnection, connections, markDisconnected]
+    [activeConnectionId, setActiveConnection, connections, markDisconnected, clearSchemaTree]
   );
 
   const handleCopyName = useCallback((textToCopy: string) => {
@@ -1713,10 +1721,163 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 return false;
               }}
               openByDefault={false}
+              initialOpenState={initialTreeOpenState}
+              onToggle={(id) => {
+                const isOpen = treeRef.current?.isOpen(id);
+                if (typeof isOpen === 'boolean') {
+                  setTreeNodeOpen(id, isOpen);
+                }
+                if (treeRef.current?.openState) {
+                  setTreeOpenState(treeRef.current.openState);
+                }
+              }}
             >
               {ConnectionTreeNode}
             </Tree>
           </ObjectBrowserContext.Provider>
+        )}
+      </div>
+
+      {/* Compact Saved Queries Section */}
+      <div
+        data-testid="sidebar-saved-queries-section"
+        className="border-t border-line bg-sidebar shrink-0"
+      >
+        <div className="flex items-center justify-between px-3 py-1.5">
+          <button
+            type="button"
+            data-testid="sidebar-saved-queries-toggle"
+            onClick={() => setSavedQueriesExpanded((prev) => !prev)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-text hover:text-blue-500 transition-colors min-w-0"
+          >
+            {savedQueriesExpanded ? (
+              <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted" />
+            )}
+            <Bookmark className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+            <span className="truncate">{t('savedQueries.sidebarTitle', 'Saved Queries')}</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/10 text-muted font-medium">
+              {
+                allSnippets.filter((s) => {
+                  if (s.id.startsWith('preset-')) return false;
+                  const scope = s.scope || 'global';
+                  if (scope === 'global') return true;
+                  if (!currentActiveConnId) return false;
+                  if (s.connectionId !== currentActiveConnId) return false;
+                  if (scope === 'database' && s.database && currentActiveConn?.database) {
+                    return s.database === currentActiveConn.database;
+                  }
+                  return true;
+                }).length
+              }
+            </span>
+          </button>
+          <button
+            type="button"
+            data-testid="sidebar-saved-queries-hub-btn"
+            onClick={() => openSavedQueriesTab({ connectionId: currentActiveConnId || undefined })}
+            className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline shrink-0"
+          >
+            {t('savedQueries.viewAll', 'View All')}
+          </button>
+        </div>
+
+        {savedQueriesExpanded && (
+          <div className="max-h-36 overflow-y-auto px-2 pb-2 space-y-0.5">
+            {(() => {
+              const contextQueries = [...allSnippets]
+                .filter((s) => {
+                  if (s.id.startsWith('preset-')) return false;
+                  const scope = s.scope || 'global';
+                  if (scope === 'global') return true;
+                  if (!currentActiveConnId) return false;
+                  if (s.connectionId !== currentActiveConnId) return false;
+                  if (scope === 'database' && s.database && currentActiveConn?.database) {
+                    return s.database === currentActiveConn.database;
+                  }
+                  return true;
+                })
+                .sort((a, b) => {
+                  const pinDiff = Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
+                  if (pinDiff !== 0) return pinDiff;
+                  const runDiff = (b.runCount ?? 0) - (a.runCount ?? 0);
+                  if (runDiff !== 0) return runDiff;
+                  return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
+                })
+                .slice(0, 8);
+
+              if (contextQueries.length === 0) {
+                return (
+                  <div className="px-2 py-1 text-[11px] text-muted">
+                    {t('savedQueries.sidebarEmpty', 'No saved queries for this database yet.')}
+                  </div>
+                );
+              }
+
+              return contextQueries.map((q) => {
+                const targetConn =
+                  (q.connectionId && (connections || []).find((c) => c.id === q.connectionId)) ||
+                  currentActiveConn ||
+                  (connections || [])[0];
+                return (
+                  <div
+                    key={q.id}
+                    data-testid={`sidebar-saved-query-${q.id}`}
+                    className="group flex items-center justify-between gap-1 px-1.5 py-1 rounded hover:bg-black/5 dark:hover:bg-white/5 text-xs"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!targetConn) {
+                          toast.error(t('toolbar.selectConnectionFirst', 'Select a connection first'));
+                          return;
+                        }
+                        openQueryTab({
+                          connectionId: targetConn.id,
+                          connectionName: targetConn.name,
+                          driver: targetConn.driver,
+                          initialQuery: q.sql,
+                          savedQueryId: q.id,
+                          tabTitle: q.title,
+                          autoRun: false,
+                        });
+                      }}
+                      className="flex items-center gap-1.5 min-w-0 flex-1 text-left text-text hover:text-blue-500"
+                      title={q.description || q.sql}
+                    >
+                      {q.isPinned && <Pin className="w-3 h-3 text-amber-500 shrink-0" fill="currentColor" />}
+                      <span className="truncate">{q.title}</span>
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`sidebar-saved-query-run-${q.id}`}
+                      onClick={() => {
+                        if (!targetConn) {
+                          toast.error(t('toolbar.selectConnectionFirst', 'Select a connection first'));
+                          return;
+                        }
+                        recordSnippetRun(q.id);
+                        openQueryTab({
+                          connectionId: targetConn.id,
+                          connectionName: targetConn.name,
+                          driver: targetConn.driver,
+                          initialQuery: q.sql,
+                          savedQueryId: q.id,
+                          tabTitle: q.title,
+                          autoRun: true,
+                        });
+                      }}
+                      title={t('savedQueries.executeShortcutTooltip', 'Execute saved query')}
+                      className="opacity-70 group-hover:opacity-100 p-1 rounded hover:bg-blue-500/15 text-blue-600 dark:text-blue-400 shrink-0"
+                    >
+                      <Play className="w-3 h-3" fill="currentColor" />
+                    </button>
+                  </div>
+                );
+              });
+            })()}
+          </div>
         )}
       </div>
 

@@ -195,7 +195,31 @@ pub trait DatabaseConnection: Send + Sync {
 /// allowing string literals containing keywords, hyphens, and slashes.
 pub fn validate_table_filter(filter: &str) -> Result<(), AppError> {
     const FORBIDDEN_KEYWORDS: &[&str] = &[
-        "UNION", "DROP", "INSERT", "UPDATE", "DELETE", "EXEC", "EXECUTE", "ALTER", "TRUNCATE",
+        "UNION",
+        "SELECT",
+        "DROP",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "EXEC",
+        "EXECUTE",
+        "ALTER",
+        "TRUNCATE",
+        "CREATE",
+        "MERGE",
+        "GRANT",
+        "REVOKE",
+        "INTO",
+        "PRAGMA",
+        "ATTACH",
+        "DETACH",
+        "COPY",
+        "CALL",
+        "WAITFOR",
+        "SLEEP",
+        "PG_SLEEP",
+        "BENCHMARK",
+        "LOAD_FILE",
     ];
 
     let chars: Vec<char> = filter.chars().collect();
@@ -506,6 +530,10 @@ mod tests {
         assert!(validate_table_filter("id = 1; SELECT 1").is_err());
         assert!(validate_table_filter("id = 1 -- comment").is_err());
         assert!(validate_table_filter("id = 1 /* comment */").is_err());
+        assert!(validate_table_filter("EXISTS (SELECT 1 FROM users)").is_err());
+        assert!(validate_table_filter("PG_SLEEP(5) = 0").is_err());
+        assert!(validate_table_filter("1=1 WAITFOR DELAY '0:0:5'").is_err());
+        assert!(validate_table_filter("PRAGMA query_only = OFF").is_err());
     }
 
     struct MockStreamConn {

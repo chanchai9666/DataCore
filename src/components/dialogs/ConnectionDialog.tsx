@@ -174,6 +174,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [connectImmediately, setConnectImmediately] = useState(!initialConnection);
   const [vaultLockedNotice, setVaultLockedNotice] = useState(false);
+  const [hasMasterPassword, setHasMasterPassword] = useState(true);
 
   // Reset form when dialog opens or initialConnection changes
   useEffect(() => {
@@ -184,6 +185,12 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
       setIsSaving(false);
       setConnectImmediately(!initialConnection);
       setVaultLockedNotice(false);
+
+      if (typeof dbApi.hasVaultMasterPassword === 'function') {
+        Promise.resolve(dbApi.hasVaultMasterPassword())
+          .then((hasMaster) => setHasMasterPassword(Boolean(hasMaster)))
+          .catch(() => {});
+      }
 
       if (initialConnection?.id) {
         const checkStored = () => {
@@ -432,7 +439,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
         {/* Modal Container */}
         <Dialog.Content
           aria-describedby="connection-dialog-desc"
-          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl bg-panel border border-line rounded-lg shadow-2xl flex flex-col overflow-hidden max-h-[90vh] text-text focus:outline-none"
+          className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-panel border border-line rounded-lg shadow-2xl flex flex-col overflow-hidden max-h-[90vh] text-text focus:outline-none"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-panel">
@@ -550,6 +557,25 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
               </span>
             </div>
           )}
+          {formData.environment === 'production' &&
+            formData.driver !== 'sqlite' &&
+            formData.driver !== 'duckdb' &&
+            formData.rememberPassword !== false &&
+            !hasMasterPassword && (
+              <div
+                role="alert"
+                data-testid="production-vault-dcv1-warning"
+                className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300"
+              >
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  {t(
+                    'security.productionVaultWarning',
+                    'Production credentials are currently saved with machine-bound encryption (DCV1). For production databases, enable Master Password (DCV2 Argon2id) in Connection Security.'
+                  )}
+                </span>
+              </div>
+            )}
           <DriverForm
             driver={formData.driver}
             formData={formData}
@@ -582,7 +608,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-line bg-sidebar">
+        <div className="flex items-center justify-between gap-4 px-5 py-3 border-t border-line bg-sidebar">
           <div className="flex items-center space-x-3">
             <button
               type="button"

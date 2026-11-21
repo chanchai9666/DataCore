@@ -24,6 +24,7 @@ import { applySafeLimit, type SafeLimitOption } from '../../utils/sqlLimitHelper
 import { analyzeDangerousQuery, type DangerousQueryAnalysis } from '../../utils/dangerousQueryDetector';
 import { DangerousQueryConfirmModal } from '../dialogs/DangerousQueryConfirmModal';
 import { HistorySnippetsDrawer } from './HistorySnippetsDrawer';
+import { SaveQueryModal } from './SaveQueryModal';
 import { ExecutionPlanDrawer } from './ExecutionPlanDrawer';
 import { SavepointModal } from '../transactions/SavepointModal';
 import { LockInspectorModal } from '../transactions/LockInspectorModal';
@@ -33,6 +34,7 @@ import { useTabStore } from '../../stores/tabStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useStatusStore } from '../../stores/statusStore';
 import { useQueryHistoryStore } from '../../stores/queryHistoryStore';
+import { useSnippetStore } from '../../stores/snippetStore';
 import { useAuditLogStore } from '../../stores/auditLogStore';
 import { dbApi } from '../../api/db';
 import { buildExplainSql } from '../../api/queryBuilder';
@@ -440,6 +442,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const [parsedError, setParsedError] = useState<ParsedSqlError | null>(null);
   const [isHistorySnippetsOpen, setIsHistorySnippetsOpen] = useState(false);
   const [historySnippetsTab, setHistorySnippetsTab] = useState<'history' | 'snippets'>('history');
+  const [isSaveQueryOpen, setIsSaveQueryOpen] = useState(false);
+  const existingSavedQuery = useSnippetStore((s) =>
+    tab?.savedQueryId ? s.snippets.find((q) => q.id === tab.savedQueryId) ?? null : null
+  );
   const [isPlanOpen, setIsPlanOpen] = useState(false);
   const [planResult, setPlanResult] = useState<QueryResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -810,6 +816,13 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     [targetTabId, tab, onQueryResult, onError, safeLimit, connection?.driver, isReadOnly, ensureSession, isConnected, t]
   );
 
+  useEffect(() => {
+    if (tab?.autoRun && targetTabId && isConnected) {
+      useTabStore.getState().updateTab(targetTabId, { autoRun: false });
+      void handleRunQuery();
+    }
+  }, [tab?.autoRun, targetTabId, isConnected, handleRunQuery]);
+
   const handleDismissError = useCallback(() => {
     setErrorMessage(null);
     setParsedError(null);
@@ -877,6 +890,13 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           key: 'Mod-Shift-f',
           run: () => {
             handleFormatSql();
+            return true;
+          },
+        },
+        {
+          key: 'Mod-s',
+          run: () => {
+            setIsSaveQueryOpen(true);
             return true;
           },
         },
@@ -1099,6 +1119,9 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
           e.preventDefault();
           handleFormatSql();
+        } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 's' || e.key === 'S')) {
+          e.preventDefault();
+          setIsSaveQueryOpen(true);
         } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
           e.preventDefault();
           handleRunQuery();
@@ -1128,6 +1151,8 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         onOpenLocks={() => setIsLocksOpen(true)}
         onOpenMetrics={() => setIsMetricsOpen(true)}
         onOpenAuditLog={() => setIsAuditLogOpen(true)}
+        onSaveQuery={() => setIsSaveQueryOpen(true)}
+        isSavedQuery={Boolean(existingSavedQuery)}
         onOpenHistory={() => {
           setHistorySnippetsTab('history');
           setIsHistorySnippetsOpen(true);
@@ -1245,6 +1270,25 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           handleSelectSql(sql, mode);
           if (mode === 'replace' || mode === 'run') {
             setIsHistorySnippetsOpen(false);
+          }
+        }}
+      />
+
+      <SaveQueryModal
+        isOpen={isSaveQueryOpen}
+        onClose={() => setIsSaveQueryOpen(false)}
+        sql={tab.queryContent}
+        connectionId={tab.connectionId}
+        connectionName={connection?.name}
+        database={connection?.database}
+        driver={connection?.driver}
+        existingQuery={existingSavedQuery}
+        onSaved={(saved) => {
+          if (targetTabId) {
+            useTabStore.getState().updateTab(targetTabId, {
+              savedQueryId: saved.id,
+              title: saved.title,
+            });
           }
         }}
       />

@@ -330,6 +330,11 @@ impl DatabaseConnection for DuckdbConnection {
         chunk_rows: usize,
         tx: tokio::sync::mpsc::Sender<Chunk>,
     ) -> Result<StreamOutcome, AppError> {
+        if self.read_only && crate::drivers::is_read_only_blocked_sql(sql) {
+            return Err(AppError::Database(
+                "Connection is in read-only mode. Write operations are disabled.".to_string(),
+            ));
+        }
         let conn_guard = Arc::clone(&self.conn).lock_owned().await;
         let sql_owned = sql.to_string();
 
@@ -394,9 +399,7 @@ impl DatabaseConnection for DuckdbConnection {
             from_clause, where_clause, order_clause, limit, offset
         );
         let mut res = self.execute_query(&sql).await?;
-        if total_count.is_some() {
-            res.rows_affected = total_count;
-        }
+        super::reconcile_page_row_count(&mut res, total_count, false, limit, offset);
         Ok(res)
     }
 
@@ -475,18 +478,48 @@ impl DatabaseConnection for DuckdbConnection {
 
     async fn get_object_ddl(
         &self,
-        _schema: Option<&str>,
+        schema: Option<&str>,
         name: &str,
-        _object_type: &str,
+        object_type: &str,
     ) -> Result<String, AppError> {
-        let sql = format!(
-            "SELECT sql FROM duckdb_tables() WHERE table_name = '{}';",
-            name.replace('\'', "''")
-        );
-        let res = self.execute_query(&sql).await?;
-        if let Some(row) = res.rows.first() {
-            if let Some(CellValue::Text(ddl)) = row.first() {
-                return Ok(ddl.clone());
+        let safe_name = name.replace('\'', "''");
+        let schema_filter = schema
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| format!(" AND schema_name = '{}'", s.replace('\'', "''")))
+            .unwrap_or_default();
+
+        let is_view = object_type.to_lowercase().contains("view");
+        if is_view {
+            let view_sql = format!(
+                "SELECT sql FROM duckdb_views() WHERE view_name = '{}'{};",
+                safe_name, schema_filter
+            );
+            let res = self.execute_query(&view_sql).await?;
+            if let Some(row) = res.rows.first() {
+                if let Some(CellValue::Text(ddl)) = row.first() {
+                    return Ok(ddl.clone());
+                }
+            }
+        } else {
+            let table_sql = format!(
+                "SELECT sql FROM duckdb_tables() WHERE table_name = '{}'{};",
+                safe_name, schema_filter
+            );
+            let res = self.execute_query(&table_sql).await?;
+            if let Some(row) = res.rows.first() {
+                if let Some(CellValue::Text(ddl)) = row.first() {
+                    return Ok(ddl.clone());
+                }
+            }
+            let view_sql = format!(
+                "SELECT sql FROM duckdb_views() WHERE view_name = '{}'{};",
+                safe_name, schema_filter
+            );
+            let res = self.execute_query(&view_sql).await?;
+            if let Some(row) = res.rows.first() {
+                if let Some(CellValue::Text(ddl)) = row.first() {
+                    return Ok(ddl.clone());
+                }
             }
         }
         Err(AppError::NotFound(format!(

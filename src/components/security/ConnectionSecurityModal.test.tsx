@@ -77,7 +77,7 @@ describe('ConnectionSecurityModal', () => {
       expect(screen.getByText('Connection Encryption & Security')).toBeDefined();
       expect(screen.getByText('In-Transit Encryption (TLS / SSL)')).toBeDefined();
       expect(screen.getByText('TLS Encrypted')).toBeDefined();
-      expect(screen.getByText('At-Rest Encryption (การจัดเก็บข้อมูล)')).toBeDefined();
+      expect(screen.getByText('At-Rest Encryption (Data Storage)')).toBeDefined();
       expect(screen.getByText('Encrypted (TDE Active)')).toBeDefined();
     });
   });

@@ -164,6 +164,17 @@ impl SessionManager {
             .ok_or_else(|| AppError::NotFound(format!("Session for tab '{}' not found", tab_id)))
     }
 
+    /// Retrieve any active connection handle for a given connection_id, if one exists
+    pub async fn get_connection_session(
+        &self,
+        connection_id: &str,
+    ) -> Option<Arc<dyn DatabaseConnection>> {
+        let map = self.sessions.read().await;
+        map.values()
+            .find(|entry| entry.connection_id == connection_id)
+            .map(|entry| entry.connection.clone())
+    }
+
     /// Close and remove a session for a tab_id, rolling back any uncommitted transaction
     pub async fn close_session(&self, tab_id: &str) -> Result<(), AppError> {
         let entry = {

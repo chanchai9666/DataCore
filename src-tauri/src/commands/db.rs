@@ -532,6 +532,11 @@ pub async fn get_schema_tree_impl(
     session_mgr: &SessionManager,
     connection_id: &str,
 ) -> Result<Vec<SchemaNode>, AppError> {
+    if let Some(conn) = session_mgr.get_connection_session(connection_id).await {
+        if let Ok(tree) = conn.fetch_schema_tree().await {
+            return Ok(tree);
+        }
+    }
     let (config, password) =
         resolve_connection_credentials(store, session_mgr, connection_id).await?;
     let conn = SessionManager::create_connection(&config, password.as_deref()).await?;
@@ -546,6 +551,11 @@ pub async fn get_object_ddl_impl(
     object_name: &str,
     object_type: &str,
 ) -> Result<String, AppError> {
+    if let Some(conn) = session_mgr.get_connection_session(connection_id).await {
+        if let Ok(ddl) = conn.get_object_ddl(schema, object_name, object_type).await {
+            return Ok(ddl);
+        }
+    }
     let (config, password) =
         resolve_connection_credentials(store, session_mgr, connection_id).await?;
     let conn = SessionManager::create_connection(&config, password.as_deref()).await?;

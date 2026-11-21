@@ -76,10 +76,10 @@ describe('MainToolbar Component', () => {
     expect(screen.getByRole('button', { name: /import/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /export/i })).toBeDisabled();
 
-    // Check status dot and disconnected text in connection pill
+    // Check gray status dot and ensure disconnected text is not shown in connection pill
     const statusDot = screen.getByTestId('toolbar-connection-status-dot');
-    expect(statusDot.className).toContain('bg-muted/40');
-    expect(screen.getByText('(Disconnected)')).toBeInTheDocument();
+    expect(statusDot.className).toContain('bg-zinc-400');
+    expect(screen.queryByText('(Disconnected)')).not.toBeInTheDocument();
   });
 
   it('enables buttons and displays active connected badge when connected', () => {
