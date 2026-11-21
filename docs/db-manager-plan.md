@@ -1464,3 +1464,11 @@
 
 - **Semantic Token Migration (`src/components/tablelist/TableListTab.tsx`, `TableListTab.test.tsx`):**
   - แทนที่คลาสสี hardcode (`bg-white`, `bg-gray-*`, `bg-[#1e1e1e]`, `bg-[#252526]`, `border-gray-*`) ทั้งหมดใน Container, Top Toolbar, View Mode Switcher, List View (Flat & Accordion), Grid View, Storage & Health View และ Context Menu ด้วย semantic CSS theme tokens (`--bg-grid`, `--bg-panel`, `--bg-card`, `--bg-input`, `--bg-toolbar`, `--row-alt`, `--sel`, `--grid-header-bg`, `--border`, `--text`, `--text-muted`) เพื่อให้ธีม **Warm Paper**, **Light** และ **Dark** แสดงผลกลมกลืนสม่ำเสมอกัน
+
+### Phase 68: FilterBar Searchable Column Combobox, Larger Controls & `LIKE %%` (#253) [Completed]
+
+- **Searchable Column Combobox & Larger Controls (`src/components/grid/FilterBar.tsx`, `en.json`, `th.json`):**
+  - แทนที่ `<select>` คอลัมน์เดิมด้วย `ColumnCombobox` (render ผ่าน Portal, ค้นหาได้ทั้งชื่อคอลัมน์และ Data Type, รองรับ `↑/↓/Enter/Escape`, ใช้ semantic theme tokens)
+  - ขยายความสูงแถวเงื่อนไข (`h-[34px]`, `text-[13px]`, `max-h-56`) ให้อ่านและคลิกใช้งานง่ายขึ้น
+- **`LIKE %%` Operator (`src/types/db.ts`, `src/components/grid/filterUtils.ts`, `src-tauri/src/drivers/traits.rs`):**
+  - เพิ่ม `'LIKE %%'` ใน `FilterOperator`, `AVAILABLE_OPERATORS`, `buildSqlWhereClause`, `evaluateCondition` และ `build_safe_where_clause` พร้อม unit tests ทั้งฝั่ง Frontend และ Rust Backend

@@ -786,6 +786,8 @@
   },
   "grid": {
     "filterLabel": "ตัวกรอง:",
+    "searchColumnsPlaceholder": "ค้นหาคอลัมน์...",
+    "noColumnsMatch": "ไม่พบคอลัมน์ที่ตรงกัน",
     "addCondition": "เพิ่มเงื่อนไข",
     "apply": "ใช้งาน",
     "clear": "ล้าง",

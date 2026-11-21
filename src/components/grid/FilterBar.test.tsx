@@ -29,7 +29,7 @@ describe('FilterBar', () => {
       />
     );
 
-    expect(screen.getByDisplayValue(/product_name/i)).toBeInTheDocument();
+    expect(screen.getByTestId('filter-column-combobox')).toHaveTextContent(/product_name\s*\(TEXT\)/i);
     expect(screen.getByDisplayValue('LIKE')).toBeInTheDocument();
     expect(screen.getByDisplayValue('น้ำแข็ง')).toBeInTheDocument();
     expect(screen.getByText(/WHERE "product_name" LIKE '%น้ำแข็ง%'/i)).toBeInTheDocument();
@@ -158,5 +158,57 @@ describe('FilterBar', () => {
     expect(filterBar.className).toContain('text-text');
     expect(screen.getByText('Filter:').parentElement?.className).toContain('text-text');
     expect(screen.getByTestId('clear-filter-btn').className).toContain('bg-panel');
+  });
+
+  it('opens searchable column combobox, filters by column name or type, and selects column', () => {
+    const handleChange = vi.fn();
+    render(
+      <FilterBar
+        columns={mockColumns}
+        filterState={initialFilterState}
+        onChange={handleChange}
+        onApply={vi.fn()}
+        onClear={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('filter-column-combobox'));
+    const searchInput = screen.getByTestId('filter-column-search-input');
+    fireEvent.change(searchInput, { target: { value: 'REAL' } });
+
+    expect(screen.queryByRole('option', { name: /product_name/i })).not.toBeInTheDocument();
+    const priceOption = screen.getByRole('option', { name: /price\s*\(REAL\)/i });
+    fireEvent.click(priceOption);
+
+    expect(handleChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conditions: [expect.objectContaining({ column: 'price' })],
+      })
+    );
+  });
+
+  it('supports LIKE %% operator in selector and SQL preview', () => {
+    const handleChange = vi.fn();
+    const likePctState: TableFilterState = {
+      enabled: true,
+      conjunction: 'AND',
+      conditions: [
+        { id: 'c1', column: 'product_name', operator: 'LIKE %%', value: 'coffee' },
+      ],
+    };
+
+    render(
+      <FilterBar
+        columns={mockColumns}
+        filterState={likePctState}
+        onChange={handleChange}
+        onApply={vi.fn()}
+        onClear={vi.fn()}
+      />
+    );
+
+    const opSelect = screen.getByLabelText('Filter Operator');
+    expect(opSelect).toHaveValue('LIKE %%');
+    expect(screen.getByText(/WHERE "product_name" LIKE '%coffee%'/i)).toBeInTheDocument();
   });
 });

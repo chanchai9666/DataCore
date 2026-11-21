@@ -49,6 +49,10 @@ export function buildSqlWhereClause(
         return `${col} IS NULL`;
       case 'IS NOT NULL':
         return `${col} IS NOT NULL`;
+      case 'LIKE %%': {
+        const escaped = escapeString(val);
+        return `${col} LIKE '%${escaped}%'`;
+      }
       case 'LIKE':
       case 'NOT LIKE': {
         const escaped = escapeString(val);
@@ -101,6 +105,7 @@ function evaluateCondition(cellRaw: unknown, cond: FilterCondition): boolean {
 
   switch (cond.operator) {
     case 'LIKE':
+    case 'LIKE %%':
       return cellStr.includes(filterStr.replace(/%/g, ''));
     case 'NOT LIKE':
       return !cellStr.includes(filterStr.replace(/%/g, ''));

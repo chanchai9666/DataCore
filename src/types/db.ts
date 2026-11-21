@@ -190,6 +190,7 @@ export type FilterOperator =
   | '>='
   | '<='
   | 'LIKE'
+  | 'LIKE %%'
   | 'NOT LIKE'
   | 'IS NULL'
   | 'IS NOT NULL';

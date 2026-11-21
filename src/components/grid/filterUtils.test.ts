@@ -74,6 +74,13 @@ describe('filterUtils', () => {
       expect(buildSqlWhereClause(conditions)).toBe('"name" LIKE \'%ice\'');
     });
 
+    it('always wraps LIKE %% values with % wildcards', () => {
+      const conditions: FilterCondition[] = [
+        { id: '1', column: 'name', operator: 'LIKE %%', value: 'coffee' },
+      ];
+      expect(buildSqlWhereClause(conditions)).toBe('"name" LIKE \'%coffee%\'');
+    });
+
     it('handles IS NULL and IS NOT NULL without value', () => {
       const conditions: FilterCondition[] = [
         { id: '1', column: 'email', operator: 'IS NULL', value: '' },

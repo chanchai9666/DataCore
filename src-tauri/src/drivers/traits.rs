@@ -401,7 +401,7 @@ pub fn build_safe_where_clause(filter: Option<&str>, driver: &str) -> Result<Str
                         let op = if op_upper == "<>" { "!=" } else { &op_upper };
                         conditions_sql.push(format!("{} {} {}", quoted_col, op, formatted_val));
                     }
-                    "LIKE" | "NOT LIKE" => {
+                    "LIKE" | "LIKE %%" | "NOT LIKE" => {
                         let raw_val = cond.value.as_deref().unwrap_or("").trim();
                         let escaped = raw_val.replace('\'', "''");
                         let final_val = if driver == "mysql" {
@@ -409,12 +409,19 @@ pub fn build_safe_where_clause(filter: Option<&str>, driver: &str) -> Result<Str
                         } else {
                             escaped
                         };
-                        let pattern = if final_val.contains('%') || final_val.contains('_') {
+                        let pattern = if op_upper == "LIKE %%" {
+                            format!("%{}%", final_val)
+                        } else if final_val.contains('%') || final_val.contains('_') {
                             final_val
                         } else {
                             format!("%{}%", final_val)
                         };
-                        conditions_sql.push(format!("{} {} '{}'", quoted_col, op_upper, pattern));
+                        let sql_op = if op_upper == "NOT LIKE" {
+                            "NOT LIKE"
+                        } else {
+                            "LIKE"
+                        };
+                        conditions_sql.push(format!("{} {} '{}'", quoted_col, sql_op, pattern));
                     }
                     _ => {
                         return Err(AppError::InvalidInput(format!(
@@ -470,6 +477,17 @@ mod tests {
             mysql_where,
             " WHERE `age` >= 18 AND `status` = 'active' AND `name` LIKE '%John%'"
         );
+
+        let like_pct_filter = r#"{
+            "enabled": true,
+            "conjunction": "AND",
+            "conditions": [
+                {"column": "product_name", "operator": "LIKE %%", "value": "coffee"}
+            ]
+        }"#;
+        let like_pct_where =
+            build_safe_where_clause(Some(like_pct_filter), "postgres").expect("parse LIKE %%");
+        assert_eq!(like_pct_where, " WHERE \"product_name\" LIKE '%coffee%'");
     }
 
     #[test]

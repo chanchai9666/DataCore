@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { Plus, X, Filter, Play } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Plus, X, Filter, Play, ChevronDown, Search, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ColumnMeta, FilterCondition, FilterOperator, TableFilterState } from '../../types/db';
 import { buildSqlWhereClause } from './filterUtils';
@@ -23,10 +24,215 @@ const AVAILABLE_OPERATORS: FilterOperator[] = [
   '>=',
   '<=',
   'LIKE',
+  'LIKE %%',
   'NOT LIKE',
   'IS NULL',
   'IS NOT NULL',
 ];
+
+interface ColumnComboboxProps {
+  columns: ColumnMeta[];
+  value: string;
+  onChange: (columnName: string) => void;
+  searchPlaceholder: string;
+  noMatchText: string;
+}
+
+const ColumnCombobox: React.FC<ColumnComboboxProps> = ({
+  columns,
+  value,
+  onChange,
+  searchPlaceholder,
+  noMatchText,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; width: number }>({
+    top: 0,
+    left: 0,
+    width: 280,
+  });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const selectedCol = useMemo(
+    () => columns.find((c) => c.name === value) || columns[0],
+    [columns, value]
+  );
+
+  const filteredColumns = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return columns;
+    return columns.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.data_type && c.data_type.toLowerCase().includes(q))
+    );
+  }, [columns, query]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      const dropdownHeight = 290;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top =
+        spaceBelow >= dropdownHeight || spaceBelow >= rect.top
+          ? rect.bottom + 4
+          : Math.max(8, rect.top - dropdownHeight - 4);
+      const width = Math.max(rect.width, 280);
+      const left = Math.min(rect.left, Math.max(8, window.innerWidth - width - 8));
+      setPopoverPos({ top, left, width });
+    }
+    const timer = setTimeout(() => searchRef.current?.focus(), 0);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        triggerRef.current?.contains(target) ||
+        popoverRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [isOpen]);
+
+  const handleSelect = (colName: string) => {
+    onChange(colName);
+    setIsOpen(false);
+    setQuery('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((prev) =>
+        filteredColumns.length > 0 ? Math.min(prev + 1, filteredColumns.length - 1) : 0
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const target = filteredColumns[activeIndex];
+      if (target) {
+        handleSelect(target.name);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsOpen(false);
+      setQuery('');
+    }
+  };
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        role="combobox"
+        aria-expanded={isOpen}
+        data-testid="filter-column-combobox"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="h-[34px] min-w-[200px] max-w-[280px] flex items-center justify-between gap-2 bg-grid text-text border border-line rounded px-2.5 text-[13px] hover:border-[var(--accent)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+      >
+        <span className="truncate font-mono text-left">
+          {selectedCol ? (
+            <>
+              <span className="font-medium">{selectedCol.name}</span>{' '}
+              <span className="text-[11px] text-muted">({selectedCol.data_type})</span>
+            </>
+          ) : (
+            <span className="text-muted">—</span>
+          )}
+        </span>
+        <ChevronDown className="w-3.5 h-3.5 text-muted shrink-0" />
+      </button>
+
+      {isOpen &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            data-testid="filter-column-popover"
+            style={{
+              top: popoverPos.top,
+              left: popoverPos.left,
+              width: popoverPos.width,
+            }}
+            className="fixed z-[100] rounded-lg border border-line bg-panel text-text shadow-xl overflow-hidden"
+          >
+            <div className="p-2 border-b border-line bg-sidebar">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                <input
+                  ref={searchRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={searchPlaceholder}
+                  data-testid="filter-column-search-input"
+                  className="w-full h-[32px] pl-8 pr-2.5 rounded border border-line bg-grid text-text placeholder:text-muted text-[13px] focus:outline-none focus:border-[var(--accent)]"
+                />
+              </div>
+            </div>
+            <div
+              role="listbox"
+              className="max-h-60 overflow-y-auto py-1"
+            >
+              {filteredColumns.length === 0 ? (
+                <div className="px-3 py-3 text-center text-xs text-muted">
+                  {noMatchText}
+                </div>
+              ) : (
+                filteredColumns.map((col, idx) => {
+                  const isSelected = col.name === selectedCol?.name;
+                  const isHighlighted = idx === activeIndex;
+                  return (
+                    <button
+                      key={col.name}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onMouseEnter={() => setActiveIndex(idx)}
+                      onClick={() => handleSelect(col.name)}
+                      className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 text-[13px] transition-colors ${
+                        isSelected
+                          ? 'bg-[var(--sel)] text-text font-medium'
+                          : isHighlighted
+                          ? 'bg-[var(--row-alt)] text-text'
+                          : 'text-text hover:bg-[var(--row-alt)]'
+                      }`}
+                    >
+                      <span className="truncate font-mono">
+                        {col.name}{' '}
+                        <span className="text-[11px] text-muted">({col.data_type})</span>
+                      </span>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-accent shrink-0" />}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
+  );
+};
 
 export const FilterBar: React.FC<FilterBarProps> = ({
   columns,
@@ -213,36 +419,33 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       </div>
 
       {/* Conditions Rows */}
-      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
         {filterState.conditions.map((cond, idx) => {
           const isNullOp = cond.operator === 'IS NULL' || cond.operator === 'IS NOT NULL';
 
           return (
             <div key={cond.id || idx} className="flex items-center space-x-2">
-              <span className="text-[11px] w-4 text-right text-muted">
+              <span className="text-xs w-6 text-right text-muted font-medium">
                 {idx === 0 ? '' : filterState.conjunction}
               </span>
 
-              {/* Column selector */}
-              <select
+              {/* Searchable Column selector */}
+              <ColumnCombobox
+                columns={columns}
                 value={cond.column || columns[0]?.name || ''}
-                onChange={(e) => handleConditionChange(cond.id, { column: e.target.value })}
-                className={`h-[28px] ${inputCls} border rounded px-2 text-xs focus:outline-none focus:border-blue-500`}
-              >
-                {columns.map((col) => (
-                  <option key={col.name} value={col.name}>
-                    {col.name} ({col.data_type})
-                  </option>
-                ))}
-              </select>
+                onChange={(colName) => handleConditionChange(cond.id, { column: colName })}
+                searchPlaceholder={t('grid.searchColumnsPlaceholder', 'Search columns...')}
+                noMatchText={t('grid.noColumnsMatch', 'No matching columns')}
+              />
 
               {/* Operator selector */}
               <select
+                aria-label="Filter Operator"
                 value={cond.operator}
                 onChange={(e) =>
                   handleConditionChange(cond.id, { operator: e.target.value as FilterOperator })
                 }
-                className={`h-[28px] ${inputCls} border rounded px-2 text-xs focus:outline-none focus:border-blue-500 font-mono`}
+                className={`h-[34px] ${inputCls} border rounded px-2.5 text-[13px] focus:outline-none focus:border-[var(--accent)] font-mono`}
               >
                 {AVAILABLE_OPERATORS.map((op) => (
                   <option key={op} value={op}>
@@ -259,7 +462,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 value={isNullOp ? '' : cond.value}
                 onChange={(e) => handleConditionChange(cond.id, { value: e.target.value })}
                 onKeyDown={handleKeyDown}
-                className={`flex-1 h-[28px] ${inputCls} border rounded px-2 text-xs focus:outline-none focus:border-blue-500 ${
+                className={`flex-1 h-[34px] ${inputCls} border rounded px-2.5 text-[13px] focus:outline-none focus:border-[var(--accent)] ${
                   isNullOp ? 'opacity-50 cursor-not-allowed italic' : ''
                 }`}
               />
@@ -269,9 +472,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 type="button"
                 onClick={() => handleRemoveCondition(cond.id)}
                 title="Remove Condition"
-                className="p-1 rounded transition-colors text-muted hover:text-red-500 hover:bg-black/5 dark:hover:bg-white/10"
+                className="p-1.5 rounded transition-colors text-muted hover:text-red-500 hover:bg-black/5 dark:hover:bg-white/10"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           );
